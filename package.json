@@ -1,0 +1,16 @@
+{
+  "name": "sora-no-koe",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.0",
+    "firebase-admin": "^12.0.0"
+  },
+  "scripts": {
+    "start": "functions-framework --target=app --port=$PORT"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
