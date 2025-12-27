@@ -325,6 +325,16 @@ functions.http("app", async (req, res) => {
     if (path === "/linewebhook") {
         console.log("LINE webhook hit");
         console.log(JSON.stringify(req.body));
+
+        const ev = req.body?.events?.[0];
+        const fromUserId = ev?.source?.userId;
+
+        if (fromUserId) {
+            console.log("SOURCE userId =", fromUserId);
+        } else {
+            console.log("No source.userId in event");
+        }
+
         return res.status(200).json({ ok: true });
     }
 
@@ -436,47 +446,47 @@ function verifyLineSignature(req) {
 }
 
 async function pushMeHandler(req, res) {
-  try {
-    const text = String(req.query.text || "🌌 ソラのこえ。").trim();
+    try {
+        const text = String(req.query.text || "🌌 ソラのこえ。").trim();
 
-    const userId = process.env.OWNER_LINE_USER_ID;
-    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        const userId = process.env.OWNER_LINE_USER_ID;
+        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
-    if (!userId || !token) {
-      return res.status(500).json({
-        ok: false,
-        error: "LINE env vars missing",
-      });
+        if (!userId || !token) {
+            return res.status(500).json({
+                ok: false,
+                error: "LINE env vars missing",
+            });
+        }
+
+        const payload = {
+            to: userId,
+            messages: [
+                {
+                    type: "text",
+                    text,
+                },
+            ],
+        };
+
+        const r = await fetch("https://api.line.me/v2/bot/message/push", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        const body = await r.text();
+
+        return res.json({
+            ok: r.ok,
+            status: r.status,
+            response: body,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, error: String(err) });
     }
-
-    const payload = {
-      to: userId,
-      messages: [
-        {
-          type: "text",
-          text,
-        },
-      ],
-    };
-
-    const r = await fetch("https://api.line.me/v2/bot/message/push", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const body = await r.text();
-
-    return res.json({
-      ok: r.ok,
-      status: r.status,
-      response: body,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: String(err) });
-  }
 }
