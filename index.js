@@ -895,6 +895,13 @@ app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
   });
 });
 
+app.post("/lineWebhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+  handleLineWebhook(req, res).catch((err) => {
+    console.error(err);
+    return bad(res, 500, String(err));
+  });
+});
+
 // fallback
 app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
 
