@@ -875,6 +875,9 @@ app.get("/stories/build", (req, res) => handleBuildStory(req, res));
 app.get("/posts/x", (req, res) => handleBuildXPost(req, res));
 app.get("/line/daily", (req, res) => handleBuildLineDaily(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
+app.get("/debug/resetRegistration", (req, res) => {
+  handleDebugResetRegistration(req, res).catch((err) => bad(res, 500, String(err)));
+});
 
 // Jobs worker (json body)
 app.post("/jobs/worker", bodyParser.json(), (req, res) => {
@@ -897,3 +900,66 @@ app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
 
 // Functions Framework entry
 functions.http("app", app);
+
+
+// ====================
+// DEBUG: reset registration
+// ====================
+// Env:
+//   DEBUG_TOKEN=... (必須。適当な長い文字列にして Cloud Run の env に入れる)
+//
+// Usage:
+//   GET /debug/resetRegistration?line_user_id=Uxxxx&token=DEBUG_TOKEN
+//   (optional) &keep_app_user_id=true|false
+//
+async function handleDebugResetRegistration(req, res) {
+  try {
+    const token = String(req.query.token || "");
+    const need = process.env.DEBUG_TOKEN;
+
+    if (!need) return bad(res, 500, "DEBUG_TOKEN is missing in env");
+    if (!token || token !== need) return bad(res, 403, "forbidden");
+
+    const lineUserId = String(req.query.line_user_id || "").trim();
+    if (!lineUserId) return bad(res, 400, "line_user_id is required");
+
+    const keepAppUserId = String(req.query.keep_app_user_id || "true").toLowerCase() !== "false";
+
+    const ref = db.collection("line_users").doc(lineUserId);
+    const snap = await ref.get();
+    if (!snap.exists) return bad(res, 404, "line_users doc not found");
+
+    const data = snap.data() || {};
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    const patch = {
+      status: "pending_birth_date",
+      consent: {
+        profile: false,
+        saved_at: null,
+      },
+      profile: {
+        timezone: data?.profile?.timezone || DEFAULT_TZ,
+      },
+      updated_at: now,
+    };
+
+    // app_user_id を消すと次回 webhook で新規発行される可能性がある
+    // → テスト時は keep 推奨
+    if (!keepAppUserId) {
+      patch.app_user_id = admin.firestore.FieldValue.delete();
+    }
+
+    await ref.set(patch, { merge: true });
+
+    return ok(res, {
+      reset: true,
+      line_user_id: lineUserId,
+      keep_app_user_id: keepAppUserId,
+      next_status: "pending_birth_date",
+    });
+  } catch (err) {
+    console.error(err);
+    return bad(res, 500, String(err));
+  }
+}
