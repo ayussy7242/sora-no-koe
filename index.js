@@ -315,13 +315,15 @@ functions.http("app", async (req, res) => {
         return res.json({
             ok: true,
             service: "sora-no-koe",
-            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp"],
+            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp"],
         });
     }
 
     if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
     if (path === "/transithttp") return transitHttpHandler(req, res);
     if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
+    if (path === "/buildlinedailyhttp") return buildLineDailyHttpHandler(req, res);
+
 
     return res.status(404).json({ ok: false, error: "not found", path });
 });
