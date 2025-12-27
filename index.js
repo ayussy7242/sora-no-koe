@@ -476,44 +476,41 @@ function renderLine(story) {
   const top = story?.personal?.touch_points_top3 || [];
   const moonSign = story?.public?.moon?.sign_ja || null;
 
-  const lines = top.length
-    ? top.map((r, i) => {
-      const t = fmtBodyJa(r.transit_body);
-      const n = fmtPointJa(r.natal_body_or_point);
-      const a = fmtAspectJa(r.aspect);
-      const degLabel =
-        (r.aspect_deg === 0) ? "約0°" :
-          (r.aspect_deg === 60) ? "約60°" :
-            (r.aspect_deg === 90) ? "約90°" :
-              (r.aspect_deg === 120) ? "約120°" :
-                (r.aspect_deg === 180) ? "約180°" : `約${r.aspect_deg}°`;
+  const circ = ["①", "②", "③"];
 
-      return `${i + 1} ${t} × ${n}｜${a}（${degLabel}｜orb ${r.orb_deg}°）`;
-    }).join("\n")
-    : "（今日は強い接触は少なめ。静かな日も、ちゃんと意味がある）";
+  const lines = top.slice(0, 3).map((r, i) => {
+    const t = fmtBodyJa(r.transit_body);
+    const n = fmtPointJa(r.natal_body_or_point);
+    const a = fmtAspectJa(r.aspect);
+    const deg = (r.aspect_deg ?? "").toString();
+    return `${circ[i] || `${i + 1}.`} ${t} × ${n}｜${a}（約${deg}°｜orb ${r.orb_deg}°）`;
+  });
 
-  const moonBlock = moonSign
-    ? `\n【今日の月の位置】\n月は ${moonSign} を通過中。`
-    : `\n【今日の月の位置】\n月のサインは取得中。`;
+  const moonLine = moonSign
+    ? `【今日の月の位置】\n月は ${moonSign} を通過中。`
+    : `【今日の月の位置】\n月のサインは取得中。`;
 
-  // 固定の「共鳴例」(思想FIX)
-  const resonance = `
-【立ち上がりやすい共鳴（例）】
-・安心と違和感が同時に動く
-・距離感を調整したくなる
-・言葉より先に反応が出る
-・感情の置き場を探したくなる`.trim();
-
-return `🌌 🌌 今日のソラのこえ。｜${dateLabel}
-
-【今日の主な星の配置】
-${lines}${moonBlock}
-
-${resonance}
-
-解釈は、あなたのもの。
-星は語る。決めるのは、人。`;
+  // ※インデント無し（これ大事）
+  return [
+    `🌌 🌌 今日のソラのこえ。｜${dateLabel}`,
+    ``,
+    `【今日の主な星の配置】`,
+    lines.length ? lines.join("\n") : "（今日は強い接触は少なめの日）",
+    moonLine,
+    ``,
+    `【立ち上がりやすい共鳴（例）】`,
+    `・安心と違和感が同時に動く`,
+    `・距離感を調整したくなる`,
+    `・言葉より先に反応が出る`,
+    `・感情の置き場を探したくなる`,
+    ``,
+    `どれか一つでも、まったく違っても大丈夫。`,
+    ``,
+    `解釈は、あなたのもの。`,
+    `星は語る。決めるのは、人。`,
+  ].join("\n");
 }
+
 
 function renderX(story) {
   const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
