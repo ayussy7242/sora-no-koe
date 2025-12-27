@@ -11,8 +11,10 @@
     "swisseph": "^0.5.17"
   },
   "scripts": {
-    "start": "functions-framework --target=app --port=$PORT"
-  },
+  "start": "functions-framework --target=app --port=8080",
+  "start:run": "functions-framework --target=app --port=$PORT",
+  "dev": "functions-framework --target=app --port=8080"
+},
   "engines": {
     "node": ">=20"
   }
