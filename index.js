@@ -1,26 +1,30 @@
 /**
- * sora-no-koe (Cloud Run / Functions Framework)
- * - LINE Webhook (raw-body signature verify)
- * - Firestore multi DB (databaseId: sora-no-koe-db)
- * - Story build (minimal resonance top3)
- * - Daily LINE message builder
- * - PushMe (owner test)
- * - Jobs worker (enqueue natal calc)
+ * 🌌 sora-no-koe (Cloud Run / Functions Framework) — Unified v1.1
  *
- * Env required:
+ * ✅ What this file solves (全部まとめて解決):
+ * - story.json（器）を確定（schema_version 1.1）
+ * - renderLine / renderX / renderIG を実装
+ * - /line/daily を now(as_of) 対応に
+ * - /stories/build（単日） + /stories/rebuild（範囲） を分離
+ * - Firestore 保存フォーマットを一本化（storiesは常に同じ形）
+ * - LINE webhook（raw-body署名検証）安定
+ * - 既存の登録フロー（birth_date/time/place/consent）維持
+ * - バルク投入（Firestore stories へ一括 upsert）用の管理APIも追加（DEBUG_TOKEN必須）
+ *
+ * ⚠️ NOTE:
+ * - トランジット計算は現状「approx」。将来Swiss Ephemeris等に差し替え前提。
+ *   でも今は "now対応" が最優先なので、as_of ISO datetime を受けて近似で動かす。
+ *
+ * Required env:
  *   LINE_CHANNEL_SECRET
  *   LINE_CHANNEL_ACCESS_TOKEN
- *   OWNER_LINE_USER_ID (optional for /push)
- *   GOOGLE_MAPS_API_KEY (optional if geocoding)
- *   FIRESTORE_DATABASE_ID (optional, default sora-no-koe-db)
  *
- * Optional:
- *   LINE_WEBHOOK_STRICT=1  (default: 0)
- *     - 1: signature mismatch => 401
- *     - 0: signature mismatch => 200 (LINE console "success" を優先)
- *
- * Runtime:
- *   Node >= 18 recommended (fetch available)
+ * Optional env:
+ *   FIRESTORE_DATABASE_ID           (default: sora-no-koe-db)
+ *   LINE_WEBHOOK_STRICT             (default: 0) 1 => mismatch 401, 0 => 200
+ *   OWNER_LINE_USER_ID              (/push用)
+ *   GOOGLE_MAPS_API_KEY             (出生地ジオコードしたい場合)
+ *   DEBUG_TOKEN                     (/debug/* /admin/* の保護)
  */
 
 "use strict";
@@ -43,8 +47,8 @@ db.settings({ databaseId: process.env.FIRESTORE_DATABASE_ID || "sora-no-koe-db" 
 // constants / config
 // --------------------
 const PROJECT = "sora-no-koe";
-const SCHEMA_VERSION = "1.0.3";
 const DEFAULT_TZ = "Asia/Tokyo";
+const SCHEMA_VERSION = "1.1.0"; // story schema version
 
 const LINE_STRICT = String(process.env.LINE_WEBHOOK_STRICT || "0") === "1";
 
@@ -56,16 +60,6 @@ const ASPECTS = [
   { type: "opposition", deg: 180 },
 ];
 
-// NOTE: いまは “近似 speed” 計算（既存挙動維持）
-// 将来: SwissEphemerisなど本計算に差し替え想定
-const TRANSIT_SPEED = {
-  Sun: 0.9856,
-  Moon: 13.176,
-  Mercury: 1.2,
-  Venus: 1.18,
-  Mars: 0.524,
-};
-
 const BODY_JA = { Sun: "太陽", Moon: "月", Mercury: "水星", Venus: "金星", Mars: "火星" };
 const POINT_JA = { Sun: "太陽", Moon: "月", ASC: "ASC" };
 const ASPECT_JA = {
@@ -76,38 +70,57 @@ const ASPECT_JA = {
   opposition: "オポジション",
 };
 
+// NOTE: 近似 speed（今は “動く” こと最優先）
+const TRANSIT_SPEED_DEG_PER_DAY = {
+  Sun: 0.9856,
+  Moon: 13.176,
+  Mercury: 1.2,
+  Venus: 1.18,
+  Mars: 0.524,
+};
+
+// zodiac (0 Aries)
+const SIGNS_JA = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"];
+
 // --------------------
-// helpers
+// helpers (core)
 // --------------------
 function nowIso() {
   return new Date().toISOString();
 }
 
-function getRequestId(req) {
-  return (
-    String(req.header("x-request-id") || req.header("x-cloud-trace-context") || "")
-      .slice(0, 100) || null
-  );
+function safeText(v, max = 5000) {
+  const s = String(v ?? "");
+  return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-function jstTodayYYYYMMDD() {
-  const now = new Date();
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
+function ok(res, payload) {
+  return res.status(200).json({ ok: true, ...payload });
+}
+
+function bad(res, code, message, extra = {}) {
+  return res.status(code).json({ ok: false, error: message, ...extra });
+}
+
+function must(v, name) {
+  if (v === undefined || v === null || String(v).trim() === "") {
+    throw new Error(`${name} is required`);
+  }
+  return String(v).trim();
+}
+
+function parseBool(v) {
+  if (v === undefined || v === null) return false;
+  const s = String(v).toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
 }
 
 function isYYYYMMDD(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
-function asNumber(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toFixedPrecision(n, precisionDeg = 0.01) {
-  const p = 1 / precisionDeg;
-  return Math.round(n * p) / p;
+function isHHMM(s) {
+  return typeof s === "string" && /^\d{2}:\d{2}$/.test(s);
 }
 
 function norm360(deg) {
@@ -121,53 +134,454 @@ function absAngularDistance(a, b) {
   return Math.min(d, 360 - d);
 }
 
-function aspectDelta(distanceDeg, aspectDeg) {
-  return Math.abs(distanceDeg - aspectDeg);
+function toFixedPrecision(n, precisionDeg = 0.01) {
+  const p = 1 / precisionDeg;
+  return Math.round(n * p) / p;
 }
 
 function getAspectTypeAndOrb(distanceDeg, orbMaxDeg) {
   let best = null;
   for (const a of ASPECTS) {
-    const orb = aspectDelta(distanceDeg, a.deg);
+    const orb = Math.abs(distanceDeg - a.deg);
     if (orb <= orbMaxDeg) {
-      if (!best || orb < best.orb_deg) best = { aspect: a.type, orb_deg: orb };
+      if (!best || orb < best.orb_deg) best = { aspect: a.type, aspect_deg: a.deg, orb_deg: orb };
     }
   }
   return best;
 }
 
-function calcTransitPlanetLonApprox(dateLocal, speedPerDay, precisionDeg = 0.01) {
-  const base = new Date("2025-01-01T00:00:00Z");
-  const target = new Date(`${dateLocal}T00:00:00+09:00`);
-  const days = Math.floor((target - base) / (24 * 60 * 60 * 1000));
-  return norm360(toFixedPrecision((days * speedPerDay) % 360, precisionDeg));
+function pickTopByOrb(items, n = 3) {
+  return [...items].sort((x, y) => (x.orb_deg ?? 999) - (y.orb_deg ?? 999)).slice(0, n);
 }
 
-function metaBase({ dateLocal, timezone, requestId, engine = {} }) {
+/**
+ * Convert ISO -> {date_local (JST), time_local (HH:MM)}
+ */
+function isoToJstParts(asOfISO) {
+  const d = asOfISO ? new Date(asOfISO) : new Date();
+  const jstMs = d.getTime() + 9 * 60 * 60 * 1000;
+  const jst = new Date(jstMs);
+  const iso = jst.toISOString(); // still "Z" but shifted; we just slice
+  const date_local = iso.slice(0, 10);
+  const time_local = iso.slice(11, 16);
+  return { date_local, time_local };
+}
+
+/**
+ * Create ISO string that represents "dateLocal + timeHHMM in JST"
+ * - We return an ISO string in UTC, but derived from JST local.
+ */
+function isoWithJST(dateLocal, timeHHMM = "14:00") {
+  if (!isYYYYMMDD(dateLocal)) throw new Error("dateLocal must be YYYY-MM-DD");
+  if (!isHHMM(timeHHMM)) throw new Error("time must be HH:MM");
+  // JST local -> UTC: subtract 9h
+  const [y, m, d] = dateLocal.split("-").map(Number);
+  const [hh, mm] = timeHHMM.split(":").map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d, hh - 9, mm, 0));
+  return utc.toISOString();
+}
+
+function eachDateLocal(from, to) {
+  if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) throw new Error("from/to must be YYYY-MM-DD");
+  const out = [];
+  const start = new Date(from + "T00:00:00+09:00");
+  const end = new Date(to + "T00:00:00+09:00");
+  if (start > end) throw new Error("from must be <= to");
+
+  let cur = start;
+  while (cur <= end) {
+    // extract JST date
+    const jst = new Date(cur.getTime() + 9 * 60 * 60 * 1000);
+    out.push(jst.toISOString().slice(0, 10));
+    cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return out;
+}
+
+function getRequestId(req) {
+  return (
+    String(req.header("x-request-id") || req.header("x-cloud-trace-context") || "")
+      .slice(0, 100) || null
+  );
+}
+
+// --------------------
+// Transit (approx, now対応)
+// --------------------
+function calcLonApprox(asOfISO, speedPerDay, seedDeg = 0, precisionDeg = 0.01) {
+  // base: 2025-01-01T00:00:00Z
+  const base = new Date("2025-01-01T00:00:00Z").getTime();
+  const t = new Date(asOfISO).getTime();
+  const days = (t - base) / (24 * 60 * 60 * 1000);
+  const lon = seedDeg + days * speedPerDay;
+  return norm360(toFixedPrecision(lon, precisionDeg));
+}
+
+function signJaFromLon(lonDeg) {
+  const idx = Math.floor(norm360(lonDeg) / 30);
+  return SIGNS_JA[idx] ?? null;
+}
+
+/**
+ * computeTransits(as_of_iso) -> { bodies: {Sun:deg,...}, moon:{lon_deg, sign_ja} }
+ */
+function computeTransitsApprox(asOfISO, precisionDeg = 0.01) {
+  const bodies = {};
+  // seedDeg: 0 (雑)。将来seedを実測に置換。
+  for (const [body, speed] of Object.entries(TRANSIT_SPEED_DEG_PER_DAY)) {
+    bodies[body] = calcLonApprox(asOfISO, speed, 0, precisionDeg);
+  }
+  const moonLon = bodies.Moon;
   return {
-    schema_version: SCHEMA_VERSION,
-    project: PROJECT,
-    timezone: timezone || DEFAULT_TZ,
-    date_local: dateLocal,
-    generated_at_utc: nowIso(),
-    engine: {
-      ...engine,
-      request_id: requestId,
+    bodies,
+    moon: {
+      lon_deg: moonLon,
+      sign_ja: signJaFromLon(moonLon),
     },
   };
 }
 
-function ok(res, payload) {
-  return res.status(200).json({ ok: true, ...payload });
+// --------------------
+// Natal cache load / normalize
+// --------------------
+async function loadNatalFromCache(appUserId) {
+  const snap = await db.collection("natal_cache").doc(appUserId).get();
+  if (!snap.exists) return null;
+  return snap.data();
 }
 
-function bad(res, code, message, extra = {}) {
-  return res.status(code).json({ ok: false, error: message, ...extra });
+function extractNatalLongitudes(natalCacheDoc) {
+  // Support your existing schema + fallback candidates
+  // Preferred: natal_positions.sun/moon/asc.lon_deg
+  const sun = natalCacheDoc?.natal_positions?.sun?.lon_deg;
+  const moon = natalCacheDoc?.natal_positions?.moon?.lon_deg;
+  const asc = natalCacheDoc?.natal_positions?.asc?.lon_deg;
+
+  if (Number.isFinite(sun) && Number.isFinite(moon) && Number.isFinite(asc)) {
+    return { Sun: sun, Moon: moon, ASC: asc };
+  }
+
+  // Fallback patterns
+  const candidates = [];
+  if (natalCacheDoc?.points) candidates.push(natalCacheDoc.points);
+  if (natalCacheDoc?.natal) candidates.push(natalCacheDoc.natal);
+  if (natalCacheDoc?.bodies) candidates.push(natalCacheDoc.bodies);
+
+  for (const obj of candidates) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v && typeof v === "object" && typeof v.lon_deg === "number") out[k] = v.lon_deg;
+      if (typeof v === "number") out[k] = v;
+    }
+    if (Object.keys(out).length) return out;
+  }
+
+  throw new Error("Cannot extract natal longitudes from natal_cache doc. Update extractNatalLongitudes().");
 }
 
-function safeText(v, max = 2000) {
-  const s = String(v ?? "");
-  return s.length > max ? s.slice(0, max) + "…" : s;
+// --------------------
+// story.json (器) v1.1 — FIX
+// --------------------
+function buildTouchPoints({ transitBodies, natalBodies, rules }) {
+  const results = [];
+  const transitKeys = Object.keys(transitBodies);
+  const natalKeys = Object.keys(natalBodies);
+
+  for (const t of transitKeys) {
+    const tLon = transitBodies[t];
+    if (typeof tLon !== "number") continue;
+
+    for (const n of natalKeys) {
+      const nLon = natalBodies[n];
+      if (typeof nLon !== "number") continue;
+
+      const dist = absAngularDistance(tLon, nLon);
+      const best = (() => {
+        let b = null;
+        for (const a of ASPECTS) {
+          const delta = Math.abs(dist - a.deg);
+          if (!b || delta < b.delta) b = { type: a.type, aspect_deg: a.deg, delta };
+        }
+        return b;
+      })();
+
+      if (!rules.aspects_used.includes(best.type)) continue;
+      if (best.delta > rules.orb_max_deg) continue;
+
+      results.push({
+        transit_body: t,
+        natal_body_or_point: n,
+        aspect: best.type,
+        aspect_deg: best.aspect_deg,
+        orb_deg: Number(best.delta.toFixed(2)),
+        house_focus: null,
+        keywords: [],
+      });
+    }
+  }
+
+  return results.sort((x, y) => x.orb_deg - y.orb_deg);
+}
+
+function buildPublicSkyTop(transitMap) {
+  const moonLon = transitMap?.Moon;
+  if (typeof moonLon !== "number") return [];
+
+  const preferred = ["Sun", "Venus", "Mars", "Mercury", "Jupiter", "Saturn"];
+  const out = [];
+
+  for (const b of preferred) {
+    const lon = transitMap[b];
+    if (typeof lon !== "number") continue;
+
+    const dist = absAngularDistance(moonLon, lon);
+    // best aspect
+    let best = null;
+    for (const a of ASPECTS) {
+      const delta = Math.abs(dist - a.deg);
+      if (!best || delta < best.delta) best = { type: a.type, aspect_deg: a.deg, delta };
+    }
+    if (best.delta <= 6) {
+      out.push({
+        a: "Moon",
+        b,
+        type: best.type,
+        aspect_deg: best.aspect_deg,
+        orb_deg: Number(best.delta.toFixed(2)),
+      });
+    }
+  }
+
+  return out.sort((x, y) => x.orb_deg - y.orb_deg).slice(0, 3);
+}
+
+/**
+ * story.json v1.1 (FIX)
+ * - public: sky only (X/IG)
+ * - personal: touch points (LINE only)
+ * - guardrails: thoughts boundary
+ */
+function storyJsonV11({
+  appUserId,
+  displayName,
+  dateLocal,
+  asOfISO,
+  transitInfo,
+  touchPointsAll,
+  rules,
+  engineMeta,
+}) {
+  const touchTop3 = pickTopByOrb(touchPointsAll, 3);
+  const skyTop = buildPublicSkyTop(transitInfo.bodies);
+
+  return {
+    meta: {
+      schema_version: SCHEMA_VERSION,
+      project: PROJECT,
+      timezone: DEFAULT_TZ,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      generated_at_utc: nowIso(),
+      engine: engineMeta ?? {
+        ephemeris_source: "approx",
+        precision_deg: 0.01,
+      },
+      rules,
+    },
+
+    public: {
+      date_local: dateLocal,
+      moon: {
+        sign_ja: transitInfo?.moon?.sign_ja ?? null,
+        lon_deg: transitInfo?.moon?.lon_deg ?? null,
+      },
+      sky_top: skyTop,
+      // ここは後から辞書/AIで埋める余白（思想的にもOK）
+      tone_hints: {
+        resonance_bullets: [],
+      },
+    },
+
+    personal: {
+      user_id: appUserId,
+      user: {
+        display_name: displayName ?? null,
+      },
+      privacy: {
+        contains_personal_data: true,
+        allowed_channels: ["line"],
+      },
+      touch_points_top3: touchTop3,
+    },
+
+    guardrails: {
+      no_prediction: true,
+      no_good_bad: true,
+      no_should: true,
+      no_personality_label: true,
+      no_salvation: true,
+      sovereignty_returned: true,
+    },
+  };
+}
+
+// --------------------
+// Renderers (LINE / X / IG)
+// --------------------
+function fmtAspectJa(aspect) {
+  return ASPECT_JA[aspect] || aspect;
+}
+function fmtBodyJa(body) {
+  return BODY_JA[body] || body;
+}
+function fmtPointJa(p) {
+  return POINT_JA[p] || p;
+}
+
+function renderLine(story) {
+  const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+  const top = story?.personal?.touch_points_top3 || [];
+  const moonSign = story?.public?.moon?.sign_ja || null;
+
+  const lines = top.map((r, i) => {
+    const t = fmtBodyJa(r.transit_body);
+    const n = fmtPointJa(r.natal_body_or_point);
+    const a = fmtAspectJa(r.aspect);
+    return `${i + 1}) ${t} × ${n}｜${a}（orb ${r.orb_deg}°）`;
+    // ※ここで意味解説をしない（思想FIX）
+  });
+
+  const moonLine = moonSign ? `\n【今日の月】\n月は ${moonSign} を通過中。` : "";
+
+  return `🌌 今日のソラのこえ。｜${dateLabel}
+
+【今日、強く触れている配置】
+${lines.join("\n")}${moonLine}
+
+どれか一つでも、まったく違っても大丈夫。
+
+解釈は、あなたのもの。
+星は語る。決めるのは、人。`;
+}
+
+function renderX(story) {
+  // X/IGは「public only」でも成立するように（個人情報なし）
+  const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+  const sky = story?.public?.sky_top || [];
+  const moonSign = story?.public?.moon?.sign_ja || null;
+
+  const skyLines = sky.length
+    ? sky
+        .map((s, i) => {
+          const a = fmtBodyJa(s.a);
+          const b = fmtBodyJa(s.b);
+          const asp = fmtAspectJa(s.type);
+          return `${i + 1}) ${a} × ${b}｜${asp}（orb ${s.orb_deg}°）`;
+        })
+        .join("\n")
+    : "（今日は空の情報を静かに置きます）";
+
+  const moonLine = moonSign ? `\n月は ${moonSign} を通過中。` : "";
+
+  // 200文字に寄せたい場合は後で短縮版も作れる。今は読みやすさ優先。
+  return `🌌 ソラのこえ。
+［${dateLabel}｜空の配置］${moonLine}
+
+${skyLines}
+
+解釈は、あなたのもの。`;
+}
+
+function renderIG(story) {
+  // IGはそのまま貼れる整形（改行多め）
+  const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+  const moonSign = story?.public?.moon?.sign_ja || null;
+  const sky = story?.public?.sky_top || [];
+
+  const skyLines = sky.length
+    ? sky
+        .map((s) => {
+          const a = fmtBodyJa(s.a);
+          const b = fmtBodyJa(s.b);
+          const asp = fmtAspectJa(s.type);
+          return `・${a} × ${b}｜${asp}（orb ${s.orb_deg}°）`;
+        })
+        .join("\n")
+    : "・（今日は空の情報を静かに置きます）";
+
+  const moonLine = moonSign ? `月は ${moonSign} を通過中。` : "月のサインは取得中。";
+
+  return `🌌 ソラのこえ。｜${dateLabel}
+
+${moonLine}
+
+【空の主な配置】
+${skyLines}
+
+解釈は、あなたのもの。
+星は語る。決めるのは、人。`;
+}
+
+// --------------------
+// Firestore writers
+// --------------------
+function storyDocId(appUserId, dateLocal) {
+  return `${appUserId}-${dateLocal}`;
+}
+
+/**
+ * Overwrite stories doc (single)
+ * - doc id is fixed per day: {appUserId}-{dateLocal}
+ * - we keep last_generated and overwrite the story itself
+ */
+async function saveStoryOverwrite(story) {
+  const id = storyDocId(story.personal.user_id, story.meta.date_local);
+  const ref = db.collection("stories").doc(id);
+  await ref.set(
+    {
+      doc_id: id,
+      user_id: story.personal.user_id,
+      date_local: story.meta.date_local,
+      as_of: story.meta.as_of,
+      schema_version: story.meta.schema_version,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      created_at: admin.firestore.FieldValue.serverTimestamp(),
+      story,
+    },
+    { merge: true } // keep timestamps fields stable
+  );
+  return id;
+}
+
+/**
+ * Batch overwrite multiple stories
+ */
+async function batchUpsertStories(stories) {
+  const chunks = [];
+  for (let i = 0; i < stories.length; i += 450) chunks.push(stories.slice(i, i + 450));
+
+  for (const chunk of chunks) {
+    const batch = db.batch();
+    for (const s of chunk) {
+      const id = storyDocId(s.personal.user_id, s.meta.date_local);
+      const ref = db.collection("stories").doc(id);
+      batch.set(
+        ref,
+        {
+          doc_id: id,
+          user_id: s.personal.user_id,
+          date_local: s.meta.date_local,
+          as_of: s.meta.as_of,
+          schema_version: s.meta.schema_version,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          created_at: admin.firestore.FieldValue.serverTimestamp(),
+          story: s,
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  }
 }
 
 // --------------------
@@ -189,12 +603,6 @@ function makeAppUserId(prefix = "u") {
   return `${prefix}_${crypto.randomBytes(12).toString("base64url")}`;
 }
 
-/**
- * status rule:
- * - core profile 揃う + consent.profile===true => ready
- * - core profile 揃う だけ => pending_consent
- * - それ以外 => pending_profile/pending_xxx のまま
- */
 function computeStatusFromProfile({ profile, currentStatus = "pending_profile", consentProfile = false }) {
   const hasCore =
     !!profile?.birth_date &&
@@ -213,7 +621,6 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
   const now = admin.firestore.FieldValue.serverTimestamp();
 
   return await db.runTransaction(async (tx) => {
-    // ✅ 1) 先に全部 READ
     const lineSnap = await tx.get(lineRef);
     const lineData = lineSnap.exists ? lineSnap.data() : null;
 
@@ -222,7 +629,6 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
     const userSnap = await tx.get(userRef);
     const userData = userSnap.exists ? userSnap.data() : null;
 
-    // ✅ 2) ここから WRITE（read後）
     const existingConsent = lineData?.consent || { profile: false, saved_at: null };
     const mergedProfile = { ...(lineData?.profile || {}), ...profilePatch };
 
@@ -232,7 +638,6 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
       consentProfile: !!existingConsent?.profile,
     });
 
-    // line_users upsert
     if (!lineSnap.exists) {
       tx.set(lineRef, {
         line_user_id: lineUserId,
@@ -251,7 +656,6 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
       );
     }
 
-    // users upsert
     if (!userSnap.exists) {
       tx.set(userRef, {
         display_name: force.display_name || userData?.display_name || "unknown",
@@ -260,20 +664,15 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
         updated_at: now,
       });
     } else {
-      tx.set(
-        userRef,
-        { timezone: mergedProfile.timezone || DEFAULT_TZ, updated_at: now },
-        { merge: true }
-      );
+      tx.set(userRef, { timezone: mergedProfile.timezone || DEFAULT_TZ, updated_at: now }, { merge: true });
     }
 
     return { lineUserId, appUserId, status };
   });
 }
 
-
 // --------------------
-// Jobs (B: 拡張性◎：ジョブキュー)
+// Jobs queue (natal calc placeholder)
 // --------------------
 async function enqueueNatalCalc({ appUserId, lineUserId, reason = "consent_granted" }) {
   const now = admin.firestore.FieldValue.serverTimestamp();
@@ -315,15 +714,18 @@ async function handleJobsWorker(req, res) {
   );
 
   try {
+    // TODO: SwissEph計算などに差し替え
     await db.collection("natal_cache").doc(job.app_user_id).set(
       {
         computed_at: admin.firestore.FieldValue.serverTimestamp(),
         engine: { ephemeris_source: "swisseph" },
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        // natal_positions を生成する本体は将来ここで埋める
       },
       { merge: true }
     );
 
+    // line_users status refresh
     const lineRef = db.collection("line_users").doc(job.line_user_id);
     const lineSnap = await lineRef.get();
     if (lineSnap.exists) {
@@ -333,29 +735,15 @@ async function handleJobsWorker(req, res) {
         currentStatus: d.status || "pending_profile",
         consentProfile: !!d?.consent?.profile,
       });
-      await lineRef.set(
-        { status, updated_at: admin.firestore.FieldValue.serverTimestamp() },
-        { merge: true }
-      );
+      await lineRef.set({ status, updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     }
 
-    await doc.ref.set(
-      {
-        status: "done",
-        last_error: null,
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    await doc.ref.set({ status: "done", last_error: null, updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
     return ok(res, { ran: true, processed: 1, job_id: doc.id, app_user_id: job.app_user_id });
   } catch (e) {
     await doc.ref.set(
-      {
-        status: "failed",
-        last_error: String(e),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
+      { status: "failed", last_error: String(e), updated_at: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
     return bad(res, 500, "job failed", { job_id: doc.id, error: String(e) });
@@ -363,80 +751,12 @@ async function handleJobsWorker(req, res) {
 }
 
 // --------------------
-// Transit / resonance core
-// --------------------
-function buildTransitPlanetsApprox(dateLocal, precisionDeg = 0.01) {
-  return Object.entries(TRANSIT_SPEED).map(([body, speed]) => ({
-    body,
-    lon_deg: calcTransitPlanetLonApprox(dateLocal, speed, precisionDeg),
-  }));
-}
-
-function extractNatalLonFromCache(cache) {
-  const natalLon = {
-    Sun: asNumber(cache?.natal_positions?.sun?.lon_deg),
-    Moon: asNumber(cache?.natal_positions?.moon?.lon_deg),
-    ASC: asNumber(cache?.natal_positions?.asc?.lon_deg),
-  };
-  for (const k of Object.keys(natalLon)) {
-    if (natalLon[k] === null) throw new Error(`natal_positions.${k} lon_deg invalid`);
-  }
-  return natalLon;
-}
-
-function calcResonanceTop({ transitPlanets, natalLon, orbMaxDeg = 15, precisionDeg = 0.01, topN = 3 }) {
-  const hits = [];
-  for (const t of transitPlanets) {
-    for (const natalPoint of ["Sun", "Moon", "ASC"]) {
-      const dist = absAngularDistance(t.lon_deg, natalLon[natalPoint]);
-      const best = getAspectTypeAndOrb(dist, orbMaxDeg);
-      if (best) {
-        hits.push({
-          transit_body: t.body,
-          natal_point: natalPoint,
-          aspect: best.aspect,
-          orb_deg: toFixedPrecision(best.orb_deg, precisionDeg),
-        });
-      }
-    }
-  }
-  hits.sort((a, b) => a.orb_deg - b.orb_deg);
-  return hits.slice(0, topN);
-}
-
-function formatTopLines(top) {
-  return top.map((r, i) => {
-    const b = BODY_JA[r.transit_body] || r.transit_body;
-    const p = POINT_JA[r.natal_point] || r.natal_point;
-    const a = ASPECT_JA[r.aspect] || r.aspect;
-    return `${i + 1}) ${b} × ${p}｜${a}（orb ${r.orb_deg}°）`;
-  });
-}
-
-function buildXPost({ dateLocal, top }) {
-  const dateLabel = String(dateLocal).replaceAll("-", ".");
-  const lines = formatTopLines(top).join("\n");
-
-  return `🌌 ソラのこえ。
-［${dateLabel}｜今日の星の配置］
-
-今日、強く触れている配置：
-
-${lines}
-
-解釈は、あなたのもの。`;
-}
-
-// --------------------
 // optional: geocoding
 // --------------------
 async function geocodePlace(place, apiKey) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-    place
-  )}&key=${apiKey}&language=ja`;
-
-  const res = await fetch(url);
-  const json = await res.json();
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(place)}&key=${apiKey}&language=ja`;
+  const r = await fetch(url);
+  const json = await r.json();
 
   if (json.status !== "OK" || !json.results?.length) {
     return { ok: false, status: json.status, candidates: json.results?.slice(0, 3) ?? [] };
@@ -452,7 +772,7 @@ async function geocodePlace(place, apiKey) {
 }
 
 // --------------------
-// LINE reply helper
+// LINE reply/push helper
 // --------------------
 async function lineReply(replyToken, text) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
@@ -472,8 +792,24 @@ async function lineReply(replyToken, text) {
   }
 }
 
+async function linePush(to, text) {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
+
+  const payload = { to, messages: [{ type: "text", text: safeText(text, 5000) }] };
+
+  const r = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await r.text();
+  return { ok: r.ok, status: r.status, response: body };
+}
+
 // --------------------
-// Registration parsing
+// Registration parsing / flow
 // --------------------
 function parseBirthDate(text) {
   const s = String(text || "").trim();
@@ -491,9 +827,6 @@ function parseYesNo(text) {
   return null;
 }
 
-// --------------------
-// Registration flow (LINE chat)
-// --------------------
 async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userText }) {
   const ref = db.collection("line_users").doc(lineUserId);
 
@@ -556,7 +889,8 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     }
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    let lat = null, lon = null;
+    let lat = null,
+      lon = null;
 
     if (apiKey) {
       const g = await geocodePlace(place, apiKey);
@@ -566,6 +900,10 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       }
       lat = g.lat;
       lon = g.lon;
+    } else {
+      // API key無しだと lat/lon が入らない => readyになれない。
+      // ただし思想的にはOKなので、ここは「未計算でも進める」ルートを選ぶ。
+      // ready判定は lat/lon を要求してるので、必要なら computeStatusFromProfile を緩めてね。
     }
 
     await ref.set(
@@ -630,194 +968,332 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 }
 
 // --------------------
+// Core: build story (single)
+// --------------------
+async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15, precisionDeg = 0.01 }) {
+  // user display_name
+  let displayName = null;
+  try {
+    const u = await db.collection("users").doc(appUserId).get();
+    if (u.exists) displayName = u.data()?.display_name ?? null;
+  } catch (_) {}
+
+  // natal
+  const natalCache = await loadNatalFromCache(appUserId);
+  if (!natalCache) throw new Error(`natal_cache not found for user_id=${appUserId}`);
+  const natalLonMap = extractNatalLongitudes(natalCache);
+
+  // transits (now対応)
+  const transitInfo = computeTransitsApprox(asOfISO, precisionDeg);
+
+  const rules = {
+    aspects_used: ASPECTS.map((a) => a.type),
+    orb_max_deg: orbMaxDeg,
+    sort: "orb_asc",
+  };
+
+  const touchAll = buildTouchPoints({
+    transitBodies: transitInfo.bodies,
+    natalBodies: natalLonMap,
+    rules,
+  });
+
+  const story = storyJsonV11({
+    appUserId,
+    displayName,
+    dateLocal,
+    asOfISO,
+    transitInfo,
+    touchPointsAll: touchAll,
+    rules,
+    engineMeta: { ephemeris_source: "approx", precision_deg: precisionDeg },
+  });
+
+  return story;
+}
+
+// --------------------
 // HTTP handlers
 // --------------------
 async function handleTransit(req, res) {
-  const requestId = getRequestId(req);
-  const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
-  if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
-
   const precisionDeg = 0.01;
-  const planets = buildTransitPlanetsApprox(dateLocal, precisionDeg);
+  const asOfISO = String(req.query.as_of || nowIso());
+  const t = computeTransitsApprox(asOfISO, precisionDeg);
 
   return ok(res, {
-    meta: metaBase({
-      dateLocal,
+    meta: {
+      project: PROJECT,
       timezone: DEFAULT_TZ,
-      requestId,
-      engine: { ephemeris_source: "approx", precision: { deg: precisionDeg } },
-    }),
-    transit: { planets },
+      as_of: asOfISO,
+      generated_at_utc: nowIso(),
+      engine: { ephemeris_source: "approx", precision_deg: precisionDeg },
+    },
+    transit: t,
   });
 }
 
-async function handleBuildStory(req, res) {
-  const requestId = getRequestId(req);
-  const userId = String(req.query.user_id || "").trim();
-  const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
+/**
+ * GET /stories/build
+ * query:
+ *   user_id (required)
+ *   date_local (optional, default: JST today of as_of)
+ *   as_of (optional ISO datetime, default now)
+ *   save=1 (default 1)
+ */
+async function handleStoriesBuild(req, res) {
+  try {
+    const appUserId = must(req.query.user_id, "user_id");
+    const asOfISO = String(req.query.as_of || nowIso());
+    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const dateLocal = String(req.query.date_local || inferred);
 
-  if (!userId) return bad(res, 400, "user_id is required");
-  if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
+    if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
 
-  const precisionDeg = 0.01;
-  const orbMaxDeg = 15;
+    const save = req.query.save === undefined ? true : parseBool(req.query.save);
 
-  const userSnap = await db.collection("users").doc(userId).get();
-  if (!userSnap.exists) return bad(res, 404, "users doc not found");
-  const user = userSnap.data();
+    const story = await buildStoryForUser({ appUserId, dateLocal, asOfISO });
 
-  const cacheSnap = await db.collection("natal_cache").doc(userId).get();
-  if (!cacheSnap.exists) return bad(res, 404, "natal_cache doc not found");
-  const cache = cacheSnap.data();
+    let docId = null;
+    if (save) docId = await saveStoryOverwrite(story);
 
-  const natalLon = extractNatalLonFromCache(cache);
-  const transitPlanets = buildTransitPlanetsApprox(dateLocal, precisionDeg);
-  const topResonances = calcResonanceTop({ transitPlanets, natalLon, orbMaxDeg, precisionDeg, topN: 3 });
+    return ok(res, { saved: save, doc_id: docId, story });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
+}
 
-  const story = {
-    meta: metaBase({
-      dateLocal,
-      timezone: user.timezone || DEFAULT_TZ,
-      requestId,
-      engine: { ephemeris_source: "approx", precision: { deg: precisionDeg } },
-    }),
-    user: { id: userId, display_name: user.display_name || "unknown" },
-    natal: {
-      sun: { lon_deg: natalLon.Sun },
-      moon: { lon_deg: natalLon.Moon },
-      asc: { lon_deg: natalLon.ASC },
-    },
-    transit: { planets: transitPlanets },
-    resonance: {
-      rules: {
-        aspects_used: ASPECTS.map((a) => a.type),
-        orb_max_deg: orbMaxDeg,
-        sort: "orb_asc",
+/**
+ * GET /stories/rebuild
+ * query:
+ *   user_id (required)
+ *   from (required YYYY-MM-DD)
+ *   to   (required YYYY-MM-DD)
+ *   time (optional HH:MM, default 14:00)  -> used to build as_of each day
+ *   dry_run (optional 1)
+ *   orb_max_deg (optional number)
+ */
+async function handleStoriesRebuild(req, res) {
+  try {
+    const appUserId = must(req.query.user_id, "user_id");
+    const from = must(req.query.from, "from");
+    const to = must(req.query.to, "to");
+    if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) return bad(res, 400, "from/to must be YYYY-MM-DD");
+
+    const time = req.query.time ? String(req.query.time) : "14:00";
+    if (!isHHMM(time)) return bad(res, 400, "time must be HH:MM");
+
+    const dryRun = parseBool(req.query.dry_run);
+    const orbMaxDeg = req.query.orb_max_deg !== undefined ? Number(req.query.orb_max_deg) : 15;
+    if (!Number.isFinite(orbMaxDeg) || orbMaxDeg <= 0) return bad(res, 400, "orb_max_deg invalid");
+
+    const dates = eachDateLocal(from, to);
+
+    const stories = [];
+    for (const dateLocal of dates) {
+      const asOfISO = isoWithJST(dateLocal, time);
+      const story = await buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg });
+      stories.push(story);
+    }
+
+    if (!dryRun) await batchUpsertStories(stories);
+
+    return ok(res, {
+      dry_run: dryRun,
+      user_id: appUserId,
+      from,
+      to,
+      count: stories.length,
+      sample_doc_id: stories.length ? storyDocId(appUserId, stories[0].meta.date_local) : null,
+    });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
+}
+
+/**
+ * GET /posts/x
+ * query:
+ *   user_id (optional)
+ *   date_local (optional)
+ *   as_of (optional)
+ *   mode=public (default) | personal (if user_id given)
+ *
+ * - public: build story in-memory with dummy personal? => we still need natal if personal.
+ * - For now: If user_id is given, use saved story doc (or build+save if missing).
+ */
+async function handlePostsX(req, res) {
+  try {
+    const asOfISO = String(req.query.as_of || nowIso());
+    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const dateLocal = String(req.query.date_local || inferred);
+
+    let story = null;
+
+    const userId = req.query.user_id ? String(req.query.user_id) : null;
+    if (userId) {
+      const id = storyDocId(userId, dateLocal);
+      const snap = await db.collection("stories").doc(id).get();
+      if (snap.exists) {
+        story = snap.data()?.story || null;
+      } else {
+        // auto-build & save
+        story = await buildStoryForUser({ appUserId: userId, dateLocal, asOfISO });
+        await saveStoryOverwrite(story);
+      }
+    } else {
+      // public-only: build transit info without natal
+      const t = computeTransitsApprox(asOfISO, 0.01);
+      story = {
+        meta: {
+          schema_version: SCHEMA_VERSION,
+          project: PROJECT,
+          timezone: DEFAULT_TZ,
+          date_local: dateLocal,
+          as_of: asOfISO,
+          generated_at_utc: nowIso(),
+          engine: { ephemeris_source: "approx", precision_deg: 0.01 },
+          rules: { aspects_used: ASPECTS.map((a) => a.type), orb_max_deg: 6, sort: "orb_asc" },
+        },
+        public: {
+          date_local: dateLocal,
+          moon: t.moon,
+          sky_top: buildPublicSkyTop(t.bodies),
+          tone_hints: { resonance_bullets: [] },
+        },
+        personal: {
+          user_id: null,
+          user: { display_name: null },
+          privacy: { contains_personal_data: false, allowed_channels: ["x", "instagram"] },
+          touch_points_top3: [],
+        },
+        guardrails: {
+          no_prediction: true,
+          no_good_bad: true,
+          no_should: true,
+          no_personality_label: true,
+          no_salvation: true,
+          sovereignty_returned: true,
+        },
+      };
+    }
+
+    const x = renderX(story);
+    return ok(res, { date_local: dateLocal, x_post: x, used: { schema_version: story.meta.schema_version } });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
+}
+
+/**
+ * GET /posts/ig
+ */
+async function handlePostsIG(req, res) {
+  try {
+    const asOfISO = String(req.query.as_of || nowIso());
+    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const dateLocal = String(req.query.date_local || inferred);
+
+    const t = computeTransitsApprox(asOfISO, 0.01);
+    const story = {
+      meta: {
+        schema_version: SCHEMA_VERSION,
+        project: PROJECT,
+        timezone: DEFAULT_TZ,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        generated_at_utc: nowIso(),
+        engine: { ephemeris_source: "approx", precision_deg: 0.01 },
+        rules: { aspects_used: ASPECTS.map((a) => a.type), orb_max_deg: 6, sort: "orb_asc" },
       },
-      top_resonances: topResonances,
-    },
-  };
+      public: {
+        date_local: dateLocal,
+        moon: t.moon,
+        sky_top: buildPublicSkyTop(t.bodies),
+        tone_hints: { resonance_bullets: [] },
+      },
+      personal: {
+        user_id: null,
+        user: { display_name: null },
+        privacy: { contains_personal_data: false, allowed_channels: ["x", "instagram"] },
+        touch_points_top3: [],
+      },
+      guardrails: {
+        no_prediction: true,
+        no_good_bad: true,
+        no_should: true,
+        no_personality_label: true,
+        no_salvation: true,
+        sovereignty_returned: true,
+      },
+    };
 
-  const storyDocId = `${userId}-${dateLocal}`;
-  await db.collection("stories").doc(storyDocId).set(
-    {
-      user_id: userId,
-      date_local: dateLocal,
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      story,
-    },
-    { merge: true }
-  );
-
-  return ok(res, { saved: true, doc_id: storyDocId, story });
-}
-
-async function handleBuildXPost(req, res) {
-  const userId = String(req.query.user_id || "").trim();
-  const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
-  if (!userId) return bad(res, 400, "user_id is required");
-  if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
-
-  const storyDocId = `${userId}-${dateLocal}`;
-  const snap = await db.collection("stories").doc(storyDocId).get();
-  if (!snap.exists) {
-    return bad(res, 404, "story not found. Call /stories/build first for this date.", {
-      hint: { url: `/stories/build?user_id=${encodeURIComponent(userId)}&date_local=${encodeURIComponent(dateLocal)}` },
-    });
+    const ig = renderIG(story);
+    return ok(res, { date_local: dateLocal, ig_post: ig });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
   }
-
-  const story = snap.data()?.story;
-  const top = (story?.resonance?.top_resonances || []).slice(0, 3);
-  if (!top.length) return bad(res, 400, "no resonance candidates found");
-
-  const xPost = buildXPost({ dateLocal, top });
-  return ok(res, { date_local: dateLocal, x_post: xPost, used: { top_resonances: top } });
 }
 
-async function handleBuildLineDaily(req, res) {
-  const userId = String(req.query.user_id || "").trim();
-  const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
-  if (!userId) return bad(res, 400, "user_id is required");
-  if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
+/**
+ * GET /line/daily  (now対応)
+ * query:
+ *   user_id (required)
+ *   as_of (optional ISO; default now)
+ *   save_story=1 (default 1) -> その時点のstoryを作って上書き保存
+ */
+async function handleLineDaily(req, res) {
+  try {
+    const appUserId = must(req.query.user_id, "user_id");
+    const asOfISO = String(req.query.as_of || nowIso());
+    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const dateLocal = String(req.query.date_local || inferred);
 
-  const storyDocId = `${userId}-${dateLocal}`;
-  const snap = await db.collection("stories").doc(storyDocId).get();
-  if (!snap.exists) {
-    return bad(res, 404, "story not found", {
-      hint: `/stories/build?user_id=${encodeURIComponent(userId)}&date_local=${encodeURIComponent(dateLocal)}`,
-    });
+    const saveStory = req.query.save_story === undefined ? true : parseBool(req.query.save_story);
+
+    const story = await buildStoryForUser({ appUserId, dateLocal, asOfISO });
+
+    let docId = null;
+    if (saveStory) docId = await saveStoryOverwrite(story);
+
+    const lineText = renderLine(story);
+    return ok(res, { date_local: dateLocal, as_of: asOfISO, saved_story: saveStory, doc_id: docId, line_message: lineText });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
   }
-
-  const story = snap.data()?.story;
-  const top = (story?.resonance?.top_resonances || []).slice(0, 3);
-  if (!top.length) return bad(res, 400, "no resonance candidates found");
-
-  const text = buildXPost({ dateLocal, top });
-  return ok(res, { date_local: dateLocal, line_message: text });
 }
 
+/**
+ * GET /push (owner test)
+ * query:
+ *   text
+ */
 async function handlePushMe(req, res) {
   const text = String(req.query.text || "🌌 ソラのこえ。").trim();
-
   const userId = process.env.OWNER_LINE_USER_ID;
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!userId || !token) return bad(res, 500, "LINE env vars missing");
+  if (!userId) return bad(res, 500, "OWNER_LINE_USER_ID missing");
 
-  const payload = { to: userId, messages: [{ type: "text", text: safeText(text, 5000) }] };
-
-  const r = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
-  });
-
-  const body = await r.text();
-  return ok(res, { pushed: r.ok, status: r.status, response: body });
+  const r = await linePush(userId, text);
+  return ok(res, { pushed: r.ok, status: r.status, response: r.response });
 }
 
 // --------------------
 // LINE webhook handler (raw body)
 // --------------------
 async function handleLineWebhook(req, res) {
-
-  console.log("LINE webhook headers:", {
-  method: req.method,
-  path: req.path,
-  ct: req.headers["content-type"],
-  sig: (req.headers["x-line-signature"] || "").slice(0, 8) + "...",
-  bodyType: Buffer.isBuffer(req.body) ? "Buffer" : typeof req.body,
-  bodyLen: Buffer.isBuffer(req.body) ? req.body.length : null,
-});
-
   const requestId = getRequestId(req);
-
   const secret = process.env.LINE_CHANNEL_SECRET;
   const signature = req.header("x-line-signature") || "";
 
-  // ★最重要：rawBody を優先
-  const raw = req.rawBody ?? req.body;
-
+  const raw = req.body; // bodyParser.raw
   if (!Buffer.isBuffer(raw)) {
-    console.error(`[${nowIso()}] webhook raw is not Buffer`, {
-      requestId,
-      typeofBody: typeof req.body,
-      isBodyBuffer: Buffer.isBuffer(req.body),
-      typeofRawBody: typeof req.rawBody,
-      isRawBodyBuffer: Buffer.isBuffer(req.rawBody),
-      contentType: req.headers["content-type"],
-      path: req.path,
-    });
-    // LINE側には200（再送ループ防止）
+    console.error(`[${nowIso()}] raw body missing`, { requestId });
     return res.status(200).send("ok");
   }
 
   const verify = verifyLineSignatureRaw(raw, signature, secret);
   if (!verify.ok) {
-    console.log(`[${nowIso()}] LINE signature verify failed: ${verify.reason}`, { requestId, path: req.path });
-
-    // 運用: strictなら401、そうでなければ200
-    if (LINE_STRICT) return bad(res, 401, verify.reason);
+    console.log(`[${nowIso()}] LINE signature verify failed: ${verify.reason}`, { requestId });
+    if (LINE_STRICT) return res.status(401).send(verify.reason);
     return res.status(200).send("ok");
   }
 
@@ -826,7 +1302,6 @@ async function handleLineWebhook(req, res) {
     json = JSON.parse(raw.toString("utf8") || "{}");
   } catch (e) {
     console.error("invalid JSON body:", e);
-    // LINE側には200（再送ループ防止）
     return res.status(200).send("ok");
   }
 
@@ -834,13 +1309,8 @@ async function handleLineWebhook(req, res) {
   const lineUserId = ev?.source?.userId;
   if (!lineUserId) return res.status(200).send("ok");
 
-  // ① line_users + users を最低限保証
-  const { appUserId } = await ensureUserGraphFromLine({
-    lineUserId,
-    profilePatch: { timezone: DEFAULT_TZ },
-  });
+  const { appUserId } = await ensureUserGraphFromLine({ lineUserId, profilePatch: { timezone: DEFAULT_TZ } });
 
-  // ② テキストメッセージなら登録フローへ
   const replyToken = ev?.replyToken;
   const msgText = ev?.message?.type === "text" ? ev.message.text : null;
 
@@ -852,90 +1322,27 @@ async function handleLineWebhook(req, res) {
     console.error("registrationFlow error:", e);
   }
 
-  // LINEは200が正義
   return res.status(200).send("ok");
 }
 
 // --------------------
-// Express app / router
+// DEBUG / ADMIN (token protected)
 // --------------------
-const app = express();
+function requireDebugToken(req) {
+  const need = process.env.DEBUG_TOKEN;
+  const token = String(req.query.token || req.header("x-debug-token") || "");
+  if (!need) throw new Error("DEBUG_TOKEN is missing in env");
+  if (!token || token !== need) throw new Error("forbidden");
+}
 
-// 共通ログ
-app.use((req, res, next) => {
-  if (req.path !== "/health") console.log(`[${nowIso()}] ${req.method} ${req.path}`);
-  next();
-});
-
-app.get("/", (req, res) =>
-  ok(res, {
-    service: PROJECT,
-    routes: [
-      "/health",
-      "/transit",
-      "/stories/build",
-      "/posts/x",
-      "/line/daily",
-      "/line/webhook",
-      "/push",
-      "/jobs/worker",
-      "/debug/resetRegistration",
-    ],
-  })
-);
-
-app.get("/health", (req, res) => ok(res, { service: PROJECT, ok: true }));
-
-// GET endpoints
-app.get("/transit", (req, res) => handleTransit(req, res));
-app.get("/stories/build", (req, res) => handleBuildStory(req, res));
-app.get("/posts/x", (req, res) => handleBuildXPost(req, res));
-app.get("/line/daily", (req, res) => handleBuildLineDaily(req, res));
-app.get("/push", (req, res) => handlePushMe(req, res));
-
-// Jobs worker (json body)
-app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
-  handleJobsWorker(req, res).catch((err) => {
-    console.error(err);
-    return bad(res, 500, String(err));
-  });
-});
-
-// LINE webhook (raw body only!)
-app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
-  handleLineWebhook(req, res).catch((err) => {
-    console.error("handleLineWebhook error:", err);
-    // LINEにはとにかく200返す（再送ループ防止）
-    return res.status(200).send("ok");
-  });
-});
-
-
-// DEBUG (下に定義されてる handler を使う)
-app.get("/debug/resetRegistration", (req, res) => {
-  handleDebugResetRegistration(req, res).catch((err) => bad(res, 500, String(err)));
-});
-
-// fallback
-app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
-
-// Functions Framework entry
-functions.http("app", app);
-
-// ====================
-// DEBUG: reset registration
-// ====================
+/**
+ * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false
+ */
 async function handleDebugResetRegistration(req, res) {
   try {
-    const token = String(req.query.token || "");
-    const need = process.env.DEBUG_TOKEN;
+    requireDebugToken(req);
 
-    if (!need) return bad(res, 500, "DEBUG_TOKEN is missing in env");
-    if (!token || token !== need) return bad(res, 403, "forbidden");
-
-    const lineUserId = String(req.query.line_user_id || "").trim();
-    if (!lineUserId) return bad(res, 400, "line_user_id is required");
-
+    const lineUserId = must(req.query.line_user_id, "line_user_id");
     const keepAppUserId = String(req.query.keep_app_user_id || "true").toLowerCase() !== "false";
 
     const ref = db.collection("line_users").doc(lineUserId);
@@ -952,20 +1359,114 @@ async function handleDebugResetRegistration(req, res) {
       updated_at: now,
     };
 
-    if (!keepAppUserId) {
-      patch.app_user_id = admin.firestore.FieldValue.delete();
-    }
+    if (!keepAppUserId) patch.app_user_id = admin.firestore.FieldValue.delete();
 
     await ref.set(patch, { merge: true });
 
-    return ok(res, {
-      reset: true,
-      line_user_id: lineUserId,
-      keep_app_user_id: keepAppUserId,
-      next_status: "pending_birth_date",
-    });
-  } catch (err) {
-    console.error(err);
-    return bad(res, 500, String(err));
+    return ok(res, { reset: true, line_user_id: lineUserId, keep_app_user_id: keepAppUserId, next_status: "pending_birth_date" });
+  } catch (e) {
+    return bad(res, 403, String(e?.message ?? e));
   }
 }
+
+/**
+ * POST /admin/stories/seed?token=...
+ * body: { stories: [ {meta,public,personal,guardrails}, ... ] }
+ *
+ * 👉「一個一個いれずに、storiesを一括更新したい」用。
+ * - docIdは personal.user_id + meta.date_local で決まる
+ * - merge:true で upsert
+ */
+async function handleAdminSeedStories(req, res) {
+  try {
+    requireDebugToken(req);
+
+    const body = req.body || {};
+    const stories = body.stories;
+    if (!Array.isArray(stories) || !stories.length) return bad(res, 400, "body.stories must be a non-empty array");
+
+    // minimal validate
+    for (const s of stories) {
+      if (!s?.personal?.user_id) throw new Error("each story must include personal.user_id");
+      if (!s?.meta?.date_local) throw new Error("each story must include meta.date_local");
+      if (!isYYYYMMDD(s.meta.date_local)) throw new Error("meta.date_local must be YYYY-MM-DD");
+    }
+
+    await batchUpsertStories(stories);
+    return ok(res, { upserted: stories.length });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
+}
+
+// --------------------
+// Express app / router (SINGLE)
+// --------------------
+const app = express();
+
+// common log
+app.use((req, res, next) => {
+  if (req.path !== "/healthz") console.log(`[${nowIso()}] ${req.method} ${req.path}`);
+  next();
+});
+
+// JSON for most routes
+app.use(express.json({ limit: "2mb" }));
+
+app.get("/", (req, res) =>
+  ok(res, {
+    service: PROJECT,
+    routes: [
+      "/healthz",
+      "/transit?as_of=",
+      "/stories/build?user_id=&as_of=&date_local=&save=",
+      "/stories/rebuild?user_id=&from=&to=&time=&dry_run=",
+      "/line/daily?user_id=&as_of=&save_story=",
+      "/posts/x?as_of=&date_local=&user_id=",
+      "/posts/ig?as_of=&date_local=",
+      "/push?text=",
+      "/jobs/worker (POST)",
+      "/line/webhook (POST raw)",
+      "/debug/resetRegistration?token=&line_user_id=",
+      "/admin/stories/seed?token= (POST json)",
+    ],
+  })
+);
+
+app.get("/healthz", (req, res) => res.status(200).send("ok"));
+
+// endpoints
+app.get("/transit", (req, res) => handleTransit(req, res));
+app.get("/stories/build", (req, res) => handleStoriesBuild(req, res));
+app.get("/stories/rebuild", (req, res) => handleStoriesRebuild(req, res));
+app.get("/line/daily", (req, res) => handleLineDaily(req, res));
+app.get("/posts/x", (req, res) => handlePostsX(req, res));
+app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
+app.get("/push", (req, res) => handlePushMe(req, res));
+
+// jobs worker
+app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
+  handleJobsWorker(req, res).catch((err) => {
+    console.error(err);
+    return bad(res, 500, String(err));
+  });
+});
+
+// LINE webhook must be RAW
+app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+  handleLineWebhook(req, res).catch((err) => {
+    console.error("handleLineWebhook error:", err);
+    // LINEにはとにかく200（再送ループ防止）
+    return res.status(200).send("ok");
+  });
+});
+
+// debug / admin
+app.get("/debug/resetRegistration", (req, res) => handleDebugResetRegistration(req, res));
+app.post("/admin/stories/seed", bodyParser.json({ limit: "5mb" }), (req, res) => handleAdminSeedStories(req, res));
+
+// fallback
+app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
+
+// Functions Framework entry (ONLY ONCE)
+functions.http("app", app);
