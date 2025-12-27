@@ -164,14 +164,19 @@ function isoWithJST(dateLocal, timeHHMM = "14:00") {
   return utc.toISOString();
 }
 
+function toJstDateStr(d) {
+  const jstMs = d.getTime() + 9 * 60 * 60 * 1000;
+  return new Date(jstMs).toISOString().slice(0, 10);
+}
+
 function eachDateLocal(from, to) {
   if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) throw new Error("from/to must be YYYY-MM-DD");
   const out = [];
-  let cur = new Date(from + "T00:00:00+09:00");
-  const end = new Date(to + "T00:00:00+09:00");
+  let cur = new Date(from + "T00:00:00Z"); // UTC固定
+  const end = new Date(to + "T00:00:00Z");
   if (cur > end) throw new Error("from must be <= to");
   while (cur <= end) {
-    out.push(cur.toISOString().slice(0, 10));
+    out.push(toJstDateStr(cur)); // JST基準日付
     cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
   }
   return out;
@@ -710,19 +715,66 @@ async function linePush(to, text) {
 // Registration parsing / flow
 // --------------------
 function parseBirthDate(text) {
-  const s = String(text || "").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
-}
-function parseBirthTime(text) {
-  const s = String(text || "").trim();
-  if (s === "不明" || s.toLowerCase() === "unknown") return "unknown";
-  return /^\d{2}:\d{2}$/.test(s) ? s : null;
-}
-function parseYesNo(text) {
-  const s = String(text || "").trim();
-  if (["はい", "yes", "YES", "ok", "OK", "了解"].includes(s)) return true;
-  if (["いいえ", "no", "NO", "やめる", "拒否"].includes(s)) return false;
+  const raw = String(text ?? "").trim();
+  if (!raw) return null;
+
+  // 「不明」許可したいならここ（今は date だけなので unknown 返すのは好み）
+  if (raw === "不明" || raw.toLowerCase() === "unknown") return "unknown";
+
+  // 全角→半角ざっくり（数字と記号だけ）
+  const s = raw
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[／]/g, "/")
+    .replace(/[－ー―]/g, "-")
+    .replace(/[．。]/g, ".")
+    .trim();
+
+  // 1) まずは区切りありパターン（- / . 空白）
+  // 例: 1990-07-24, 1990/7/24, 1990 7 24, 1990.07.24
+  let m = s.match(/^(\d{4})[\/\-\.\s]+(\d{1,2})[\/\-\.\s]+(\d{1,2})$/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+
+    const iso = normalizeAndValidateYMD(y, mo, d);
+    return iso; // "YYYY-MM-DD" or null
+  }
+
+  // 2) つぎに 19900724 みたいな8桁
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+
+    const iso = normalizeAndValidateYMD(y, mo, d);
+    return iso;
+  }
+
+  // それ以外は不正
   return null;
+}
+
+function normalizeAndValidateYMD(y, mo, d) {
+  // 年のガードは好みで調整OK
+  if (!Number.isInteger(y) || y < 1900 || y > 2100) return null;
+  if (!Number.isInteger(mo) || mo < 1 || mo > 12) return null;
+  if (!Number.isInteger(d) || d < 1 || d > 31) return null;
+
+  // 実在日チェック（例: 1990-02-30 を弾く）
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== mo - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    return null;
+  }
+
+  const mm = String(mo).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
+  return `${y}-${mm}-${dd}`;
 }
 
 async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userText }) {
