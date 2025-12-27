@@ -494,7 +494,7 @@ function renderLine(story) {
   return [
     `🌌 今日のソラのこえ。｜${dateLabel}`,
     ``,
-    `【 今日の星の配置（構造 ）】`,
+    `【今日の星の配置（構造）】`,
     lines.length ? lines.join("\n") : "（今日は強い接触は少なめの日）",
     moonLine,
     ``,
@@ -597,7 +597,7 @@ async function batchUpsertStories(stories) {
           as_of: s.meta.as_of,
           schema_version: s.meta.schema_version,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
-          created_at: admin.firestore.FieldValue.serverTimestamp(),
+          // created_at: admin.firestore.FieldValue.serverTimestamp(),
           story: s,
         },
         { merge: true }
@@ -1062,7 +1062,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 // --------------------
 // build story (single)
 // --------------------
-async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15, precisionDeg = 0.01 }) {
+async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 6, precisionDeg = 0.01 }) {
   let displayName = null;
   try {
     const u = await db.collection("users").doc(appUserId).get();
@@ -1550,7 +1550,7 @@ app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
 app.get("/debug/pushDaily", (req, res) => handleDebugPushDaily(req, res));
-app.get("/cron/daily", (req, res) => handleLineDailyBroadcast(req, res));
+app.post("/cron/daily", (req, res) => handleLineDailyBroadcast(req, res));
 
 
 app.get("/debug/resetRegistration", async (req, res) => {
@@ -1764,6 +1764,12 @@ async function handleDebugPushDaily(req, res) {
 }
 
 async function handleLineDailyBroadcast(req, res) {
+  const ua = String(req.header("user-agent") || "");
+  if (!ua.includes("Google-Cloud-Scheduler")) {
+    // ログだけ出して拒否（好み）
+    // throw new Error("forbidden");
+  }
+
   try {
     // 本番用：Schedulerから叩くならDEBUG_TOKENじゃなく別トークン推奨
     requireCronToken(req); // ←後述
@@ -1812,6 +1818,9 @@ async function handleLineDailyBroadcast(req, res) {
 function requireCronToken(req) {
   const expected = process.env.CRON_TOKEN;
   if (!expected) throw new Error("CRON_TOKEN missing");
-  const token = String(req.query.token || "");
+
+  const token =
+    String(req.header("x-cron-token") || req.query.token || "");
+
   if (token !== expected) throw new Error("forbidden");
 }
