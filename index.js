@@ -1,19 +1,13 @@
 /**
- * 🌌 sora-no-koe (Cloud Run / Functions Framework) — Unified v1.1
+ * 🌌 sora-no-koe (Cloud Run / Functions Framework) — Unified v1.1.1 (Optimized)
  *
- * ✅ What this file solves (全部まとめて解決):
- * - story.json（器）を確定（schema_version 1.1）
- * - renderLine / renderX / renderIG を実装
- * - /line/daily を now(as_of) 対応に
- * - /stories/build（単日） + /stories/rebuild（範囲） を分離
- * - Firestore 保存フォーマットを一本化（storiesは常に同じ形）
- * - LINE webhook（raw-body署名検証）安定
- * - 既存の登録フロー（birth_date/time/place/consent）維持
- * - バルク投入（Firestore stories へ一括 upsert）用の管理APIも追加（DEBUG_TOKEN必須）
- *
- * ⚠️ NOTE:
- * - トランジット計算は現状「swisseph」。将来Swiss Ephemeris等に差し替え前提。
- *   でも今は "now対応" が最優先なので、as_of ISO datetime を受けて近似で動かす。
+ * ✅ Fix/Improve:
+ * - /line/webhook raw-body signature verification is now safe and NOT broken by express.json()
+ * - created_at no longer overwritten on overwrite save (transactional)
+ * - JST date_local inference is accurate (Intl.DateTimeFormat with timeZone)
+ * - timingSafeEqual for signature compare
+ * - duplicate helpers removed, structure cleaned
+ * - renderers / story schema v1.1.0 kept (compatible)
  *
  * Required env:
  *   LINE_CHANNEL_SECRET
@@ -25,39 +19,44 @@
  *   OWNER_LINE_USER_ID              (/push用)
  *   GOOGLE_MAPS_API_KEY             (出生地ジオコードしたい場合)
  *   DEBUG_TOKEN                     (/debug/* /admin/* の保護)
+ *   SE_EPHE_PATH                    (default: ./ephe) Swiss Ephemeris files path
  */
 
 "use strict";
-
-const swisseph = require("swisseph");
-
-// ===== Swiss Ephemeris 設定（最重要）=====
-const EPHE_PATH = process.env.SE_EPHE_PATH || "./ephe";
-swisseph.swe_set_ephe_path(EPHE_PATH);
-
-console.log("[SwissEph] ephe path =", EPHE_PATH);
 
 const functions = require("@google-cloud/functions-framework");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const express = require("express");
 const bodyParser = require("body-parser");
+const swisseph = require("swisseph");
 
-// --------------------
-// bootstrap
-// --------------------
+// Node18+ has fetch by default. Keep a soft guard for safety.
+if (typeof fetch !== "function") {
+  // eslint-disable-next-line global-require
+  global.fetch = require("node-fetch");
+}
+
+/* =====================
+   Swiss Ephemeris setup
+===================== */
+const EPHE_PATH = process.env.SE_EPHE_PATH || "./ephe";
+swisseph.swe_set_ephe_path(EPHE_PATH);
+console.log("[SwissEph] ephe path =", EPHE_PATH);
+
+/* =====================
+   bootstrap
+===================== */
 if (!admin.apps.length) admin.initializeApp();
-
 const db = admin.firestore();
 db.settings({ databaseId: process.env.FIRESTORE_DATABASE_ID || "sora-no-koe-db" });
 
-// --------------------
-// constants / config
-// --------------------
+/* =====================
+   constants / config
+===================== */
 const PROJECT = "sora-no-koe";
 const DEFAULT_TZ = "Asia/Tokyo";
-const SCHEMA_VERSION = "1.1.0"; // story schema version
-
+const SCHEMA_VERSION = "1.1.0"; // story schema version (keep compatible)
 const LINE_STRICT = String(process.env.LINE_WEBHOOK_STRICT || "0") === "1";
 
 const ASPECTS = [
@@ -78,21 +77,14 @@ const ASPECT_JA = {
   opposition: "オポジション",
 };
 
-// NOTE: 近似 speed（今は “動く” こと最優先）
-const TRANSIT_SPEED_DEG_PER_DAY = {
-  Sun: 0.9856,
-  Moon: 13.176,
-  Mercury: 1.2,
-  Venus: 1.18,
-  Mars: 0.524,
-};
+const SIGNS_JA = [
+  "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
+  "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"
+];
 
-// zodiac (0 Aries)
-const SIGNS_JA = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"];
-
-// --------------------
-// helpers (core)
-// --------------------
+/* =====================
+   helpers (core)
+===================== */
 function nowIso() {
   return new Date().toISOString();
 }
@@ -147,95 +139,54 @@ function toFixedPrecision(n, precisionDeg = 0.01) {
   return Math.round(n * p) / p;
 }
 
-function getAspectTypeAndOrb(distanceDeg, orbMaxDeg) {
-  let best = null;
-  for (const a of ASPECTS) {
-    const orb = Math.abs(distanceDeg - a.deg);
-    if (orb <= orbMaxDeg) {
-      if (!best || orb < best.orb_deg) best = { aspect: a.type, aspect_deg: a.deg, orb_deg: orb };
-    }
-  }
-  return best;
-}
-
 function pickTopByOrb(items, n = 3) {
   return [...items].sort((x, y) => (x.orb_deg ?? 999) - (y.orb_deg ?? 999)).slice(0, n);
 }
 
+function signJaFromLon(lonDeg) {
+  const idx = Math.floor(norm360(lonDeg) / 30);
+  return SIGNS_JA[idx] ?? null;
+}
+
 /**
- * Convert ISO -> {date_local (JST), time_local (HH:MM)}
+ * JST parts from ISO (accurate)
+ * returns: { date_local: 'YYYY-MM-DD', time_local: 'HH:MM' }
  */
-function isoToJstParts(asOfISO) {
+function isoToTzParts(asOfISO, timeZone = DEFAULT_TZ) {
   const d = asOfISO ? new Date(asOfISO) : new Date();
-  const jstMs = d.getTime() + 9 * 60 * 60 * 1000;
-  const jst = new Date(jstMs);
-  const iso = jst.toISOString(); // still "Z" but shifted; we just slice
-  const date_local = iso.slice(0, 10);
-  const time_local = iso.slice(11, 16);
+  if (Number.isNaN(d.getTime())) throw new Error(`invalid as_of ISO: ${asOfISO}`);
+
+  const fmtDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const fmtTime = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  // en-CA => YYYY-MM-DD
+  const date_local = fmtDate.format(d);
+  const time_local = fmtTime.format(d);
   return { date_local, time_local };
 }
 
 /**
- * Create ISO string that represents "dateLocal + timeHHMM in JST"
- * - We return an ISO string in UTC, but derived from JST local.
+ * Create UTC ISO from JST local date + time (HH:MM)
+ * JST local -> UTC: subtract 9h
  */
 function isoWithJST(dateLocal, timeHHMM = "14:00") {
   if (!isYYYYMMDD(dateLocal)) throw new Error("dateLocal must be YYYY-MM-DD");
   if (!isHHMM(timeHHMM)) throw new Error("time must be HH:MM");
-  // JST local -> UTC: subtract 9h
-  const [y, m, d] = dateLocal.split("-").map(Number);
+  const [y, m, dd] = dateLocal.split("-").map(Number);
   const [hh, mm] = timeHHMM.split(":").map(Number);
-  const utc = new Date(Date.UTC(y, m - 1, d, hh - 9, mm, 0));
+  const utc = new Date(Date.UTC(y, m - 1, dd, hh - 9, mm, 0));
   return utc.toISOString();
 }
-
-// --------------------
-// Swiss Ephemeris helpers
-// --------------------
-function jdUtFromIso(asOfISO) {
-  const d = new Date(asOfISO);
-  if (Number.isNaN(d.getTime())) throw new Error(`invalid as_of ISO: ${asOfISO}`);
-
-  // UT (UTC) components
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth() + 1; // 1-12
-  const day = d.getUTCDate();
-
-  const hour =
-    d.getUTCHours() +
-    d.getUTCMinutes() / 60 +
-    d.getUTCSeconds() / 3600 +
-    d.getUTCMilliseconds() / 3600000;
-
-  // Julian Day (UT)
-  return swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
-}
-
-function sweLonDeg(bodyName, jdUt) {
-  // 対象：今のプロジェクトで使ってる5天体だけ（追加はあとで増やせる）
-  const MAP = {
-    Sun: swisseph.SE_SUN,
-    Moon: swisseph.SE_MOON,
-    Mercury: swisseph.SE_MERCURY,
-    Venus: swisseph.SE_VENUS,
-    Mars: swisseph.SE_MARS,
-  };
-  const id = MAP[bodyName];
-  if (id === undefined) throw new Error(`unsupported body: ${bodyName}`);
-
-  // 速度は今いらない：SEFLG_SWIEPH で経度だけ取る
-  const flags = swisseph.SEFLG_SWIEPH;
-
-  const out = swisseph.swe_calc_ut(jdUt, id, flags);
-  // out: { flag, error, data: [lon, lat, dist, speedLon, speedLat, speedDist] } (node-swisseph系)
-  if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
-
-  const lon = out.data?.[0];
-  if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
-
-  return norm360(lon);
-}
-
 
 function eachDateLocal(from, to) {
   if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) throw new Error("from/to must be YYYY-MM-DD");
@@ -246,9 +197,11 @@ function eachDateLocal(from, to) {
 
   let cur = start;
   while (cur <= end) {
-    // extract JST date
-    const jst = new Date(cur.getTime() + 9 * 60 * 60 * 1000);
-    out.push(jst.toISOString().slice(0, 10));
+    // cur already JST (+09:00). format stable as date string.
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, "0");
+    const d = String(cur.getDate()).padStart(2, "0");
+    out.push(`${y}-${m}-${d}`);
     cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
   }
   return out;
@@ -261,56 +214,53 @@ function getRequestId(req) {
   );
 }
 
-// --------------------
-// Transit (swisseph, now対応)
-// --------------------
-function calcLonswisseph(asOfISO, speedPerDay, seedDeg = 0, precisionDeg = 0.01) {
-  // base: 2025-01-01T00:00:00Z
-  const base = new Date("2025-01-01T00:00:00Z").getTime();
-  const t = new Date(asOfISO).getTime();
-  const days = (t - base) / (24 * 60 * 60 * 1000);
-  const lon = seedDeg + days * speedPerDay;
-  return norm360(toFixedPrecision(lon, precisionDeg));
+/* =====================
+   Swiss Ephemeris helpers
+===================== */
+function jdUtFromIso(asOfISO) {
+  const d = new Date(asOfISO);
+  if (Number.isNaN(d.getTime())) throw new Error(`invalid as_of ISO: ${asOfISO}`);
+
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+
+  const hour =
+    d.getUTCHours() +
+    d.getUTCMinutes() / 60 +
+    d.getUTCSeconds() / 3600 +
+    d.getUTCMilliseconds() / 3600000;
+
+  return swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
 }
 
-function signJaFromLon(lonDeg) {
-  const idx = Math.floor(norm360(lonDeg) / 30);
-  return SIGNS_JA[idx] ?? null;
+function sweLonDeg(bodyName, jdUt) {
+  const MAP = {
+    Sun: swisseph.SE_SUN,
+    Moon: swisseph.SE_MOON,
+    Mercury: swisseph.SE_MERCURY,
+    Venus: swisseph.SE_VENUS,
+    Mars: swisseph.SE_MARS,
+  };
+  const id = MAP[bodyName];
+  if (id === undefined) throw new Error(`unsupported body: ${bodyName}`);
+
+  const flags = swisseph.SEFLG_SWIEPH;
+  const out = swisseph.swe_calc_ut(jdUt, id, flags);
+
+  if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
+
+  const lon = out.data?.[0];
+  if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
+
+  return norm360(lon);
 }
 
 /**
- * computeTransits(as_of_iso) -> { bodies: {Sun:deg,...}, moon:{lon_deg, sign_ja} }
- */
-// function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
-//   const bodies = {};
-//   // seedDeg: 0 (雑)。将来seedを実測に置換。
-//   for (const [body, speed] of Object.entries(TRANSIT_SPEED_DEG_PER_DAY)) {
-//     bodies[body] = calcLonswisseph(asOfISO, speed, 0, precisionDeg);
-//   }
-//   const moonLon = bodies.Moon;
-//   return {
-//     bodies,
-//     moon: {
-//       lon_deg: moonLon,
-//       sign_ja: signJaFromLon(moonLon),
-//     },
-//   };
-// }
-
-// --------------------
-// Transit (Swiss Ephemeris, now対応)
-// --------------------
-function signJaFromLon(lonDeg) {
-  const idx = Math.floor(norm360(lonDeg) / 30);
-  return SIGNS_JA[idx] ?? null;
-}
-
-/**
- * computeTransitsSwiss(as_of_iso) -> { bodies: {Sun:deg,...}, moon:{lon_deg, sign_ja} }
+ * computeTransitsSwiss(as_of_iso)
  */
 function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
   const jdUt = jdUtFromIso(asOfISO);
-
   const bodies = {};
   const targets = ["Sun", "Moon", "Mercury", "Venus", "Mars"];
 
@@ -330,9 +280,9 @@ function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
   };
 }
 
-// --------------------
-// Natal cache load / normalize
-// --------------------
+/* =====================
+   Natal cache load / normalize
+===================== */
 async function loadNatalFromCache(appUserId) {
   const snap = await db.collection("natal_cache").doc(appUserId).get();
   if (!snap.exists) return null;
@@ -340,8 +290,6 @@ async function loadNatalFromCache(appUserId) {
 }
 
 function extractNatalLongitudes(natalCacheDoc) {
-  // Support your existing schema + fallback candidates
-  // Preferred: natal_positions.sun/moon/asc.lon_deg
   const sun = natalCacheDoc?.natal_positions?.sun?.lon_deg;
   const moon = natalCacheDoc?.natal_positions?.moon?.lon_deg;
   const asc = natalCacheDoc?.natal_positions?.asc?.lon_deg;
@@ -350,7 +298,6 @@ function extractNatalLongitudes(natalCacheDoc) {
     return { Sun: sun, Moon: moon, ASC: asc };
   }
 
-  // Fallback patterns
   const candidates = [];
   if (natalCacheDoc?.points) candidates.push(natalCacheDoc.points);
   if (natalCacheDoc?.natal) candidates.push(natalCacheDoc.natal);
@@ -368,9 +315,9 @@ function extractNatalLongitudes(natalCacheDoc) {
   throw new Error("Cannot extract natal longitudes from natal_cache doc. Update extractNatalLongitudes().");
 }
 
-// --------------------
-// story.json (器) v1.1 — FIX
-// --------------------
+/* =====================
+   story.json v1.1 — FIX
+===================== */
 function buildTouchPoints({ transitBodies, natalBodies, rules }) {
   const results = [];
   const transitKeys = Object.keys(transitBodies);
@@ -385,14 +332,12 @@ function buildTouchPoints({ transitBodies, natalBodies, rules }) {
       if (typeof nLon !== "number") continue;
 
       const dist = absAngularDistance(tLon, nLon);
-      const best = (() => {
-        let b = null;
-        for (const a of ASPECTS) {
-          const delta = Math.abs(dist - a.deg);
-          if (!b || delta < b.delta) b = { type: a.type, aspect_deg: a.deg, delta };
-        }
-        return b;
-      })();
+
+      let best = null;
+      for (const a of ASPECTS) {
+        const delta = Math.abs(dist - a.deg);
+        if (!best || delta < best.delta) best = { type: a.type, aspect_deg: a.deg, delta };
+      }
 
       if (!rules.aspects_used.includes(best.type)) continue;
       if (best.delta > rules.orb_max_deg) continue;
@@ -424,12 +369,13 @@ function buildPublicSkyTop(transitMap) {
     if (typeof lon !== "number") continue;
 
     const dist = absAngularDistance(moonLon, lon);
-    // best aspect
+
     let best = null;
     for (const a of ASPECTS) {
       const delta = Math.abs(dist - a.deg);
       if (!best || delta < best.delta) best = { type: a.type, aspect_deg: a.deg, delta };
     }
+
     if (best.delta <= 6) {
       out.push({
         a: "Moon",
@@ -444,12 +390,6 @@ function buildPublicSkyTop(transitMap) {
   return out.sort((x, y) => x.orb_deg - y.orb_deg).slice(0, 3);
 }
 
-/**
- * story.json v1.1 (FIX)
- * - public: sky only (X/IG)
- * - personal: touch points (LINE only)
- * - guardrails: thoughts boundary
- */
 function storyJsonV11({
   appUserId,
   displayName,
@@ -471,10 +411,7 @@ function storyJsonV11({
       date_local: dateLocal,
       as_of: asOfISO,
       generated_at_utc: nowIso(),
-      engine: engineMeta ?? {
-        ephemeris_source: "swisseph",
-        precision_deg: 0.01,
-      },
+      engine: engineMeta ?? { ephemeris_source: "swisseph", precision_deg: 0.01 },
       rules,
     },
 
@@ -485,17 +422,12 @@ function storyJsonV11({
         lon_deg: transitInfo?.moon?.lon_deg ?? null,
       },
       sky_top: skyTop,
-      // ここは後から辞書/AIで埋める余白（思想的にもOK）
-      tone_hints: {
-        resonance_bullets: [],
-      },
+      tone_hints: { resonance_bullets: [] },
     },
 
     personal: {
       user_id: appUserId,
-      user: {
-        display_name: displayName ?? null,
-      },
+      user: { display_name: displayName ?? null },
       privacy: {
         contains_personal_data: true,
         allowed_channels: ["line"],
@@ -514,9 +446,9 @@ function storyJsonV11({
   };
 }
 
-// --------------------
-// Renderers (LINE / X / IG)
-// --------------------
+/* =====================
+   Renderers (LINE / X / IG)
+===================== */
 function fmtAspectJa(aspect) {
   return ASPECT_JA[aspect] || aspect;
 }
@@ -537,7 +469,6 @@ function renderLine(story) {
     const n = fmtPointJa(r.natal_body_or_point);
     const a = fmtAspectJa(r.aspect);
     return `${i + 1}) ${t} × ${n}｜${a}（orb ${r.orb_deg}°）`;
-    // ※ここで意味解説をしない（思想FIX）
   });
 
   const moonLine = moonSign ? `\n【今日の月】\n月は ${moonSign} を通過中。` : "";
@@ -554,7 +485,6 @@ ${lines.join("\n")}${moonLine}
 }
 
 function renderX(story) {
-  // X/IGは「public only」でも成立するように（個人情報なし）
   const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
   const sky = story?.public?.sky_top || [];
   const moonSign = story?.public?.moon?.sign_ja || null;
@@ -572,7 +502,6 @@ function renderX(story) {
 
   const moonLine = moonSign ? `\n月は ${moonSign} を通過中。` : "";
 
-  // 200文字に寄せたい場合は後で短縮版も作れる。今は読みやすさ優先。
   return `🌌 ソラのこえ。
 ［${dateLabel}｜空の配置］${moonLine}
 
@@ -582,7 +511,6 @@ ${skyLines}
 }
 
 function renderIG(story) {
-  // IGはそのまま貼れる整形（改行多め）
   const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
   const moonSign = story?.public?.moon?.sign_ja || null;
   const sky = story?.public?.sky_top || [];
@@ -611,39 +539,59 @@ ${skyLines}
 星は語る。決めるのは、人。`;
 }
 
-// --------------------
-// Firestore writers
-// --------------------
+/* =====================
+   Firestore writers
+===================== */
 function storyDocId(appUserId, dateLocal) {
   return `${appUserId}-${dateLocal}`;
 }
 
 /**
- * Overwrite stories doc (single)
- * - doc id is fixed per day: {appUserId}-{dateLocal}
- * - we keep last_generated and overwrite the story itself
+ * Overwrite single story doc, but keep created_at stable (transaction).
  */
 async function saveStoryOverwrite(story) {
   const id = storyDocId(story.personal.user_id, story.meta.date_local);
   const ref = db.collection("stories").doc(id);
-  await ref.set(
-    {
-      doc_id: id,
-      user_id: story.personal.user_id,
-      date_local: story.meta.date_local,
-      as_of: story.meta.as_of,
-      schema_version: story.meta.schema_version,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-      story,
-    },
-    { merge: true } // keep timestamps fields stable
-  );
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    if (!snap.exists) {
+      tx.set(ref, {
+        doc_id: id,
+        user_id: story.personal.user_id,
+        date_local: story.meta.date_local,
+        as_of: story.meta.as_of,
+        schema_version: story.meta.schema_version,
+        created_at: now,
+        updated_at: now,
+        story,
+      });
+    } else {
+      tx.set(
+        ref,
+        {
+          doc_id: id,
+          user_id: story.personal.user_id,
+          date_local: story.meta.date_local,
+          as_of: story.meta.as_of,
+          schema_version: story.meta.schema_version,
+          updated_at: now,
+          story,
+        },
+        { merge: true }
+      );
+    }
+  });
+
   return id;
 }
 
 /**
  * Batch overwrite multiple stories
+ * NOTE: batch cannot conditionally preserve created_at without pre-reads.
+ * For rebuild jobs, it's usually acceptable. If you want strict created_at, do per-doc transaction (slower).
  */
 async function batchUpsertStories(stories) {
   const chunks = [];
@@ -651,6 +599,8 @@ async function batchUpsertStories(stories) {
 
   for (const chunk of chunks) {
     const batch = db.batch();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
     for (const s of chunk) {
       const id = storyDocId(s.personal.user_id, s.meta.date_local);
       const ref = db.collection("stories").doc(id);
@@ -662,32 +612,41 @@ async function batchUpsertStories(stories) {
           date_local: s.meta.date_local,
           as_of: s.meta.as_of,
           schema_version: s.meta.schema_version,
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-          created_at: admin.firestore.FieldValue.serverTimestamp(),
+          // created_at is NOT set here to avoid overwriting old docs; new docs will miss created_at unless already there.
+          // If you want created_at always, set created_at: now, but it overwrites existing docs.
+          updated_at: now,
           story: s,
         },
         { merge: true }
       );
     }
+
     await batch.commit();
   }
 }
 
-// --------------------
-// LINE signature verify (raw body)
-// --------------------
+/* =====================
+   LINE signature verify (raw body)
+===================== */
 function verifyLineSignatureRaw(rawBodyBuf, signature, secret) {
   if (!secret) return { ok: false, reason: "LINE_CHANNEL_SECRET is missing" };
   if (!signature) return { ok: false, reason: "x-line-signature missing" };
   if (!Buffer.isBuffer(rawBodyBuf)) return { ok: false, reason: "raw body is not Buffer" };
 
   const hmac = crypto.createHmac("sha256", secret).update(rawBodyBuf).digest("base64");
-  return { ok: hmac === signature, reason: hmac === signature ? "ok" : "signature mismatch" };
+
+  // timingSafeEqual requires same length buffers
+  const a = Buffer.from(hmac);
+  const b = Buffer.from(String(signature));
+  if (a.length !== b.length) return { ok: false, reason: "signature mismatch" };
+
+  const same = crypto.timingSafeEqual(a, b);
+  return { ok: same, reason: same ? "ok" : "signature mismatch" };
 }
 
-// --------------------
-// Firestore: line_users upsert / normalize
-// --------------------
+/* =====================
+   Firestore: line_users upsert / normalize
+===================== */
 function makeAppUserId(prefix = "u") {
   return `${prefix}_${crypto.randomBytes(12).toString("base64url")}`;
 }
@@ -738,11 +697,7 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
         updated_at: now,
       });
     } else {
-      tx.set(
-        lineRef,
-        { app_user_id: appUserId, status, profile: mergedProfile, updated_at: now },
-        { merge: true }
-      );
+      tx.set(lineRef, { app_user_id: appUserId, status, profile: mergedProfile, updated_at: now }, { merge: true });
     }
 
     if (!userSnap.exists) {
@@ -760,9 +715,9 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
   });
 }
 
-// --------------------
-// Jobs queue (natal calc placeholder)
-// --------------------
+/* =====================
+   Jobs queue (natal calc placeholder)
+===================== */
 async function enqueueNatalCalc({ appUserId, lineUserId, reason = "consent_granted" }) {
   const now = admin.firestore.FieldValue.serverTimestamp();
   const ref = db.collection("jobs_natal_calc").doc();
@@ -781,8 +736,7 @@ async function enqueueNatalCalc({ appUserId, lineUserId, reason = "consent_grant
 }
 
 async function handleJobsWorker(req, res) {
-  const q = await db
-    .collection("jobs_natal_calc")
+  const q = await db.collection("jobs_natal_calc")
     .where("status", "==", "queued")
     .orderBy("created_at", "asc")
     .limit(1)
@@ -794,27 +748,21 @@ async function handleJobsWorker(req, res) {
   const job = doc.data();
 
   await doc.ref.set(
-    {
-      status: "running",
-      attempts: (job.attempts || 0) + 1,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
+    { status: "running", attempts: (job.attempts || 0) + 1, updated_at: admin.firestore.FieldValue.serverTimestamp() },
     { merge: true }
   );
 
   try {
-    // TODO: SwissEph計算などに差し替え
+    // TODO: natal_positionsを本計算で埋める
     await db.collection("natal_cache").doc(job.app_user_id).set(
       {
         computed_at: admin.firestore.FieldValue.serverTimestamp(),
         engine: { ephemeris_source: "swisseph" },
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        // natal_positions を生成する本体は将来ここで埋める
       },
       { merge: true }
     );
 
-    // line_users status refresh
     const lineRef = db.collection("line_users").doc(job.line_user_id);
     const lineSnap = await lineRef.get();
     if (lineSnap.exists) {
@@ -828,20 +776,16 @@ async function handleJobsWorker(req, res) {
     }
 
     await doc.ref.set({ status: "done", last_error: null, updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-
     return ok(res, { ran: true, processed: 1, job_id: doc.id, app_user_id: job.app_user_id });
   } catch (e) {
-    await doc.ref.set(
-      { status: "failed", last_error: String(e), updated_at: admin.firestore.FieldValue.serverTimestamp() },
-      { merge: true }
-    );
+    await doc.ref.set({ status: "failed", last_error: String(e), updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return bad(res, 500, "job failed", { job_id: doc.id, error: String(e) });
   }
 }
 
-// --------------------
-// optional: geocoding
-// --------------------
+/* =====================
+   optional: geocoding
+===================== */
 async function geocodePlace(place, apiKey) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(place)}&key=${apiKey}&language=ja`;
   const r = await fetch(url);
@@ -860,9 +804,9 @@ async function geocodePlace(place, apiKey) {
   };
 }
 
-// --------------------
-// LINE reply/push helper
-// --------------------
+/* =====================
+   LINE reply/push helper
+===================== */
 async function lineReply(replyToken, text) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
@@ -897,9 +841,9 @@ async function linePush(to, text) {
   return { ok: r.ok, status: r.status, response: body };
 }
 
-// --------------------
-// Registration parsing / flow
-// --------------------
+/* =====================
+   Registration parsing / flow
+===================== */
 function parseBirthDate(text) {
   const s = String(text || "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
@@ -941,11 +885,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       return;
     }
     await ref.set(
-      {
-        profile: { ...(data.profile || {}), birth_date: v },
-        status: "pending_birth_time",
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
+      { profile: { ...(data.profile || {}), birth_date: v }, status: "pending_birth_time", updated_at: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
     await lineReply(replyToken, "受け取りました。\n次に、出生時刻です（例：12:18）\n不明なら「不明」でOK。");
@@ -959,11 +899,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       return;
     }
     await ref.set(
-      {
-        profile: { ...(data.profile || {}), birth_time: v },
-        status: "pending_birth_place",
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
+      { profile: { ...(data.profile || {}), birth_time: v }, status: "pending_birth_place", updated_at: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
     await lineReply(replyToken, "ありがとう。\n次に、出生地（市区町村まで）を教えてください。\n例：北海道帯広市");
@@ -978,8 +914,8 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     }
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    let lat = null,
-      lon = null;
+    let lat = null;
+    let lon = null;
 
     if (apiKey) {
       const g = await geocodePlace(place, apiKey);
@@ -989,10 +925,6 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       }
       lat = g.lat;
       lon = g.lon;
-    } else {
-      // API key無しだと lat/lon が入らない => readyになれない。
-      // ただし思想的にはOKなので、ここは「未計算でも進める」ルートを選ぶ。
-      // ready判定は lat/lon を要求してるので、必要なら computeStatusFromProfile を緩めてね。
     }
 
     await ref.set(
@@ -1022,11 +954,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 
     if (yn === false) {
       await ref.set(
-        {
-          consent: { profile: false, saved_at: null },
-          status: "pending_profile",
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        },
+        { consent: { profile: false, saved_at: null }, status: "pending_profile", updated_at: admin.firestore.FieldValue.serverTimestamp() },
         { merge: true }
       );
       await lineReply(replyToken, "了解です。\n保存はしません。\nまたいつでも再開できます。");
@@ -1034,20 +962,14 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     }
 
     await ref.set(
-      {
-        consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
-        status: "ready",
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
+      { consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() }, status: "ready", updated_at: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
 
     const latest = await ref.get();
     const latestData = latest.data() || {};
     const ensuredAppUserId = latestData.app_user_id || appUserId;
-    if (ensuredAppUserId) {
-      await enqueueNatalCalc({ appUserId: ensuredAppUserId, lineUserId });
-    }
+    if (ensuredAppUserId) await enqueueNatalCalc({ appUserId: ensuredAppUserId, lineUserId });
 
     await lineReply(replyToken, "保存しました。\n星の配置は数値として置きます。\n解釈は、あなたのもの。");
     return;
@@ -1056,23 +978,20 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
   await lineReply(replyToken, "🌌 ソラのこえ。\n受け取りは完了しています。");
 }
 
-// --------------------
-// Core: build story (single)
-// --------------------
+/* =====================
+   Core: build story (single)
+===================== */
 async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15, precisionDeg = 0.01 }) {
-  // user display_name
   let displayName = null;
   try {
     const u = await db.collection("users").doc(appUserId).get();
     if (u.exists) displayName = u.data()?.display_name ?? null;
   } catch (_) {}
 
-  // natal
   const natalCache = await loadNatalFromCache(appUserId);
   if (!natalCache) throw new Error(`natal_cache not found for user_id=${appUserId}`);
   const natalLonMap = extractNatalLongitudes(natalCache);
 
-  // transits (now対応)
   const transitInfo = computeTransitsSwiss(asOfISO, precisionDeg);
 
   const rules = {
@@ -1101,39 +1020,35 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
   return story;
 }
 
-// --------------------
-// HTTP handlers
-// --------------------
+/* =====================
+   HTTP handlers
+===================== */
 async function handleTransit(req, res) {
-  const precisionDeg = 0.01;
-  const asOfISO = String(req.query.as_of || nowIso());
-  const t = computeTransitsSwiss(asOfISO, precisionDeg);
+  try {
+    const precisionDeg = 0.01;
+    const asOfISO = String(req.query.as_of || nowIso());
+    const t = computeTransitsSwiss(asOfISO, precisionDeg);
 
-  return ok(res, {
-    meta: {
-      project: PROJECT,
-      timezone: DEFAULT_TZ,
-      as_of: asOfISO,
-      generated_at_utc: nowIso(),
-      engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
-    },
-    transit: t,
-  });
+    return ok(res, {
+      meta: {
+        project: PROJECT,
+        timezone: DEFAULT_TZ,
+        as_of: asOfISO,
+        generated_at_utc: nowIso(),
+        engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
+      },
+      transit: t,
+    });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
 }
 
-/**
- * GET /stories/build
- * query:
- *   user_id (required)
- *   date_local (optional, default: JST today of as_of)
- *   as_of (optional ISO datetime, default now)
- *   save=1 (default 1)
- */
 async function handleStoriesBuild(req, res) {
   try {
     const appUserId = must(req.query.user_id, "user_id");
     const asOfISO = String(req.query.as_of || nowIso());
-    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const { date_local: inferred } = isoToTzParts(asOfISO, DEFAULT_TZ);
     const dateLocal = String(req.query.date_local || inferred);
 
     if (!isYYYYMMDD(dateLocal)) return bad(res, 400, "date_local must be YYYY-MM-DD");
@@ -1151,16 +1066,6 @@ async function handleStoriesBuild(req, res) {
   }
 }
 
-/**
- * GET /stories/rebuild
- * query:
- *   user_id (required)
- *   from (required YYYY-MM-DD)
- *   to   (required YYYY-MM-DD)
- *   time (optional HH:MM, default 14:00)  -> used to build as_of each day
- *   dry_run (optional 1)
- *   orb_max_deg (optional number)
- */
 async function handleStoriesRebuild(req, res) {
   try {
     const appUserId = must(req.query.user_id, "user_id");
@@ -1199,38 +1104,25 @@ async function handleStoriesRebuild(req, res) {
   }
 }
 
-/**
- * GET /posts/x
- * query:
- *   user_id (optional)
- *   date_local (optional)
- *   as_of (optional)
- *   mode=public (default) | personal (if user_id given)
- *
- * - public: build story in-memory with dummy personal? => we still need natal if personal.
- * - For now: If user_id is given, use saved story doc (or build+save if missing).
- */
 async function handlePostsX(req, res) {
   try {
     const asOfISO = String(req.query.as_of || nowIso());
-    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const { date_local: inferred } = isoToTzParts(asOfISO, DEFAULT_TZ);
     const dateLocal = String(req.query.date_local || inferred);
 
     let story = null;
-
     const userId = req.query.user_id ? String(req.query.user_id) : null;
+
     if (userId) {
       const id = storyDocId(userId, dateLocal);
       const snap = await db.collection("stories").doc(id).get();
       if (snap.exists) {
         story = snap.data()?.story || null;
       } else {
-        // auto-build & save
         story = await buildStoryForUser({ appUserId: userId, dateLocal, asOfISO });
         await saveStoryOverwrite(story);
       }
     } else {
-      // public-only: build transit info without natal
       const t = computeTransitsSwiss(asOfISO, 0.01);
       story = {
         meta: {
@@ -1273,13 +1165,10 @@ async function handlePostsX(req, res) {
   }
 }
 
-/**
- * GET /posts/ig
- */
 async function handlePostsIG(req, res) {
   try {
     const asOfISO = String(req.query.as_of || nowIso());
-    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const { date_local: inferred } = isoToTzParts(asOfISO, DEFAULT_TZ);
     const dateLocal = String(req.query.date_local || inferred);
 
     const t = computeTransitsSwiss(asOfISO, 0.01);
@@ -1323,18 +1212,11 @@ async function handlePostsIG(req, res) {
   }
 }
 
-/**
- * GET /line/daily  (now対応)
- * query:
- *   user_id (required)
- *   as_of (optional ISO; default now)
- *   save_story=1 (default 1) -> その時点のstoryを作って上書き保存
- */
 async function handleLineDaily(req, res) {
   try {
     const appUserId = must(req.query.user_id, "user_id");
     const asOfISO = String(req.query.as_of || nowIso());
-    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const { date_local: inferred } = isoToTzParts(asOfISO, DEFAULT_TZ);
     const dateLocal = String(req.query.date_local || inferred);
 
     const saveStory = req.query.save_story === undefined ? true : parseBool(req.query.save_story);
@@ -1351,11 +1233,6 @@ async function handleLineDaily(req, res) {
   }
 }
 
-/**
- * GET /push (owner test)
- * query:
- *   text
- */
 async function handlePushMe(req, res) {
   const text = String(req.query.text || "🌌 ソラのこえ。").trim();
   const userId = process.env.OWNER_LINE_USER_ID;
@@ -1365,15 +1242,15 @@ async function handlePushMe(req, res) {
   return ok(res, { pushed: r.ok, status: r.status, response: r.response });
 }
 
-// --------------------
-// LINE webhook handler (raw body)
-// --------------------
+/* =====================
+   LINE webhook handler (raw body)
+===================== */
 async function handleLineWebhook(req, res) {
   const requestId = getRequestId(req);
   const secret = process.env.LINE_CHANNEL_SECRET;
   const signature = req.header("x-line-signature") || "";
 
-  const raw = req.body; // bodyParser.raw
+  const raw = req.body; // must be Buffer
   if (!Buffer.isBuffer(raw)) {
     console.error(`[${nowIso()}] raw body missing`, { requestId });
     return res.status(200).send("ok");
@@ -1414,9 +1291,9 @@ async function handleLineWebhook(req, res) {
   return res.status(200).send("ok");
 }
 
-// --------------------
-// DEBUG / ADMIN (token protected)
-// --------------------
+/* =====================
+   DEBUG / ADMIN (token protected)
+===================== */
 function requireDebugToken(req) {
   const need = process.env.DEBUG_TOKEN;
   const token = String(req.query.token || req.header("x-debug-token") || "");
@@ -1424,9 +1301,6 @@ function requireDebugToken(req) {
   if (!token || token !== need) throw new Error("forbidden");
 }
 
-/**
- * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false
- */
 async function handleDebugResetRegistration(req, res) {
   try {
     requireDebugToken(req);
@@ -1458,14 +1332,6 @@ async function handleDebugResetRegistration(req, res) {
   }
 }
 
-/**
- * POST /admin/stories/seed?token=...
- * body: { stories: [ {meta,public,personal,guardrails}, ... ] }
- *
- * 👉「一個一個いれずに、storiesを一括更新したい」用。
- * - docIdは personal.user_id + meta.date_local で決まる
- * - merge:true で upsert
- */
 async function handleAdminSeedStories(req, res) {
   try {
     requireDebugToken(req);
@@ -1474,7 +1340,6 @@ async function handleAdminSeedStories(req, res) {
     const stories = body.stories;
     if (!Array.isArray(stories) || !stories.length) return bad(res, 400, "body.stories must be a non-empty array");
 
-    // minimal validate
     for (const s of stories) {
       if (!s?.personal?.user_id) throw new Error("each story must include personal.user_id");
       if (!s?.meta?.date_local) throw new Error("each story must include meta.date_local");
@@ -1488,9 +1353,9 @@ async function handleAdminSeedStories(req, res) {
   }
 }
 
-// --------------------
-// Express app / router (SINGLE)
-// --------------------
+/* =====================
+   Express app / router (SINGLE)
+===================== */
 const app = express();
 
 // common log
@@ -1499,8 +1364,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// JSON for most routes
-app.use(express.json({ limit: "2mb" }));
+// IMPORTANT: /line/webhook must stay RAW.
+// So we skip express.json() on that path.
+app.use((req, res, next) => {
+  if (req.path === "/line/webhook") return next();
+  return express.json({ limit: "2mb" })(req, res, next);
+});
 
 app.get("/", (req, res) =>
   ok(res, {
@@ -1519,12 +1388,12 @@ app.get("/", (req, res) =>
       "/debug/resetRegistration?token=&line_user_id=",
       "/admin/stories/seed?token= (POST json)",
     ],
+    schema_version: SCHEMA_VERSION,
   })
 );
 
 app.get("/healthz", (req, res) => res.status(200).send("ok"));
 
-// endpoints
 app.get("/transit", (req, res) => handleTransit(req, res));
 app.get("/stories/build", (req, res) => handleStoriesBuild(req, res));
 app.get("/stories/rebuild", (req, res) => handleStoriesRebuild(req, res));
@@ -1542,11 +1411,10 @@ app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
 });
 
 // LINE webhook must be RAW
-app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+app.post("/line/webhook", bodyParser.raw({ type: "*/*", limit: "1mb" }), (req, res) => {
   handleLineWebhook(req, res).catch((err) => {
     console.error("handleLineWebhook error:", err);
-    // LINEにはとにかく200（再送ループ防止）
-    return res.status(200).send("ok");
+    return res.status(200).send("ok"); // prevent retry loop
   });
 });
 
