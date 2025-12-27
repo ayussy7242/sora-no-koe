@@ -738,10 +738,47 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
   const data = fresh.data() || {};
   let status = data.status || "pending_profile";
 
-  // ✅ 「pending_profile だけど birth_date が空」なら次を促す
-  if (!data.profile?.birth_date && status === "pending_profile") {
-    await ref.set({ status: "pending_birth_date" }, { merge: true });
-    status = "pending_birth_date";
+   // 追加：開始トリガー
+  function isStart(text) {
+    const s = String(text || "").trim().toLowerCase();
+    return ["はじめる", "始める", "start", "開始"].includes(s);
+  }
+
+  function isToday(text) {
+    const s = String(text || "").trim().toLowerCase();
+    return ["今日", "きょう", "today"].includes(s);
+  }
+
+  // ✅ ready のとき「今日」を最優先で拾う（登録フローに入らない）
+  if (status === "ready" && isToday(userText)) {
+    const asOfISO = nowIso();
+    const { date_local } = isoToJstParts(asOfISO);
+
+    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
+    await saveStoryOverwrite(story);
+
+    await lineReply(replyToken, renderLine(story));
+    return;
+  }
+
+  // pending_profile は「待機」
+  // ✅「はじめる」が来たら、初めて pending_birth_date にする
+  if (status === "pending_profile") {
+    if (isStart(userText)) {
+      await ref.set({ status: "pending_birth_date" }, { merge: true });
+      status = "pending_birth_date";
+    } else {
+      await lineReply(
+        replyToken,
+        [
+          "🌌 ソラのこえ。",
+          "",
+          "はじめる準備ができたら",
+          "「はじめる」って送ってね🕊️",
+        ].join("\n")
+      );
+      return;
+    }
   }
 
   if (status === "pending_birth_date") {
@@ -871,49 +908,22 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     return;
   }
 
-  if (status === "pending_consent") {
-    const yn = parseYesNo(userText);
+if (status === "pending_consent") {
+  const yn = parseYesNo(userText);
 
-    if (yn === null) {
-      await lineReply(
-        replyToken,
-        [
-          "「はい / いいえ」で返してください🕊️",
-        ].join("\n")
-      );
-      return;
-    }
+  if (yn === null) {
+    await lineReply(
+      replyToken,
+      "「はい / いいえ」で返してください🕊️"
+    );
+    return;
+  }
 
-    if (yn === false) {
-      await ref.set(
-        {
-          consent: { profile: false, saved_at: null },
-          status: "pending_profile",
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      await lineReply(
-        replyToken,
-        [
-          "了解です🕊️",
-          "保存はしません。",
-          "",
-          "またいつでも再開できます。",
-          "必要になったら「はじめる」と送ってね。",
-        ].join("\n")
-      );
-      return;
-    }
-
-    // ✅ ここで「はい → 受信中… → ぽん」を演出したい場合：
-    // 1通目：受信中
-    // 2通目：ぽん（今日の結果） ← ※これは webhook の replyToken 1回制限があるので注意（後述）
+  if (yn === false) {
     await ref.set(
       {
-        consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
-        status: "ready",
+        consent: { profile: false, saved_at: null },
+        status: "pending_profile",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
@@ -922,25 +932,63 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     await lineReply(
       replyToken,
       [
-        "保存しました🕊️",
-        "今日の宇宙を受信ちゅう…📡🌌",
+        "了解です🕊️",
+        "保存はしません。",
         "",
-        "星は語る。決めるのは、人。",
-        "解釈は、あなたのもの。",
+        "またいつでも再開できます。",
+        "必要になったら「はじめる」と送ってね。",
       ].join("\n")
     );
     return;
   }
 
+  // ✅ yn === true（同意OK）
+  await ref.set(
+    {
+      consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
+      status: "ready",
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  // 1) まず reply（演出：replyToken は1回だけ）
   await lineReply(
     replyToken,
     [
-      "🌌 ソラのこえ。",
-      "受け取りは完了しています🕊️",
-      "",
-      "今日の分がほしければ「今日」と送ってね。",
+      "保存しました🕊️",
+      "今日の宇宙を受信ちゅう…📡🌌",
     ].join("\n")
   );
+
+  // 2) つづけて push（ぽん：今日の結果）
+  try {
+    const asOfISO = nowIso();
+    const { date_local } = isoToJstParts(asOfISO);
+
+    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
+    await saveStoryOverwrite(story);
+
+    await linePush(lineUserId, renderLine(story));
+  } catch (e) {
+    console.error("post-consent build/push failed:", e);
+    // push が失敗しても、同意返信は返してるのでここでは黙ってOK
+  }
+
+  return;
+}
+
+// ready など、それ以外
+await lineReply(
+  replyToken,
+  [
+    "🌌 ソラのこえ。",
+    "受け取りは完了しています🕊️",
+    "",
+    "今日の分がほしければ「今日」と送ってね。",
+  ].join("\n")
+);
+
 }
 
 // --------------------
