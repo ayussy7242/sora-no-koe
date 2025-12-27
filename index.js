@@ -342,3 +342,65 @@ const TRANSIT_SPEED = {
     Venus: 1.18,
     Mars: 0.524,
 };
+
+
+// LINE配信DAILY
+async function buildLineDailyHttpHandler(req, res) {
+  try {
+    const userId = String(req.query.user_id || "u_me_yxhONE59qsE8hdpcdsGZ").trim();
+    const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
+
+    if (!isYYYYMMDD(dateLocal)) {
+      return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
+    }
+
+    const storyDocId = `${userId}-${dateLocal}`;
+    const snap = await db.collection("stories").doc(storyDocId).get();
+
+    if (!snap.exists) {
+      return res.status(404).json({
+        ok: false,
+        error: "story not found",
+        hint: `/buildStoryHttp?user_id=${userId}&date_local=${dateLocal}`,
+      });
+    }
+
+    const story = snap.data().story;
+    const top = story.resonance.top_resonances || [];
+
+    const BODY_JA = { Sun:"太陽", Moon:"月", Mercury:"水星", Venus:"金星", Mars:"火星" };
+    const POINT_JA = { Sun:"太陽", Moon:"月", ASC:"ASC" };
+    const ASPECT_JA = {
+      conjunction:"コンジャンクション",
+      sextile:"セクスタイル",
+      square:"スクエア",
+      trine:"トライン",
+      opposition:"オポジション",
+    };
+
+    const lines = top.map((r, i) =>
+      `${i+1}) ${BODY_JA[r.transit_body]} × ${POINT_JA[r.natal_point]}｜${ASPECT_JA[r.aspect]}（orb ${r.orb_deg}°）`
+    );
+
+    const dateLabel = dateLocal.replaceAll("-", ".");
+
+    const text =
+`🌌 ソラのこえ。
+［${dateLabel}｜今日の星の配置］
+
+今日、強く触れている配置：
+
+${lines.join("\n")}
+
+解釈は、あなたのもの。`;
+
+    return res.json({
+      ok: true,
+      date_local: dateLocal,
+      line_message: text,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
+}
