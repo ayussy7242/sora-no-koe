@@ -186,7 +186,13 @@ function getRequestId(req) {
 }
 
 /**
- * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false
+ * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false&wipe_profile=true|false
+ *
+ * ✅ 目的
+ * - 登録フローを「最初から」に戻せる
+ * - consent を必ず false に戻す
+ * - 必要なら birth_date/time/place を削除して完全リセット
+ * - 必要なら app_user_id も削除して新規扱いにできる
  */
 async function handleDebugResetRegistration(req, res) {
   try {
@@ -194,6 +200,7 @@ async function handleDebugResetRegistration(req, res) {
 
     const lineUserId = must(req.query.line_user_id, "line_user_id");
     const keepAppUserId = String(req.query.keep_app_user_id ?? "true").toLowerCase() !== "false";
+    const wipeProfile = String(req.query.wipe_profile ?? "false").toLowerCase() === "true";
 
     const ref = db.collection("line_users").doc(lineUserId);
     const snap = await ref.get();
@@ -202,28 +209,48 @@ async function handleDebugResetRegistration(req, res) {
     const data = snap.data() || {};
     const now = admin.firestore.FieldValue.serverTimestamp();
 
+    // ✅ まず「必ず戻す」ものだけ固定
     const patch = {
       status: "pending_birth_date",
       consent: { profile: false, saved_at: null },
-      profile: { ...(data.profile || {}), timezone: data?.profile?.timezone || DEFAULT_TZ },
       updated_at: now,
     };
 
+    // ✅ プロフィールを完全初期化したい場合（最初から入力し直し）
+    if (wipeProfile) {
+      // birth_* を消す（FieldValue.delete は merge: true で効く）
+      patch.profile = {
+        timezone: data?.profile?.timezone || DEFAULT_TZ,
+        birth_date: admin.firestore.FieldValue.delete(),
+        birth_time: admin.firestore.FieldValue.delete(),
+        birth_place: admin.firestore.FieldValue.delete(),
+      };
+    } else {
+      // ✅ wipeしない場合は、既存を残しつつtimezoneだけ補完
+      patch.profile = { ...(data.profile || {}), timezone: data?.profile?.timezone || DEFAULT_TZ };
+    }
+
+    // ✅ app_user_id も捨てたいとき（完全に別ユーザーとしてやり直したい）
     if (!keepAppUserId) patch.app_user_id = admin.firestore.FieldValue.delete();
 
     await ref.set(patch, { merge: true });
+
+    // ✅ デバッグしやすいように、更新後の実データを返す
+    const after = await ref.get();
 
     return ok(res, {
       reset: true,
       line_user_id: lineUserId,
       keep_app_user_id: keepAppUserId,
+      wipe_profile: wipeProfile,
       next_status: "pending_birth_date",
+      after: after.data(),
     });
   } catch (e) {
-    // requireDebugToken のエラーもここに落ちる
     return bad(res, 403, String(e?.message ?? e));
   }
 }
+
 
 
 // --------------------
@@ -1033,14 +1060,63 @@ async function handleLineWebhook(req, res) {
     return res.status(200).send("ok");
   }
 
+  // ✅ デバッグに必要な情報を必ず出す（userId / revision / events数）
+  console.log("LINE webhook received", {
+    requestId,
+    revision: process.env.K_REVISION,
+    service: process.env.K_SERVICE,
+    databaseId: FIRESTORE_DATABASE_ID,
+    destination: json?.destination,
+    eventsCount: Array.isArray(json?.events) ? json.events.length : 0,
+  });
+
   const ev = json?.events?.[0];
   const lineUserId = ev?.source?.userId;
   if (!lineUserId) return res.status(200).send("ok");
 
-  const ensured = await ensureUserGraphFromLine({
-    lineUserId,
-    profilePatch: { timezone: DEFAULT_TZ },
-  });
+  // ✅ ここが肝：毎回 ensureUserGraphFromLine を呼ぶと status を再計算して上書きしてしまう
+  //   → resetRegistration で pending_birth_date にしても、次メッセージで pending_consent に戻る事故が起きる
+  //   対策：line_users が「存在しない時だけ」ensure を呼ぶ（既存なら読むだけ）
+  const lineRef = db.collection("line_users").doc(lineUserId);
+  let lineSnap;
+  try {
+    lineSnap = await lineRef.get();
+  } catch (e) {
+    console.error("line_users get failed:", e, { requestId, lineUserId });
+    return res.status(200).send("ok");
+  }
+
+  let appUserId = null;
+
+  if (!lineSnap.exists) {
+    // 初回のみグラフ作成
+    const ensured = await ensureUserGraphFromLine({
+      lineUserId,
+      profilePatch: { timezone: DEFAULT_TZ },
+    });
+    appUserId = ensured.appUserId;
+
+    console.log("LINE user graph ensured (created)", {
+      requestId,
+      lineUserId,
+      appUserId,
+      status: ensured.status,
+    });
+  } else {
+    const data = lineSnap.data() || {};
+    appUserId = data.app_user_id || null;
+
+    console.log("LINE user graph loaded (existing)", {
+      requestId,
+      lineUserId,
+      appUserId,
+      status: data.status,
+      consentProfile: !!data?.consent?.profile,
+      hasBirthDate: !!data?.profile?.birth_date,
+      hasBirthTime: !!data?.profile?.birth_time,
+      hasBirthPlace: !!data?.profile?.birth_place,
+    });
+  }
 
   const replyToken = ev?.replyToken;
   const msgText = ev?.message?.type === "text" ? ev.message.text : null;
@@ -1049,13 +1125,13 @@ async function handleLineWebhook(req, res) {
     if (replyToken && msgText != null) {
       await handleRegistrationFlow({
         lineUserId,
-        appUserId: ensured.appUserId,
+        appUserId,
         replyToken,
         userText: msgText,
       });
     }
   } catch (e) {
-    console.error("registrationFlow error:", e, { requestId });
+    console.error("registrationFlow error:", e, { requestId, lineUserId, appUserId });
   }
 
   return res.status(200).send("ok");
