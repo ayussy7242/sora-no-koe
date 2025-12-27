@@ -106,30 +106,30 @@ async function buildStoryHttpHandler(req, res) {
             }
         }
 
-const resonanceHits = [];
+        const resonanceHits = [];
 
-// ① まずトランジットを1回だけ計算して配列にする
-const transitPlanets = Object.entries(TRANSIT_SPEED).map(([body, speed]) => ({
-  body,
-  lon_deg: calcTransitPlanetLon(dateLocal, speed),
-}));
+        // ① まずトランジットを1回だけ計算して配列にする
+        const transitPlanets = Object.entries(TRANSIT_SPEED).map(([body, speed]) => ({
+            body,
+            lon_deg: calcTransitPlanetLon(dateLocal, speed),
+        }));
 
-// ② その配列を使って共鳴計算（再計算しない）
-for (const t of transitPlanets) {
-  for (const natalPoint of ["Sun", "Moon", "ASC"]) {
-    const dist = absAngularDistance(t.lon_deg, natalLon[natalPoint]);
-    const best = getAspectTypeAndOrb(dist, orbMaxDeg);
+        // ② その配列を使って共鳴計算（再計算しない）
+        for (const t of transitPlanets) {
+            for (const natalPoint of ["Sun", "Moon", "ASC"]) {
+                const dist = absAngularDistance(t.lon_deg, natalLon[natalPoint]);
+                const best = getAspectTypeAndOrb(dist, orbMaxDeg);
 
-    if (best) {
-      resonanceHits.push({
-        transit_body: t.body,
-        natal_point: natalPoint,
-        aspect: best.aspect,
-        orb_deg: toFixedPrecision(best.orb_deg, precisionDeg),
-      });
-    }
-  }
-}
+                if (best) {
+                    resonanceHits.push({
+                        transit_body: t.body,
+                        natal_point: natalPoint,
+                        aspect: best.aspect,
+                        orb_deg: toFixedPrecision(best.orb_deg, precisionDeg),
+                    });
+                }
+            }
+        }
 
 
         resonanceHits.sort((a, b) => a.orb_deg - b.orb_deg);
@@ -187,43 +187,43 @@ for (const t of transitPlanets) {
    transitHttp handler
 ===================== */
 async function transitHttpHandler(req, res) {
-  const requestId =
-    String(req.header("x-request-id") || req.header("x-cloud-trace-context") || "")
-      .slice(0, 100) || null;
+    const requestId =
+        String(req.header("x-request-id") || req.header("x-cloud-trace-context") || "")
+            .slice(0, 100) || null;
 
-  try {
-    const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
-    if (!isYYYYMMDD(dateLocal)) {
-      return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
+    try {
+        const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
+        if (!isYYYYMMDD(dateLocal)) {
+            return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
+        }
+
+        const precisionDeg = 0.01;
+
+        const planets = Object.entries(TRANSIT_SPEED).map(([body, speed]) => ({
+            body,
+            lon_deg: calcTransitPlanetLon(dateLocal, speed),
+        }));
+
+        return res.json({
+            ok: true,
+            meta: {
+                schema_version: "1.0.1",
+                project: "sora-no-koe",
+                timezone: "Asia/Tokyo",
+                date_local: dateLocal,
+                generated_at_utc: new Date().toISOString(),
+                engine: {
+                    ephemeris_source: "approx",
+                    precision: { deg: precisionDeg },
+                    request_id: requestId,
+                },
+            },
+            transit: { planets },
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, error: String(err) });
     }
-
-    const precisionDeg = 0.01;
-
-    const planets = Object.entries(TRANSIT_SPEED).map(([body, speed]) => ({
-      body,
-      lon_deg: calcTransitPlanetLon(dateLocal, speed),
-    }));
-
-    return res.json({
-      ok: true,
-      meta: {
-        schema_version: "1.0.1",
-        project: "sora-no-koe",
-        timezone: "Asia/Tokyo",
-        date_local: dateLocal,
-        generated_at_utc: new Date().toISOString(),
-        engine: {
-          ephemeris_source: "approx",
-          precision: { deg: precisionDeg },
-          request_id: requestId,
-        },
-      },
-      transit: { planets },
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: String(err) });
-  }
 }
 
 
@@ -231,61 +231,61 @@ async function transitHttpHandler(req, res) {
    buildResonancePostHttp handler（top3対応）
 ===================== */
 async function buildResonancePostHttpHandler(req, res) {
-  try {
-    const userId = String(req.query.user_id || "u_me_yxhONE59qsE8hdpcdsGZ").trim();
-    const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
+    try {
+        const userId = String(req.query.user_id || "u_me_yxhONE59qsE8hdpcdsGZ").trim();
+        const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
 
-    if (!isYYYYMMDD(dateLocal)) {
-      return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
-    }
+        if (!isYYYYMMDD(dateLocal)) {
+            return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
+        }
 
-    const storyDocId = `${userId}-${dateLocal}`;
-    const snap = await db.collection("stories").doc(storyDocId).get();
+        const storyDocId = `${userId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(storyDocId).get();
 
-    if (!snap.exists) {
-      return res.status(404).json({
-        ok: false,
-        error: "story not found. Call /buildStoryHttp first for this date.",
-        hint: {
-          url: `/buildStoryHttp?user_id=${encodeURIComponent(userId)}&date_local=${encodeURIComponent(dateLocal)}`,
-        },
-      });
-    }
+        if (!snap.exists) {
+            return res.status(404).json({
+                ok: false,
+                error: "story not found. Call /buildStoryHttp first for this date.",
+                hint: {
+                    url: `/buildStoryHttp?user_id=${encodeURIComponent(userId)}&date_local=${encodeURIComponent(dateLocal)}`,
+                },
+            });
+        }
 
-    const story = snap.data()?.story;
-    const tops = story?.resonance?.top_resonances || [];
-    const top3 = tops.slice(0, 3);
+        const story = snap.data()?.story;
+        const tops = story?.resonance?.top_resonances || [];
+        const top3 = tops.slice(0, 3);
 
-    if (!top3.length) {
-      return res.status(400).json({ ok: false, error: "no resonance candidates found" });
-    }
+        if (!top3.length) {
+            return res.status(400).json({ ok: false, error: "no resonance candidates found" });
+        }
 
-    // 表記（太陽〜火星）
-    const BODY_JA = { Sun: "太陽", Moon: "月", Mercury: "水星", Venus: "金星", Mars: "火星" };
-    const POINT_JA = { Sun: "太陽", Moon: "月", ASC: "ASC" };
-    const ASPECT_JA = {
-      conjunction: "コンジャンクション",
-      sextile: "セクスタイル",
-      square: "スクエア",
-      trine: "トライン",
-      opposition: "オポジション",
-    };
+        // 表記（太陽〜火星）
+        const BODY_JA = { Sun: "太陽", Moon: "月", Mercury: "水星", Venus: "金星", Mars: "火星" };
+        const POINT_JA = { Sun: "太陽", Moon: "月", ASC: "ASC" };
+        const ASPECT_JA = {
+            conjunction: "コンジャンクション",
+            sextile: "セクスタイル",
+            square: "スクエア",
+            trine: "トライン",
+            opposition: "オポジション",
+        };
 
-    // 1行フォーマット（置くだけ）
-    function formatHit(hit, index) {
-      const b = BODY_JA[hit.transit_body] || hit.transit_body;
-      const p = POINT_JA[hit.natal_point] || hit.natal_point;
-      const a = ASPECT_JA[hit.aspect] || hit.aspect;
-      const orb = hit.orb_deg;
-      return `${index + 1}) ${b} × ${p}｜${a}（orb ${orb}°）`;
-    }
+        // 1行フォーマット（置くだけ）
+        function formatHit(hit, index) {
+            const b = BODY_JA[hit.transit_body] || hit.transit_body;
+            const p = POINT_JA[hit.natal_point] || hit.natal_point;
+            const a = ASPECT_JA[hit.aspect] || hit.aspect;
+            const orb = hit.orb_deg;
+            return `${index + 1}) ${b} × ${p}｜${a}（orb ${orb}°）`;
+        }
 
-    const dateLabel = dateLocal.replaceAll("-", ".");
-    const lines = top3.map(formatHit).join("\n");
+        const dateLabel = dateLocal.replaceAll("-", ".");
+        const lines = top3.map(formatHit).join("\n");
 
-    // X文面（哲学は最小、指示・断定なし、配置を置く）
-    const xPost =
-`🌌 ソラのこえ。
+        // X文面（哲学は最小、指示・断定なし、配置を置く）
+        const xPost =
+            `🌌 ソラのこえ。
 ［${dateLabel}｜今日の星の配置］
 
 今日、強く触れている配置：
@@ -294,16 +294,16 @@ ${lines}
 
 解釈は、あなたのもの。`;
 
-    return res.json({
-      ok: true,
-      date_local: dateLocal,
-      x_post: xPost,
-      used: { top_resonances: top3 },
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: String(err) });
-  }
+        return res.json({
+            ok: true,
+            date_local: dateLocal,
+            x_post: xPost,
+            used: { top_resonances: top3 },
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, error: String(err) });
+    }
 }
 
 
@@ -311,30 +311,32 @@ ${lines}
    Router（target=app）
 ===================== */
 functions.http("app", async (req, res) => {
-  const path = (req.path || "/").toLowerCase();
+    const path = (req.path || "/").toLowerCase();
 
-  if (path === "/" || path === "/health") {
-    return res.json({
-      ok: true,
-      service: "sora-no-koe",
-      routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp", "/lineWebhook"],
-    });
-  }
-
-  // ✅ LINE Webhook（まずは200返すだけ）
-    if (path === "/linewebhook") {
-    console.log("LINE webhook hit");
-    console.log(JSON.stringify(req.body));
-    return res.status(200).json({ ok: true });
+    if (path === "/" || path === "/health") {
+        return res.json({
+            ok: true,
+            service: "sora-no-koe",
+            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp", "/lineWebhook"],
+        });
     }
 
+    // ✅ LINE Webhook（まずは200返すだけ）
+    if (path === "/linewebhook") {
+        console.log("LINE webhook hit");
+        console.log(JSON.stringify(req.body));
+        return res.status(200).json({ ok: true });
+    }
 
-  if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
-  if (path === "/transithttp") return transitHttpHandler(req, res);
-  if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
-  if (path === "/buildlinedailyhttp") return buildLineDailyHttpHandler(req, res);
+    if (path === "/pushme") {
+        return pushMeHandler(req, res);
+    }
+    if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
+    if (path === "/transithttp") return transitHttpHandler(req, res);
+    if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
+    if (path === "/buildlinedailyhttp") return buildLineDailyHttpHandler(req, res);
 
-  return res.status(404).json({ ok: false, error: "not found", path });
+    return res.status(404).json({ ok: false, error: "not found", path });
 });
 
 
@@ -357,46 +359,46 @@ const TRANSIT_SPEED = {
 
 // LINE配信DAILY
 async function buildLineDailyHttpHandler(req, res) {
-  try {
-    const userId = String(req.query.user_id || "u_me_yxhONE59qsE8hdpcdsGZ").trim();
-    const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
+    try {
+        const userId = String(req.query.user_id || "u_me_yxhONE59qsE8hdpcdsGZ").trim();
+        const dateLocal = String(req.query.date_local || jstTodayYYYYMMDD()).trim();
 
-    if (!isYYYYMMDD(dateLocal)) {
-      return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
-    }
+        if (!isYYYYMMDD(dateLocal)) {
+            return res.status(400).json({ ok: false, error: "date_local must be YYYY-MM-DD" });
+        }
 
-    const storyDocId = `${userId}-${dateLocal}`;
-    const snap = await db.collection("stories").doc(storyDocId).get();
+        const storyDocId = `${userId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(storyDocId).get();
 
-    if (!snap.exists) {
-      return res.status(404).json({
-        ok: false,
-        error: "story not found",
-        hint: `/buildStoryHttp?user_id=${userId}&date_local=${dateLocal}`,
-      });
-    }
+        if (!snap.exists) {
+            return res.status(404).json({
+                ok: false,
+                error: "story not found",
+                hint: `/buildStoryHttp?user_id=${userId}&date_local=${dateLocal}`,
+            });
+        }
 
-    const story = snap.data().story;
-    const top = story.resonance.top_resonances || [];
+        const story = snap.data().story;
+        const top = story.resonance.top_resonances || [];
 
-    const BODY_JA = { Sun:"太陽", Moon:"月", Mercury:"水星", Venus:"金星", Mars:"火星" };
-    const POINT_JA = { Sun:"太陽", Moon:"月", ASC:"ASC" };
-    const ASPECT_JA = {
-      conjunction:"コンジャンクション",
-      sextile:"セクスタイル",
-      square:"スクエア",
-      trine:"トライン",
-      opposition:"オポジション",
-    };
+        const BODY_JA = { Sun: "太陽", Moon: "月", Mercury: "水星", Venus: "金星", Mars: "火星" };
+        const POINT_JA = { Sun: "太陽", Moon: "月", ASC: "ASC" };
+        const ASPECT_JA = {
+            conjunction: "コンジャンクション",
+            sextile: "セクスタイル",
+            square: "スクエア",
+            trine: "トライン",
+            opposition: "オポジション",
+        };
 
-    const lines = top.map((r, i) =>
-      `${i+1}) ${BODY_JA[r.transit_body]} × ${POINT_JA[r.natal_point]}｜${ASPECT_JA[r.aspect]}（orb ${r.orb_deg}°）`
-    );
+        const lines = top.map((r, i) =>
+            `${i + 1}) ${BODY_JA[r.transit_body]} × ${POINT_JA[r.natal_point]}｜${ASPECT_JA[r.aspect]}（orb ${r.orb_deg}°）`
+        );
 
-    const dateLabel = dateLocal.replaceAll("-", ".");
+        const dateLabel = dateLocal.replaceAll("-", ".");
 
-    const text =
-`🌌 ソラのこえ。
+        const text =
+            `🌌 ソラのこえ。
 ［${dateLabel}｜今日の星の配置］
 
 今日、強く触れている配置：
@@ -405,15 +407,15 @@ ${lines.join("\n")}
 
 解釈は、あなたのもの。`;
 
-    return res.json({
-      ok: true,
-      date_local: dateLocal,
-      line_message: text,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: String(err) });
-  }
+        return res.json({
+            ok: true,
+            date_local: dateLocal,
+            line_message: text,
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ ok: false, error: String(err) });
+    }
 }
 
 
@@ -421,16 +423,62 @@ ${lines.join("\n")}
 // raw body を取れない環境があるので、まずは JSON stringify で一致させる簡易版。
 // （後で本式にする。まず動かす）
 function verifyLineSignature(req) {
-  const secret = process.env.LINE_CHANNEL_SECRET;
-  if (!secret) return { ok: false, reason: "LINE_CHANNEL_SECRET is missing" };
+    const secret = process.env.LINE_CHANNEL_SECRET;
+    if (!secret) return { ok: false, reason: "LINE_CHANNEL_SECRET is missing" };
 
-  const signature = req.header("x-line-signature") || "";
-  if (!signature) return { ok: false, reason: "x-line-signature missing" };
+    const signature = req.header("x-line-signature") || "";
+    if (!signature) return { ok: false, reason: "x-line-signature missing" };
 
-  // LINEは生のボディ文字列でHMACする。ここは“簡易”なので、まず通らない可能性あり。
-  // 通らなかったら rawBody 取れる構成に切り替える（下に書く）。
-  const bodyStr = JSON.stringify(req.body ?? {});
-  const hmac = crypto.createHmac("sha256", secret).update(bodyStr).digest("base64");
+    // LINEは生のボディ文字列でHMACする。ここは“簡易”なので、まず通らない可能性あり。
+    // 通らなかったら rawBody 取れる構成に切り替える（下に書く）。
+    const bodyStr = JSON.stringify(req.body ?? {});
+    const hmac = crypto.createHmac("sha256", secret).update(bodyStr).digest("base64");
 
-  return { ok: hmac === signature, reason: hmac === signature ? "ok" : "signature mismatch" };
+    return { ok: hmac === signature, reason: hmac === signature ? "ok" : "signature mismatch" };
+}
+
+async function pushMeHandler(req, res) {
+  try {
+    const text = String(req.query.text || "🌌 ソラのこえ。").trim();
+
+    const userId = process.env.OWNER_LINE_USER_ID;
+    const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+
+    if (!userId || !token) {
+      return res.status(500).json({
+        ok: false,
+        error: "LINE env vars missing",
+      });
+    }
+
+    const payload = {
+      to: userId,
+      messages: [
+        {
+          type: "text",
+          text,
+        },
+      ],
+    };
+
+    const r = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await r.text();
+
+    return res.json({
+      ok: r.ok,
+      status: r.status,
+      response: body,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ ok: false, error: String(err) });
+  }
 }
