@@ -498,21 +498,21 @@ function renderLine(story) {
 
   // 固定の「共鳴例」(思想FIX)
   const resonance = `
-    【立ち上がりやすい共鳴（例）】
-    ・安心と違和感が同時に動く
-    ・距離感を調整したくなる
-    ・言葉より先に反応が出る
-    ・感情の置き場を探したくなる`.trim();
+【立ち上がりやすい共鳴（例）】
+・安心と違和感が同時に動く
+・距離感を調整したくなる
+・言葉より先に反応が出る
+・感情の置き場を探したくなる`.trim();
 
-    return `🌌 🌌 今日のソラのこえ。｜${dateLabel}
+return `🌌 🌌 今日のソラのこえ。｜${dateLabel}
 
-  【今日の主な星の配置】
-  ${lines}${moonBlock}
+【今日の主な星の配置】
+${lines}${moonBlock}
 
-  ${resonance}
+${resonance}
 
-  解釈は、あなたのもの。
-  星は語る。決めるのは、人。`;
+解釈は、あなたのもの。
+星は語る。決めるのは、人。`;
 }
 
 function renderX(story) {
@@ -546,13 +546,13 @@ function renderIG(story) {
 
   return `🌌 ソラのこえ。｜${dateLabel}
 
-  ${moonLine}
+${moonLine}
 
-  【空の主な配置】
-  ${skyLines}
+【空の主な配置】
+${skyLines}
 
-  解釈は、あなたのもの。
-  星は語る。決めるのは、人。`;
+解釈は、あなたのもの。
+星は語る。決めるのは、人。`;
 }
 
 // --------------------
