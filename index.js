@@ -992,24 +992,54 @@ async function handlePostsIG(req, res) {
   }
 }
 
+async function resolveAppUserIdFromAny(userId) {
+  const s = String(userId || "").trim();
+  if (!s) throw new Error("user_id is required");
+
+  // app_user_id を直接渡された（デバッグ/内部用）
+  if (s.startsWith("u_")) return s;
+
+  // LINE userId を渡された（本番想定）
+  if (s.startsWith("U")) {
+    const snap = await db.collection("line_users").doc(s).get();
+    if (!snap.exists) throw new Error(`line_users not found for line_user_id=${s}`);
+    const data = snap.data() || {};
+    if (!data.app_user_id) throw new Error(`app_user_id missing on line_users for line_user_id=${s}`);
+    return data.app_user_id;
+  }
+
+  // その他は一旦そのまま（将来拡張用）
+  return s;
+}
+
 async function handleLineDaily(req, res) {
   try {
-    const appUserId = must(req.query.user_id, "user_id");
+    const anyUserId = must(req.query.user_id, "user_id");
+    const appUserId = await resolveAppUserIdFromAny(anyUserId);
+
     const asOfISO = String(req.query.as_of || nowIso());
     const { date_local: inferred } = isoToJstParts(asOfISO);
     const dateLocal = String(req.query.date_local || inferred);
-
     const saveStory = req.query.save_story === undefined ? true : parseBool(req.query.save_story);
 
     const story = await buildStoryForUser({ appUserId, dateLocal, asOfISO });
+
     let docId = null;
     if (saveStory) docId = await saveStoryOverwrite(story);
 
-    return ok(res, { date_local: dateLocal, as_of: asOfISO, saved_story: saveStory, doc_id: docId, line_message: renderLine(story) });
+    return ok(res, {
+      date_local: dateLocal,
+      as_of: asOfISO,
+      saved_story: saveStory,
+      doc_id: docId,
+      resolved: { input_user_id: anyUserId, app_user_id: appUserId },
+      line_message: renderLine(story),
+    });
   } catch (e) {
     return bad(res, 400, String(e?.message ?? e));
   }
 }
+
 
 async function handlePushMe(req, res) {
   const text = String(req.query.text || "🌌 ソラのこえ。").trim();
