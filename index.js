@@ -77,7 +77,7 @@ const ASPECT_JA = {
   opposition: "オポジション",
 };
 
-const SIGNS_JA = ["牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座"];
+const SIGNS_JA = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"];
 
 // --------------------
 // helpers
@@ -289,15 +289,15 @@ function sweLonDeg(bodyName, jdUt) {
 
   const flags = swisseph.SEFLG_SWIEPH;
   const out = swisseph.swe_calc_ut(jdUt, id, flags);
-    if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
+  if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
 
-    const lon = (typeof out.longitude === "number")
-      ? out.longitude
-      : out.data?.[0];
+  const lon = (typeof out.longitude === "number")
+    ? out.longitude
+    : out.data?.[0];
 
-    if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
+  if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
 
-    return norm360(lon);
+  return norm360(lon);
 }
 
 function signJaFromLon(lonDeg) {
@@ -476,19 +476,40 @@ function renderLine(story) {
   const top = story?.personal?.touch_points_top3 || [];
   const moonSign = story?.public?.moon?.sign_ja || null;
 
-  const lines = top.map((r, i) => {
-    const t = fmtBodyJa(r.transit_body);
-    const n = fmtPointJa(r.natal_body_or_point);
-    const a = fmtAspectJa(r.aspect);
-    return `${i + 1}) ${t} × ${n}｜${a}（orb ${r.orb_deg}°）`;
-  });
+  const lines = top.length
+    ? top.map((r, i) => {
+      const t = fmtBodyJa(r.transit_body);
+      const n = fmtPointJa(r.natal_body_or_point);
+      const a = fmtAspectJa(r.aspect);
+      const degLabel =
+        (r.aspect_deg === 0) ? "約0°" :
+          (r.aspect_deg === 60) ? "約60°" :
+            (r.aspect_deg === 90) ? "約90°" :
+              (r.aspect_deg === 120) ? "約120°" :
+                (r.aspect_deg === 180) ? "約180°" : `約${r.aspect_deg}°`;
 
-  const moonLine = moonSign ? `\n【今日の月】\n月は ${moonSign} を通過中。` : "";
+      return `①${i + 1} ${t} × ${n}｜${a}（${degLabel}｜orb ${r.orb_deg}°）`;
+    }).join("\n")
+    : "（今日は強い接触は少なめ。静かな日も、ちゃんと意味がある）";
 
-  return `🌌 今日のソラのこえ。｜${dateLabel}
+  const moonBlock = moonSign
+    ? `\n【今日の月の位置】\n月は ${moonSign} を通過中。`
+    : `\n【今日の月の位置】\n月のサインは取得中。`;
 
-【今日、強く触れている配置】
-${lines.join("\n")}${moonLine}
+  // 固定の「共鳴例」(思想FIX)
+  const resonance = `
+【立ち上がりやすい共鳴（例）】
+・安心と違和感が同時に動く
+・距離感を調整したくなる
+・言葉より先に反応が出る
+・感情の置き場を探したくなる`.trim();
+
+  return `🌌 🌌 今日のソラのこえ。｜${dateLabel}
+
+【今日の主な星の配置】
+${lines}${moonBlock}
+
+${resonance}
 
 どれか一つでも、まったく違っても大丈夫。
 
@@ -507,11 +528,11 @@ function renderX(story) {
 
   const moonLine = moonSign ? `\n月は ${moonSign} を通過中。` : "";
   return `🌌 ソラのこえ。
-［${dateLabel}｜空の配置］${moonLine}
+  ［${dateLabel}｜空の配置］${moonLine}
 
-${skyLines}
+  ${skyLines}
 
-解釈は、あなたのもの。`;
+  解釈は、あなたのもの。`;
 }
 
 function renderIG(story) {
@@ -527,13 +548,13 @@ function renderIG(story) {
 
   return `🌌 ソラのこえ。｜${dateLabel}
 
-${moonLine}
+  ${moonLine}
 
-【空の主な配置】
-${skyLines}
+  【空の主な配置】
+  ${skyLines}
 
-解釈は、あなたのもの。
-星は語る。決めるのは、人。`;
+  解釈は、あなたのもの。
+  星は語る。決めるのは、人。`;
 }
 
 // --------------------
@@ -1051,7 +1072,7 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
   try {
     const u = await db.collection("users").doc(appUserId).get();
     if (u.exists) displayName = u.data()?.display_name ?? null;
-  } catch (_) {}
+  } catch (_) { }
 
   const natalCache = await loadNatalFromCache(appUserId);
 
@@ -1315,11 +1336,11 @@ async function handleLineDaily(req, res) {
       line_message: renderLine(story),
     });
   } catch (e) {
-  console.error("handleLineDaily error", {
-    message: String(e?.message ?? e),
-    stack: e?.stack,
-    query: req.query,
-  });
+    console.error("handleLineDaily error", {
+      message: String(e?.message ?? e),
+      stack: e?.stack,
+      query: req.query,
+    });
     return bad(res, 400, String(e?.message ?? e));
   }
 }
@@ -1344,10 +1365,10 @@ async function handleLineWebhook(req, res) {
   // ✅ raw body を最優先で拾う（Functions Framework / Cloud Run で req.rawBody が付くことがある）
   const raw =
     (req.rawBody && Buffer.isBuffer(req.rawBody)) ? req.rawBody :
-    (Buffer.isBuffer(req.body)) ? req.body :
-    (typeof req.body === "string") ? Buffer.from(req.body, "utf8") :
-    (req.body && typeof req.body === "object") ? Buffer.from(JSON.stringify(req.body), "utf8") :
-    null;
+      (Buffer.isBuffer(req.body)) ? req.body :
+        (typeof req.body === "string") ? Buffer.from(req.body, "utf8") :
+          (req.body && typeof req.body === "object") ? Buffer.from(JSON.stringify(req.body), "utf8") :
+            null;
 
   if (!raw) {
     console.error(`[${nowIso()}] raw body missing`, {
@@ -1585,13 +1606,13 @@ function detectIntent(userText) {
   if (hasAny(s, ["今日", "きょう", "today", "本日"])) return "TODAY";
 
   // START
-  if (hasAny(s, ["はじめ", "始め", "start", "開始", "登録", "やる"])) return "START";
+  if (hasAny(s, ["はじめ", "始め", "start", "開始", "登録", "やる", "みたい", "やりたい"])) return "START";
 
   // REQUEST（短文リクエスト）
   if (hasAny(s, ["今", "いま", "リクエスト", "ひとこと", "短文", "さくっと"])) return "REQUEST";
 
   // 同意
-  if (hasAny(s, ["はい", "うん", "ok", "了解", "いいよ", "保存して", "お願いします"])) return "YES";
+  if (hasAny(s, ["はい", "うん", "ok", "了解", "いいよ", "保存", "お願いします"])) return "YES";
   if (hasAny(s, ["いいえ", "やめ", "no", "拒否", "保存しない", "しない", "今回はやめとく"])) return "NO";
 
   return "OTHER";
@@ -1679,20 +1700,20 @@ async function replyRequestShort({ appUserId, replyToken }) {
 
     const msg = top1
       ? [
-          "🌌 今のソラのこえ。",
-          "",
-          `いまは、${fmtBodyJa(top1.transit_body)} が ${fmtPointJa(top1.natal_body_or_point)} に`,
-          `${fmtAspectJa(top1.aspect)}（orb ${top1.orb_deg}°）で触れています。`,
-          "",
-          "無理に意味づけしなくて大丈夫。",
-          "鳴っている場所を、ただ感じてみてください🕊️",
-        ].join("\n")
+        "🌌 今のソラのこえ。",
+        "",
+        `いまは、${fmtBodyJa(top1.transit_body)} が ${fmtPointJa(top1.natal_body_or_point)} に`,
+        `${fmtAspectJa(top1.aspect)}（orb ${top1.orb_deg}°）で触れています。`,
+        "",
+        "無理に意味づけしなくて大丈夫。",
+        "鳴っている場所を、ただ感じてみてください🕊️",
+      ].join("\n")
       : [
-          "🌌 今のソラのこえ。",
-          "",
-          "いまは、強い接触は少なめの日。",
-          "静かな日も、ちゃんと意味がある🕊️",
-        ].join("\n");
+        "🌌 今のソラのこえ。",
+        "",
+        "いまは、強い接触は少なめの日。",
+        "静かな日も、ちゃんと意味がある🕊️",
+      ].join("\n");
 
     await lineReply(replyToken, msg);
   } catch (e) {
