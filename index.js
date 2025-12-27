@@ -1,5 +1,7 @@
 const functions = require("@google-cloud/functions-framework");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
+
 
 if (!admin.apps.length) admin.initializeApp();
 
@@ -309,23 +311,28 @@ ${lines}
    Router（target=app）
 ===================== */
 functions.http("app", async (req, res) => {
-    const path = (req.path || "/").toLowerCase();
+  const path = (req.path || "/").toLowerCase();
 
-    if (path === "/" || path === "/health") {
-        return res.json({
-            ok: true,
-            service: "sora-no-koe",
-            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp"],
-        });
-    }
+  if (path === "/" || path === "/health") {
+    return res.json({
+      ok: true,
+      service: "sora-no-koe",
+      routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp", "/lineWebhook"],
+    });
+  }
 
-    if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
-    if (path === "/transithttp") return transitHttpHandler(req, res);
-    if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
-    if (path === "/buildlinedailyhttp") return buildLineDailyHttpHandler(req, res);
+  // ✅ LINE Webhook（まずは200返すだけ）
+  if (path === "/linewebhook") {
+    // LINE Verify は POST で来る。とにかく 200 を返す。
+    return res.status(200).json({ ok: true });
+  }
 
+  if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
+  if (path === "/transithttp") return transitHttpHandler(req, res);
+  if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
+  if (path === "/buildlinedailyhttp") return buildLineDailyHttpHandler(req, res);
 
-    return res.status(404).json({ ok: false, error: "not found", path });
+  return res.status(404).json({ ok: false, error: "not found", path });
 });
 
 
@@ -406,3 +413,5 @@ ${lines.join("\n")}
     return res.status(500).json({ ok: false, error: String(err) });
   }
 }
+
+
