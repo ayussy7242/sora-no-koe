@@ -783,6 +783,16 @@ async function handlePushMe(req, res) {
 // LINE webhook handler (raw body)
 // --------------------
 async function handleLineWebhook(req, res) {
+
+  console.log("LINE webhook headers:", {
+  method: req.method,
+  path: req.path,
+  ct: req.headers["content-type"],
+  sig: (req.headers["x-line-signature"] || "").slice(0, 8) + "...",
+  bodyType: Buffer.isBuffer(req.body) ? "Buffer" : typeof req.body,
+  bodyLen: Buffer.isBuffer(req.body) ? req.body.length : null,
+});
+
   const requestId = getRequestId(req);
 
   const secret = process.env.LINE_CHANNEL_SECRET;
