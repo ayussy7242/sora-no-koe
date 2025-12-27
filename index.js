@@ -317,7 +317,7 @@ functions.http("app", async (req, res) => {
         return res.json({
             ok: true,
             service: "sora-no-koe",
-            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp", "/lineWebhook"],
+            routes: ["/buildStoryHttp", "/transitHttp", "/buildResonancePostHttp", "/buildLineDailyHttp", "/lineWebhook", "/pushMe"]
         });
     }
 
