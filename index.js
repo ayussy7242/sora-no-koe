@@ -1001,6 +1001,19 @@ async function handleLineWebhook(req, res) {
 */
 // --------------------
 
+function requireDebugToken(req) {
+  const expected = process.env.DEBUG_TOKEN;
+  if (!expected) throw new Error("DEBUG_TOKEN missing");
+
+  const token = String(req.query.token || "");
+  if (token !== expected) {
+    const err = new Error("forbidden");
+    err.status = 403;
+    throw err;
+  }
+}
+
+
 // --------------------
 // Express app (middleware order FIX)
 // --------------------
@@ -1019,6 +1032,10 @@ app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
     return res.status(200).send("ok");
   });
 });
+
+// app.post("/admin/stories/seed", express.json({ limit: "2mb" }), (req, res) => {
+//   handleAdminStoriesSeed(req, res).catch((e) => bad(res, 500, String(e?.message ?? e)));
+// });
 
 // 2) JSON parser for other routes
 app.use(express.json({ limit: "2mb" }));
@@ -1052,6 +1069,9 @@ app.get("/line/daily", (req, res) => handleLineDaily(req, res));
 app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
+app.get("/debug/resetRegistration", (req, res) => handleDebugResetRegistration(req, res));
+
+
 
 // fallback
 app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
