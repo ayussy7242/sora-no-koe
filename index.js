@@ -906,14 +906,13 @@ app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
 
 // LINE webhook (raw body only!)
 app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
-  // ✅ LINEには先に200を返す（検証はこれで通る）
-  ok(res, { received: true });
-
-  // 🔥 裏で処理（失敗してもLINEには影響しない）
-  handleLineWebhook(req, {
-    status: () => ({ json: () => {} }), // ダミーres
-  }).catch((err) => console.error("handleLineWebhook error:", err));
+  handleLineWebhook(req, res).catch((err) => {
+    console.error("handleLineWebhook error:", err);
+    // LINEにはとにかく200返す（再送ループ防止）
+    return res.status(200).send("ok");
+  });
 });
+
 
 // DEBUG (下に定義されてる handler を使う)
 app.get("/debug/resetRegistration", (req, res) => {
