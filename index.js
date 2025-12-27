@@ -1042,6 +1042,7 @@ app.get("/", (req, res) =>
 );
 
 app.get("/health", (req, res) => res.status(200).send("ok"));
+app.get("/healthz", (req, res) => res.status(200).send("ok"));
 
 // endpoints
 app.get("/transit", (req, res) => handleTransit(req, res));
