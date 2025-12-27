@@ -728,44 +728,44 @@ function parseYesNo(text) {
 async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userText }) {
   const ref = db.collection("line_users").doc(lineUserId);
 
+  // ensure（docが無い時だけ作る）
   const snap0 = await ref.get();
   if (!snap0.exists) {
     const ensured = await ensureUserGraphFromLine({ lineUserId, profilePatch: { timezone: DEFAULT_TZ } });
-    appUserId = ensured.appUserId; // eslint-disable-line no-param-reassign
+    appUserId = ensured.appUserId;
   }
 
   const fresh = await ref.get();
   const data = fresh.data() || {};
   let status = data.status || "pending_profile";
+  const consentProfile = !!data?.consent?.profile;
 
-   // 追加：開始トリガー
-  function isStart(text) {
-    const s = String(text || "").trim().toLowerCase();
-    return ["はじめる", "始める", "start", "開始"].includes(s);
-  }
+  const intent = detectIntent(userText);
 
-  function isToday(text) {
-    const s = String(text || "").trim().toLowerCase();
-    return ["今日", "きょう", "today"].includes(s);
-  }
+  // --- ROUTER (思想のFIX順序) ---
 
-  // ✅ ready のとき「今日」を最優先で拾う（登録フローに入らない）
-  if (status === "ready" && isToday(userText)) {
-    const asOfISO = nowIso();
-    const { date_local } = isoToJstParts(asOfISO);
-
-    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
-    await saveStoryOverwrite(story);
-
-    await lineReply(replyToken, renderLine(story));
+  // 1) ABOUT
+  if (intent === "ABOUT") {
+    await lineReply(replyToken, ABOUT_TEXT);
     return;
   }
 
-  // pending_profile は「待機」
-  // ✅「はじめる」が来たら、初めて pending_birth_date にする
+  // 2) TODAY（いつでも返す）
+  if (intent === "TODAY") {
+    await replyToday({ lineUserId, appUserId, replyToken, consentProfile, status });
+    return;
+  }
+
+  // 3) REQUEST（短文）
+  if (intent === "REQUEST" && status === "ready" && consentProfile) {
+    await replyRequestShort({ appUserId, replyToken });
+    return;
+  }
+
+  // 4) START（待機中なら登録開始）
   if (status === "pending_profile") {
-    if (isStart(userText)) {
-      await ref.set({ status: "pending_birth_date" }, { merge: true });
+    if (intent === "START") {
+      await ref.set({ status: "pending_birth_date", updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       status = "pending_birth_date";
     } else {
       await lineReply(
@@ -775,11 +775,15 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
           "",
           "はじめる準備ができたら",
           "「はじめる」って送ってね🕊️",
+          "",
+          "（今日の空だけ見たいなら「今日」でもOK）",
         ].join("\n")
       );
       return;
     }
   }
+
+  // --- 登録フロー本体（status machine） ---
 
   if (status === "pending_birth_date") {
     const v = parseBirthDate(userText);
@@ -803,7 +807,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 
     await ref.set(
       {
-        profile: { ...(data.profile || {}), birth_date: v },
+        profile: { ...(data.profile || {}), birth_date: v, timezone: data.profile?.timezone || DEFAULT_TZ },
         status: "pending_birth_time",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -842,7 +846,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 
     await ref.set(
       {
-        profile: { ...(data.profile || {}), birth_time: v },
+        profile: { ...(data.profile || {}), birth_time: v, timezone: data.profile?.timezone || DEFAULT_TZ },
         status: "pending_birth_place",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -880,11 +884,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 
     await ref.set(
       {
-        profile: {
-          ...(data.profile || {}),
-          birth_place: place,
-          timezone: data.profile?.timezone || DEFAULT_TZ,
-        },
+        profile: { ...(data.profile || {}), birth_place: place, timezone: data.profile?.timezone || DEFAULT_TZ },
         status: "pending_consent",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
@@ -901,95 +901,95 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
         "「はい」→ 保存して、あなたの星と“いま触れている配置”をそっと置きます",
         "「いいえ」→ 保存せず、空の配置だけを静かに置きます",
         "",
-        "*.解釈はあなただけのもの。",
+        "解釈はあなたのものです✨️",
+
         "「はい / いいえ」で返してください。",
       ].join("\n")
     );
     return;
   }
 
-if (status === "pending_consent") {
-  const yn = parseYesNo(userText);
+  if (status === "pending_consent") {
+    // ✅ intentベースで拾う（YES/NOを強くする）
+    const yn = (intent === "YES") ? true : (intent === "NO") ? false : null;
 
-  if (yn === null) {
-    await lineReply(
-      replyToken,
-      "「はい / いいえ」で返してください🕊️"
-    );
-    return;
-  }
+    if (yn === null) {
+      await lineReply(replyToken, "「はい / いいえ」で返してください🕊️");
+      return;
+    }
 
-  if (yn === false) {
+    if (yn === false) {
+      await ref.set(
+        {
+          consent: { profile: false, saved_at: null },
+          status: "pending_profile",
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await lineReply(
+        replyToken,
+        [
+          "了解です🕊️",
+          "保存はしません。",
+          "",
+          "またいつでも再開できます。",
+          "必要になったら「はじめる」と送ってね。",
+        ].join("\n")
+      );
+      return;
+    }
+
+    // ✅ yn === true（同意OK）
     await ref.set(
       {
-        consent: { profile: false, saved_at: null },
-        status: "pending_profile",
+        consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
+        status: "ready",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
 
+    // 1) reply（replyTokenは1回）
     await lineReply(
       replyToken,
       [
-        "了解です🕊️",
-        "保存はしません。",
-        "",
-        "またいつでも再開できます。",
-        "必要になったら「はじめる」と送ってね。",
+        "保存しました🕊️",
+        "今日の宇宙を受信ちゅう…📡🌌",
       ].join("\n")
     );
+
+    // 2) push（失敗しても黙る）
+    try {
+      const asOfISO = nowIso();
+      const { date_local } = isoToJstParts(asOfISO);
+
+      const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
+      await saveStoryOverwrite(story);
+
+      await linePush(lineUserId, renderLine(story));
+    } catch (e) {
+      console.error("post-consent build/push failed:", e);
+    }
+
     return;
   }
 
-  // ✅ yn === true（同意OK）
-  await ref.set(
-    {
-      consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
-      status: "ready",
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-
-  // 1) まず reply（演出：replyToken は1回だけ）
+  // ready など、それ以外
   await lineReply(
     replyToken,
     [
-      "保存しました🕊️",
-      "今日の宇宙を受信ちゅう…📡🌌",
+      "🌌 ソラのこえ。",
+      "受け取りは完了しています🕊️",
+      "",
+      "今日の分がほしければ「今日」と送ってね。",
+      "（短文で欲しければ「今」でもOK）",
     ].join("\n")
   );
-
-  // 2) つづけて push（ぽん：今日の結果）
-  try {
-    const asOfISO = nowIso();
-    const { date_local } = isoToJstParts(asOfISO);
-
-    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
-    await saveStoryOverwrite(story);
-
-    await linePush(lineUserId, renderLine(story));
-  } catch (e) {
-    console.error("post-consent build/push failed:", e);
-    // push が失敗しても、同意返信は返してるのでここでは黙ってOK
-  }
-
-  return;
 }
 
-// ready など、それ以外
-await lineReply(
-  replyToken,
-  [
-    "🌌 ソラのこえ。",
-    "受け取りは完了しています🕊️",
-    "",
-    "今日の分がほしければ「今日」と送ってね。",
-  ].join("\n")
-);
 
-}
 
 // --------------------
 // build story (single)
@@ -1002,7 +1002,51 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
   } catch (_) {}
 
   const natalCache = await loadNatalFromCache(appUserId);
-  if (!natalCache) throw new Error(`natal_cache not found for user_id=${appUserId}`);
+
+  if (!natalCache) {
+    // ✅ natal_cache未生成：落とさず “空だけ” の story を返す
+    const transitInfo = computeTransitsSwiss(asOfISO, precisionDeg);
+
+    const rules = {
+      aspects_used: ASPECTS.map((a) => a.type),
+      orb_max_deg: 6,
+      sort: "orb_asc",
+    };
+
+    return {
+      meta: {
+        schema_version: SCHEMA_VERSION,
+        project: PROJECT,
+        timezone: DEFAULT_TZ,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        generated_at_utc: nowIso(),
+        engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
+        rules,
+      },
+      public: {
+        date_local: dateLocal,
+        moon: { sign_ja: transitInfo?.moon?.sign_ja ?? null, lon_deg: transitInfo?.moon?.lon_deg ?? null },
+        sky_top: buildPublicSkyTop(transitInfo.bodies),
+        tone_hints: { resonance_bullets: [] },
+      },
+      personal: {
+        user_id: appUserId,
+        user: { display_name: displayName ?? null },
+        privacy: { contains_personal_data: false, allowed_channels: ["line"] },
+        touch_points_top3: [],
+      },
+      guardrails: {
+        no_prediction: true,
+        no_good_bad: true,
+        no_should: true,
+        no_personality_label: true,
+        no_salvation: true,
+        sovereignty_returned: true,
+      },
+    };
+  }
+
   const natalLonMap = extractNatalLongitudes(natalCache);
 
   const transitInfo = computeTransitsSwiss(asOfISO, precisionDeg);
@@ -1463,3 +1507,144 @@ app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
 functions.http("app", app);
 
 
+
+//判定、意図ルーティング
+function normText(text) {
+  return String(text ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[！!？?。、,.〜～ー\-]/g, "");
+}
+
+// “含まれてたらOK” のやつ（部分一致）
+function hasAny(s, words) {
+  return words.some(w => s.includes(w));
+}
+
+// ざっくり意図判定（AIっぽいルーター）
+function detectIntent(userText) {
+  const s = normText(userText);
+
+  // ABOUT（固定）
+  if (hasAny(s, ["about", "使い方", "説明", "なに", "何", "どんな", "ヘルプ"])) return "ABOUT";
+
+  // TODAY
+  if (hasAny(s, ["今日", "きょう", "today", "本日"])) return "TODAY";
+
+  // START
+  if (hasAny(s, ["はじめ", "始め", "start", "開始", "登録", "やる"])) return "START";
+
+  // REQUEST（短文リクエスト）
+  if (hasAny(s, ["今", "いま", "リクエスト", "ひとこと", "短文", "さくっと"])) return "REQUEST";
+
+  // 同意
+  if (hasAny(s, ["はい", "うん", "ok", "了解", "いいよ", "保存して", "お願いします"])) return "YES";
+  if (hasAny(s, ["いいえ", "やめ", "no", "拒否", "保存しない", "しない", "今回はやめとく"])) return "NO";
+
+  return "OTHER";
+}
+
+
+
+const ABOUT_TEXT = `🌌 ソラのこえ。について
+
+このLINEでは、
+星の配置（構造）を、そのまま置いています。
+
+占いではありません。
+未来を当てたり、
+行動を指示したりもしません。
+
+・トランジット
+　今この瞬間、空を動いている星たち
+
+・ネイタル
+　あなたが生まれた瞬間の星の配置（設計図）
+
+毎日の星の動きが、
+あなたの設計図の
+どこに触れているか。
+
+それを
+「何が起きるか」ではなく、
+「どこが鳴りやすいか」として
+見ています。
+
+意味づけや解釈は、あなたのもの。
+
+星は語る。
+決めるのは、人。`;
+
+async function replyToday({ lineUserId, appUserId, replyToken, consentProfile, status }) {
+  const asOfISO = nowIso();
+  const { date_local } = isoToJstParts(asOfISO);
+
+  // ✅ 未同意 or 登録途中 → 空（public）だけ返す
+  // ✅ 同意済みready → personal返す
+  try {
+    if (!consentProfile || status !== "ready" || !appUserId) {
+      const t = computeTransitsSwiss(asOfISO, 0.01);
+
+      const story = {
+        meta: {
+          schema_version: SCHEMA_VERSION,
+          project: PROJECT,
+          timezone: DEFAULT_TZ,
+          date_local,
+          as_of: asOfISO,
+          generated_at_utc: nowIso(),
+          engine: { ephemeris_source: "swisseph", precision_deg: 0.01 },
+          rules: { aspects_used: ASPECTS.map((a) => a.type), orb_max_deg: 6, sort: "orb_asc" },
+        },
+        public: { date_local, moon: t.moon, sky_top: buildPublicSkyTop(t.bodies), tone_hints: { resonance_bullets: [] } },
+        personal: { user_id: null, user: { display_name: null }, privacy: { contains_personal_data: false, allowed_channels: ["x", "instagram", "line"] }, touch_points_top3: [] },
+        guardrails: { no_prediction: true, no_good_bad: true, no_should: true, no_personality_label: true, no_salvation: true, sovereignty_returned: true },
+      };
+
+      await lineReply(replyToken, renderIG(story)); // LINEでも空だけならIG文面の方が軽い
+      return;
+    }
+
+    // ✅ personal OK
+    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
+    await saveStoryOverwrite(story);
+    await lineReply(replyToken, renderLine(story));
+  } catch (e) {
+    console.error("replyToday failed:", e);
+    await lineReply(replyToken, "ごめん、今日の計算でつまずいた…！もう一回「今日」って送ってみて🕊️");
+  }
+}
+
+async function replyRequestShort({ appUserId, replyToken }) {
+  // いまは「短文FIX」でOK：Top1だけ抜く
+  const asOfISO = nowIso();
+  const { date_local } = isoToJstParts(asOfISO);
+
+  try {
+    const story = await buildStoryForUser({ appUserId, dateLocal: date_local, asOfISO });
+    const top1 = (story?.personal?.touch_points_top3 || [])[0];
+
+    const msg = top1
+      ? [
+          "🌌 今のソラのこえ。",
+          "",
+          `いまは、${fmtBodyJa(top1.transit_body)} が ${fmtPointJa(top1.natal_body_or_point)} に`,
+          `${fmtAspectJa(top1.aspect)}（orb ${top1.orb_deg}°）で触れています。`,
+          "",
+          "無理に意味づけしなくて大丈夫。",
+          "鳴っている場所を、ただ感じてみてください🕊️",
+        ].join("\n")
+      : [
+          "🌌 今のソラのこえ。",
+          "",
+          "いまは、強い接触は少なめの日。",
+          "静かな日も、ちゃんと意味がある🕊️",
+        ].join("\n");
+
+    await lineReply(replyToken, msg);
+  } catch (e) {
+    console.error("replyRequestShort failed:", e);
+    await lineReply(replyToken, "ごめん、短文の生成でつまずいた…！もう一回送ってみて🕊️");
+  }
+}
