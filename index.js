@@ -1004,7 +1004,7 @@ const app = express();
 
 // log
 app.use((req, res, next) => {
-  if (req.path !== "/healthz") console.log(`[${nowIso()}] ${req.method} ${req.path}`);
+  if (req.path !== "/health") console.log(`[${nowIso()}] ${req.method} ${req.path}`);
   next();
 });
 
@@ -1024,7 +1024,7 @@ app.get("/", (req, res) =>
     service: PROJECT,
     firestore_database_id: FIRESTORE_DATABASE_ID,
     routes: [
-      "/healthz",
+      "/health",
       "/transit?as_of=",
       "/stories/build?user_id=&as_of=&date_local=&save=",
       "/stories/rebuild?user_id=&from=&to=&time=&dry_run=",
@@ -1037,7 +1037,7 @@ app.get("/", (req, res) =>
   })
 );
 
-app.get("/healthz", (req, res) => res.status(200).send("ok"));
+app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // endpoints
 app.get("/transit", (req, res) => handleTransit(req, res));
