@@ -41,9 +41,14 @@ if (!admin.apps.length) admin.initializeApp();
 // FIRESTORE_DATABASE_ID:
 // - default DBなら "(default)"
 // - custom DBなら "sora-no-koe-db" 等
-const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || "(default)";
+const FIRESTORE_DATABASE_ID = "sora-no-koe-db";
 const db = getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
 console.log("[Firestore] databaseId =", FIRESTORE_DATABASE_ID);
+
+// ✅ ここに置く：環境変数が想定外なら即ログで分かる
+if (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== "sora-no-koe-db") {
+  console.warn("[WARN] FIRESTORE_DATABASE_ID is not sora-no-koe-db:", process.env.FIRESTORE_DATABASE_ID);
+}
 
 // --------------------
 // constants / config
