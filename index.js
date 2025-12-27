@@ -135,6 +135,15 @@ function pickTopByOrb(items, n = 3) {
   return [...items].sort((x, y) => (x.orb_deg ?? 999) - (y.orb_deg ?? 999)).slice(0, n);
 }
 
+function requireDebugToken(req) {
+  const expected = process.env.DEBUG_TOKEN || "";
+  const got = String(req.query.token || "");
+
+  if (!expected) throw new Error("DEBUG_TOKEN is missing (set env var)");
+  if (!got) throw new Error("token is required");
+  if (got !== expected) throw new Error("invalid token");
+}
+
 /**
  * Convert ISO -> {date_local (JST), time_local (HH:MM)}
  * ※ timezoneは今JST固定（思想としてOK）/ 将来ユーザーTZに対応してもよい
@@ -1069,7 +1078,13 @@ app.get("/line/daily", (req, res) => handleLineDaily(req, res));
 app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
-app.get("/debug/resetRegistration", (req, res) => handleDebugResetRegistration(req, res));
+
+app.get("/debug/resetRegistration", (req, res) => {
+  handleDebugResetRegistration(req, res).catch((err) => {
+    console.error("debug/resetRegistration error:", err);
+    return res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+  });
+});
 
 
 
