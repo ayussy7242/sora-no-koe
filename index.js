@@ -12,7 +12,7 @@
  * - バルク投入（Firestore stories へ一括 upsert）用の管理APIも追加（DEBUG_TOKEN必須）
  *
  * ⚠️ NOTE:
- * - トランジット計算は現状「approx」。将来Swiss Ephemeris等に差し替え前提。
+ * - トランジット計算は現状「swisseph」。将来Swiss Ephemeris等に差し替え前提。
  *   でも今は "now対応" が最優先なので、as_of ISO datetime を受けて近似で動かす。
  *
  * Required env:
@@ -189,6 +189,54 @@ function isoWithJST(dateLocal, timeHHMM = "14:00") {
   return utc.toISOString();
 }
 
+// --------------------
+// Swiss Ephemeris helpers
+// --------------------
+function jdUtFromIso(asOfISO) {
+  const d = new Date(asOfISO);
+  if (Number.isNaN(d.getTime())) throw new Error(`invalid as_of ISO: ${asOfISO}`);
+
+  // UT (UTC) components
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1; // 1-12
+  const day = d.getUTCDate();
+
+  const hour =
+    d.getUTCHours() +
+    d.getUTCMinutes() / 60 +
+    d.getUTCSeconds() / 3600 +
+    d.getUTCMilliseconds() / 3600000;
+
+  // Julian Day (UT)
+  return swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
+}
+
+function sweLonDeg(bodyName, jdUt) {
+  // 対象：今のプロジェクトで使ってる5天体だけ（追加はあとで増やせる）
+  const MAP = {
+    Sun: swisseph.SE_SUN,
+    Moon: swisseph.SE_MOON,
+    Mercury: swisseph.SE_MERCURY,
+    Venus: swisseph.SE_VENUS,
+    Mars: swisseph.SE_MARS,
+  };
+  const id = MAP[bodyName];
+  if (id === undefined) throw new Error(`unsupported body: ${bodyName}`);
+
+  // 速度は今いらない：SEFLG_SWIEPH で経度だけ取る
+  const flags = swisseph.SEFLG_SWIEPH;
+
+  const out = swisseph.swe_calc_ut(jdUt, id, flags);
+  // out: { flag, error, data: [lon, lat, dist, speedLon, speedLat, speedDist] } (node-swisseph系)
+  if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
+
+  const lon = out.data?.[0];
+  if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
+
+  return norm360(lon);
+}
+
+
 function eachDateLocal(from, to) {
   if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) throw new Error("from/to must be YYYY-MM-DD");
   const out = [];
@@ -214,9 +262,9 @@ function getRequestId(req) {
 }
 
 // --------------------
-// Transit (approx, now対応)
+// Transit (swisseph, now対応)
 // --------------------
-function calcLonApprox(asOfISO, speedPerDay, seedDeg = 0, precisionDeg = 0.01) {
+function calcLonswisseph(asOfISO, speedPerDay, seedDeg = 0, precisionDeg = 0.01) {
   // base: 2025-01-01T00:00:00Z
   const base = new Date("2025-01-01T00:00:00Z").getTime();
   const t = new Date(asOfISO).getTime();
@@ -233,13 +281,46 @@ function signJaFromLon(lonDeg) {
 /**
  * computeTransits(as_of_iso) -> { bodies: {Sun:deg,...}, moon:{lon_deg, sign_ja} }
  */
-function computeTransitsApprox(asOfISO, precisionDeg = 0.01) {
+// function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
+//   const bodies = {};
+//   // seedDeg: 0 (雑)。将来seedを実測に置換。
+//   for (const [body, speed] of Object.entries(TRANSIT_SPEED_DEG_PER_DAY)) {
+//     bodies[body] = calcLonswisseph(asOfISO, speed, 0, precisionDeg);
+//   }
+//   const moonLon = bodies.Moon;
+//   return {
+//     bodies,
+//     moon: {
+//       lon_deg: moonLon,
+//       sign_ja: signJaFromLon(moonLon),
+//     },
+//   };
+// }
+
+// --------------------
+// Transit (Swiss Ephemeris, now対応)
+// --------------------
+function signJaFromLon(lonDeg) {
+  const idx = Math.floor(norm360(lonDeg) / 30);
+  return SIGNS_JA[idx] ?? null;
+}
+
+/**
+ * computeTransitsSwiss(as_of_iso) -> { bodies: {Sun:deg,...}, moon:{lon_deg, sign_ja} }
+ */
+function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
+  const jdUt = jdUtFromIso(asOfISO);
+
   const bodies = {};
-  // seedDeg: 0 (雑)。将来seedを実測に置換。
-  for (const [body, speed] of Object.entries(TRANSIT_SPEED_DEG_PER_DAY)) {
-    bodies[body] = calcLonApprox(asOfISO, speed, 0, precisionDeg);
+  const targets = ["Sun", "Moon", "Mercury", "Venus", "Mars"];
+
+  for (const body of targets) {
+    const lon = sweLonDeg(body, jdUt);
+    bodies[body] = toFixedPrecision(lon, precisionDeg);
   }
+
   const moonLon = bodies.Moon;
+
   return {
     bodies,
     moon: {
@@ -391,7 +472,7 @@ function storyJsonV11({
       as_of: asOfISO,
       generated_at_utc: nowIso(),
       engine: engineMeta ?? {
-        ephemeris_source: "approx",
+        ephemeris_source: "swisseph",
         precision_deg: 0.01,
       },
       rules,
@@ -992,7 +1073,7 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
   const natalLonMap = extractNatalLongitudes(natalCache);
 
   // transits (now対応)
-  const transitInfo = computeTransitsApprox(asOfISO, precisionDeg);
+  const transitInfo = computeTransitsSwiss(asOfISO, precisionDeg);
 
   const rules = {
     aspects_used: ASPECTS.map((a) => a.type),
@@ -1014,7 +1095,7 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
     transitInfo,
     touchPointsAll: touchAll,
     rules,
-    engineMeta: { ephemeris_source: "approx", precision_deg: precisionDeg },
+    engineMeta: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
   });
 
   return story;
@@ -1026,7 +1107,7 @@ async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 15
 async function handleTransit(req, res) {
   const precisionDeg = 0.01;
   const asOfISO = String(req.query.as_of || nowIso());
-  const t = computeTransitsApprox(asOfISO, precisionDeg);
+  const t = computeTransitsSwiss(asOfISO, precisionDeg);
 
   return ok(res, {
     meta: {
@@ -1034,7 +1115,7 @@ async function handleTransit(req, res) {
       timezone: DEFAULT_TZ,
       as_of: asOfISO,
       generated_at_utc: nowIso(),
-      engine: { ephemeris_source: "approx", precision_deg: precisionDeg },
+      engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
     },
     transit: t,
   });
@@ -1150,7 +1231,7 @@ async function handlePostsX(req, res) {
       }
     } else {
       // public-only: build transit info without natal
-      const t = computeTransitsApprox(asOfISO, 0.01);
+      const t = computeTransitsSwiss(asOfISO, 0.01);
       story = {
         meta: {
           schema_version: SCHEMA_VERSION,
@@ -1159,7 +1240,7 @@ async function handlePostsX(req, res) {
           date_local: dateLocal,
           as_of: asOfISO,
           generated_at_utc: nowIso(),
-          engine: { ephemeris_source: "approx", precision_deg: 0.01 },
+          engine: { ephemeris_source: "swisseph", precision_deg: 0.01 },
           rules: { aspects_used: ASPECTS.map((a) => a.type), orb_max_deg: 6, sort: "orb_asc" },
         },
         public: {
@@ -1201,7 +1282,7 @@ async function handlePostsIG(req, res) {
     const { date_local: inferred } = isoToJstParts(asOfISO);
     const dateLocal = String(req.query.date_local || inferred);
 
-    const t = computeTransitsApprox(asOfISO, 0.01);
+    const t = computeTransitsSwiss(asOfISO, 0.01);
     const story = {
       meta: {
         schema_version: SCHEMA_VERSION,
@@ -1210,7 +1291,7 @@ async function handlePostsIG(req, res) {
         date_local: dateLocal,
         as_of: asOfISO,
         generated_at_utc: nowIso(),
-        engine: { ephemeris_source: "approx", precision_deg: 0.01 },
+        engine: { ephemeris_source: "swisseph", precision_deg: 0.01 },
         rules: { aspects_used: ASPECTS.map((a) => a.type), orb_max_deg: 6, sort: "orb_asc" },
       },
       public: {
