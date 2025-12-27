@@ -809,7 +809,7 @@ async function handlePushMe(req, res) {
 async function handleLineWebhook(req, res) {
   const secret = process.env.LINE_CHANNEL_SECRET;
   const signature = req.header("x-line-signature") || "";
-  const raw = req.body; // Buffer
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
 
   const verify = verifyLineSignatureRaw(raw, signature, secret);
   if (!verify.ok) {
@@ -839,15 +839,16 @@ async function handleLineWebhook(req, res) {
   const msgText = ev?.message?.type === "text" ? ev.message.text : null;
 
   if (replyToken && msgText != null) {
-    await handleRegistrationFlow({
+    handleRegistrationFlow({
       lineUserId,
       appUserId,
       replyToken,
       userText: msgText,
-    });
+    }).catch((e) => console.error("registrationFlow error:", e));
   }
 
   return ok(res, { received: true, line_user_id: lineUserId });
+
 }
 
 // --------------------
