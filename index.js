@@ -323,15 +323,8 @@ functions.http("app", async (req, res) => {
 
   // ✅ LINE Webhook（まずは200返すだけ）
     if (path === "/linewebhook") {
-    // まずは必ず200返す（LINEは200以外でエラー）
-    // 署名検証をONにするなら以下を有効化
-    const v = verifyLineSignature(req);
-    if (!v.ok) {
-        // 署名NGでも、LINE検証中は200返してログだけ見る運用もあり
-        // まずは原因を見たいので 401 で返す版：
-        return res.status(401).json({ ok: false, error: v.reason });
-    }
-
+    console.log("LINE webhook hit");
+    console.log(JSON.stringify(req.body));
     return res.status(200).json({ ok: true });
     }
 
