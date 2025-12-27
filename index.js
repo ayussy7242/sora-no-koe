@@ -1549,6 +1549,8 @@ app.get("/line/daily", (req, res) => handleLineDaily(req, res));
 app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
+app.get("/debug/pushDaily", (req, res) => handleDebugPushDaily(req, res));
+
 
 app.get("/debug/resetRegistration", async (req, res) => {
   try {
@@ -1714,5 +1716,48 @@ async function replyRequestShort({ appUserId, replyToken }) {
   } catch (e) {
     console.error("replyRequestShort failed:", e);
     await lineReply(replyToken, "ごめん、短文の生成でつまずいた…！もう一回送ってみて🕊️");
+  }
+}
+
+async function handleDebugPushDaily(req, res) {
+  try {
+    requireDebugToken(req);
+
+    const anyUserId = must(req.query.user_id, "user_id");
+    const appUserId = await resolveAppUserIdFromAny(anyUserId);
+
+    const asOfISO = String(req.query.as_of || nowIso());
+    const { date_local: inferred } = isoToJstParts(asOfISO);
+    const dateLocal = String(req.query.date_local || inferred);
+
+    const saveStory = req.query.save_story === undefined ? true : parseBool(req.query.save_story);
+
+    const story = await buildStoryForUser({ appUserId, dateLocal, asOfISO });
+
+    let docId = null;
+    if (saveStory) docId = await saveStoryOverwrite(story);
+
+    const lineUserId =
+      anyUserId.startsWith("U")
+        ? anyUserId
+        : (await db.collection("line_users").where("app_user_id", "==", appUserId).limit(1).get())
+            .docs?.[0]?.id;
+
+    if (!lineUserId) return bad(res, 400, "cannot resolve line_user_id for push");
+
+    const msg = renderLine(story);
+    const pushResult = await linePush(lineUserId, msg);
+
+    return ok(res, {
+      pushed: pushResult.ok,
+      status: pushResult.status,
+      response: pushResult.response,
+      date_local: dateLocal,
+      resolved: { input_user_id: anyUserId, app_user_id: appUserId, line_user_id: lineUserId },
+      saved_story: saveStory,
+      doc_id: docId,
+    });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
   }
 }
