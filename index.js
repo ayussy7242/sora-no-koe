@@ -213,10 +213,15 @@ function sweLonDeg(bodyName, jdUt) {
 
   const flags = swisseph.SEFLG_SWIEPH;
   const out = swisseph.swe_calc_ut(jdUt, id, flags);
+
   if (!out || out.error) throw new Error(`swe_calc_ut failed: ${out?.error || "unknown"}`);
 
-  const lon = out.data?.[0];
+  const lon =
+    (Array.isArray(out.data) ? out.data[0] : undefined) ??
+    out.longitude;
+
   if (!Number.isFinite(lon)) throw new Error(`invalid lon from swe_calc_ut: ${JSON.stringify(out)}`);
+
   return norm360(lon);
 }
 
