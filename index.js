@@ -29,6 +29,14 @@
 
 "use strict";
 
+const swisseph = require("swisseph");
+
+// ===== Swiss Ephemeris 設定（最重要）=====
+const EPHE_PATH = process.env.SE_EPHE_PATH || "./ephe";
+swisseph.swe_set_ephe_path(EPHE_PATH);
+
+console.log("[SwissEph] ephe path =", EPHE_PATH);
+
 const functions = require("@google-cloud/functions-framework");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
