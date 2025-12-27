@@ -988,16 +988,28 @@ async function handlePushMe(req, res) {
 }
 
 // --------------------
-// LINE webhook handler (raw body)  ★重要：express.json より先に raw を通す
+// LINE webhook handler (raw body)  ★重要：署名検証は「生バイト列」で行う
 // --------------------
 async function handleLineWebhook(req, res) {
   const requestId = getRequestId(req);
   const secret = process.env.LINE_CHANNEL_SECRET;
   const signature = req.header("x-line-signature") || "";
 
-  const raw = req.body; // raw Buffer
-  if (!Buffer.isBuffer(raw)) {
-    console.error(`[${nowIso()}] raw body missing`, { requestId });
+  // ✅ raw body を最優先で拾う（Functions Framework / Cloud Run で req.rawBody が付くことがある）
+  const raw =
+    (req.rawBody && Buffer.isBuffer(req.rawBody)) ? req.rawBody :
+    (Buffer.isBuffer(req.body)) ? req.body :
+    (typeof req.body === "string") ? Buffer.from(req.body, "utf8") :
+    (req.body && typeof req.body === "object") ? Buffer.from(JSON.stringify(req.body), "utf8") :
+    null;
+
+  if (!raw) {
+    console.error(`[${nowIso()}] raw body missing`, {
+      requestId,
+      bodyType: typeof req.body,
+      hasRawBody: !!req.rawBody,
+      rawBodyIsBuffer: Buffer.isBuffer(req.rawBody),
+    });
     return res.status(200).send("ok");
   }
 
@@ -1012,7 +1024,7 @@ async function handleLineWebhook(req, res) {
   try {
     json = JSON.parse(raw.toString("utf8") || "{}");
   } catch (e) {
-    console.error("invalid JSON body:", e);
+    console.error("invalid JSON body:", e, { requestId });
     return res.status(200).send("ok");
   }
 
@@ -1020,20 +1032,30 @@ async function handleLineWebhook(req, res) {
   const lineUserId = ev?.source?.userId;
   if (!lineUserId) return res.status(200).send("ok");
 
-  const ensured = await ensureUserGraphFromLine({ lineUserId, profilePatch: { timezone: DEFAULT_TZ } });
+  const ensured = await ensureUserGraphFromLine({
+    lineUserId,
+    profilePatch: { timezone: DEFAULT_TZ },
+  });
+
   const replyToken = ev?.replyToken;
   const msgText = ev?.message?.type === "text" ? ev.message.text : null;
 
   try {
     if (replyToken && msgText != null) {
-      await handleRegistrationFlow({ lineUserId, appUserId: ensured.appUserId, replyToken, userText: msgText });
+      await handleRegistrationFlow({
+        lineUserId,
+        appUserId: ensured.appUserId,
+        replyToken,
+        userText: msgText,
+      });
     }
   } catch (e) {
-    console.error("registrationFlow error:", e);
+    console.error("registrationFlow error:", e, { requestId });
   }
 
   return res.status(200).send("ok");
 }
+
 
 // --------------------
 // DEBUG / ADMIN (token protected)  ※必要なら後で戻す（ここでは省略しない）
@@ -1069,9 +1091,11 @@ app.use((req, res, next) => {
 // 1) LINE webhook only raw first (MUST be before json parser)
 app.post(
   "/line/webhook",
-  bodyParser.json({
+  express.json({
+    type: "application/json",
+    limit: "2mb",
     verify: (req, res, buf) => {
-      req.rawBody = buf; // 署名検証用の生bytes
+      req.rawBody = buf;
     },
   }),
   (req, res) => {
@@ -1081,10 +1105,6 @@ app.post(
     });
   }
 );
-
-// app.post("/admin/stories/seed", express.json({ limit: "2mb" }), (req, res) => {
-//   handleAdminStoriesSeed(req, res).catch((e) => bad(res, 500, String(e?.message ?? e)));
-// });
 
 // 2) JSON parser for other routes
 app.use(express.json({ limit: "2mb" }));
