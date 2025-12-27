@@ -492,9 +492,9 @@ function renderLine(story) {
 
   // ※インデント無し（これ大事）
   return [
-    `🌌 🌌 今日のソラのこえ。｜${dateLabel}`,
+    `🌌 今日のソラのこえ。｜${dateLabel}`,
     ``,
-    `【今日の主な星の配置】`,
+    `【 今日の星の配置（構造 ）】`,
     lines.length ? lines.join("\n") : "（今日は強い接触は少なめの日）",
     moonLine,
     ``,
