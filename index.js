@@ -180,6 +180,47 @@ function getRequestId(req) {
   );
 }
 
+/**
+ * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false
+ */
+async function handleDebugResetRegistration(req, res) {
+  try {
+    requireDebugToken(req);
+
+    const lineUserId = must(req.query.line_user_id, "line_user_id");
+    const keepAppUserId = String(req.query.keep_app_user_id ?? "true").toLowerCase() !== "false";
+
+    const ref = db.collection("line_users").doc(lineUserId);
+    const snap = await ref.get();
+    if (!snap.exists) return bad(res, 404, "line_users doc not found", { line_user_id: lineUserId });
+
+    const data = snap.data() || {};
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    const patch = {
+      status: "pending_birth_date",
+      consent: { profile: false, saved_at: null },
+      profile: { ...(data.profile || {}), timezone: data?.profile?.timezone || DEFAULT_TZ },
+      updated_at: now,
+    };
+
+    if (!keepAppUserId) patch.app_user_id = admin.firestore.FieldValue.delete();
+
+    await ref.set(patch, { merge: true });
+
+    return ok(res, {
+      reset: true,
+      line_user_id: lineUserId,
+      keep_app_user_id: keepAppUserId,
+      next_status: "pending_birth_date",
+    });
+  } catch (e) {
+    // requireDebugToken のエラーもここに落ちる
+    return bad(res, 403, String(e?.message ?? e));
+  }
+}
+
+
 // --------------------
 // Swiss Ephemeris helpers
 // --------------------
@@ -1070,11 +1111,20 @@ app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
 
-app.get("/debug/resetRegistration", (req, res) => {
-  handleDebugResetRegistration(req, res).catch((err) => {
-    console.error("debug/resetRegistration error:", err);
+app.get("/debug/resetRegistration", async (req, res) => {
+  try {
+    if (typeof handleDebugResetRegistration !== "function") {
+      console.error("debug handler missing", {
+        typeof_handle: typeof handleDebugResetRegistration,
+      });
+      return res.status(500).json({ ok: false, error: "debug handler missing" });
+    }
+
+    await handleDebugResetRegistration(req, res);
+  } catch (err) {
+    console.error("debug/resetRegistration fatal:", err);
     return res.status(500).json({ ok: false, error: String(err?.message ?? err) });
-  });
+  }
 });
 
 
@@ -1086,42 +1136,3 @@ app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
 functions.http("app", app);
 
 
-/**
- * GET /debug/resetRegistration?token=...&line_user_id=...&keep_app_user_id=true|false
- */
-async function handleDebugResetRegistration(req, res) {
-  try {
-    requireDebugToken(req);
-
-    const lineUserId = must(req.query.line_user_id, "line_user_id");
-    const keepAppUserId = String(req.query.keep_app_user_id ?? "true").toLowerCase() !== "false";
-
-    const ref = db.collection("line_users").doc(lineUserId);
-    const snap = await ref.get();
-    if (!snap.exists) return bad(res, 404, "line_users doc not found", { line_user_id: lineUserId });
-
-    const data = snap.data() || {};
-    const now = admin.firestore.FieldValue.serverTimestamp();
-
-    const patch = {
-      status: "pending_birth_date",
-      consent: { profile: false, saved_at: null },
-      profile: { ...(data.profile || {}), timezone: data?.profile?.timezone || DEFAULT_TZ },
-      updated_at: now,
-    };
-
-    if (!keepAppUserId) patch.app_user_id = admin.firestore.FieldValue.delete();
-
-    await ref.set(patch, { merge: true });
-
-    return ok(res, {
-      reset: true,
-      line_user_id: lineUserId,
-      keep_app_user_id: keepAppUserId,
-      next_status: "pending_birth_date",
-    });
-  } catch (e) {
-    // requireDebugToken のエラーもここに落ちる
-    return bad(res, 403, String(e?.message ?? e));
-  }
-}
