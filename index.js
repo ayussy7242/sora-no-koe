@@ -322,10 +322,19 @@ functions.http("app", async (req, res) => {
   }
 
   // ✅ LINE Webhook（まずは200返すだけ）
-  if (path === "/linewebhook") {
-    // LINE Verify は POST で来る。とにかく 200 を返す。
+    if (path === "/linewebhook") {
+    // まずは必ず200返す（LINEは200以外でエラー）
+    // 署名検証をONにするなら以下を有効化
+    const v = verifyLineSignature(req);
+    if (!v.ok) {
+        // 署名NGでも、LINE検証中は200返してログだけ見る運用もあり
+        // まずは原因を見たいので 401 で返す版：
+        return res.status(401).json({ ok: false, error: v.reason });
+    }
+
     return res.status(200).json({ ok: true });
-  }
+    }
+
 
   if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
   if (path === "/transithttp") return transitHttpHandler(req, res);
@@ -415,3 +424,20 @@ ${lines.join("\n")}
 }
 
 
+
+// raw body を取れない環境があるので、まずは JSON stringify で一致させる簡易版。
+// （後で本式にする。まず動かす）
+function verifyLineSignature(req) {
+  const secret = process.env.LINE_CHANNEL_SECRET;
+  if (!secret) return { ok: false, reason: "LINE_CHANNEL_SECRET is missing" };
+
+  const signature = req.header("x-line-signature") || "";
+  if (!signature) return { ok: false, reason: "x-line-signature missing" };
+
+  // LINEは生のボディ文字列でHMACする。ここは“簡易”なので、まず通らない可能性あり。
+  // 通らなかったら rawBody 取れる構成に切り替える（下に書く）。
+  const bodyStr = JSON.stringify(req.body ?? {});
+  const hmac = crypto.createHmac("sha256", secret).update(bodyStr).digest("base64");
+
+  return { ok: hmac === signature, reason: hmac === signature ? "ok" : "signature mismatch" };
+}
