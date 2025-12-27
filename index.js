@@ -213,11 +213,16 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
   const now = admin.firestore.FieldValue.serverTimestamp();
 
   return await db.runTransaction(async (tx) => {
+    // ✅ 1) 先に全部 READ
     const lineSnap = await tx.get(lineRef);
     const lineData = lineSnap.exists ? lineSnap.data() : null;
 
     const appUserId = force.app_user_id || lineData?.app_user_id || makeAppUserId("u");
+    const userRef = db.collection("users").doc(appUserId);
+    const userSnap = await tx.get(userRef);
+    const userData = userSnap.exists ? userSnap.data() : null;
 
+    // ✅ 2) ここから WRITE（read後）
     const existingConsent = lineData?.consent || { profile: false, saved_at: null };
     const mergedProfile = { ...(lineData?.profile || {}), ...profilePatch };
 
@@ -227,6 +232,7 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
       consentProfile: !!existingConsent?.profile,
     });
 
+    // line_users upsert
     if (!lineSnap.exists) {
       tx.set(lineRef, {
         line_user_id: lineUserId,
@@ -240,22 +246,15 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
     } else {
       tx.set(
         lineRef,
-        {
-          app_user_id: appUserId,
-          status,
-          profile: mergedProfile,
-          updated_at: now,
-        },
+        { app_user_id: appUserId, status, profile: mergedProfile, updated_at: now },
         { merge: true }
       );
     }
 
-    const userRef = db.collection("users").doc(appUserId);
-    const userSnap = await tx.get(userRef);
-
+    // users upsert
     if (!userSnap.exists) {
       tx.set(userRef, {
-        display_name: force.display_name || "unknown",
+        display_name: force.display_name || userData?.display_name || "unknown",
         timezone: mergedProfile.timezone || DEFAULT_TZ,
         created_at: now,
         updated_at: now,
@@ -263,10 +262,7 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
     } else {
       tx.set(
         userRef,
-        {
-          timezone: mergedProfile.timezone || DEFAULT_TZ,
-          updated_at: now,
-        },
+        { timezone: mergedProfile.timezone || DEFAULT_TZ, updated_at: now },
         { merge: true }
       );
     }
@@ -274,6 +270,7 @@ async function ensureUserGraphFromLine({ lineUserId, profilePatch = {}, force = 
     return { lineUserId, appUserId, status };
   });
 }
+
 
 // --------------------
 // Jobs (B: 拡張性◎：ジョブキュー)
