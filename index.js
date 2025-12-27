@@ -488,7 +488,7 @@ function renderLine(story) {
               (r.aspect_deg === 120) ? "約120°" :
                 (r.aspect_deg === 180) ? "約180°" : `約${r.aspect_deg}°`;
 
-      return `①${i + 1} ${t} × ${n}｜${a}（${degLabel}｜orb ${r.orb_deg}°）`;
+      return `${i + 1} ${t} × ${n}｜${a}（${degLabel}｜orb ${r.orb_deg}°）`;
     }).join("\n")
     : "（今日は強い接触は少なめ。静かな日も、ちゃんと意味がある）";
 
