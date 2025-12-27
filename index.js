@@ -327,16 +327,26 @@ functions.http("app", async (req, res) => {
         console.log(JSON.stringify(req.body));
 
         const ev = req.body?.events?.[0];
-        const fromUserId = ev?.source?.userId;
+        const lineUserId = ev?.source?.userId;
 
-        if (fromUserId) {
-            console.log("SOURCE userId =", fromUserId);
+        if (lineUserId) {
+            console.log("SOURCE userId =", lineUserId);
+
+            // ✅ ここで Firestore に user 作る（serverTimestamp入る）
+            await upsertLineUser({
+            lineUserId,
+            status: "pending_profile",
+            profilePatch: {
+                timezone: "Asia/Tokyo",
+            },
+            });
         } else {
             console.log("No source.userId in event");
         }
 
         return res.status(200).json({ ok: true });
     }
+
 
     if (path === "/pushme") return pushMeHandler(req, res);
     if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
@@ -489,4 +499,49 @@ async function pushMeHandler(req, res) {
         console.error(err);
         return res.status(500).json({ ok: false, error: String(err) });
     }
+}
+
+function makeDocIdFromLineUserId(lineUserId) {
+  // docIdをLINEのuserIdにすると検索が爆速・設計が綺麗
+  // Firestore docIdは / を含まなければOK。LINEのU...はOK
+  return lineUserId;
+}
+
+async function upsertLineUser({
+  lineUserId,
+  profilePatch = {},
+  status = "pending_profile",
+}) {
+  const docId = makeDocIdFromLineUserId(lineUserId);
+  const ref = db.collection("line_users").doc(docId);
+
+  const snap = await ref.get();
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  if (!snap.exists) {
+    // ✅ 初回（新規ユーザー）
+    await ref.set({
+      line_user_id: lineUserId,
+      status,
+      profile: {
+        ...profilePatch,
+      },
+      created_at: now,
+      updated_at: now,
+    });
+  } else {
+    // ✅ 既存ユーザー（更新のみ）
+    await ref.set(
+      {
+        status,
+        profile: {
+          ...profilePatch,
+        },
+        updated_at: now,
+      },
+      { merge: true }
+    );
+  }
+
+  return { docId };
 }
