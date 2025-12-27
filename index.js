@@ -894,21 +894,15 @@ app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
   });
 });
 
-// ★最重要：LINE webhook は raw parser をルートに直付け（順序が命）
-app.post("/line/webhook", bodyParser.raw({ type: "*/*", limit: "2mb" }), (req, res) => {
-  handleLineWebhook(req, res).catch((err) => {
-    console.error(err);
-    // LINEには200
-    return res.status(200).send("ok");
-  });
-});
+// LINE webhook (raw body only!)
+app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+  // ✅ LINEには先に200を返す（検証はこれで通る）
+  ok(res, { received: true });
 
-// 互換エイリアス（必要なら）※混乱するなら消してOK
-app.post("/lineWebhook", bodyParser.raw({ type: "*/*", limit: "2mb" }), (req, res) => {
-  handleLineWebhook(req, res).catch((err) => {
-    console.error(err);
-    return res.status(200).send("ok");
-  });
+  // 🔥 裏で処理（失敗してもLINEには影響しない）
+  handleLineWebhook(req, {
+    status: () => ({ json: () => {} }), // ダミーres
+  }).catch((err) => console.error("handleLineWebhook error:", err));
 });
 
 // DEBUG (下に定義されてる handler を使う)
