@@ -1550,6 +1550,7 @@ app.get("/posts/x", (req, res) => handlePostsX(req, res));
 app.get("/posts/ig", (req, res) => handlePostsIG(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
 app.get("/debug/pushDaily", (req, res) => handleDebugPushDaily(req, res));
+app.get("/cron/daily", (req, res) => handleLineDailyBroadcast(req, res));
 
 
 app.get("/debug/resetRegistration", async (req, res) => {
@@ -1760,4 +1761,57 @@ async function handleDebugPushDaily(req, res) {
   } catch (e) {
     return bad(res, 400, String(e?.message ?? e));
   }
+}
+
+async function handleLineDailyBroadcast(req, res) {
+  try {
+    // 本番用：Schedulerから叩くならDEBUG_TOKENじゃなく別トークン推奨
+    requireCronToken(req); // ←後述
+
+    const snap = await db.collection("line_users")
+      .where("status", "==", "ready")
+      .where("consent.profile", "==", true)
+      .get();
+
+    const asOfISO = nowIso();
+    const { date_local } = isoToJstParts(asOfISO);
+
+    let okCount = 0;
+    let failCount = 0;
+
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      try {
+        const story = await buildStoryForUser({
+          appUserId: d.app_user_id,
+          dateLocal: date_local,
+          asOfISO,
+        });
+
+        await saveStoryOverwrite(story);
+        await linePush(doc.id, renderLine(story));
+        okCount++;
+      } catch (e) {
+        failCount++;
+        console.error("daily push failed", doc.id, e);
+      }
+    }
+
+    return ok(res, {
+      broadcast: true,
+      date_local,
+      target: snap.size,
+      success: okCount,
+      failed: failCount,
+    });
+  } catch (e) {
+    return bad(res, 400, String(e?.message ?? e));
+  }
+}
+
+function requireCronToken(req) {
+  const expected = process.env.CRON_TOKEN;
+  if (!expected) throw new Error("CRON_TOKEN missing");
+  const token = String(req.query.token || "");
+  if (token !== expected) throw new Error("forbidden");
 }
