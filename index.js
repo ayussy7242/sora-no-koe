@@ -1067,12 +1067,20 @@ app.use((req, res, next) => {
 });
 
 // 1) LINE webhook only raw first (MUST be before json parser)
-app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
-  handleLineWebhook(req, res).catch((err) => {
-    console.error("handleLineWebhook error:", err);
-    return res.status(200).send("ok");
-  });
-});
+app.post(
+  "/line/webhook",
+  bodyParser.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf; // 署名検証用の生bytes
+    },
+  }),
+  (req, res) => {
+    handleLineWebhook(req, res).catch((err) => {
+      console.error("handleLineWebhook error:", err);
+      return res.status(200).send("ok");
+    });
+  }
+);
 
 // app.post("/admin/stories/seed", express.json({ limit: "2mb" }), (req, res) => {
 //   handleAdminStoriesSeed(req, res).catch((e) => bad(res, 500, String(e?.message ?? e)));
