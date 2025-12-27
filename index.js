@@ -328,9 +328,7 @@ functions.http("app", async (req, res) => {
         return res.status(200).json({ ok: true });
     }
 
-    if (path === "/pushme") {
-        return pushMeHandler(req, res);
-    }
+    if (path === "/pushme") return pushMeHandler(req, res);
     if (path === "/buildstoryhttp") return buildStoryHttpHandler(req, res);
     if (path === "/transithttp") return transitHttpHandler(req, res);
     if (path === "/buildresonanceposthttp") return buildResonancePostHttpHandler(req, res);
