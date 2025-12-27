@@ -14,9 +14,16 @@
  *   GOOGLE_MAPS_API_KEY (optional if geocoding)
  *   FIRESTORE_DATABASE_ID (optional, default sora-no-koe-db)
  *
+ * Optional:
+ *   LINE_WEBHOOK_STRICT=1  (default: 0)
+ *     - 1: signature mismatch => 401
+ *     - 0: signature mismatch => 200 (LINE console "success" を優先)
+ *
  * Runtime:
  *   Node >= 18 recommended (fetch available)
  */
+
+"use strict";
 
 const functions = require("@google-cloud/functions-framework");
 const admin = require("firebase-admin");
@@ -38,6 +45,8 @@ db.settings({ databaseId: process.env.FIRESTORE_DATABASE_ID || "sora-no-koe-db" 
 const PROJECT = "sora-no-koe";
 const SCHEMA_VERSION = "1.0.3";
 const DEFAULT_TZ = "Asia/Tokyo";
+
+const LINE_STRICT = String(process.env.LINE_WEBHOOK_STRICT || "0") === "1";
 
 const ASPECTS = [
   { type: "conjunction", deg: 0 },
@@ -156,12 +165,19 @@ function bad(res, code, message, extra = {}) {
   return res.status(code).json({ ok: false, error: message, ...extra });
 }
 
+function safeText(v, max = 2000) {
+  const s = String(v ?? "");
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
 // --------------------
 // LINE signature verify (raw body)
 // --------------------
 function verifyLineSignatureRaw(rawBodyBuf, signature, secret) {
   if (!secret) return { ok: false, reason: "LINE_CHANNEL_SECRET is missing" };
   if (!signature) return { ok: false, reason: "x-line-signature missing" };
+  if (!Buffer.isBuffer(rawBodyBuf)) return { ok: false, reason: "raw body is not Buffer" };
+
   const hmac = crypto.createHmac("sha256", secret).update(rawBodyBuf).digest("base64");
   return { ok: hmac === signature, reason: hmac === signature ? "ok" : "signature mismatch" };
 }
@@ -280,7 +296,6 @@ async function enqueueNatalCalc({ appUserId, lineUserId, reason = "consent_grant
 }
 
 async function handleJobsWorker(req, res) {
-  // 1回に1件（安全運用）
   const q = await db
     .collection("jobs_natal_calc")
     .where("status", "==", "queued")
@@ -303,8 +318,6 @@ async function handleJobsWorker(req, res) {
   );
 
   try {
-    // TODO: ここに本計算（swisseph等）を接続
-    // 今は「natal_cache 作成/更新ダミー」で回路だけ通す
     await db.collection("natal_cache").doc(job.app_user_id).set(
       {
         computed_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -314,7 +327,6 @@ async function handleJobsWorker(req, res) {
       { merge: true }
     );
 
-    // readyに上げたいなら line_users のstatus再計算して上げる
     const lineRef = db.collection("line_users").doc(job.line_user_id);
     const lineSnap = await lineRef.get();
     if (lineSnap.exists) {
@@ -339,12 +351,7 @@ async function handleJobsWorker(req, res) {
       { merge: true }
     );
 
-    return ok(res, {
-      ran: true,
-      processed: 1,
-      job_id: doc.id,
-      app_user_id: job.app_user_id,
-    });
+    return ok(res, { ran: true, processed: 1, job_id: doc.id, app_user_id: job.app_user_id });
   } catch (e) {
     await doc.ref.set(
       {
@@ -430,6 +437,7 @@ async function geocodePlace(place, apiKey) {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
     place
   )}&key=${apiKey}&language=ja`;
+
   const res = await fetch(url);
   const json = await res.json();
 
@@ -453,14 +461,11 @@ async function lineReply(replyToken, text) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!token) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
 
-  const payload = { replyToken, messages: [{ type: "text", text }] };
+  const payload = { replyToken, messages: [{ type: "text", text: safeText(text, 5000) }] };
 
   const r = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
   });
 
@@ -495,7 +500,6 @@ function parseYesNo(text) {
 async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userText }) {
   const ref = db.collection("line_users").doc(lineUserId);
 
-  // 取りこぼし防止（基本は ensure が先に走ってる想定）
   const snap0 = await ref.get();
   if (!snap0.exists) {
     const ensured = await ensureUserGraphFromLine({ lineUserId, profilePatch: { timezone: DEFAULT_TZ } });
@@ -506,20 +510,15 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
   const data = fresh.data() || {};
   let status = data.status || "pending_profile";
 
-  // 初期誘導
   if (!data.profile?.birth_date && status === "pending_profile") {
     await ref.set({ status: "pending_birth_date" }, { merge: true });
     status = "pending_birth_date";
   }
 
-  // 状態別
   if (status === "pending_birth_date") {
     const v = parseBirthDate(userText);
     if (!v) {
-      await lineReply(
-        replyToken,
-        "🌌 ソラのこえ。\n生年月日を YYYY-MM-DD で受け取ります。\n例：1990-07-24"
-      );
+      await lineReply(replyToken, "🌌 ソラのこえ。\n生年月日を YYYY-MM-DD で受け取ります。\n例：1990-07-24");
       return;
     }
     await ref.set(
@@ -537,10 +536,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
   if (status === "pending_birth_time") {
     const v = parseBirthTime(userText);
     if (!v) {
-      await lineReply(
-        replyToken,
-        "出生時刻は HH:MM で受け取ります。\n例：12:18\nわからない場合は「不明」と返してください。"
-      );
+      await lineReply(replyToken, "出生時刻は HH:MM で受け取ります。\n例：12:18\nわからない場合は「不明」と返してください。");
       return;
     }
     await ref.set(
@@ -563,16 +559,12 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     }
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    let lat = null,
-      lon = null;
+    let lat = null, lon = null;
 
     if (apiKey) {
       const g = await geocodePlace(place, apiKey);
       if (!g.ok) {
-        await lineReply(
-          replyToken,
-          "出生地の候補が特定できませんでした。\nもう少し詳しく（例：北海道 帯広市）で送ってください。"
-        );
+        await lineReply(replyToken, "出生地の候補が特定できませんでした。\nもう少し詳しく（例：北海道 帯広市）で送ってください。");
         return;
       }
       lat = g.lat;
@@ -593,10 +585,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       { merge: true }
     );
 
-    await lineReply(
-      replyToken,
-      "受け取りました。\nこの情報を保存して、星の計算に使っても大丈夫ですか？\n「はい / いいえ」で返してください。"
-    );
+    await lineReply(replyToken, "受け取りました。\nこの情報を保存して、星の計算に使っても大丈夫ですか？\n「はい / いいえ」で返してください。");
     return;
   }
 
@@ -620,18 +609,15 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
       return;
     }
 
-    // yn === true
     await ref.set(
       {
         consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
-        status: "ready", // とりあえずready（workerがnatal_cache入れてく）
+        status: "ready",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
 
-    // ★ B案: natal_cache 計算ジョブを積む（拡張性◎）
-    // app_user_id は line_users にあるはずなので念のため拾う
     const latest = await ref.get();
     const latestData = latest.data() || {};
     const ensuredAppUserId = latestData.app_user_id || appUserId;
@@ -643,7 +629,6 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
     return;
   }
 
-  // ready / other
   await lineReply(replyToken, "🌌 ソラのこえ。\n受け取りは完了しています。");
 }
 
@@ -690,13 +675,7 @@ async function handleBuildStory(req, res) {
 
   const natalLon = extractNatalLonFromCache(cache);
   const transitPlanets = buildTransitPlanetsApprox(dateLocal, precisionDeg);
-  const topResonances = calcResonanceTop({
-    transitPlanets,
-    natalLon,
-    orbMaxDeg,
-    precisionDeg,
-    topN: 3,
-  });
+  const topResonances = calcResonanceTop({ transitPlanets, natalLon, orbMaxDeg, precisionDeg, topN: 3 });
 
   const story = {
     meta: metaBase({
@@ -788,10 +767,7 @@ async function handlePushMe(req, res) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!userId || !token) return bad(res, 500, "LINE env vars missing");
 
-  const payload = {
-    to: userId,
-    messages: [{ type: "text", text }],
-  };
+  const payload = { to: userId, messages: [{ type: "text", text: safeText(text, 5000) }] };
 
   const r = await fetch("https://api.line.me/v2/bot/message/push", {
     method: "POST",
@@ -807,26 +783,49 @@ async function handlePushMe(req, res) {
 // LINE webhook handler (raw body)
 // --------------------
 async function handleLineWebhook(req, res) {
+  const requestId = getRequestId(req);
+
   const secret = process.env.LINE_CHANNEL_SECRET;
   const signature = req.header("x-line-signature") || "";
-  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+
+  // ★最重要：rawBody を優先
+  const raw = req.rawBody ?? req.body;
+
+  if (!Buffer.isBuffer(raw)) {
+    console.error(`[${nowIso()}] webhook raw is not Buffer`, {
+      requestId,
+      typeofBody: typeof req.body,
+      isBodyBuffer: Buffer.isBuffer(req.body),
+      typeofRawBody: typeof req.rawBody,
+      isRawBodyBuffer: Buffer.isBuffer(req.rawBody),
+      contentType: req.headers["content-type"],
+      path: req.path,
+    });
+    // LINE側には200（再送ループ防止）
+    return res.status(200).send("ok");
+  }
 
   const verify = verifyLineSignatureRaw(raw, signature, secret);
   if (!verify.ok) {
-    console.log("LINE signature verify failed:", verify.reason);
-    return bad(res, 401, verify.reason);
+    console.log(`[${nowIso()}] LINE signature verify failed: ${verify.reason}`, { requestId, path: req.path });
+
+    // 運用: strictなら401、そうでなければ200
+    if (LINE_STRICT) return bad(res, 401, verify.reason);
+    return res.status(200).send("ok");
   }
 
   let json;
   try {
     json = JSON.parse(raw.toString("utf8") || "{}");
-  } catch {
-    return bad(res, 400, "invalid JSON body");
+  } catch (e) {
+    console.error("invalid JSON body:", e);
+    // LINE側には200（再送ループ防止）
+    return res.status(200).send("ok");
   }
 
   const ev = json?.events?.[0];
   const lineUserId = ev?.source?.userId;
-  if (!lineUserId) return ok(res, { received: true });
+  if (!lineUserId) return res.status(200).send("ok");
 
   // ① line_users + users を最低限保証
   const { appUserId } = await ensureUserGraphFromLine({
@@ -838,17 +837,16 @@ async function handleLineWebhook(req, res) {
   const replyToken = ev?.replyToken;
   const msgText = ev?.message?.type === "text" ? ev.message.text : null;
 
-  if (replyToken && msgText != null) {
-    handleRegistrationFlow({
-      lineUserId,
-      appUserId,
-      replyToken,
-      userText: msgText,
-    }).catch((e) => console.error("registrationFlow error:", e));
+  try {
+    if (replyToken && msgText != null) {
+      await handleRegistrationFlow({ lineUserId, appUserId, replyToken, userText: msgText });
+    }
+  } catch (e) {
+    console.error("registrationFlow error:", e);
   }
 
-  return ok(res, { received: true, line_user_id: lineUserId });
-
+  // LINEは200が正義
+  return res.status(200).send("ok");
 }
 
 // --------------------
@@ -856,6 +854,7 @@ async function handleLineWebhook(req, res) {
 // --------------------
 const app = express();
 
+// 共通ログ
 app.use((req, res, next) => {
   if (req.path !== "/health") console.log(`[${nowIso()}] ${req.method} ${req.path}`);
   next();
@@ -864,7 +863,17 @@ app.use((req, res, next) => {
 app.get("/", (req, res) =>
   ok(res, {
     service: PROJECT,
-    routes: ["/health", "/transit", "/stories/build", "/posts/x", "/line/daily", "/line/webhook", "/push", "/jobs/worker"],
+    routes: [
+      "/health",
+      "/transit",
+      "/stories/build",
+      "/posts/x",
+      "/line/daily",
+      "/line/webhook",
+      "/push",
+      "/jobs/worker",
+      "/debug/resetRegistration",
+    ],
   })
 );
 
@@ -876,31 +885,35 @@ app.get("/stories/build", (req, res) => handleBuildStory(req, res));
 app.get("/posts/x", (req, res) => handleBuildXPost(req, res));
 app.get("/line/daily", (req, res) => handleBuildLineDaily(req, res));
 app.get("/push", (req, res) => handlePushMe(req, res));
-app.get("/debug/resetRegistration", (req, res) => {
-  handleDebugResetRegistration(req, res).catch((err) => bad(res, 500, String(err)));
-});
 
 // Jobs worker (json body)
-app.post("/jobs/worker", bodyParser.json(), (req, res) => {
+app.post("/jobs/worker", bodyParser.json({ limit: "1mb" }), (req, res) => {
   handleJobsWorker(req, res).catch((err) => {
     console.error(err);
     return bad(res, 500, String(err));
   });
 });
 
-// LINE webhook (raw body only!)
-app.post("/line/webhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+// ★最重要：LINE webhook は raw parser をルートに直付け（順序が命）
+app.post("/line/webhook", bodyParser.raw({ type: "*/*", limit: "2mb" }), (req, res) => {
   handleLineWebhook(req, res).catch((err) => {
     console.error(err);
-    return bad(res, 500, String(err));
+    // LINEには200
+    return res.status(200).send("ok");
   });
 });
 
-app.post("/lineWebhook", bodyParser.raw({ type: "*/*" }), (req, res) => {
+// 互換エイリアス（必要なら）※混乱するなら消してOK
+app.post("/lineWebhook", bodyParser.raw({ type: "*/*", limit: "2mb" }), (req, res) => {
   handleLineWebhook(req, res).catch((err) => {
     console.error(err);
-    return bad(res, 500, String(err));
+    return res.status(200).send("ok");
   });
+});
+
+// DEBUG (下に定義されてる handler を使う)
+app.get("/debug/resetRegistration", (req, res) => {
+  handleDebugResetRegistration(req, res).catch((err) => bad(res, 500, String(err)));
 });
 
 // fallback
@@ -909,17 +922,9 @@ app.use((req, res) => bad(res, 404, "not found", { path: req.path }));
 // Functions Framework entry
 functions.http("app", app);
 
-
 // ====================
 // DEBUG: reset registration
 // ====================
-// Env:
-//   DEBUG_TOKEN=... (必須。適当な長い文字列にして Cloud Run の env に入れる)
-//
-// Usage:
-//   GET /debug/resetRegistration?line_user_id=Uxxxx&token=DEBUG_TOKEN
-//   (optional) &keep_app_user_id=true|false
-//
 async function handleDebugResetRegistration(req, res) {
   try {
     const token = String(req.query.token || "");
@@ -942,18 +947,11 @@ async function handleDebugResetRegistration(req, res) {
 
     const patch = {
       status: "pending_birth_date",
-      consent: {
-        profile: false,
-        saved_at: null,
-      },
-      profile: {
-        timezone: data?.profile?.timezone || DEFAULT_TZ,
-      },
+      consent: { profile: false, saved_at: null },
+      profile: { timezone: data?.profile?.timezone || DEFAULT_TZ },
       updated_at: now,
     };
 
-    // app_user_id を消すと次回 webhook で新規発行される可能性がある
-    // → テスト時は keep 推奨
     if (!keepAppUserId) {
       patch.app_user_id = admin.firestore.FieldValue.delete();
     }
