@@ -167,13 +167,11 @@ function isoWithJST(dateLocal, timeHHMM = "14:00") {
 function eachDateLocal(from, to) {
   if (!isYYYYMMDD(from) || !isYYYYMMDD(to)) throw new Error("from/to must be YYYY-MM-DD");
   const out = [];
-  const start = new Date(from + "T00:00:00+09:00");
+  let cur = new Date(from + "T00:00:00+09:00");
   const end = new Date(to + "T00:00:00+09:00");
-  if (start > end) throw new Error("from must be <= to");
-  let cur = start;
+  if (cur > end) throw new Error("from must be <= to");
   while (cur <= end) {
-    const jst = new Date(cur.getTime() + 9 * 60 * 60 * 1000);
-    out.push(jst.toISOString().slice(0, 10));
+    out.push(cur.toISOString().slice(0, 10));
     cur = new Date(cur.getTime() + 24 * 60 * 60 * 1000);
   }
   return out;
@@ -740,6 +738,7 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
   const data = fresh.data() || {};
   let status = data.status || "pending_profile";
 
+  // ✅ 「pending_profile だけど birth_date が空」なら次を促す
   if (!data.profile?.birth_date && status === "pending_profile") {
     await ref.set({ status: "pending_birth_date" }, { merge: true });
     status = "pending_birth_date";
@@ -747,65 +746,201 @@ async function handleRegistrationFlow({ lineUserId, appUserId, replyToken, userT
 
   if (status === "pending_birth_date") {
     const v = parseBirthDate(userText);
-    if (!v) {
-      await lineReply(replyToken, "🌌 ソラのこえ。\n生年月日を YYYY-MM-DD で受け取ります。\n例：1990-07-24");
-      return;
-    }
-    await ref.set({ profile: { ...(data.profile || {}), birth_date: v }, status: "pending_birth_time", updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-    await lineReply(replyToken, "受け取りました。\n次に、出生時刻です（例：12:18）\n不明なら「不明」でOK。");
-    return;
-  }
 
-  if (status === "pending_birth_time") {
-    const v = parseBirthTime(userText);
     if (!v) {
-      await lineReply(replyToken, "出生時刻は HH:MM で受け取ります。\n例：12:18\nわからない場合は「不明」と返してください。");
-      return;
-    }
-    await ref.set({ profile: { ...(data.profile || {}), birth_time: v }, status: "pending_birth_place", updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-    await lineReply(replyToken, "ありがとう。\n次に、出生地（市区町村まで）を教えてください。\n例：北海道帯広市");
-    return;
-  }
-
-  if (status === "pending_birth_place") {
-    const place = String(userText || "").trim();
-    if (!place) {
-      await lineReply(replyToken, "出生地（市区町村まで）を文字で受け取ります。\n例：北海道帯広市");
+      await lineReply(
+        replyToken,
+        [
+          "🌌 ソラのこえ。",
+          "",
+          "最初に、生年月日を教えてください🕊️",
+          "形式は YYYY-MM-DD です。",
+          "例：1990-07-24",
+          "",
+          "※ わからないところは「不明」でOK。",
+          "※ これは占いではなく、星の配置を“置く”ための入力です。",
+        ].join("\n")
+      );
       return;
     }
 
     await ref.set(
       {
-        profile: { ...(data.profile || {}), birth_place: place, timezone: data.profile?.timezone || DEFAULT_TZ },
+        profile: { ...(data.profile || {}), birth_date: v },
+        status: "pending_birth_time",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await lineReply(
+      replyToken,
+      [
+        "受け取りました🕊️",
+        "次に、出生時刻です。",
+        "",
+        "形式：HH:MM（例：12:18）",
+        "わからない場合は「不明」でOK。",
+      ].join("\n")
+    );
+    return;
+  }
+
+  if (status === "pending_birth_time") {
+    const v = parseBirthTime(userText);
+
+    if (!v) {
+      await lineReply(
+        replyToken,
+        [
+          "出生時刻は HH:MM で受け取ります🕊️",
+          "例：12:18",
+          "",
+          "わからない場合は「不明」と返してください。",
+          "（不明でも、今日の配置は届きます）",
+        ].join("\n")
+      );
+      return;
+    }
+
+    await ref.set(
+      {
+        profile: { ...(data.profile || {}), birth_time: v },
+        status: "pending_birth_place",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await lineReply(
+      replyToken,
+      [
+        "ありがとう🕊️",
+        "次に、出生地（市区町村まで）を教えてください。",
+        "",
+        "例：岩手県遠野市",
+        "※ 住所の番地までは不要です。",
+      ].join("\n")
+    );
+    return;
+  }
+
+  if (status === "pending_birth_place") {
+    const place = String(userText || "").trim();
+
+    if (!place) {
+      await lineReply(
+        replyToken,
+        [
+          "出生地（市区町村まで）を文字で受け取ります🕊️",
+          "例：岩手県遠野市",
+          "",
+          "※ 住所の番地までは不要です。",
+        ].join("\n")
+      );
+      return;
+    }
+
+    await ref.set(
+      {
+        profile: {
+          ...(data.profile || {}),
+          birth_place: place,
+          timezone: data.profile?.timezone || DEFAULT_TZ,
+        },
         status: "pending_consent",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
 
-    await lineReply(replyToken, "受け取りました。\nこの情報を保存して、星の計算に使っても大丈夫ですか？\n「はい / いいえ」で返してください。");
+    await lineReply(
+      replyToken,
+      [
+        "受け取りました。ありがとう🕊️",
+        "",
+        "この情報を保存して、星の計算に使っても大丈夫ですか？",
+        "",
+        "「はい」→ 保存して、あなたの星と“いま触れている配置”をそっと置きます",
+        "「いいえ」→ 保存せず、空の配置だけを静かに置きます",
+        "",
+        "*.解釈はあなただけのもの。",
+        "「はい / いいえ」で返してください。",
+      ].join("\n")
+    );
     return;
   }
 
   if (status === "pending_consent") {
     const yn = parseYesNo(userText);
+
     if (yn === null) {
-      await lineReply(replyToken, "「はい / いいえ」で返してください。");
+      await lineReply(
+        replyToken,
+        [
+          "「はい / いいえ」で返してください🕊️",
+        ].join("\n")
+      );
       return;
     }
 
     if (yn === false) {
-      await ref.set({ consent: { profile: false, saved_at: null }, status: "pending_profile", updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-      await lineReply(replyToken, "了解です。\n保存はしません。\nまたいつでも再開できます。");
+      await ref.set(
+        {
+          consent: { profile: false, saved_at: null },
+          status: "pending_profile",
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await lineReply(
+        replyToken,
+        [
+          "了解です🕊️",
+          "保存はしません。",
+          "",
+          "またいつでも再開できます。",
+          "必要になったら「はじめる」と送ってね。",
+        ].join("\n")
+      );
       return;
     }
 
-    await ref.set({ consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() }, status: "ready", updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-    await lineReply(replyToken, "保存しました。\n星の配置は数値として置きます。\n解釈は、あなたのもの。");
+    // ✅ ここで「はい → 受信中… → ぽん」を演出したい場合：
+    // 1通目：受信中
+    // 2通目：ぽん（今日の結果） ← ※これは webhook の replyToken 1回制限があるので注意（後述）
+    await ref.set(
+      {
+        consent: { profile: true, saved_at: admin.firestore.FieldValue.serverTimestamp() },
+        status: "ready",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await lineReply(
+      replyToken,
+      [
+        "保存しました🕊️",
+        "今日の宇宙を受信ちゅう…📡🌌",
+        "",
+        "星は語る。決めるのは、人。",
+        "解釈は、あなたのもの。",
+      ].join("\n")
+    );
     return;
   }
 
-  await lineReply(replyToken, "🌌 ソラのこえ。\n受け取りは完了しています。");
+  await lineReply(
+    replyToken,
+    [
+      "🌌 ソラのこえ。",
+      "受け取りは完了しています🕊️",
+      "",
+      "今日の分がほしければ「今日」と送ってね。",
+    ].join("\n")
+  );
 }
 
 // --------------------
@@ -1036,6 +1171,11 @@ async function handleLineDaily(req, res) {
       line_message: renderLine(story),
     });
   } catch (e) {
+  console.error("handleLineDaily error", {
+    message: String(e?.message ?? e),
+    stack: e?.stack,
+    query: req.query,
+  });
     return bad(res, 400, String(e?.message ?? e));
   }
 }
