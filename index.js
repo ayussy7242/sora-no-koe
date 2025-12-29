@@ -35,20 +35,22 @@ const {
   ASPECTS_V1,
   PLANETS_V1,
   POINTS_V1,
-  RESONANCE_V1,
   SIGNS_V1,
+  ORB_RULES_V1,
+
+  // optional (future use)
   HOUSES_V1,
   ELEMENTS_V1,
   MODALITIES_V1,
-  ORB_RULES_V1,
   TONE_VARIANTS_V1,
+  RESONANCE_V1,
 } = require("./dict");
 
 // --------------------
-// Engine DI helpers
+// Helpers (stable, minimal, compatibility only)
 // --------------------
 
-// aspects (major only for now)
+// aspects list (major)
 const ASPECTS = ASPECTS_V1?.major_list || [
   { type: "conjunction", deg: 0 },
   { type: "sextile", deg: 60 },
@@ -57,42 +59,28 @@ const ASPECTS = ASPECTS_V1?.major_list || [
   { type: "opposition", deg: 180 },
 ];
 
-// body labels (ja)
+// ✅ legacy label maps (renderer互換用 / 旧参照が残っても落ちないため)
+// ※ 最新 render は dictの V1 を直接参照するので、ここは “保険”
+const bodies = PLANETS_V1?.bodies || {};
+const points = POINTS_V1?.points || {};
+const major = ASPECTS_V1?.major || {};
+
+// points優先衝突回避
+const POINT_KEYS = new Set(Object.keys(points));
+
 const BODY_JA = Object.fromEntries(
-  Object.entries(PLANETS_V1?.bodies || {}).map(([k, v]) => [k, v?.label_ja || k])
+  Object.entries(bodies)
+    .filter(([k]) => !POINT_KEYS.has(k))
+    .map(([k, v]) => [k, v?.label_ja || k])
 );
 
-// point labels (ja)
-// POINTS_V1.points: { ASC:{label_ja}, MC:{...}, ... } を想定
 const POINT_JA = Object.fromEntries(
-  Object.entries(POINTS_V1?.points || {}).map(([k, v]) => [k, v?.label_ja || k])
+  Object.entries(points).map(([k, v]) => [k, v?.label_ja || k])
 );
 
-// aspect labels (ja short)
-const ASPECT_JA = {
-  conjunction: "合",
-  sextile: "六",
-  square: "四",
-  trine: "三",
-  opposition: "対",
-};
-
-// signs list (ja)
-// SIGNS_V1.order を優先。なければ list / items / labels_ja から推測。
-const SIGNS_JA = (() => {
-  if (Array.isArray(SIGNS_V1?.order)) return SIGNS_V1.order;
-  if (Array.isArray(SIGNS_V1?.list)) return SIGNS_V1.list;
-  if (Array.isArray(SIGNS_V1?.labels_ja)) return SIGNS_V1.labels_ja;
-  if (SIGNS_V1?.signs && typeof SIGNS_V1.signs === "object") {
-    // { Aries:{label_ja:"牡羊座"} ... } みたいな形
-    const maybe = Object.values(SIGNS_V1.signs)
-      .map((x) => x?.label_ja)
-      .filter(Boolean);
-    if (maybe.length) return maybe;
-  }
-  // last resort: empty
-  return [];
-})();
+const ASPECT_JA = Object.fromEntries(
+  Object.entries(major).map(([k, v]) => [k, v?.label_ja || k])
+);
 
 // --------------------
 // storyService
@@ -101,22 +89,42 @@ const storyService = createStoryService({
   db,
   admin: fb.admin,
   swisseph,
-  SIGNS_V1, 
+
+  // ✅ story 側は SIGNS_V1 を使う（moon sign_key/sign_ja）
+  SIGNS_V1,
   ASPECTS,
+
   DEFAULT_TZ: env.DEFAULT_TZ,
   PROJECT: env.PROJECT,
   SCHEMA_VERSION: env.SCHEMA_VERSION,
+
   buildResonanceBullets,
 });
-
 
 // --------------------
 // renderers
 // --------------------
 const renderers = createRenderers({
+  // 互換マップ（保険）
   BODY_JA,
   POINT_JA,
   ASPECT_JA,
+
+  // ✅ render最新版は V1原本を直接参照する（最強に安定）
+  dict: {
+    ASPECTS_V1,
+    PLANETS_V1,
+    POINTS_V1,
+    SIGNS_V1,
+
+    // optional（今すぐ使わなくてもOK：将来拡張用）
+    ORB_RULES_V1,
+    HOUSES_V1,
+    ELEMENTS_V1,
+    MODALITIES_V1,
+    TONE_VARIANTS_V1,
+    RESONANCE_V1,
+  },
 });
 
 // --------------------
@@ -130,9 +138,6 @@ const deps = {
   swisseph_setup,
   storyService,
   renderers,
-
-  // optional: expose dictionaries to handlers if needed later
-  // dict: { ASPECTS_V1, PLANETS_V1, POINTS_V1, RESONANCE_V1, SIGNS_V1, HOUSES_V1, ELEMENTS_V1, MODALITIES_V1, ORB_RULES_V1, TONE_VARIANTS_V1 }
 };
 
 const app = createApp(deps);
