@@ -1,21 +1,36 @@
 {
   "name": "sora-no-koe",
   "version": "1.0.0",
+  "description": "🌌 sora-no-koe｜構造としての星の共鳴を届けるAPI",
   "main": "index.js",
   "private": true,
+
+  "engines": {
+    "node": ">=20"
+  },
+
   "dependencies": {
     "@google-cloud/functions-framework": "^3.4.0",
-    "body-parser": "^1.20.4",
     "express": "^4.22.1",
+    "body-parser": "^1.20.4",
     "firebase-admin": "^12.0.0",
     "swisseph": "^0.5.17"
   },
+
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+
   "scripts": {
-  "start": "functions-framework --target=app --port=8080",
-  "start:run": "functions-framework --target=app --port=$PORT",
-  "dev": "functions-framework --target=app --port=8080"
-},
-  "engines": {
-    "node": ">=20"
+    "start": "functions-framework --source=index.js --target=app --port=8080",
+    "start:run": "functions-framework --source=index.js --target=app --port=${PORT:-8080}",
+
+    "dev": "nodemon --watch . --ext js,json --exec \"functions-framework --source=index.js --target=app --port=8080\"",
+
+    "export:dict": "node scripts/export_dictionaries_json.js",
+    "export:dict:fb": "node scripts/export_dictionaries_json.js --firebase --db sora-no-koe-db",
+    "export:dict:dry": "node scripts/export_dictionaries_json.js --firebase --db sora-no-koe-db --dry-run",
+
+    "export:aspects": "node scripts/export_aspects_json.js"
   }
 }
