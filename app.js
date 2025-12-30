@@ -10,6 +10,7 @@ const { createStoriesRouter } = require("./routes/stories");
 const { createLineRouter } = require("./routes/line");
 const { createCronRouter } = require("./routes/cron");
 const { createDebugRouter } = require("./routes/debug");
+const { createJobsRouter } = require("./routes/jobs");
 
 // --------------------
 // helpers
@@ -116,6 +117,8 @@ function createApp(deps = {}) {
   app.use("/line", createLineRouter(deps));
   app.use("/cron", createCronRouter(deps));
   app.use("/debug", createDebugRouter(deps));
+  app.use("/jobs", createJobsRouter(deps));
+
 
   // 404
   app.use((req, res) => {

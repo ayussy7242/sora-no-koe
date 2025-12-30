@@ -57,6 +57,7 @@ function birthUtcIsoFromJob(job) {
 
   if (!dateLocal || !timeHm) return null;
 
+  // 今の要件では Asia/Tokyo のみ確実対応
   if (tz === "Asia/Tokyo" || !tz) {
     const iso = `${dateLocal}T${timeHm}:00+09:00`;
     const d = new Date(iso);
@@ -151,6 +152,49 @@ function computeNatalCache({ swisseph, birthUtcIso, houseSystem = "P", lat, lon,
   return { jd_ut: jdUt, bodies, houses, engineHouses };
 }
 
+// engine.houses（asc_deg / mc_deg）の妥当性
+function housesLooksValid(h) {
+  if (!h || typeof h !== "object") return false;
+
+  const asc = Number(h.asc_deg);
+  const mc = Number(h.mc_deg);
+
+  if (!Number.isFinite(asc) || !Number.isFinite(mc)) return false;
+  if (asc < 0 || asc >= 360) return false;
+  if (mc < 0 || mc >= 360) return false;
+
+  // ASCとMCが完全一致は異常として弾く
+  if (Math.abs(asc - mc) < 1e-9) return false;
+
+  return true;
+}
+
+// houses（詳細：angles / cusps）の妥当性
+function housesStructLooksValid(h) {
+  if (!h || typeof h !== "object") return false;
+  const a = h.angles;
+  if (!a || typeof a !== "object") return false;
+
+  const asc = Number(a.ASC);
+  const mc = Number(a.MC);
+
+  if (!Number.isFinite(asc) || !Number.isFinite(mc)) return false;
+  if (asc < 0 || asc >= 360) return false;
+  if (mc < 0 || mc >= 360) return false;
+
+  if (Math.abs(asc - mc) < 1e-9) return false;
+
+  // cusps は null 許容（lat/lon無いときは計算できない）
+  if (h.cusps != null) {
+    if (!Array.isArray(h.cusps)) return false;
+    // 12個以上ならOK（SwissEphemerisの返し方差異もあるので厳格にしすぎない）
+    if (h.cusps.length < 12) return false;
+  }
+
+  return true;
+}
+
+
 // --------------------
 // main worker
 // --------------------
@@ -228,7 +272,11 @@ async function handleJobsWorker(req, res, deps = {}) {
       if (attempts >= MAX_ATTEMPTS) {
         tx.set(
           ref,
-          { status: "failed", last_error: `max attempts reached (${attempts})`, updated_at: admin.firestore.FieldValue.serverTimestamp() },
+          {
+            status: "failed",
+            last_error: `max attempts reached (${attempts})`,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          },
           { merge: true }
         );
         return;
@@ -321,11 +369,11 @@ async function handleJobsWorker(req, res, deps = {}) {
       Object.keys(existing.min.bodies).length >= 5;
 
     const existingEngineHousesOk =
-      sameBirth &&
-      existing?.engine?.houses &&
-      typeof existing.engine.houses === "object" &&
-      isFiniteNumber(existing.engine.houses.asc_deg) &&
-      isFiniteNumber(existing.engine.houses.mc_deg);
+      sameBirth && housesLooksValid(existing?.engine?.houses);
+
+    // ✅ これが今回の修正点：未定義だった existingHousesOk を明示
+    const existingHousesOk =
+      sameBirth && housesStructLooksValid(existing?.houses);
 
     const patch = {
       schema_version: existing.schema_version || "1.0.0",
@@ -355,7 +403,8 @@ async function handleJobsWorker(req, res, deps = {}) {
         houses: existingEngineHousesOk ? existing.engine.houses : (calc.engineHouses || null),
       },
 
-      houses: existing.houses ?? calc.houses ?? null,
+      // 詳細 houses も「同一出生かつ妥当」なら再利用、それ以外は計算結果
+      houses: existingHousesOk ? existing.houses : (calc.houses || null),
 
       min: {
         ...(existing.min || {}),
@@ -397,6 +446,7 @@ async function handleJobsWorker(req, res, deps = {}) {
       same_birth: sameBirth,
       reused_min_bodies: existingMinBodiesOk,
       reused_engine_houses: existingEngineHousesOk,
+      reused_houses: existingHousesOk,
       birth_hash: birthHash,
       has_latlon: isFiniteNumber(lat) && isFiniteNumber(lon),
     });
