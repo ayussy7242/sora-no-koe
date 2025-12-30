@@ -127,11 +127,11 @@ function createGeocoder({
 
                     // ok=falseもキャッシュしてる場合：短期で再試行したいならここ調整
                     if (cached && cached.ok === false && updatedAt) {
-                        // 失敗は7日だけキャッシュ
-                        const ageMs = Date.now() - updatedAt.getTime();
-                        const ttlMs = 7 * 24 * 60 * 60 * 1000;
-                        if (ageMs <= ttlMs) {
-                            return { ...cached, source: "cache" };
+                        const noCacheStatuses = new Set(["NO_API_KEY", "REQUEST_DENIED"]);
+                        if (!noCacheStatuses.has(cached.status)) {
+                            const ageMs = Date.now() - updatedAt.getTime();
+                            const ttlMs = 7 * 24 * 60 * 60 * 1000;
+                            if (ageMs <= ttlMs) return { ...cached, source: "cache" };
                         }
                     }
                 }

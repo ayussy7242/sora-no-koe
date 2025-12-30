@@ -849,7 +849,7 @@ function createLineRouter(deps = {}) {
 
 
                                 if (geo?.ok) {
-                                    await safeReply(replyToken, [{ type: "text", text: TEXT_NATAL_DONE }]);
+                                    await safeReply(replyToken, [{ type: "text", text: TEXT.NATAL_DONE }]);
                                 } else {
                                     let reasonText = "";
 
