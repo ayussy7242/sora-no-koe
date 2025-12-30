@@ -1,5 +1,6 @@
 "use strict";
 
+const appEnv = require("../config/env");
 const express = require("express");
 const crypto = require("crypto");
 const rawBody = require("../middleware/rawBody");
@@ -24,7 +25,7 @@ const { createGeocoder } = require("../engine/geocode");
 function createLineRouter(deps = {}) {
     const router = express.Router();
 
-    const env = deps.env || {};
+    const env = deps.env || appEnv;
     const db = deps.db;
     const admin = deps.admin;
     const storyService = deps.storyService;
