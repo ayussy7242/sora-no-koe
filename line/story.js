@@ -13,10 +13,10 @@
 const express = require("express");
 const crypto = require("crypto");
 
-const { intentFromCommand } = require("../line/line.intent");
-const { getOrCreateAppUser } = require("../line/line.user");
-const { handleNatalFlow } = require("../line/line.natal");
-const { createLineStory } = require("../line/line.story");
+const { intentFromCommand } = require("./intent");
+const { getOrCreateAppUser } = require("./user");
+const { handleNatalFlow } = require("./natal");
+const { createLineStory } = require("./story");
 
 module.exports = function createLineRoute({
   lineClient,
