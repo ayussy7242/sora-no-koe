@@ -654,6 +654,51 @@ function createLineRouter(deps = {}) {
     }
   }
 
+// routes/line.js の createLineRouter(deps) の中（router.post("/webhook"... の前がわかりやすい）
+
+router.get("/debug/geocode", async (req, res) => {
+  try {
+    const token = String(req.query.token || "");
+    const q = String(req.query.q || "").trim();
+
+    if (!env.DEBUG_TOKEN) {
+      return res.status(500).json({ ok: false, error: "DEBUG_TOKEN missing" });
+    }
+    if (token !== String(env.DEBUG_TOKEN)) {
+      return res.status(403).json({ ok: false, error: "forbidden" });
+    }
+    if (!q) {
+      return res.status(400).json({ ok: false, error: "q is required" });
+    }
+
+    const hasKey = !!env.GOOGLE_MAPS_API_KEY;
+    const keySig = hasKey ? String(env.GOOGLE_MAPS_API_KEY).slice(0, 6) + "..." : null;
+
+    const geo = await geocoder.geocodePlace(q, { language: GEO_LANG, region: GEO_REGION });
+
+    console.log("[debug] geocode", {
+      q,
+      ok: !!geo?.ok,
+      status: geo?.status,
+      reason: geo?.reason,
+      error_message: geo?.error_message,
+    });
+
+    return res.json({
+      ok: true,
+      q,
+      hasKey,
+      keySig,
+      geo,
+    });
+  } catch (e) {
+    console.error("[debug] geocode fatal", e?.message || e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+
+
   // --------------------
   // main webhook
   // --------------------
