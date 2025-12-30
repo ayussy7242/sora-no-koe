@@ -10,6 +10,9 @@
  * - orb_max_deg を story.meta.rules から追従（weightFromOrbの6固定を撤廃）
  * - buildNoContactLine の文言を「日付(＋ユーザー)で安定」させる（seeded）
  * - 外惑星/木星土星/Vertex の日本語ラベルを保険で内蔵（dict未定義でも日本語維持）
+ * - 「わたしのほし」: natal_cache からネイタル一覧（ASC/MC含む）を描画
+ * - ✅ natal_cache の angles 保存場所が揺れても拾える（engine.houses / min.* / top-level など）
+ * - ✅ natal_cache の bodies 保存場所が揺れても拾える（min.bodies / min.natal_positions / positions など）
  */
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
@@ -18,13 +21,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   const ASPECTS_V1 = dict?.ASPECTS_V1 || null;
   const PLANETS_V1 = dict?.PLANETS_V1 || null;
-  const POINTS_V1  = dict?.POINTS_V1  || null;
-  const SIGNS_V1   = dict?.SIGNS_V1   || null;
+  const POINTS_V1 = dict?.POINTS_V1 || null;
+  const SIGNS_V1 = dict?.SIGNS_V1 || null;
 
   // optional: META inputs
   const ASPECTS_META_IN = dict?.ASPECTS_META || null;
   const PLANETS_META_IN = dict?.PLANETS_META || null;
-  const POINTS_META_IN  = dict?.POINTS_META  || null;
+  const POINTS_META_IN = dict?.POINTS_META || null;
 
   // --------------------
   // internal safe JA maps (in case dict is missing)
@@ -102,7 +105,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // final metas
   const ASPECTS_META = ASPECTS_V1 ? buildAspectsMetaFromV1() : (ASPECTS_META_IN || {});
   const PLANETS_META = PLANETS_V1 ? buildPlanetsMetaFromV1() : (PLANETS_META_IN || {});
-  const POINTS_META  = POINTS_V1  ? buildPointsMetaFromV1()  : (POINTS_META_IN  || {});
+  const POINTS_META = POINTS_V1 ? buildPointsMetaFromV1() : (POINTS_META_IN || {});
 
   // --------------------
   // formatters
@@ -157,6 +160,23 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return SIGNS_V1?.signs?.[signKey] || null;
   }
 
+  function signJaFromIndex(signIndex) {
+    const FALLBACK_SIGNS_JA = [
+      "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
+      "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"
+    ];
+    if (!Number.isFinite(signIndex) || signIndex < 0 || signIndex > 11) return null;
+
+    // dictがあれば優先
+    if (SIGNS_V1?.signs) {
+      const orderKeys = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
+      const key = orderKeys[signIndex];
+      const s = SIGNS_V1.signs?.[key];
+      if (s?.label_ja) return s.label_ja;
+    }
+    return FALLBACK_SIGNS_JA[signIndex];
+  }
+
   // --------------------
   // seeded randomness (stable by date/user)
   // --------------------
@@ -198,7 +218,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   function getTodayContacts(story) {
     const personalTop = Array.isArray(story?.personal?.touch_points_top3) ? story.personal.touch_points_top3 : [];
-    const publicTop   = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+    const publicTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
 
     const hasNatal = personalTop.length > 0;
     const rows = (hasNatal ? personalTop : publicTop).slice(0, 3);
@@ -258,6 +278,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return `${left} と ${right} の噛み合い方が動きやすい配置。`;
   }
 
+  // --------------------
+  // seeded "no contact" line
+  // --------------------
   function buildNoContactLine(story) {
     const moonKey = story?.public?.moon?.sign_key || null;
     const s = moonKey ? signMeta(moonKey) : null;
@@ -371,6 +394,119 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // --------------------
+  // natal list formatter (LINE command: わたしのほし) — ASC/MC 必須
+  // --------------------
+  function lonToSignDegMin(lonDeg) {
+    const x = Number(lonDeg);
+    if (!Number.isFinite(x)) return null;
+
+    const lon = ((x % 360) + 360) % 360;
+    const signIndex = Math.floor(lon / 30); // 0..11
+    const within = lon - signIndex * 30;
+
+    const deg = Math.floor(within);
+    const min = Math.floor((within - deg) * 60 + 1e-9);
+
+    const signJa = signJaFromIndex(signIndex) || "（不明）";
+    const mm = String(min).padStart(2, "0");
+    return `${signJa} ${deg}°${mm}’`;
+  }
+
+  // ✅ 統合：angles の置き場が揺れても拾える（あなたの現状: engine.houses.asc_deg / mc_deg）
+  function pickAnglesFromNatalCache(d) {
+    const a =
+      d?.engine?.houses ||
+      d?.min?.angles ||
+      d?.angles ||
+      d?.ascmc ||
+      d?.natal_angles ||
+      d?.min?.ascmc ||
+      null;
+
+    const asc =
+      a?.asc_deg ?? a?.ASC ?? a?.asc ??
+      d?.min?.ASC ?? d?.min?.asc ??
+      d?.ASC ?? d?.asc ??
+      null;
+
+    const mc =
+      a?.mc_deg ?? a?.MC ?? a?.mc ??
+      d?.min?.MC ?? d?.min?.mc ??
+      d?.MC ?? d?.mc ??
+      null;
+
+    return { asc, mc };
+  }
+
+  // ✅ 統合：bodies の置き場が揺れても拾える（あなたの現状: min.bodies が最優先）
+  function pickBodiesFromNatalCache(d) {
+    return (
+      d?.min?.bodies ||              // ✅ 今ここが最優先（print_natal_cache が証明）
+      d?.min?.natal_positions ||     // ✅ ここに入る設計もある
+      d?.natal_positions ||          // 互換
+      d?.positions ||                // 互換
+      d?.min?.positions ||           // 互換
+      null
+    );
+  }
+
+  function renderNatalListFromCache(natalCacheDoc) {
+    const d = natalCacheDoc || {};
+    const bodies = pickBodiesFromNatalCache(d);
+
+    if (!bodies || typeof bodies !== "object") {
+      return "🌌 わたしのほし（ネイタル一覧）\n\n（まだネイタルが準備中みたい）\n「はじめる」から登録してみてね🕊️";
+    }
+
+    const { asc, mc } = pickAnglesFromNatalCache(d);
+
+    // ASC/MC 必須：無いなら「データ側が未保存」なので正直に言う
+    if (!Number.isFinite(Number(asc)) || !Number.isFinite(Number(mc))) {
+      return [
+        "🌌 わたしのほし（ネイタル一覧）",
+        "",
+        "ASC/MC がまだ見つからなかった🙏",
+        "（natal_cache に ASC/MC を保存する処理が必要）",
+        "",
+        "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるからここでは止めてる。",
+        "",
+        "（ヒント）今の保存先が engine.houses なら render 側は対応済み。データが入ってるか確認してね。",
+      ].join("\n");
+    }
+
+    const order = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+    const glyph = {
+      Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
+      Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+      ASC: "ASC", MC: "MC",
+    };
+
+    const lines = [];
+
+    // 角度（必須）
+    lines.push(`${glyph.ASC} ${fmtPointJa("ASC")}：${lonToSignDegMin(asc)}`);
+    lines.push(`${glyph.MC}  ${fmtPointJa("MC")}：${lonToSignDegMin(mc)}`);
+
+    lines.push(""); // spacer
+
+    // 天体
+    for (const k of order) {
+      const v = bodies[k];
+      const str = lonToSignDegMin(v);
+      if (!str) continue;
+      const label = fmtBodyJa(k);
+      lines.push(`${glyph[k]} ${label}：${str}`);
+    }
+
+    const note =
+      "\n※ これは「配置」の一覧です。\n" +
+      "※ 意味や解釈は置いていません。\n\n" +
+      "星は語る。\n決めるのは、人。";
+
+    return ["🌌 わたしのほし（ネイタル一覧）", "", ...lines, note].join("\n");
+  }
+
+  // --------------------
   // LINE v3
   // --------------------
   function renderLine(story) {
@@ -475,6 +611,7 @@ ${yoin}
     fmtAspectJa,
     fmtBodyJa,
     fmtPointJa,
+    renderNatalListFromCache, // ✅ LINEから呼べる
   };
 }
 
