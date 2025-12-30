@@ -1,10 +1,9 @@
 "use strict";
 
 /**
- * env.js
- * - 環境変数の一元管理
- * - process.env 直読みを禁止するための「関所」
- * - 本番 / 開発 / ローカル / cron / LINE すべてここで吸収
+ * env.js (OPTIMIZED / COMPAT)
+ * - 環境変数の一元管理（関所）
+ * - 本番/開発/ローカル/cron/LINE/Geo をここで吸収
  */
 
 // --------------------
@@ -12,7 +11,6 @@
 // --------------------
 function getEnv(key, { required = false, defaultValue = undefined } = {}) {
   const v = process.env[key];
-
   if ((v === undefined || v === "") && required) {
     throw new Error(`[env] Missing required env: ${key}`);
   }
@@ -21,13 +19,13 @@ function getEnv(key, { required = false, defaultValue = undefined } = {}) {
 
 function boolEnv(key, defaultValue = false) {
   const v = process.env[key];
-  if (v === undefined) return defaultValue;
+  if (v === undefined || v === "") return defaultValue;
   return ["1", "true", "yes", "on"].includes(String(v).toLowerCase());
 }
 
 function numEnv(key, defaultValue) {
   const v = process.env[key];
-  if (v === undefined) return defaultValue;
+  if (v === undefined || v === "") return defaultValue;
   const n = Number(v);
   return Number.isFinite(n) ? n : defaultValue;
 }
@@ -46,7 +44,7 @@ const NODE_ENV = getEnv("NODE_ENV", { defaultValue: "development" });
 // --------------------
 const PORT = numEnv("PORT", 8080);
 
-// Cloud Run 系（存在すれば拾う）
+// Cloud Run meta
 const K_SERVICE = process.env.K_SERVICE || null;
 const K_REVISION = process.env.K_REVISION || null;
 const K_REGION = process.env.K_REGION || null;
@@ -54,10 +52,6 @@ const K_REGION = process.env.K_REGION || null;
 // --------------------
 // Firestore / Firebase
 // --------------------
-/**
- * firebase-admin は Application Default Credentials 前提
- * databaseId だけ env で切り替える
- */
 const FIRESTORE_DATABASE_ID = getEnv("FIRESTORE_DATABASE_ID", {
   defaultValue: "sora-no-koe-db",
 });
@@ -65,10 +59,6 @@ const FIRESTORE_DATABASE_ID = getEnv("FIRESTORE_DATABASE_ID", {
 // --------------------
 // Swiss Ephemeris
 // --------------------
-/**
- * swisseph data path
- * Cloud Run では container に bake されてる想定
- */
 const SWISSEPH_PATH = getEnv("SWISSEPH_PATH", {
   defaultValue: "/usr/share/swisseph",
 });
@@ -76,29 +66,47 @@ const SWISSEPH_PATH = getEnv("SWISSEPH_PATH", {
 // --------------------
 // precision / astrology
 // --------------------
+// 互換：line.js は PRECISION_DEG / ORB_MAX_DEG を見てる
 const DEFAULT_PRECISION_DEG = numEnv("PRECISION_DEG", 0.01);
 const DEFAULT_ORB_DEG = numEnv("ORB_DEG", 6);
+
+const PRECISION_DEG = numEnv("PRECISION_DEG", DEFAULT_PRECISION_DEG);
+const ORB_MAX_DEG = numEnv("ORB_MAX_DEG", DEFAULT_ORB_DEG);
 
 // --------------------
 // LINE Messaging API
 // --------------------
+// NOTE: Cloud Run で LINE_ENABLED をセットしてない場合でも動かしたいなら default true 推奨
+const LINE_ENABLED = boolEnv("LINE_ENABLED", true);
+
 const LINE_CHANNEL_SECRET = getEnv("LINE_CHANNEL_SECRET", {
-  required: boolEnv("LINE_ENABLED", false),
+  required: LINE_ENABLED,
 });
-
 const LINE_CHANNEL_ACCESS_TOKEN = getEnv("LINE_CHANNEL_ACCESS_TOKEN", {
-  required: boolEnv("LINE_ENABLED", false),
+  required: LINE_ENABLED,
 });
 
-const LINE_ENABLED = boolEnv("LINE_ENABLED", false);
+const LINE_WEBHOOK_STRICT = boolEnv("LINE_WEBHOOK_STRICT", false);
+
+const BOT_NAME = getEnv("BOT_NAME", { defaultValue: null });
+const LINE_ACCOUNT_NAME = getEnv("LINE_ACCOUNT_NAME", { defaultValue: null });
+
+const OWNER_LINE_USER_ID = getEnv("OWNER_LINE_USER_ID", { defaultValue: null });
+const MAX_LINE_TEXT = numEnv("MAX_LINE_TEXT", 4800);
+
+// --------------------
+// Google Maps / Geocoding
+// --------------------
+const GOOGLE_MAPS_API_KEY = getEnv("GOOGLE_MAPS_API_KEY", { defaultValue: null });
+
+const GEO_CACHE_COLLECTION = getEnv("GEO_CACHE_COLLECTION", { defaultValue: "geo_cache" });
+const GEO_CACHE_TTL_DAYS = numEnv("GEO_CACHE_TTL_DAYS", 180);
+const GEO_DEFAULT_LANGUAGE = getEnv("GEO_DEFAULT_LANGUAGE", { defaultValue: "ja" });
+const GEO_DEFAULT_REGION = getEnv("GEO_DEFAULT_REGION", { defaultValue: "jp" });
 
 // --------------------
 // cron / batch
 // --------------------
-/**
- * Cloud Scheduler → HTTP cron
- * header: x-cron-token
- */
 const CRON_TOKEN = getEnv("CRON_TOKEN", {
   defaultValue: "sora-no-koe-daily-2025",
 });
@@ -106,14 +114,11 @@ const CRON_TOKEN = getEnv("CRON_TOKEN", {
 // --------------------
 // debug / ops
 // --------------------
-const DEBUG_TOKEN = getEnv("DEBUG_TOKEN", {
-  defaultValue: null,
-});
-
+const DEBUG_TOKEN = getEnv("DEBUG_TOKEN", { defaultValue: null });
 const HEALTH_DB_PING = boolEnv("HEALTH_DB_PING", false);
 
 // --------------------
-// feature flags（将来拡張用）
+// feature flags
 // --------------------
 const FEATURES = {
   PAID_DEEP_ASPECTS: boolEnv("FEATURE_PAID_DEEP_ASPECTS", false),
@@ -142,14 +147,28 @@ module.exports = {
   // swiss ephemeris
   SWISSEPH_PATH,
 
-  // astrology defaults
+  // astrology defaults & compat
   DEFAULT_PRECISION_DEG,
   DEFAULT_ORB_DEG,
+  PRECISION_DEG,
+  ORB_MAX_DEG,
 
   // LINE
   LINE_ENABLED,
   LINE_CHANNEL_SECRET,
   LINE_CHANNEL_ACCESS_TOKEN,
+  LINE_WEBHOOK_STRICT,
+  BOT_NAME,
+  LINE_ACCOUNT_NAME,
+  OWNER_LINE_USER_ID,
+  MAX_LINE_TEXT,
+
+  // Google Maps / Geo
+  GOOGLE_MAPS_API_KEY,
+  GEO_CACHE_COLLECTION,
+  GEO_CACHE_TTL_DAYS,
+  GEO_DEFAULT_LANGUAGE,
+  GEO_DEFAULT_REGION,
 
   // cron
   CRON_TOKEN,
