@@ -67,21 +67,32 @@ function createLineRouter(deps = {}) {
   // --------------------
   // texts (copy) — latest stable
   // --------------------
-  const TEXT_WELCOME_SHORT =
-    "{Nickname}さん\n" +
-    "はじめまして！{AccountName}です。\n" +
-    "友だち追加ありがとう🛸✨\n\n" +
-    "📡 ようこそ、ソラのこえ。へ。\n" +
-    "ここでは、今日の星の配置を“置く”だけ。\n" +
-    "解釈は、あなたのもの。\n\n" +
-    "「今日の地球も、宇宙にゆれてる。」\n\n" +
-    "下記のどれか送ってみてね！\n" +
-    "「はじめる」 → 個人版（あなたの回路）を登録\n" +
-    "「今日」 → 今日の星の配置\n" +
-    "「使い方」 → ヘルプ\n\n" +
-    "もしよければ、あなたの「星の手がかり」も教えてね🕊️\n" +
-    "（わからないところは 不明 でOK）\n\n" +
-    "はじめるには 「はじめる」 って送ってね。";
+const TEXT_WELCOME_SHORT =
+  "{Nickname}さん\n" +
+  "はじめまして！{AccountName}です。\n" +
+  "友だち追加ありがとう🛸✨\n\n" +
+  "📡 ようこそ、ソラのこえ。へ。\n" +
+  "ここは「占い」じゃなくて、\n" +
+  "今日の星の配置を“そのまま置く”場所。\n\n" +
+  "解釈は、あなたのもの。\n" +
+  "「今日の地球も、宇宙にゆれてる。」\n\n" +
+  "ソラに聞いてみて。\n" +
+  "いまのあなたに、そっと届く\n" +
+  "星の配置・光のてがかりを置きます🌌\n\n" +
+  "下のどれか、送ってみてね👇\n\n" +
+  "「はじめる」\n" +
+  "→ 個人版（あなたの回路）を登録\n" +
+  "※ 登録した人には、毎朝8時に\n" +
+  "　あなた向けの星の配置が届くよ📮\n\n" +
+  "「今日」\n" +
+  "→ 今日の星の配置（空の構造）\n\n" +
+  "「使い方」\n" +
+  "→ ヘルプ・説明\n\n" +
+  "もしよければ、\n" +
+  "あなたの「星の手がかり」も教えてね🕊️\n" +
+  "（わからないところは「不明」でOK）\n\n" +
+  "まずは「はじめる」って送ってみて🌱";
+
 
   const TEXT_HELP =
     "使い方🌌\n\n" +
@@ -616,7 +627,8 @@ function createLineRouter(deps = {}) {
           if (profile?.displayName) await upsertUsersDisplayName(appUserId, profile.displayName);
           if (profile) await upsertLineUserProfile(lineUserId, profile, { eventType: "follow" });
 
-          await safeReply(replyToken, [{ type: "text", text: TEXT_WELCOME_SHORT }]);
+          await safeReply(replyToken, [{ type: "text", text: renderWelcomeText(profile) }]);
+
           continue;
         }
 
@@ -802,5 +814,32 @@ function createLineRouter(deps = {}) {
 
   return router;
 }
+
+function fillTemplate(text, vars = {}) {
+  return String(text || "").replace(/\{(\w+)\}/g, (_, k) => {
+    const v = vars[k];
+    return v === undefined || v === null || v === "" ? "" : String(v);
+  });
+}
+
+function getAccountName() {
+  // 好きな優先順にしてOK（envに入れるのが一番ラク）
+  return env.LINE_ACCOUNT_NAME || env.BOT_NAME || "ソラのこえ。";
+}
+
+function renderWelcomeText(profile) {
+  const nickname =
+    profile?.displayName ||
+    profile?.display_name ||
+    "あなた"; // 取得できない時の保険
+
+  const accountName = getAccountName();
+
+  return fillTemplate(TEXT_WELCOME_SHORT, {
+    Nickname: nickname,
+    AccountName: accountName,
+  }).trim();
+}
+
 
 module.exports = { createLineRouter };
