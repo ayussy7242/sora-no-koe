@@ -93,37 +93,40 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   // --------------------
   // Enqueue natal calc (固定ID)
   // --------------------
-  async function enqueueNatalCalcJob(appUserId) {
-    if (!appUserId) return;
+async function enqueueNatalCalcJob(appUserId) {
+  if (!appUserId) return;
 
-    const userSnap = await db.collection("users").doc(appUserId).get();
-    if (!userSnap.exists) return;
+  const userSnap = await db.collection("users").doc(appUserId).get();
+  if (!userSnap.exists) return;
 
-    const user = userSnap.data() || {};
-    const b = user?.natal?.birth || {};
+  const user = userSnap.data() || {};
+  const b = user?.natal?.birth || {};
 
-    const job = {
-      status: "queued",
-      attempts: 0,
-      created_at: serverNow(),
-      updated_at: serverNow(),
-      app_user_id: appUserId,
-      line_user_id: user?.channels?.line?.line_user_id || null,
-      birth: {
-        date_local: b.date_local ?? null,
-        time_hm: b.time_hm ?? null,
-        timezone: b.timezone ?? DEFAULT_TZ,
-        lat: typeof b.lat === "number" ? b.lat : null,
-        lon: typeof b.lon === "number" ? b.lon : null,
-        place_text: b.place_text ?? null,
-        place_formatted: b.place_formatted ?? null,
-        place_id: b.place_id ?? null,
-      },
-    };
+  const job = {
+    status: "queued",
+    attempts: 0,
 
-    // 🔒 docId = appUserId（増殖防止）
-    await db.collection("jobs_natal_calc").doc(appUserId).set(job, { merge: true });
-  }
+    // ✅ ここが重要：orderBy(created_at) で拾えるように “即値” を入れる
+    created_at: admin.firestore.Timestamp.now(),
+    updated_at: serverNow(),
+
+    app_user_id: appUserId,
+    birth: {
+      date_local: b.date_local || null,
+      time_hm: b.time_hm || null,
+      timezone: b.timezone || DEFAULT_TZ,
+      lat: typeof b.lat === "number" ? b.lat : null,
+      lon: typeof b.lon === "number" ? b.lon : null,
+      place_text: b.place_text || null,
+      place_formatted: b.place_formatted || null,
+      place_id: b.place_id || null,
+    },
+  };
+
+  // 🔒 docId = appUserId（増殖防止）
+  await db.collection("jobs_natal_calc").doc(appUserId).set(job, { merge: true });
+}
+
 
   // --------------------
   // natal_cache 判定（最重要）

@@ -76,16 +76,26 @@ const ORB_MAX_DEG = numEnv("ORB_MAX_DEG", DEFAULT_ORB_DEG);
 // --------------------
 // LINE Messaging API
 // --------------------
-// NOTE: Cloud Run で LINE_ENABLED をセットしてない場合でも動かしたいなら default true 推奨
-const LINE_ENABLED = boolEnv("LINE_ENABLED", true);
+// ✅ 方針：
+// - 明示的に LINE_ENABLED を env で指定したらそれを優先
+// - 指定が無ければ「secret/token が両方ある時だけ true」
+// → ローカルで未設定でも起動できる（LINE webhook だけ無効）
 
-const LINE_CHANNEL_SECRET = getEnv("LINE_CHANNEL_SECRET", {
-  required: LINE_ENABLED,
-});
-const LINE_CHANNEL_ACCESS_TOKEN = getEnv("LINE_CHANNEL_ACCESS_TOKEN", {
-  required: LINE_ENABLED,
-});
+const _LINE_ENABLED_ENV = process.env.LINE_ENABLED;
+const _LINE_ENABLED =
+  _LINE_ENABLED_ENV === undefined || _LINE_ENABLED_ENV === ""
+    ? null
+    : ["1", "true", "yes", "on"].includes(String(_LINE_ENABLED_ENV).toLowerCase());
 
+const LINE_CHANNEL_SECRET = getEnv("LINE_CHANNEL_SECRET", { defaultValue: null });
+const LINE_CHANNEL_ACCESS_TOKEN = getEnv("LINE_CHANNEL_ACCESS_TOKEN", { defaultValue: null });
+
+const LINE_ENABLED =
+  _LINE_ENABLED !== null
+    ? _LINE_ENABLED
+    : !!(LINE_CHANNEL_SECRET && LINE_CHANNEL_ACCESS_TOKEN);
+
+// strict は任意
 const LINE_WEBHOOK_STRICT = boolEnv("LINE_WEBHOOK_STRICT", false);
 
 const BOT_NAME = getEnv("BOT_NAME", { defaultValue: null });
