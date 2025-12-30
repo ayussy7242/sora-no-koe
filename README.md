@@ -37,6 +37,12 @@ Astrology resonance API for **sora-no-koe** project
 
 ---
 
+## Production URL (Cloud Run)
+https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
+
+- This URL is stable across deployments
+- Use this for curl / LINE webhook / cron
+
 ## 1. アーキテクチャ概要
 
 - **Cloud Run**
