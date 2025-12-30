@@ -1,6 +1,4 @@
 // engine/story.js — Unified STABLE (v2025.12+)
-// "use strict";
-
 "use strict";
 
 function createStoryService({
@@ -11,7 +9,7 @@ function createStoryService({
   // dict
   SIGNS_V1,
 
-  // aspects list: [{type, deg}, ...]  (major_list 推奨)
+  // aspects list: [{type, deg}, ...]
   ASPECTS,
 
   DEFAULT_TZ,
@@ -53,7 +51,7 @@ function createStoryService({
   }
 
   // ------------------------
-  // Sign helpers (key + ja)
+  // Sign helpers
   // ------------------------
   function signKeyFromLon(lonDeg) {
     const idx = Math.floor(norm360(lonDeg) / 30);
@@ -63,7 +61,7 @@ function createStoryService({
 
   function signJaFromKey(signKey) {
     return SIGNS_V1?.signs?.[signKey]?.label_ja ?? null;
-  }
+    }
 
   function signFromLon(lonDeg) {
     const sign_key = signKeyFromLon(lonDeg);
@@ -95,26 +93,19 @@ function createStoryService({
     return swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
   }
 
-  // ✅ 対応ボディ（ここが“公式の対象”）
-  // ※ これを増やすと public.sky_top / personal.touch_points の母集団も増える
   const BODY_MAP = {
     Sun: swisseph.SE_SUN,
     Moon: swisseph.SE_MOON,
     Mercury: swisseph.SE_MERCURY,
     Venus: swisseph.SE_VENUS,
     Mars: swisseph.SE_MARS,
-
-    // ✅ 今回：必須枠（質問どおり “必要なはずｗ” に対応）
     Jupiter: swisseph.SE_JUPITER,
     Saturn: swisseph.SE_SATURN,
-
-    // ✅ ついでに外惑星も（natal_cacheに入ってたら touch 判定に効く）
     Uranus: swisseph.SE_URANUS,
     Neptune: swisseph.SE_NEPTUNE,
     Pluto: swisseph.SE_PLUTO,
   };
 
-  // ✅ 使うトランジット対象（順序は固定＝安定ソートに寄与）
   const TRANSIT_TARGETS = Object.keys(BODY_MAP);
 
   function sweLonDeg(bodyName, jdUt) {
@@ -131,7 +122,6 @@ function createStoryService({
     return norm360(lon);
   }
 
-  // ✅ transits
   function computeTransitsSwiss(asOfISO, precisionDeg = 0.01) {
     const jdUt = jdUtFromIso(asOfISO);
 
@@ -205,9 +195,6 @@ function createStoryService({
     return results.sort((x, y) => x.orb_deg - y.orb_deg);
   }
 
-  /**
-   * ✅ public.sky_top（空の構造）: 全ペアから上位
-   */
   function buildPublicSkyTopAll(transitBodies, { orbMaxDeg = 6, max = 3 } = {}) {
     const keys = Object.keys(transitBodies || {}).filter((k) => typeof transitBodies[k] === "number");
     if (keys.length < 2) return [];
@@ -234,9 +221,7 @@ function createStoryService({
       }
     }
 
-    // ✅ 安定ソート（同点でも順序がブレない）
     out.sort((x, y) => (x.orb_deg - y.orb_deg) || (x.a + x.b).localeCompare(y.a + y.b));
-
     return out.slice(0, max);
   }
 
@@ -246,13 +231,11 @@ function createStoryService({
     return snap.data();
   }
 
-  // ✅ 絶対落とさない natal longitude extractor（新旧/複数形式/別名を拾う）
   function extractNatalLongitudes(natalCacheDoc) {
     const d = natalCacheDoc || {};
     const out = {};
 
     const ALIASES = {
-      // points
       asc: "ASC",
       Asc: "ASC",
       ASC: "ASC",
@@ -262,7 +245,6 @@ function createStoryService({
       vertex: "Vertex",
       Vertex: "Vertex",
 
-      // planets (lowercase)
       sun: "Sun",
       moon: "Moon",
       mercury: "Mercury",
@@ -293,7 +275,6 @@ function createStoryService({
       if (Array.isArray(v.data) && typeof v.data[0] === "number") put(key, v.data[0]);
     };
 
-    // 1) bodies / points
     if (d.bodies && typeof d.bodies === "object") {
       for (const [k, v] of Object.entries(d.bodies)) putFromObj(k, v);
     }
@@ -303,23 +284,29 @@ function createStoryService({
       }
     }
 
-    // 2) natal_positions.bodies
     const bodiesMap = d?.natal_positions?.bodies;
     if (bodiesMap && typeof bodiesMap === "object") {
       for (const [k, v] of Object.entries(bodiesMap)) putFromObj(k, v);
     }
 
-    // 3) old: natal_positions.sun/moon/asc
     put("Sun", d?.natal_positions?.sun?.lon_deg);
     put("Moon", d?.natal_positions?.moon?.lon_deg);
     put("ASC", d?.natal_positions?.asc?.lon_deg);
 
-    // 4) houses angles
+    put("ASC", d?.engine?.houses?.asc_deg);
+    put("MC", d?.engine?.houses?.mc_deg);
+
     put("ASC", d?.houses?.angles?.ASC);
     put("MC", d?.houses?.angles?.MC);
     put("Vertex", d?.houses?.angles?.Vertex);
 
-    // 5) legacy backups
+    put("ASC", d?.min?.angles?.asc_deg ?? d?.min?.angles?.ASC ?? d?.min?.asc_deg);
+    put("MC", d?.min?.angles?.mc_deg ?? d?.min?.angles?.MC ?? d?.min?.mc_deg);
+    put("ASC", d?.angles?.asc_deg ?? d?.angles?.ASC);
+    put("MC", d?.angles?.mc_deg ?? d?.angles?.MC);
+    put("ASC", d?.ascmc?.asc_deg ?? d?.ascmc?.ASC);
+    put("MC", d?.ascmc?.mc_deg ?? d?.ascmc?.MC);
+
     const legacySrc = (d.min && d.min.bodies) || d.bodies_min || d.natal_bodies || null;
     if (legacySrc && typeof legacySrc === "object") {
       for (const [k, v] of Object.entries(legacySrc)) putFromObj(k, v);
@@ -357,7 +344,6 @@ function createStoryService({
           sign_key: transitInfo?.moon?.sign_key ?? null,
           sign_ja: transitInfo?.moon?.sign_ja ?? null,
         },
-        // ✅ 月固定やめて全体から抽出
         sky_top: buildPublicSkyTopAll(transitInfo?.bodies, {
           orbMaxDeg: rules?.orb_max_deg ?? 6,
           max: 3,
@@ -395,7 +381,6 @@ function createStoryService({
 
     story.personal.touch_points_top3 = pickTopByOrb(touchPointsAll, 3);
 
-    // ✅ resonance は付加：落ちない
     const allowPersonal = !!story?.personal?.privacy?.contains_personal_data;
     try {
       if (typeof buildResonanceBullets === "function") {
@@ -409,6 +394,7 @@ function createStoryService({
     return story;
   }
 
+  // ✅ public-only: personalを完全に削除（混入ゼロ）
   function buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg }) {
     const story = baseStory({
       appUserId,
@@ -421,7 +407,6 @@ function createStoryService({
       containsPersonalData: false,
     });
 
-    // ✅ resonance は付加：落ちない
     try {
       if (typeof buildResonanceBullets === "function") {
         const reso = buildResonanceBullets(story, { max: 4, allowPersonal: false });
@@ -431,10 +416,19 @@ function createStoryService({
       story.public.tone_hints.resonance_bullets = [];
     }
 
+    // ✅ ここが修正点：publicでは personal を返さない
+    delete story.personal;
+
     return story;
   }
 
-  async function buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg = 6, precisionDeg = 0.01 }) {
+  /**
+   * buildStoryForUser
+   * mode:
+   *  - "public" -> public-only を強制（natalがあってもpersonal作らない）
+   *  - default  -> personal（natalがあれば）/ なければpublic-only
+   */
+  async function buildStoryForUser({ appUserId, dateLocal, asOfISO, mode = null, orbMaxDeg = 6, precisionDeg = 0.01 }) {
     if (!isYYYYMMDD(dateLocal)) throw new Error("dateLocal must be YYYY-MM-DD");
 
     let displayName = null;
@@ -454,14 +448,17 @@ function createStoryService({
       sort: "orb_asc",
     };
 
+    // ✅ ここが最大の修正点：publicモードは問答無用でpublic-only
+    if (String(mode || "").toLowerCase() === "public") {
+      return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
+    }
+
     const natalCache = await loadNatalFromCache(appUserId);
 
-    // ✅ natal_cache が無い → public-only
     if (!natalCache) {
       return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
     }
 
-    // ✅ natal_cache があっても抽出できない → public-only（絶対落とさない）
     const extracted = extractNatalLongitudes(natalCache);
     if (!extracted.ok) {
       return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
