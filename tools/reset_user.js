@@ -1,105 +1,130 @@
-// tools/reset_user.js
+/**
+ * scripts/reset_user.js
+ * Usage:
+ *   node scripts/reset_user.js --line_user_id=Uxxxx --app_user_id=u_me_xxx --wipe_stories=true --wipe_events=false
+ */
 "use strict";
 
-const fb = require("../config/firebase");
+const fb = require("../config/firebase"); // { admin, getDb }
+const admin = fb.admin;
 const db = fb.getDb();
+const { FieldPath } = require("firebase-admin/firestore");
 
-function nowIso() {
-  return new Date().toISOString();
+function arg(name, def = null) {
+  const hit = process.argv.find((v) => v.startsWith(`--${name}=`));
+  return hit ? hit.split("=").slice(1).join("=") : def;
+}
+function boolArg(name, def = false) {
+  const v = arg(name, null);
+  if (v == null) return def;
+  return ["1", "true", "yes", "on"].includes(String(v).toLowerCase());
 }
 
-async function deleteIfExists(ref) {
-  const snap = await ref.get();
-  if (!snap.exists) return false;
-  await ref.delete();
-  return true;
-}
+async function deleteDocsByIdPrefix(colName, prefix) {
+  // Firestore prefix query: __name__ >= prefix && __name__ <= prefix+'\uf8ff'
+  const start = prefix;
+  const end = prefix + "\uf8ff";
+  const snap = await db
+    .collection(colName)
+    .where(FieldPath.documentId(), ">=", start)
+    .where(FieldPath.documentId(), "<=", end)
+    .get();
 
-async function run() {
-  const app_user_id = process.env.APP_USER_ID; // 例: u_me_xxx
-  const line_user_id = process.env.LINE_USER_ID; // 例: Ue98...
-  const date_local = process.env.DATE_LOCAL; // 例: 2025-12-30（stories消す用、任意）
-  const mode = process.env.MODE || "soft"; // soft | hard
+  if (snap.empty) return 0;
 
-  if (!app_user_id && !line_user_id) {
-    throw new Error("APP_USER_ID or LINE_USER_ID is required");
-  }
-
-  const report = {
-    mode,
-    app_user_id,
-    line_user_id,
-    date_local,
-    deleted: {},
-    updated: {},
-    at: nowIso(),
-  };
-
-  // 1) line_users reset
-  if (line_user_id) {
-    const ref = db.collection("line_users").doc(line_user_id);
-    if (mode === "hard") {
-      report.deleted.line_users = await deleteIfExists(ref);
-    } else {
-      await ref.set(
-        {
-          status: "pending_birth_date",
-          consent_version: null,
-          consented_at: null,
-          profile: {},
-          birth_date: null,
-          birth_time: null,
-          birth_place: null,
-          app_user_id: app_user_id || null, // あれば紐づけ維持
-          updated_at: nowIso(),
-        },
-        { merge: true }
-      );
-      report.updated.line_users = true;
+  let batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % 400 === 0) {
+      await batch.commit();
+      batch = db.batch();
     }
   }
+  await batch.commit();
+  return count;
+}
 
-  // 2) users reset（運用してるなら）
+async function deleteDocsByField(colName, field, value) {
+  const snap = await db.collection(colName).where(field, "==", value).get();
+  if (snap.empty) return 0;
+
+  let batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % 400 === 0) {
+      await batch.commit();
+      batch = db.batch();
+    }
+  }
+  await batch.commit();
+  return count;
+}
+
+(async () => {
+  const line_user_id = arg("line_user_id");
+  const app_user_id = arg("app_user_id"); // u_me_xxx
+  const wipe_stories = boolArg("wipe_stories", true);
+  const wipe_events = boolArg("wipe_events", false);
+  const wipe_jobs = boolArg("wipe_jobs", true);
+
+  if (!line_user_id) throw new Error("--line_user_id is required");
+
+  console.log("🔁 reset start:", { line_user_id, app_user_id, wipe_stories, wipe_events, wipe_jobs });
+
+  // 1) line_users を「最初から」へ（ここが最重要）
+  await db.collection("line_users").doc(line_user_id).set(
+    {
+      status: "pending_birth_date",
+      // profileは必要最低限に戻す（line_profile は残してOK）
+      profile: {
+        birth_date: null,
+        birth_time: null,
+        birth_place: null,
+        lat: null,
+        lon: null,
+        timezone: "Asia/Tokyo",
+      },
+      app_user_id: null,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  console.log("✅ line_users reset -> pending_birth_date");
+
   if (app_user_id) {
-    const ref = db.collection("users").doc(app_user_id);
-    if (mode === "hard") {
-      report.deleted.users = await deleteIfExists(ref);
-    } else {
-      await ref.set(
-        {
-          status: "pending_birth_date",
-          consent_version: null,
-          consented_at: null,
-          updated_at: nowIso(),
-        },
-        { merge: true }
-      );
-      report.updated.users = true;
+    // 2) users / natal_cache を削除
+    await db.collection("users").doc(app_user_id).delete().catch(() => {});
+    await db.collection("natal_cache").doc(app_user_id).delete().catch(() => {});
+    console.log("✅ deleted users/natal_cache:", app_user_id);
+
+    // 3) stories（prefixで消す）
+    if (wipe_stories) {
+      const n = await deleteDocsByIdPrefix("stories", `${app_user_id}-`);
+      console.log("✅ deleted stories:", n);
     }
-  }
 
-  // 3) natal_cache reset（最初からやるなら消すのが気持ちいい）
-  if (app_user_id) {
-    const ref = db.collection("natal_cache").doc(app_user_id);
-    if (mode === "hard") {
-      report.deleted.natal_cache = await deleteIfExists(ref);
-    } else {
-      // softでも「最初から感」を出すなら消すのが◎
-      report.deleted.natal_cache = await deleteIfExists(ref);
+    // 4) jobs（line_user_id or app_user_id で消す）
+    if (wipe_jobs) {
+      const n1 = await deleteDocsByField("jobs_natal_calc", "app_user_id", app_user_id);
+      const n2 = await deleteDocsByField("jobs_natal_calc", "line_user_id", line_user_id);
+      console.log("✅ deleted jobs_natal_calc:", { by_app_user_id: n1, by_line_user_id: n2 });
     }
+  } else {
+    console.log("ℹ️ app_user_id not provided -> skipped users/natal_cache/stories/jobs wipe");
   }
 
-  // 4) stories reset（指定日だけ消す）
-  if (app_user_id && date_local) {
-    const docId = `${app_user_id}-${date_local}`;
-    const ref = db.collection("stories").doc(docId);
-    report.deleted.stories = await deleteIfExists(ref);
+  // 5) line_events は基本残してOK（重いなら wipe_events=trueで消す）
+  if (wipe_events) {
+    const n = await deleteDocsByIdPrefix("line_events", `${line_user_id}-`);
+    console.log("✅ deleted line_events:", n);
   }
 
-  console.log(JSON.stringify({ ok: true, report }, null, 2));
-}
-
-run().catch((e) => {
-  console.error(JSON.stringify({ ok: false, error: String(e?.message || e) }, null, 2));
+  console.log("🎉 reset done");
+})().catch((e) => {
+  console.error("❌ reset failed:", e);
   process.exit(1);
 });
