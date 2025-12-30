@@ -1,11 +1,15 @@
 "use strict";
 
 /**
- * render.js (STABLE / V1-source-of-truth)
+ * render.js (STABLE / V1-source-of-truth) — Unified (v2025.12+)
  * - dict の V1原本(ASPECTS_V1/PLANETS_V1/POINTS_V1/SIGNS_V1) を直接参照して描画
- * - index.js 側で ASPECTS_META などの派生生成は不要
  * - 互換マップ(BODY_JA/POINT_JA/ASPECT_JA)は保険として残す
  * - 占い化しない（no prediction / no should / no good-bad）
+ *
+ * Updates (v2025.12+):
+ * - orb_max_deg を story.meta.rules から追従（weightFromOrbの6固定を撤廃）
+ * - buildNoContactLine の文言を「日付(＋ユーザー)で安定」させる（seeded）
+ * - 外惑星/木星土星/Vertex の日本語ラベルを保険で内蔵（dict未定義でも日本語維持）
  */
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
@@ -17,12 +21,36 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const POINTS_V1  = dict?.POINTS_V1  || null;
   const SIGNS_V1   = dict?.SIGNS_V1   || null;
 
-  // optional: もし将来 index が META を渡す形にしたくなっても壊れない保険
+  // optional: META inputs
   const ASPECTS_META_IN = dict?.ASPECTS_META || null;
   const PLANETS_META_IN = dict?.PLANETS_META || null;
   const POINTS_META_IN  = dict?.POINTS_META  || null;
 
-  // ---- meta builders (from V1) ----
+  // --------------------
+  // internal safe JA maps (in case dict is missing)
+  // --------------------
+  const SAFE_BODY_JA = {
+    Sun: "太陽",
+    Moon: "月",
+    Mercury: "水星",
+    Venus: "金星",
+    Mars: "火星",
+    Jupiter: "木星",
+    Saturn: "土星",
+    Uranus: "天王星",
+    Neptune: "海王星",
+    Pluto: "冥王星",
+  };
+
+  const SAFE_POINT_JA = {
+    ASC: "ASC（アセンダント）",
+    MC: "MC（天頂）",
+    Vertex: "バーテックス",
+  };
+
+  // --------------------
+  // meta builders (from V1)
+  // --------------------
   function buildAspectsMetaFromV1() {
     const major = ASPECTS_V1?.major || {};
     const out = {};
@@ -34,7 +62,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         feel: Array.isArray(v?.feel) ? v.feel : [],
       };
     }
-    // fallbacks
     out.square ||= { label_ja: "スクエア", core: null, sora: null, feel: [] };
     out.trine ||= { label_ja: "トライン", core: null, sora: null, feel: [] };
     out.opposition ||= { label_ja: "オポジション", core: null, sora: null, feel: [] };
@@ -72,7 +99,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return out;
   }
 
-  // ---- final meta (V1優先 → もし無ければ indexから渡されたMETA) ----
+  // final metas
   const ASPECTS_META = ASPECTS_V1 ? buildAspectsMetaFromV1() : (ASPECTS_META_IN || {});
   const PLANETS_META = PLANETS_V1 ? buildPlanetsMetaFromV1() : (PLANETS_META_IN || {});
   const POINTS_META  = POINTS_V1  ? buildPointsMetaFromV1()  : (POINTS_META_IN  || {});
@@ -85,15 +112,24 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   function fmtBodyJa(bodyKey) {
-    return PLANETS_META?.[bodyKey]?.label_ja || BODY_JA?.[bodyKey] || bodyKey;
+    return (
+      PLANETS_META?.[bodyKey]?.label_ja ||
+      BODY_JA?.[bodyKey] ||
+      SAFE_BODY_JA?.[bodyKey] ||
+      bodyKey
+    );
   }
 
   function fmtPointJa(pointKey) {
-    return POINTS_META?.[pointKey]?.label_ja || POINT_JA?.[pointKey] || pointKey;
+    return (
+      POINTS_META?.[pointKey]?.label_ja ||
+      POINT_JA?.[pointKey] ||
+      SAFE_POINT_JA?.[pointKey] ||
+      pointKey
+    );
   }
 
   function fmtAnyJa(key) {
-    // ASC/MCなどは point 優先
     const p = fmtPointJa(key);
     if (p && p !== key) return p;
     return fmtBodyJa(key);
@@ -122,12 +158,38 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // --------------------
+  // seeded randomness (stable by date/user)
+  // --------------------
+  function hash32(str) {
+    // simple FNV-1a
+    let h = 0x811c9dc5;
+    const s = String(str || "");
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return h >>> 0;
+  }
+
+  function pickStable(arr, seedStr) {
+    if (!Array.isArray(arr) || !arr.length) return "";
+    const idx = hash32(seedStr) % arr.length;
+    return arr[idx];
+  }
+
+  // --------------------
   // scoring
   // --------------------
-  function weightFromOrb(orb) {
+  function orbMaxFromStory(story, fallback = 6) {
+    const v = Number(story?.meta?.rules?.orb_max_deg);
+    return Number.isFinite(v) && v > 0 ? v : fallback;
+  }
+
+  function weightFromOrb(orb, orbMax) {
     const o = Number(orb);
-    if (!Number.isFinite(o)) return 0;
-    const w = 1 - Math.min(Math.max(o, 0), 6) / 6;
+    const m = Number(orbMax);
+    if (!Number.isFinite(o) || !Number.isFinite(m) || m <= 0) return 0;
+    const w = 1 - Math.min(Math.max(o, 0), m) / m;
     return Math.max(0.15, w);
   }
 
@@ -145,8 +207,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       if (hasNatal) {
         return {
           mode: "personal",
-          aKey: r.natal_body_or_point,  // natal側
-          bKey: r.transit_body,         // transit側
+          aKey: r.natal_body_or_point,
+          bKey: r.transit_body,
           aspectType: r.aspect,
           aspectDeg: r.aspect_deg,
           orb: r.orb_deg,
@@ -165,12 +227,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return { hasNatal, rows: normalized };
   }
 
-  function aspectMix(contacts) {
+  function aspectMix(story, contacts) {
+    const orbMax = orbMaxFromStory(story, 6);
     const tally = {};
     for (const c of contacts) {
       const t = c.aspectType;
       if (!t) continue;
-      tally[t] = (tally[t] || 0) + weightFromOrb(c.orb);
+      tally[t] = (tally[t] || 0) + weightFromOrb(c.orb, orbMax);
     }
     return Object.entries(tally)
       .sort((a, b) => b[1] - a[1])
@@ -238,11 +301,15 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       default: [""],
     };
 
+    const dateLocal = story?.meta?.date_local || "";
+    const userId = story?.personal?.user_id || "public";
+    const seedBase = `${dateLocal}|${userId}|no_contact`;
+
     const aPool = poolByElement[element] || poolByElement.default;
-    const a = aPool[Math.floor(Math.random() * aPool.length)];
+    const a = pickStable(aPool, seedBase + "|a");
 
     const bPool = poolByModality[modality] || poolByModality.default;
-    const b = bPool[Math.floor(Math.random() * bPool.length)] || "";
+    const b = pickStable(bPool, seedBase + "|b") || "";
 
     const head = signJa ? `（月は ${signJa} の空気）` : "";
     return `${head}${head ? " " : ""}${a}${b ? " " + b : ""}`.trim();
@@ -264,7 +331,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const aJa = fmtAnyJa(best.aKey);
     const bJa = fmtAnyJa(best.bKey);
 
-    const mix = aspectMix(rows);
+    const mix = aspectMix(story, rows);
     const topMix = mix?.[0]?.type || null;
 
     const moonTaste = s?.core || s?.sora_short || null;
@@ -323,7 +390,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       const deg = fmtDeg(r.aspectDeg);
       const orb = fmtDeg(r.orb);
 
-      // ✅ 日本語だけで統一（英語混入しない）
       const title = hasNatal
         ? `${circ[i] || `${i + 1}.`} ネイタル: ${aJa} × トランジット: ${bJa}｜${aspJa}（${deg}°｜orb ${orb}°）`
         : `${circ[i] || `${i + 1}.`} ${aJa} × ${bJa}｜${aspJa}（${deg}°｜orb ${orb}°）`;

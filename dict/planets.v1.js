@@ -139,18 +139,6 @@ const PLANETS_V1 = {
       keywords: ["傷","癒し","統合","学び","気づき"],
       ai_tags: ["wound","healing","integration"],
     },
-
-    ASC: {
-      label_ja: "ASC",
-      core: "入口・印象・身体感覚",
-      field: "出会い方/立ち位置",
-      polarity: "neutral",
-      sora_short: "世界との接点。最初の立ち姿。",
-      sora: "世界との接点。どんな姿勢で現実に立ちやすいか。",
-      sora_deep: "身体感覚を通した世界との接触点。第一印象や無意識の立ち位置。",
-      keywords: ["入口","印象","身体感覚","接点"],
-      ai_tags: ["persona","stance"],
-    },
   },
 
   order: [

@@ -3,13 +3,21 @@
 const express = require("express");
 const crypto = require("crypto");
 const rawBody = require("../middleware/rawBody");
+const { createGeocoder } = require("../engine/geocode");
 
 /**
- * 🌌 routes/line.js — Unified STABLE (v2025.12)
- * - raw-body署名検証（/line/webhook専用）
- * - line_users(docId=line_user_id) → users(app_user_id) をトランザクションで確定
- * - follow/messageでプロフィール同期（可能な範囲で）
- * - 「今日」or 日付で storyService を呼び、renderers.renderLine を返信
+ * 🌌 routes/line.js — Unified STABLE (v2025.12+) [FULL INTEGRATED]
+ *
+ * ✅ raw-body署名検証（/line/webhook専用）
+ * ✅ line_users(docId=line_user_id) → users(app_user_id) をトランザクションで確定
+ * ✅ follow/messageでプロフィール同期（可能な範囲で）
+ * ✅ 「今日」or 日付で storyService を呼び、renderers.renderLine を返信
+ * ✅ 「はじめる」導線：ネイタル収集ステート（生年月日→出生時刻→出生地→geo）
+ * ✅ geo: engine/geocode.js に完全統合（キャッシュ対応 / direct "lat,lon" もOK）
+ *
+ * 期待している（既存プロジェクトの前提）：
+ * - storyService.buildStoryForUser({ appUserId, dateLocal, asOfISO, orbMaxDeg, precisionDeg })
+ * - renderers.renderLine(story)
  */
 
 function createLineRouter(deps = {}) {
@@ -39,36 +47,106 @@ function createLineRouter(deps = {}) {
   if (!renderers?.renderLine) throw new Error("deps.renderers.renderLine is missing");
 
   // --------------------
+  // geocoder (Unified)
+  // --------------------
+  // 優先: deps.geocoder
+  // なければ: engine/geocode.js で生成（後方互換）
+  const geocoder =
+    deps.geocoder ||
+    createGeocoder({
+      apiKey: env.GOOGLE_MAPS_API_KEY || null,
+      db,
+      project: PROJECT,
+      cacheCollection: env.GEO_CACHE_COLLECTION || "geo_cache",
+      defaultLanguage: env.GEO_DEFAULT_LANGUAGE || "ja",
+      defaultRegion: env.GEO_DEFAULT_REGION || "jp",
+      cacheTtlDays: Number(env.GEO_CACHE_TTL_DAYS || 180),
+      strict: false,
+    });
+
+  // --------------------
   // texts (copy) — latest stable
   // --------------------
-  const TEXT_WELCOME =
-    "追加ありがとう🌌\n\n" +
-    "ここは「占い」じゃなくて、\n" +
-    "今日の星の配置を“そのまま置く”場所。\n\n" +
-    "まずは「今日」って送ってみて。\n" +
-    "（ネイタルがあると「あなたの回路」版、無いと「空の構造」版が返るよ）\n\n" +
-    "解釈は、あなたのもの。\n" +
-    "星は語る。決めるのは、人。\n\n" +
-    "困ったら「使い方」って送ってね。";
+  const TEXT_WELCOME_SHORT =
+    "{Nickname}さん\n" +
+    "はじめまして！{AccountName}です。\n" +
+    "友だち追加ありがとう🛸✨\n\n" +
+    "📡 ようこそ、ソラのこえ。へ。\n" +
+    "ここでは、今日の星の配置を“置く”だけ。\n" +
+    "解釈は、あなたのもの。\n\n" +
+    "「今日の地球も、宇宙にゆれてる。」\n\n" +
+    "下記のどれか送ってみてね！\n" +
+    "「はじめる」 → 個人版（あなたの回路）を登録\n" +
+    "「今日」 → 今日の星の配置\n" +
+    "「使い方」 → ヘルプ\n\n" +
+    "もしよければ、あなたの「星の手がかり」も教えてね🕊️\n" +
+    "（わからないところは 不明 でOK）\n\n" +
+    "はじめるには 「はじめる」 って送ってね。";
 
   const TEXT_HELP =
     "使い方🌌\n\n" +
-    "1) 今日のソラのこえ\n" +
+    "■ 今日のソラのこえ\n" +
     "・「今日」\n\n" +
-    "2) 日付で見る\n" +
+    "■ 日付で見る\n" +
     "・「2025-12-27」\n" +
     "・「日付 2025/12/27」\n\n" +
-    "返ってくる内容\n" +
-    "・主な配置（最大3本）\n" +
-    "・今日の月の位置\n" +
-    "・今日の余韻（1行）\n\n" +
+    "■ 個人版（あなたの回路）を登録\n" +
+    "・「はじめる」\n\n" +
+    "登録で聞くもの（不明OK）\n" +
+    "1) 生年月日（例：1990-07-24）\n" +
+    "2) 出生時刻（例：12:18）\n" +
+    "3) 出生地（例：札幌 / Yokohama）\n\n" +
+    "💫 毎朝8時のお届け📮（ネイタル登録済みの人だけ）\n" +
+    "・今日の星の配置\n" +
+    "・強く触れているポイント（Top3）\n" +
+    "・ひとこと\n\n" +
     "※ 未来を断定しない／良い悪いを決めない設計。\n" +
     "星は“配置”を置くだけ。\n" +
     "※ 個人向けはLINE内だけで紐づく設計（他SNSと勝手に結合しない）。";
 
   const TEXT_FALLBACK =
     "「今日」って送ると、今日の星の配置を置くよ🌌\n" +
-    "（例：今日 / 2025-12-27 / 日付 2025/12/27）";
+    "（例：今日 / 2025-12-27 / 日付 2025/12/27）\n" +
+    "個人版は「はじめる」";
+
+  const TEXT_START_NATAL =
+    "個人版（あなたの回路）を登録するよ🌌\n\n" +
+    "まずは【生年月日】を送ってね。\n" +
+    "例：1990-07-24\n\n" +
+    "わからなければ「不明」でもOK。\n" +
+    "やめるなら「やめる」";
+
+  const TEXT_ASK_BIRTH_TIME =
+    "次に【出生時刻】を送ってね。\n" +
+    "例：12:18（24h）\n\n" +
+    "わからなければ「不明」でもOK。";
+
+  const TEXT_ASK_BIRTH_PLACE =
+    "最後に【出生地】を送ってね。\n" +
+    "例：札幌 / 横浜 / Shimizu, Hokkaido\n\n" +
+    "（場所は、緯度経度に変換して計算に使うよ）\n" +
+    "わからなければ「不明」でもOK。";
+
+  const TEXT_NATAL_DONE =
+    "登録できた🌌\n\n" +
+    "これで「今日」を送ると、\n" +
+    "空の配置＋あなたの回路で返るよ。\n\n" +
+    "💫 毎朝8時のお届け（ネイタル登録済み）も対象になったよ📮";
+
+  const TEXT_NATAL_PARTIAL_DONE =
+    "ひとまず登録した🌌\n\n" +
+    "一部「不明」でも動くよ。\n" +
+    "あとで埋めたくなったら「はじめる」で上書きできる。\n\n" +
+    "「今日」を送ってみて。";
+
+  const TEXT_CANCELLED =
+    "OK、登録は中断したよ🌌\n" +
+    "またやるなら「はじめる」\n" +
+    "今日だけ見るなら「今日」";
+
+  const TEXT_RESET_DONE =
+    "ネイタル登録をリセットしたよ🌌\n" +
+    "もう一回やるなら「はじめる」";
 
   // --------------------
   // helpers: date / normalize
@@ -87,22 +165,26 @@ function createLineRouter(deps = {}) {
     return String(s || "").trim().replace(/\s+/g, " ");
   }
 
-  // コマンド判定用：記号/絵文字/余計な装飾を落として強くする
   function normalizeForCommand(s) {
     const t = normalizeText(s);
-    // よく来る装飾をガッと除去（増やしてOK）
     return t
-      .replace(/[🌌✨⭐️💫🩷🩵💙♾️🛜👽🔥☀️🌙]+/g, "")
+      .replace(/[🌌✨⭐️💫🩷🩵💙♾️🛜👽🔥☀️🌙🛸📡📮🕊️]+/g, "")
       .replace(/[！!？?。．,.、】【「」『』（）()\[\]{}<>]/g, "")
       .trim();
   }
 
-  // 2025/12/7, 2025.12.07, 2025-12-07, 2025-12-7 を許容し YYYY-MM-DD に正規化
-  function parseDateLocalFromText(text) {
-    const t = String(text || "");
+  function isUnknown(text) {
+    const t = normalizeForCommand(text);
+    return /^(不明|unknown|dontknow|わからない|分からない|知らない)$/i.test(t);
+  }
+
+  // --------------------
+  // helpers: parse natal inputs
+  // --------------------
+  function parseYYYYMMDD(text) {
+    const t = String(text || "").trim();
     const m = t.match(/(\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}|\d{4}-\d{1,2}-\d{1,2})/);
     if (!m) return null;
-
     const cand = String(m[1]).trim().replace(/[\/\.]/g, "-");
     const mm = cand.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (!mm) return null;
@@ -112,12 +194,26 @@ function createLineRouter(deps = {}) {
     const d = String(mm[3]).padStart(2, "0");
     const dateLocal = `${y}-${mo}-${d}`;
 
-    // 厳密チェック（存在しない日付を弾く）
     const dt = new Date(`${dateLocal}T00:00:00.000Z`);
     if (Number.isNaN(dt.getTime())) return null;
     if (dt.toISOString().slice(0, 10) !== dateLocal) return null;
-
     return dateLocal;
+  }
+
+  function parseHHMM(text) {
+    const t = String(text || "").trim();
+    const m = t.match(/(\d{1,2})\s*[:：]\s*(\d{1,2})/);
+    if (!m) return null;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    if (hh < 0 || hh > 23) return null;
+    if (mm < 0 || mm > 59) return null;
+    return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+
+  function parseDateLocalFromText(text) {
+    return parseYYYYMMDD(text);
   }
 
   // --------------------
@@ -193,10 +289,12 @@ function createLineRouter(deps = {}) {
     return admin.firestore.FieldValue.serverTimestamp();
   }
 
-  /**
-   * line_users(line_user_id) を「唯一の入口」として app_user_id を確定し、
-   * users も必ず存在させる（トランザクション）
-   */
+  async function getUserDoc(appUserId) {
+    if (!appUserId) return null;
+    const snap = await db.collection("users").doc(appUserId).get();
+    return snap.exists ? snap.data() : null;
+  }
+
   async function getOrCreateAppUserIdByLine(lineUserId, lineProfile, { eventType = "message" } = {}) {
     const lineRef = db.collection("line_users").doc(lineUserDocId(lineUserId));
     const now = serverNow();
@@ -209,7 +307,6 @@ function createLineRouter(deps = {}) {
       const appUserId = already || newAppUserId();
       const userRef = db.collection("users").doc(appUserId);
 
-      // users: existence guarantee
       tx.set(
         userRef,
         {
@@ -228,7 +325,6 @@ function createLineRouter(deps = {}) {
         { merge: true }
       );
 
-      // line_users: single source of truth
       tx.set(
         lineRef,
         {
@@ -306,9 +402,135 @@ function createLineRouter(deps = {}) {
     );
   }
 
+  // --------------------
+  // natal state machine
+  // --------------------
+  const NATAL_STAGE = {
+    idle: "idle",
+    birth_date: "birth_date",
+    birth_time: "birth_time",
+    birth_place: "birth_place",
+    done: "done",
+  };
+
+  function getNatalStage(userDoc) {
+    return userDoc?.natal?.collect?.stage || NATAL_STAGE.idle;
+  }
+
+  async function setNatalStage(appUserId, stage) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          collect: {
+            stage,
+            updated_at: serverNow(),
+            version: 1,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  async function resetNatal(appUserId) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          enabled: false,
+          collect: { stage: NATAL_STAGE.idle, updated_at: serverNow(), version: 1 },
+          birth: {
+            date_local: null,
+            time_hm: null,
+            place_text: null,
+            lat: null,
+            lon: null,
+            place_formatted: null,
+            place_id: null,
+            timezone: DEFAULT_TZ,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  async function saveNatalBirthDate(appUserId, dateLocalOrNull) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          birth: {
+            date_local: dateLocalOrNull,
+            timezone: DEFAULT_TZ,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  async function saveNatalBirthTime(appUserId, timeHmOrNull) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          birth: {
+            time_hm: timeHmOrNull,
+            timezone: DEFAULT_TZ,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  async function saveNatalBirthPlace(appUserId, { placeText, geo }) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          birth: {
+            place_text: placeText ?? null,
+            lat: geo?.ok ? geo.lat : null,
+            lon: geo?.ok ? geo.lon : null,
+            place_formatted: geo?.ok ? geo.formatted : null,
+            place_id: geo?.ok ? geo.place_id : null,
+            timezone: DEFAULT_TZ,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  async function finalizeNatal(appUserId) {
+    const ref = db.collection("users").doc(appUserId);
+    await ref.set(
+      {
+        updated_at: serverNow(),
+        natal: {
+          enabled: true,
+          completed_at: serverNow(),
+          collect: { stage: NATAL_STAGE.done, updated_at: serverNow(), version: 1 },
+          delivery: { daily_8: true },
+        },
+      },
+      { merge: true }
+    );
+  }
+
+  // --------------------
+  // logs
+  // --------------------
   async function logLineEvent(event) {
     try {
-      // docIdが長くなりすぎないようにハッシュで固定（idempotent-ish）
       const raw = JSON.stringify({
         type: event?.type ?? null,
         ts: event?.timestamp ?? null,
@@ -317,7 +539,7 @@ function createLineRouter(deps = {}) {
         replyToken: event?.replyToken ?? null,
       });
 
-      const id = crypto.createHash("sha1").update(raw).digest("hex"); // 40 chars
+      const id = crypto.createHash("sha1").update(raw).digest("hex");
       await db.collection("line_events").doc(id).set(
         {
           type: event?.type ?? null,
@@ -349,7 +571,7 @@ function createLineRouter(deps = {}) {
       if (!ver.ok) {
         console.log("[line:webhook] signature invalid:", ver.reason);
         if (LINE_WEBHOOK_STRICT) return res.status(401).json({ ok: false, error: "invalid signature" });
-        return res.status(200).json({ ok: true }); // 握りつぶし（LINE再送対策）
+        return res.status(200).json({ ok: true });
       }
 
       let body = {};
@@ -363,7 +585,6 @@ function createLineRouter(deps = {}) {
       const events = Array.isArray(body?.events) ? body.events : [];
       if (!events.length) return res.status(200).json({ ok: true });
 
-      // 同一 webhook 内の二重 replyToken 返信を防ぐ
       const replied = new Set();
 
       for (const event of events) {
@@ -383,10 +604,8 @@ function createLineRouter(deps = {}) {
           }
         };
 
-        // unfollow: no reply
         if (event?.type === "unfollow") continue;
 
-        // follow
         if (event?.type === "follow" && lineUserId && replyToken) {
           let profile = null;
           try {
@@ -397,16 +616,14 @@ function createLineRouter(deps = {}) {
           if (profile?.displayName) await upsertUsersDisplayName(appUserId, profile.displayName);
           if (profile) await upsertLineUserProfile(lineUserId, profile, { eventType: "follow" });
 
-          await safeReply(replyToken, [{ type: "text", text: TEXT_WELCOME }]);
+          await safeReply(replyToken, [{ type: "text", text: TEXT_WELCOME_SHORT }]);
           continue;
         }
 
-        // message(text)
         if (event?.type === "message" && event?.message?.type === "text" && replyToken) {
           const rawText = normalizeText(event.message.text);
           const cmdText = normalizeForCommand(rawText);
 
-          // profile sync（できたら）
           let profile = null;
           if (lineUserId) {
             try {
@@ -423,7 +640,8 @@ function createLineRouter(deps = {}) {
             if (appUserId && profile.displayName) await upsertUsersDisplayName(appUserId, profile.displayName);
           }
 
-          // commands
+          const effectiveUserId = appUserId || "public";
+
           if (/^(ping)$/i.test(cmdText)) {
             await safeReply(replyToken, [{ type: "text", text: "pong" }]);
             continue;
@@ -434,9 +652,115 @@ function createLineRouter(deps = {}) {
             continue;
           }
 
+          if (/^(やめる|中止|cancel|stop)$/i.test(cmdText)) {
+            if (appUserId) await setNatalStage(appUserId, NATAL_STAGE.idle);
+            await safeReply(replyToken, [{ type: "text", text: TEXT_CANCELLED }]);
+            continue;
+          }
+
+          if (/^(リセット|reset)$/i.test(cmdText)) {
+            if (appUserId) await resetNatal(appUserId);
+            await safeReply(replyToken, [{ type: "text", text: TEXT_RESET_DONE }]);
+            continue;
+          }
+
+          if (/^(はじめる|始める|start|begin)$/i.test(cmdText)) {
+            if (appUserId) await setNatalStage(appUserId, NATAL_STAGE.birth_date);
+            await safeReply(replyToken, [{ type: "text", text: TEXT_START_NATAL }]);
+            continue;
+          }
+
+          // ---- natal collecting ----
+          if (appUserId) {
+            const userDoc = await getUserDoc(appUserId);
+            const stage = getNatalStage(userDoc);
+
+            if (stage !== NATAL_STAGE.idle && stage !== NATAL_STAGE.done) {
+              if (stage === NATAL_STAGE.birth_date) {
+                if (isUnknown(rawText)) {
+                  await saveNatalBirthDate(appUserId, null);
+                  await setNatalStage(appUserId, NATAL_STAGE.birth_time);
+                  await safeReply(replyToken, [{ type: "text", text: TEXT_ASK_BIRTH_TIME }]);
+                  continue;
+                }
+
+                const d = parseYYYYMMDD(rawText);
+                if (!d) {
+                  await safeReply(replyToken, [
+                    { type: "text", text: "生年月日が読み取れなかった🙏\n例：1990-07-24\nわからなければ「不明」でもOK。" },
+                  ]);
+                  continue;
+                }
+
+                await saveNatalBirthDate(appUserId, d);
+                await setNatalStage(appUserId, NATAL_STAGE.birth_time);
+                await safeReply(replyToken, [{ type: "text", text: TEXT_ASK_BIRTH_TIME }]);
+                continue;
+              }
+
+              if (stage === NATAL_STAGE.birth_time) {
+                if (isUnknown(rawText)) {
+                  await saveNatalBirthTime(appUserId, null);
+                  await setNatalStage(appUserId, NATAL_STAGE.birth_place);
+                  await safeReply(replyToken, [{ type: "text", text: TEXT_ASK_BIRTH_PLACE }]);
+                  continue;
+                }
+
+                const hm = parseHHMM(rawText);
+                if (!hm) {
+                  await safeReply(replyToken, [
+                    { type: "text", text: "出生時刻が読み取れなかった🙏\n例：12:18\nわからなければ「不明」でもOK。" },
+                  ]);
+                  continue;
+                }
+
+                await saveNatalBirthTime(appUserId, hm);
+                await setNatalStage(appUserId, NATAL_STAGE.birth_place);
+                await safeReply(replyToken, [{ type: "text", text: TEXT_ASK_BIRTH_PLACE }]);
+                continue;
+              }
+
+              if (stage === NATAL_STAGE.birth_place) {
+                if (isUnknown(rawText)) {
+                  await saveNatalBirthPlace(appUserId, { placeText: null, geo: null });
+                  await finalizeNatal(appUserId);
+                  await safeReply(replyToken, [{ type: "text", text: TEXT_NATAL_PARTIAL_DONE }]);
+                  continue;
+                }
+
+                const placeText = rawText;
+
+                // ✅ Unified Geocoder (cache/direct/google)
+                let geo = null;
+                try {
+                  geo = await geocoder.geocodePlace(placeText, { language: "ja", region: "jp" });
+                } catch (e) {
+                  geo = { ok: false, status: "ERROR", reason: e?.message || String(e), candidates: [] };
+                }
+
+                await saveNatalBirthPlace(appUserId, { placeText, geo });
+                await finalizeNatal(appUserId);
+
+                if (geo?.ok) {
+                  await safeReply(replyToken, [{ type: "text", text: TEXT_NATAL_DONE }]);
+                } else {
+                  await safeReply(replyToken, [
+                    {
+                      type: "text",
+                      text:
+                        TEXT_NATAL_PARTIAL_DONE +
+                        "\n\n（※出生地の緯度経度が取れなかったかも。場所表記を変えて「はじめる」でやり直せる）",
+                    },
+                  ]);
+                }
+                continue;
+              }
+            }
+          }
+
+          // ---- normal story flow ----
           const dateLocal = parseDateLocalFromText(rawText);
 
-          // 「今日」判定：揺れに強く
           const wantsToday =
             /^(今日|きょう|本日|ソラ|そら|sora)$/i.test(cmdText) ||
             /^(今日のソラ|今日のそら|今日の空)$/i.test(cmdText);
@@ -446,9 +770,6 @@ function createLineRouter(deps = {}) {
           if (wants) {
             const dl = dateLocal || toDateLocalJST();
             const asOfISO = asOfIsoFromDateLocalJST(dl);
-
-            // 基本は必ず appUserId ができる設計（念のため fallback）
-            const effectiveUserId = appUserId || "public";
 
             const story = await storyService.buildStoryForUser({
               appUserId: effectiveUserId,
