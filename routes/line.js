@@ -283,7 +283,7 @@ function createLineRouter(deps = {}) {
 
     // --------------------
     // core webhook handler (extracted for reuse)
-    // --------------------
+
     async function handleWebhook(req, res) {
         const requestId = getReqId(req);
 
@@ -326,11 +326,20 @@ function createLineRouter(deps = {}) {
             let body = null;
             try {
                 body = rawBuf?.length ? JSON.parse(rawBuf.toString("utf8")) : req.body;
-            } catch {
+            } catch (e) {
+                console.log("[line:webhook] body parse failed", { request_id: requestId, err: e?.message || String(e) });
                 return res.status(200).json({ ok: true });
             }
 
             const events = Array.isArray(body?.events) ? body.events : [];
+
+            // ★追加：届いたことを毎回ログ（DEBUG_LOG_EVENTS 関係なし）
+            console.log("[line:webhook] received", {
+                request_id: requestId,
+                events_len: events.length,
+                types: events.map((e) => e?.type),
+            });
+
             if (!events.length) return res.status(200).json({ ok: true });
 
             // 同一replyToken多重返信防止 + 返信空文字の握りつぶし可視化
@@ -361,16 +370,15 @@ function createLineRouter(deps = {}) {
                     const replyToken = event?.replyToken || null;
                     const lineUserId = event?.source?.userId || null;
 
-                    if (DEBUG_LOG_EVENTS) {
-                        console.log("[line:event]", {
-                            request_id: requestId,
-                            type: event?.type,
-                            has_replyToken: !!replyToken,
-                            msg_type: event?.message?.type || null,
-                            text: event?.message?.text || null,
-                            line_user_id: lineUserId || null,
-                        });
-                    }
+                    // ★追加：イベント内容を毎回ログ（DEBUG_LOG_EVENTS 関係なし）
+                    console.log("[line:event] in", {
+                        request_id: requestId,
+                        type: event?.type,
+                        has_replyToken: !!replyToken,
+                        msg_type: event?.message?.type || null,
+                        text: event?.message?.text || null,
+                        line_user_id: lineUserId || null,
+                    });
 
                     // unfollow は返信できないのでスキップ
                     if (event?.type === "unfollow") continue;
@@ -415,27 +423,21 @@ function createLineRouter(deps = {}) {
                             await user.syncUserDisplayName(appUserId, profile.displayName);
                         }
 
-                        // ----------------------------
                         // 0) utilities layer (intent より先)
-                        // ----------------------------
                         const util = await story.handleUtilities({ cmd, appUserId, natal });
                         if (util?.text != null) {
                             await safeReply(replyToken, util.text, { stage: "utilities", cmd, app_user_id: appUserId });
                             continue;
                         }
 
-                        // ----------------------------
                         // 1) natal collecting (stage進行) — intentより優先
-                        // ----------------------------
                         const collected = await natal.handleCollect({ appUserId, rawText, cmd });
                         if (collected?.text != null) {
                             await safeReply(replyToken, collected.text, { stage: "collect", cmd, app_user_id: appUserId });
                             continue;
                         }
 
-                        // ----------------------------
                         // 2) command intent (normalize済み cmd を必ず使う)
-                        // ----------------------------
                         const intentKey = intent.intentFromCommand(cmd);
 
                         // natal list
@@ -499,6 +501,7 @@ function createLineRouter(deps = {}) {
             return res.status(200).json({ ok: true });
         }
     }
+
 
     // --------------------
     // webhook route
