@@ -101,6 +101,7 @@ function createApp(deps = {}) {
         swisseph: !!deps.swisseph,
         storyService: !!deps.storyService,
         renderers: !!deps.renderers,
+        geocoder: !!deps.geocoder,
       },
     });
   });

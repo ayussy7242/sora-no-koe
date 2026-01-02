@@ -22,6 +22,22 @@ const fb = require("./config/firebase"); // { admin, getDb }
 const db = fb.getDb();
 
 // --------------------
+// Geo (✅ ADD)
+// --------------------
+const { createGeocoder } = require("./engine/geocode");
+const geocoder = createGeocoder({
+  apiKey: env.GOOGLE_MAPS_API_KEY,
+  db,
+  project: env.PROJECT,
+  cacheCollection: env.GEO_CACHE_COLLECTION || "geo_cache",
+  cacheTtlDays: Number(env.GEO_CACHE_TTL_DAYS || 180),
+  defaultLanguage: env.GEO_DEFAULT_LANGUAGE || "ja",
+  defaultRegion: env.GEO_DEFAULT_REGION || "jp",
+  strict: false,
+});
+
+
+// --------------------
 // Engine
 // --------------------
 const { createStoryService } = require("./engine/story");
@@ -138,6 +154,7 @@ const deps = {
   swisseph_setup,
   storyService,
   renderers,
+  geocoder,
 };
 
 const app = createApp(deps);
