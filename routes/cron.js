@@ -2,6 +2,7 @@
 
 const express = require("express");
 const { handleJobsWorker } = require("../jobs/worker");
+const { runDaily8 } = require("../cron/daily8");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -66,7 +67,6 @@ function createCronRouter(deps = {}) {
     return { ok: true };
   }
 
-  // GET /cron/health (token不要)
   router.get("/health", (_req, res) => {
     return res.json({
       ok: true,
@@ -77,12 +77,10 @@ function createCronRouter(deps = {}) {
     });
   });
 
-  // POST /cron/daily
+  // POST /cron/daily : posts_daily 生成
   router.post("/daily", async (req, res) => {
     const gate = requireCronToken(req);
-    if (!gate.ok) {
-      return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily" });
-    }
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily" });
 
     try {
       const q = req.query || {};
@@ -100,7 +98,6 @@ function createCronRouter(deps = {}) {
       const precisionDeg = clamp(toNumberSafe(b.precision ?? q.precision, 0.01), 0.001, 1);
 
       const dryRun = boolish(b.dry_run ?? q.dry_run);
-
       const isPublic = String(appUserId) === "public";
 
       const story = await storyService.buildStoryForUser({
@@ -160,20 +157,39 @@ function createCronRouter(deps = {}) {
         },
       });
     } catch (e) {
-      return res.status(500).json({
-        ok: false,
-        error: e?.message || String(e),
-        path: "/cron/daily",
-      });
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily" });
     }
   });
 
-  // POST /cron/worker
+  // ✅ POST /cron/daily8 : posts_daily を配信（LINE） + posts_daily_delivery ログ
+  router.post("/daily8", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
+
+      const dryRun = boolish(b.dry_run ?? q.dry_run);
+
+      const result = await runDaily8(
+        { db, admin, env },
+        { dateLocal, dryRun }
+      );
+
+      return res.json({ ok: true, ...result });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
+    }
+  });
+
+  // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {
     const gate = requireCronToken(req);
-    if (!gate.ok) {
-      return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/worker" });
-    }
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/worker" });
 
     const ok = (res, payload) => res.status(200).json({ ok: true, ...payload });
     const bad = (res, status, message, extra = {}) =>
@@ -182,20 +198,9 @@ function createCronRouter(deps = {}) {
     try {
       if (!swisseph) return bad(res, 500, "deps.swisseph missing");
 
-      return await handleJobsWorker(req, res, {
-        db,
-        admin,
-        env,
-        ok,
-        bad,
-        swisseph,
-      });
+      return await handleJobsWorker(req, res, { db, admin, env, ok, bad, swisseph });
     } catch (e) {
-      return res.status(500).json({
-        ok: false,
-        error: e?.message || String(e),
-        path: "/cron/worker",
-      });
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/worker" });
     }
   });
 
