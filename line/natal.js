@@ -446,6 +446,21 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     return { text };
   }
 
+  async function enableDaily8OnRegistration({ db, admin, appUserId }) {
+  if (!appUserId) return;
+  await db.collection("users").doc(appUserId).set(
+    {
+      profile: { status: "active" },
+      natal: {
+        enabled: true,
+        delivery: { daily_8: true },
+      },
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
   return {
     NATAL_STAGE,
     getNatalStage,
@@ -455,6 +470,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     isNatalCacheComplete,
     handleCollect,
     handleNatalList,
+    enableDaily8OnRegistration
   };
 }
 
