@@ -127,19 +127,14 @@ function createLineRouter(deps = {}) {
     }
 
     function verifySignature({ rawBodyBuf, signature }) {
-        if (!ver.ok) {
-        console.log("[line:webhook] signature NG", {
-            reason: ver.reason,
-            has_raw: !!rawBuf,
-            raw_len: rawBuf?.length || 0,
-            has_sig: !!sig,
-        });
-        
         if (!LINE_CHANNEL_SECRET) return { ok: false, reason: "secret missing" };
         if (!signature) return { ok: false, reason: "signature missing" };
         if (!rawBodyBuf) return { ok: false, reason: "raw body missing" };
 
-        const computed = crypto.createHmac("sha256", LINE_CHANNEL_SECRET).update(rawBodyBuf).digest("base64");
+        const computed = crypto
+            .createHmac("sha256", LINE_CHANNEL_SECRET)
+            .update(rawBodyBuf)
+            .digest("base64");
 
         const a = Buffer.from(computed);
         const b = Buffer.from(String(signature));
@@ -148,6 +143,7 @@ function createLineRouter(deps = {}) {
         const ok = crypto.timingSafeEqual(a, b);
         return { ok, reason: ok ? "ok" : "mismatch" };
     }
+
 
     // --------------------
     // LINE API
@@ -314,6 +310,13 @@ function createLineRouter(deps = {}) {
             const ver = verifySignature({ rawBodyBuf: rawBuf, signature: sig });
 
             if (!ver.ok) {
+                console.log("[line:webhook] signature NG", {
+                    request_id: requestId,
+                    reason: ver.reason,
+                    has_raw: !!rawBuf,
+                    raw_len: rawBuf?.length || 0,
+                    has_sig: !!sig,
+                });
                 // strictなら拒否、non-strictなら200（LINE再送暴発抑制）
                 if (LINE_WEBHOOK_STRICT) return res.status(401).json({ ok: false, reason: ver.reason, request_id: requestId });
                 return res.status(200).json({ ok: true });
