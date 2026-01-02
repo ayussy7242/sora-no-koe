@@ -25,7 +25,7 @@ Astrology resonance API for **sora-no-koe** project
 - story.json 中心設計（唯一の真実）
 
 ### ✅ API
-- `GET /healthz`
+- `GET /health`
 - `GET /meta`
 - `GET /transit`
 - `GET /stories/build`
@@ -130,7 +130,7 @@ https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
 
 ## 4. エンドポイント詳細
 
-### `GET /healthz`
+### `GET /health`
 ヘルスチェック（依存状態を返す）
 
 ### `GET /meta`
@@ -180,7 +180,7 @@ nodemon により自動再起動
 ファイル保存で即反映
 
 動作確認
-curl http://localhost:8080/healthz
+curl http://localhost:8080/health
 curl http://localhost:8080/meta
 curl "http://localhost:8080/transit?date_local=2025-12-27"
 
