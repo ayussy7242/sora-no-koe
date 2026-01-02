@@ -20,9 +20,17 @@ function createReqId() {
 }
 
 function safeJsonMiddleware() {
-  // LINE webhook は routes/line.js 内で rawBody
-  return express.json({ limit: "2mb" });
+  const json = express.json({ limit: "2mb" });
+
+  return (req, res, next) => {
+    // LINE webhook は rawBody が読むので json は当てない
+    if (req.originalUrl.startsWith("/line/webhook")) {
+      return next();
+    }
+    return json(req, res, next);
+  };
 }
+
 
 function maskSecrets(obj) {
   const clone = { ...(obj || {}) };
@@ -50,9 +58,13 @@ function buildMeta(deps) {
 // --------------------
 // createApp
 // --------------------
+
 function createApp(deps = {}) {
   const app = express();
   const env = deps.env || {};
+
+  // ✅ 追加：どのルータ/ミドルウェアからでも deps を参照できるようにする
+  app.locals.deps = deps;
 
   app.disable("x-powered-by");
   app.set("trust proxy", true);
@@ -110,7 +122,6 @@ function createApp(deps = {}) {
   // feature routers
   // --------------------
   const healthRouter = createHealthRouter(deps);
-//   app.use("/health", healthRouter);
   app.use("/health", healthRouter);
 
   app.use("/transit", createTransitRouter(deps));
@@ -119,7 +130,6 @@ function createApp(deps = {}) {
   app.use("/cron", createCronRouter(deps));
   app.use("/debug", createDebugRouter(deps));
   app.use("/jobs", createJobsRouter(deps));
-
 
   // 404
   app.use((req, res) => {
