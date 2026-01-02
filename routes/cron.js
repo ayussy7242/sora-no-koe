@@ -2,43 +2,6 @@
 
 const express = require("express");
 const { handleJobsWorker } = require("../jobs/worker");
-const { runDaily8 } = require("../cron/daily8");
-
-/**
- * POST /cron/daily8
- * - posts_daily の texts.line を配信
- * - posts_daily_delivery に必ずログ
- * query: date_local=YYYY-MM-DD, dry_run=true|false
- */
-router.post("/daily8", async (req, res) => {
-  const gate = requireCronToken(req);
-  if (!gate.ok) {
-    return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
-  }
-
-  try {
-    const q = req.query || {};
-    const b = req.body || {};
-
-    const dateLocalRaw = b.date_local || q.date_local;
-    const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-
-    const dryRun = boolish(b.dry_run ?? q.dry_run);
-
-    const out = await runDaily8(
-      { db, admin, env },
-      { dateLocal, dryRun }
-    );
-
-    return res.json({ ok: true, ...out });
-  } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      error: e?.message || String(e),
-      path: "/cron/daily8",
-    });
-  }
-});
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -103,7 +66,7 @@ function createCronRouter(deps = {}) {
     return { ok: true };
   }
 
-  // GET /cron/health (token不要 / 監視用)
+  // GET /cron/health (token不要)
   router.get("/health", (_req, res) => {
     return res.json({
       ok: true,
@@ -114,9 +77,7 @@ function createCronRouter(deps = {}) {
     });
   });
 
-  /**
-   * POST /cron/daily
-   */
+  // POST /cron/daily
   router.post("/daily", async (req, res) => {
     const gate = requireCronToken(req);
     if (!gate.ok) {
@@ -207,17 +168,13 @@ function createCronRouter(deps = {}) {
     }
   });
 
-  /**
-   * POST /cron/worker
-   * - jobs_natal_calc を 1件処理
-   */
+  // POST /cron/worker
   router.post("/worker", async (req, res) => {
     const gate = requireCronToken(req);
     if (!gate.ok) {
       return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/worker" });
     }
 
-    // handleJobsWorker が要求する返し関数
     const ok = (res, payload) => res.status(200).json({ ok: true, ...payload });
     const bad = (res, status, message, extra = {}) =>
       res.status(status || 500).json({ ok: false, error: message, ...extra });
