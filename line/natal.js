@@ -119,6 +119,8 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     );
 
     await db.collection("natal_cache").doc(appUserId).delete().catch(() => { });
+    await enableDaily8OnRegistration({ db, admin, appUserId });
+
     await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => { });
   }
 
@@ -165,6 +167,8 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     await db.collection("users").doc(appUserId).set(
       {
         updated_at: serverNow(),
+        status: "active",
+        profile: { status: "active" },
         natal: {
           enabled: true,
           completed_at: serverNow(),
@@ -447,19 +451,19 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   }
 
   async function enableDaily8OnRegistration({ db, admin, appUserId }) {
-  if (!appUserId) return;
-  await db.collection("users").doc(appUserId).set(
-    {
-      profile: { status: "active" },
-      natal: {
-        enabled: true,
-        delivery: { daily_8: true },
+    if (!appUserId) return;
+    await db.collection("users").doc(appUserId).set(
+      {
+        profile: { status: "active" },
+        natal: {
+          enabled: true,
+          delivery: { daily_8: true },
+        },
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-}
+      { merge: true }
+    );
+  }
 
   return {
     NATAL_STAGE,
