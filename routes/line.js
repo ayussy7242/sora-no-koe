@@ -511,18 +511,5 @@ function createLineRouter(deps = {}) {
     return router;
 }
 
-// --------------------
-// Backward-compatible exports (for older index wiring)
-// --------------------
-// If somewhere expects `handleLineWebhook(req,res,deps)` style,これで生き返る
-async function handleLineWebhook(req, res, deps = {}) {
-    const router = createLineRouter(deps);
-    // create a mini express-like invocation: call the internal handler by reusing the router stack
-    // NOTE: This is a minimal bridge. Prefer mounting router in index.js.
-    const layer = router.stack.find((l) => l?.route?.path === "/webhook" && l?.route?.methods?.post);
-    const handler = layer?.route?.stack?.[0]?.handle;
-    if (typeof handler !== "function") return res.status(500).json({ ok: false, error: "line webhook handler not found" });
-    return handler(req, res);
-}
 
-module.exports = { createLineRouter, handleLineWebhook };
+module.exports = { createLineRouter };
