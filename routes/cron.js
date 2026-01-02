@@ -172,15 +172,14 @@ function createCronRouter(deps = {}) {
 
       const dateLocalRaw = b.date_local || q.date_local;
       const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-
       const dryRun = boolish(b.dry_run ?? q.dry_run);
 
-      const target = String(b.target || q.target || "all"); // all | owner
-      const mode = String(b.mode || q.mode || "today");     // today | sky
+      const mode = String(b.mode || q.mode || "today");      // ★追加
+      const target = String(b.target || q.target || "all");  // ★追加
 
       const result = await runDaily8(
-        { db, admin, env, storyService, renderers }, // ← ★ここ重要（depsを渡す）
-        { dateLocal, dryRun, target, mode }
+        { db, admin, env, storyService, renderers },         // ★ここが本命
+        { dateLocal, dryRun, mode, target }
       );
 
       return res.json({ ok: true, ...result });
@@ -188,6 +187,7 @@ function createCronRouter(deps = {}) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
     }
   });
+
 
 
 
