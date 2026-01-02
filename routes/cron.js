@@ -164,7 +164,9 @@ function createCronRouter(deps = {}) {
   // ✅ POST /cron/daily8 : posts_daily を配信（LINE） + posts_daily_delivery ログ
   router.post("/daily8", async (req, res) => {
     const gate = requireCronToken(req);
-    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
+    if (!gate.ok) {
+      return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
+    }
 
     try {
       const q = req.query || {};
@@ -175,9 +177,12 @@ function createCronRouter(deps = {}) {
 
       const dryRun = boolish(b.dry_run ?? q.dry_run);
 
+      // ✅ 追加：target
+      const target = String(b.target || q.target || "all"); // "all" | "owner"
+
       const result = await runDaily8(
-        { db, admin, env },
-        { dateLocal, dryRun }
+        { db, admin, env, storyService, renderers },
+        { dateLocal, dryRun, target, mode }
       );
 
       return res.json({ ok: true, ...result });
@@ -185,6 +190,7 @@ function createCronRouter(deps = {}) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
     }
   });
+
 
   // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {

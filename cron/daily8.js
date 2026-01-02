@@ -89,6 +89,71 @@ function getLineUserIdFromUserDoc(user) {
   return a ? String(a) : null;
 }
 
+// --------------------
+// target switch (debug)
+// --------------------
+const target = String(opts.target || "all"); // "all" | "owner"
+
+if (target === "owner") {
+  const ownerLineUserId = env.OWNER_LINE_USER_ID;
+  if (!ownerLineUserId) throw new Error("OWNER_LINE_USER_ID not set");
+
+  const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
+
+  let planned = 1, attempted = 0, sent = 0, skipped = 0, failed = 0;
+
+  // ownerは appUserId を固定でログ残す（後で紐付けたくなったら拡張）
+  const appUserId = "owner";
+
+  attempted++;
+  const startedAt = admin.firestore.FieldValue.serverTimestamp();
+
+  try {
+    if (!dryRun) {
+      await linePushText({ accessToken, to: ownerLineUserId, text });
+    }
+    sent++;
+
+    await writePerUserResult({
+      db, admin, dateLocal, appUserId,
+      payload: {
+        status: "sent",
+        reason: dryRun ? "dry_run" : "ok",
+        line_user_id: ownerLineUserId,
+        text_len: text.length,
+        created_at: startedAt,
+        finished_at: admin.firestore.FieldValue.serverTimestamp(),
+        error: null,
+      },
+    });
+  } catch (e) {
+    failed++;
+    await writePerUserResult({
+      db, admin, dateLocal, appUserId,
+      payload: {
+        status: "failed",
+        reason: "line_push_failed",
+        line_user_id: ownerLineUserId,
+        text_len: text.length,
+        created_at: startedAt,
+        finished_at: admin.firestore.FieldValue.serverTimestamp(),
+        error: e?.message || String(e),
+      },
+    });
+  }
+
+  const summary = {
+    project: env.PROJECT,
+    timezone: env.DEFAULT_TZ,
+    schema_version: env.SCHEMA_VERSION,
+    targets: { planned, attempted, sent, skipped, failed },
+    last_error: null,
+  };
+
+  await writeDeliverySummary({ db, admin, dateLocal, runId, summary });
+  return { ok: true, date_local: dateLocal, run_id: runId, dry_run: dryRun, targets: summary.targets, target };
+}
+
 function isTargetUser(user) {
   // 送る条件（これ一択）
   const active = String(user?.status || "active") === "active";
@@ -152,33 +217,33 @@ async function runDaily8(deps, opts = {}) {
   if (!env) throw new Error("env required");
 
   const LINE_ENABLED = envFlag(env.LINE_ENABLED, true);
-  if (!LINE_ENABLED) {
-    return { ok: true, skipped: true, reason: "LINE disabled" };
-  }
+  if (!LINE_ENABLED) return { ok: true, skipped: true, reason: "LINE disabled" };
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? opts.dateLocal : toDateLocalJST();
   const dryRun = opts.dryRun === true;
-
   const runId = makeRunId(dateLocal);
 
-  // 1) 配信テキスト取得（posts_daily）
-  const daily = await loadDailyText({ db, dateLocal });
-  if (!daily.ok) {
-    const summary = {
-      project: env.PROJECT,
-      timezone: env.DEFAULT_TZ,
-      schema_version: env.SCHEMA_VERSION,
-      targets: { planned: 0, attempted: 0, sent: 0, skipped: 0, failed: 0 },
-      last_error: daily.reason,
-    };
-    await writeDeliverySummary({ db, admin, dateLocal, runId, summary });
-    return { ok: false, error: daily.reason, date_local: dateLocal, run_id: runId };
+  const mode = String(opts.mode || "today"); // "today" | "sky"
+  let baseText = null; // sky用（全員共通）
+
+  // sky のときだけ posts_daily から読む
+  if (mode === "sky") {
+    const daily = await loadDailyText({ db, dateLocal });
+    if (!daily.ok) {
+      const summary = {
+        project: env.PROJECT,
+        timezone: env.DEFAULT_TZ,
+        schema_version: env.SCHEMA_VERSION,
+        targets: { planned: 0, attempted: 0, sent: 0, skipped: 0, failed: 0 },
+        last_error: daily.reason,
+      };
+      await writeDeliverySummary({ db, admin, dateLocal, runId, summary });
+      return { ok: false, error: daily.reason, date_local: dateLocal, run_id: runId };
+    }
+    baseText = daily.text;
   }
 
-  const text = daily.text;
-
-  // 2) 対象 users を取得（最短は “active & daily_8 true & natal.enabled true”）
-  // ※ インデックス推奨（status, natal.enabled, natal.delivery.daily_8）
+  // 対象 users
   const q = db
     .collection("users")
     .where("status", "==", "active")
@@ -195,7 +260,6 @@ async function runDaily8(deps, opts = {}) {
 
   const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
 
-  // 3) 1人ずつ配信（失敗しても止めない）
   for (const doc of snap.docs) {
     const appUserId = doc.id;
     const user = doc.data() || {};
@@ -203,18 +267,30 @@ async function runDaily8(deps, opts = {}) {
     const cond = isTargetUser(user);
     const lineUserId = getLineUserIdFromUserDoc(user);
 
+    // 送る文面（ここがポイント）
+    let outText = baseText;
+
+    if (mode === "today") {
+      // ★ここは「きょう」：ユーザーごとに生成（あなたの🪐×今日のそら）
+      const story = await deps.storyService.buildStoryForUser({
+        appUserId,
+        dateLocal,
+        asOfISO: `${dateLocal}T03:00:00.000Z`,
+        orbMaxDeg: 6,
+        precisionDeg: 0.01,
+      });
+      outText = deps.renderers.renderLine(story);
+    }
+
     if (!cond.ok) {
       skipped++;
       await writePerUserResult({
-        db,
-        admin,
-        dateLocal,
-        appUserId,
+        db, admin, dateLocal, appUserId,
         payload: {
           status: "skipped",
           reason: `condition: active=${cond.active}, natal=${cond.natalEnabled}, daily8=${cond.daily8}`,
           line_user_id: lineUserId,
-          text_len: text.length,
+          text_len: outText ? outText.length : 0,
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
         },
       });
@@ -224,15 +300,12 @@ async function runDaily8(deps, opts = {}) {
     if (!lineUserId) {
       skipped++;
       await writePerUserResult({
-        db,
-        admin,
-        dateLocal,
-        appUserId,
+        db, admin, dateLocal, appUserId,
         payload: {
           status: "skipped",
           reason: "no line_user_id",
           line_user_id: null,
-          text_len: text.length,
+          text_len: outText ? outText.length : 0,
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
         },
       });
@@ -240,25 +313,21 @@ async function runDaily8(deps, opts = {}) {
     }
 
     attempted++;
-
     const startedAt = admin.firestore.FieldValue.serverTimestamp();
 
     try {
       if (!dryRun) {
-        await linePushText({ accessToken, to: lineUserId, text });
+        await linePushText({ accessToken, to: lineUserId, text: outText });
       }
 
       sent++;
       await writePerUserResult({
-        db,
-        admin,
-        dateLocal,
-        appUserId,
+        db, admin, dateLocal, appUserId,
         payload: {
           status: "sent",
           reason: dryRun ? "dry_run" : "ok",
           line_user_id: lineUserId,
-          text_len: text.length,
+          text_len: outText.length,
           created_at: startedAt,
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
           error: null,
@@ -267,15 +336,12 @@ async function runDaily8(deps, opts = {}) {
     } catch (e) {
       failed++;
       await writePerUserResult({
-        db,
-        admin,
-        dateLocal,
-        appUserId,
+        db, admin, dateLocal, appUserId,
         payload: {
           status: "failed",
           reason: "line_push_failed",
           line_user_id: lineUserId,
-          text_len: text.length,
+          text_len: outText ? outText.length : 0,
           created_at: startedAt,
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
           error: e?.message || String(e),
@@ -294,7 +360,8 @@ async function runDaily8(deps, opts = {}) {
 
   await writeDeliverySummary({ db, admin, dateLocal, runId, summary });
 
-  return { ok: true, date_local: dateLocal, run_id: runId, dry_run: dryRun, targets: summary.targets };
+  return { ok: true, date_local: dateLocal, run_id: runId, dry_run: dryRun, targets: summary.targets, mode };
 }
+
 
 module.exports = { runDaily8 };
