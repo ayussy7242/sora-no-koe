@@ -11,8 +11,6 @@
  * - buildNoContactLine の文言を「日付(＋ユーザー)で安定」させる（seeded）
  * - 外惑星/木星土星/Vertex の日本語ラベルを保険で内蔵（dict未定義でも日本語維持）
  * - 「わたしのほし」: natal_cache からネイタル一覧（ASC/MC含む）を描画
- * - ✅ natal_cache の angles 保存場所が揺れても拾える（engine.houses / min.* / top-level など）
- * - ✅ natal_cache の bodies 保存場所が揺れても拾える（min.bodies / min.natal_positions / positions など）
  */
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
@@ -412,10 +410,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return `${signJa} ${deg}°${mm}’`;
   }
 
-  // ✅ 統合：angles の置き場が揺れても拾える（あなたの現状: engine.houses.asc_deg / mc_deg）
   function pickAnglesFromNatalCache(d) {
-    const a =
-      d?.engine?.houses ||
+    // ありそうな置き場全部拾う（現場あるある対応）
+    const angles =
       d?.min?.angles ||
       d?.angles ||
       d?.ascmc ||
@@ -424,13 +421,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       null;
 
     const asc =
-      a?.asc_deg ?? a?.ASC ?? a?.asc ??
+      angles?.ASC ?? angles?.asc ?? angles?.asc_deg ??
       d?.min?.ASC ?? d?.min?.asc ??
       d?.ASC ?? d?.asc ??
       null;
 
     const mc =
-      a?.mc_deg ?? a?.MC ?? a?.mc ??
+      angles?.MC ?? angles?.mc ?? angles?.mc_deg ??
       d?.min?.MC ?? d?.min?.mc ??
       d?.MC ?? d?.mc ??
       null;
@@ -438,21 +435,15 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return { asc, mc };
   }
 
-  // ✅ 統合：bodies の置き場が揺れても拾える（あなたの現状: min.bodies が最優先）
-  function pickBodiesFromNatalCache(d) {
-    return (
-      d?.min?.bodies ||              // ✅ 今ここが最優先（print_natal_cache が証明）
-      d?.min?.natal_positions ||     // ✅ ここに入る設計もある
-      d?.natal_positions ||          // 互換
-      d?.positions ||                // 互換
-      d?.min?.positions ||           // 互換
-      null
-    );
-  }
-
   function renderNatalListFromCache(natalCacheDoc) {
     const d = natalCacheDoc || {};
-    const bodies = pickBodiesFromNatalCache(d);
+
+    const bodies =
+      d?.min?.bodies ||
+      d?.min?.natal_positions ||   // ✅これを追加（いまココに入ってる）
+      d?.natal_positions ||
+      d?.positions ||
+      null;
 
     if (!bodies || typeof bodies !== "object") {
       return "🌌 わたしのほし（ネイタル一覧）\n\n（まだネイタルが準備中みたい）\n「はじめる」から登録してみてね🕊️";
@@ -466,11 +457,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         "🌌 わたしのほし（ネイタル一覧）",
         "",
         "ASC/MC がまだ見つからなかった🙏",
-        "（natal_cache に ASC/MC を保存する処理が必要）",
+        "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
         "",
         "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるからここでは止めてる。",
-        "",
-        "（ヒント）今の保存先が engine.houses なら render 側は対応済み。データが入ってるか確認してね。",
       ].join("\n");
     }
 
@@ -611,7 +600,7 @@ ${yoin}
     fmtAspectJa,
     fmtBodyJa,
     fmtPointJa,
-    renderNatalListFromCache, // ✅ LINEから呼べる
+    renderNatalListFromCache, // ✅ ここが大事：LINEから呼べる
   };
 }
 
