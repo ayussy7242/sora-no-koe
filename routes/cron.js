@@ -2,6 +2,43 @@
 
 const express = require("express");
 const { handleJobsWorker } = require("../jobs/worker");
+const { runDaily8 } = require("../cron/daily8");
+
+/**
+ * POST /cron/daily8
+ * - posts_daily の texts.line を配信
+ * - posts_daily_delivery に必ずログ
+ * query: date_local=YYYY-MM-DD, dry_run=true|false
+ */
+router.post("/daily8", async (req, res) => {
+  const gate = requireCronToken(req);
+  if (!gate.ok) {
+    return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
+  }
+
+  try {
+    const q = req.query || {};
+    const b = req.body || {};
+
+    const dateLocalRaw = b.date_local || q.date_local;
+    const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
+
+    const dryRun = boolish(b.dry_run ?? q.dry_run);
+
+    const out = await runDaily8(
+      { db, admin, env },
+      { dateLocal, dryRun }
+    );
+
+    return res.json({ ok: true, ...out });
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: e?.message || String(e),
+      path: "/cron/daily8",
+    });
+  }
+});
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
