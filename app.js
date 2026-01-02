@@ -68,7 +68,7 @@ function createApp(deps = {}) {
     const start = Date.now();
     res.on("finish", () => {
       const ms = Date.now() - start;
-      if (!req.originalUrl.startsWith("/healthz")) {
+      if (!req.originalUrl.startsWith("/health")) {
         console.log(
           `[${req.id}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`
         );
@@ -110,7 +110,7 @@ function createApp(deps = {}) {
   // feature routers
   // --------------------
   const healthRouter = createHealthRouter(deps);
-  app.use("/healthz", healthRouter);
+//   app.use("/health", healthRouter);
   app.use("/health", healthRouter);
 
   app.use("/transit", createTransitRouter(deps));

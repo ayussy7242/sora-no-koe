@@ -495,6 +495,7 @@ async function handleJobsWorker(req, res, deps = {}) {
     const mcDegN = isFiniteNumber(mcDeg) ? norm360(mcDeg) : null;
     const vertexDegN = isFiniteNumber(vertexDeg) ? norm360(vertexDeg) : null;
 
+    
     if ((isFiniteNumber(lat) && isFiniteNumber(lon)) && (!isFiniteNumber(ascDegN) || !isFiniteNumber(mcDegN))) {
       throw new Error(`houses calc failed (ASC/MC missing). lat=${lat} lon=${lon}`);
     }
