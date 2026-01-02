@@ -50,8 +50,14 @@ function sha256Hex(str) {
 
 // deep clone（Firestoreの既存オブジェクトを破壊しないため）
 function deepClone(v) {
-  if (!v || typeof v !== "object") return v;
-  return JSON.parse(JSON.stringify(v));
+  if (v === null || v === undefined) return v;
+  if (typeof v !== "object") return v;
+  try {
+    return JSON.parse(JSON.stringify(v));
+  } catch {
+    // stringifyできない型が混じっても落とさない（最終防衛）
+    return v;
+  }
 }
 
 /**
@@ -141,7 +147,7 @@ function pickAscMcVertex(ascmc) {
 // --------------------
 // Swiss Ephemeris natal calc
 // --------------------
-function computeNatalCache({ swisseph, birthUtcIso, houseSystem = "P", lat, lon, precisionDeg = 0.01 }) {
+function computeNatalCache({ swisseph, birthUtcIso, houseSystem="P", lat, lon, precisionDeg=0.01, debug=false }) {
   if (!swisseph) throw new Error("computeNatalCache requires swisseph");
   if (!birthUtcIso) throw new Error("computeNatalCache requires birthUtcIso");
 
@@ -215,18 +221,20 @@ function computeNatalCache({ swisseph, birthUtcIso, houseSystem = "P", lat, lon,
       vertex_deg: Number.isFinite(vertex) ? toFixedPrecision(norm360(vertex), precisionDeg) : null,
     };
 
-    console.log("[debug:swe_houses]", {
-      keys: hsRaw ? Object.keys(hsRaw) : null,
-      ascmc_type: hsRaw?.ascmc ? Object.prototype.toString.call(hsRaw.ascmc) : null,
-      ascmc_isArray: Array.isArray(hsRaw?.ascmc),
-      ascmc_isView: hsRaw?.ascmc ? ArrayBuffer.isView(hsRaw.ascmc) : null,
-      ascmc_len: hsRaw?.ascmc?.length ?? null,
-      normalized_ascmc_type: ascmc ? Object.prototype.toString.call(ascmc) : null,
-      normalized_ascmc_isArray: Array.isArray(ascmc),
-      normalized_ascmc_isView: ascmc ? ArrayBuffer.isView(ascmc) : null,
-      normalized_ascmc_len: ascmc?.length ?? null,
-      asc, mc, vertex,
-    });
+    if (debug) {
+      console.log("[debug:swe_houses]", {
+        keys: hsRaw ? Object.keys(hsRaw) : null,
+        ascmc_type: hsRaw?.ascmc ? Object.prototype.toString.call(hsRaw.ascmc) : null,
+        ascmc_isArray: Array.isArray(hsRaw?.ascmc),
+        ascmc_isView: hsRaw?.ascmc ? ArrayBuffer.isView(hsRaw.ascmc) : null,
+        ascmc_len: hsRaw?.ascmc?.length ?? null,
+        normalized_ascmc_type: ascmc ? Object.prototype.toString.call(ascmc) : null,
+        normalized_ascmc_isArray: Array.isArray(ascmc),
+        normalized_ascmc_isView: ascmc ? ArrayBuffer.isView(ascmc) : null,
+        normalized_ascmc_len: ascmc?.length ?? null,
+        asc, mc, vertex,
+      });
+    }
   }
 
   return { jd_ut: jdUt, bodies, houses, engineHouses };
@@ -302,6 +310,7 @@ async function handleJobsWorker(req, res, deps = {}) {
 
   // env参照はここに統一
   const env2 = { ...(process.env || {}), ...(deps.env || {}) };
+  const DEBUG_HOUSES = String(env2.DEBUG_HOUSES || "0") === "1";
 
   const MAX_ATTEMPTS = Number(env2.JOBS_MAX_ATTEMPTS || 5);
   const LEASE_MINUTES = Number(env2.JOBS_LEASE_MINUTES || 10);
@@ -447,6 +456,7 @@ async function handleJobsWorker(req, res, deps = {}) {
       lat,
       lon,
       precisionDeg: PRECISION_DEG,
+      debug: DEBUG_HOUSES,
     });
 
     const cacheRef = db.collection("natal_cache").doc(appUserId);
@@ -478,24 +488,24 @@ async function handleJobsWorker(req, res, deps = {}) {
 
     const ascDeg =
       (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.ASC)) ? calc.houses.angles.ASC :
-      (calc?.engineHouses && isFiniteNumber(calc.engineHouses.asc_deg)) ? calc.engineHouses.asc_deg :
-      null;
+        (calc?.engineHouses && isFiniteNumber(calc.engineHouses.asc_deg)) ? calc.engineHouses.asc_deg :
+          null;
 
     const mcDeg =
       (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.MC)) ? calc.houses.angles.MC :
-      (calc?.engineHouses && isFiniteNumber(calc.engineHouses.mc_deg)) ? calc.engineHouses.mc_deg :
-      null;
+        (calc?.engineHouses && isFiniteNumber(calc.engineHouses.mc_deg)) ? calc.engineHouses.mc_deg :
+          null;
 
     const vertexDeg =
       (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.Vertex)) ? calc.houses.angles.Vertex :
-      (calc?.engineHouses && isFiniteNumber(calc.engineHouses.vertex_deg)) ? calc.engineHouses.vertex_deg :
-      null;
+        (calc?.engineHouses && isFiniteNumber(calc.engineHouses.vertex_deg)) ? calc.engineHouses.vertex_deg :
+          null;
 
     const ascDegN = isFiniteNumber(ascDeg) ? norm360(ascDeg) : null;
     const mcDegN = isFiniteNumber(mcDeg) ? norm360(mcDeg) : null;
     const vertexDegN = isFiniteNumber(vertexDeg) ? norm360(vertexDeg) : null;
 
-    
+
     if ((isFiniteNumber(lat) && isFiniteNumber(lon)) && (!isFiniteNumber(ascDegN) || !isFiniteNumber(mcDegN))) {
       throw new Error(`houses calc failed (ASC/MC missing). lat=${lat} lon=${lon}`);
     }
@@ -548,7 +558,7 @@ async function handleJobsWorker(req, res, deps = {}) {
     }
 
     const patch = {
-      schema_version: existing.schema_version || "1.0.0",
+      schema_version: "1.0.0",
       app_user_id: appUserId,
 
       birth: {
@@ -588,13 +598,16 @@ async function handleJobsWorker(req, res, deps = {}) {
         },
       },
 
+      // ✅ ここは「構造（positions）」だけを持つ
+      // ❌ natal_positions.needs_compute は持たない（迷子になる）
       natal_positions: {
         ...(existing.natal_positions || {}),
-        needs_compute: false,
         positions: existing?.natal_positions?.positions ?? null,
       },
 
+      // ✅ “計算が必要か” は doc直下の needs_compute だけを正にする（唯一の真実）
       needs_compute: false,
+
       computed_at: admin.firestore.FieldValue.serverTimestamp(),
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     };

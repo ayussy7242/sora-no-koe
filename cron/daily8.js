@@ -91,7 +91,7 @@ function getLineUserIdFromUserDoc(user) {
 
 function isTargetUser(user) {
   // 送る条件（これ一択）
-  const active = String(user?.profile?.status || user?.status || "active") === "active";
+  const active = String(user?.status || "active") === "active";
   const natalEnabled = user?.natal?.enabled === true;
   const daily8 = user?.natal?.delivery?.daily_8 === true;
 
@@ -181,7 +181,7 @@ async function runDaily8(deps, opts = {}) {
   // ※ インデックス推奨（status, natal.enabled, natal.delivery.daily_8）
   const q = db
     .collection("users")
-    .where("profile.status", "==", "active")
+    .where("status", "==", "active")
     .where("natal.enabled", "==", true)
     .where("natal.delivery.daily_8", "==", true);
 

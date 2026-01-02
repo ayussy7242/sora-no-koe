@@ -28,14 +28,14 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       "まずは【生年月日】を送ってね。\n" +
       "例：1990-07-24（または 19900724）\n\n" +
       "わからなければ「不明」でもOK。\n" +
-      "やめるなら「やめる」",
+      "やめたくなったら「やめる」でOK✨️",
     ASK_BIRTH_TIME:
       "次に【出生時刻】を送ってね。\n" +
       "例：12:18（24h）\n\n" +
       "わからなければ「不明」でもOK。",
     ASK_BIRTH_PLACE:
       "最後に【出生地】を送ってね。\n" +
-      "例：札幌 / 横浜 / Shimizu, Hokkaido / Tono, Iwate\n\n" +
+      "例：東京 / 神奈川県横浜市 / Shimizu, Hokkaido / Tono, Iwate\n\n" +
       "（場所は、緯度経度に変換して計算に使うよ）\n" +
       "わからなければ「不明」でもOK。",
     ERR_BIRTHDATE:
@@ -50,7 +50,10 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       "登録できた🌌\n\n" +
       "これで「今日」を送ると、\n" +
       "空の配置＋あなたの回路で返るよ。\n\n" +
-      "💫 毎朝8時のお届け（ネイタル登録済み）も対象になったよ📮",
+      "💫 毎朝8時のお届け（ネイタル登録済み）も対象になったよ📮\n\n"+
+      "「今日」→ あなた基準の今日（回路登録済みなら）\n" +
+      "「そら」→ 空の構造だけ（public）\n" +
+      "「わたしのほし」→ あなたのネイタル一覧（ASC/MC含む）\n",
     NATAL_PARTIAL_SKIP:
       "受け取ったよ🌌\n\n" +
       "いまの情報でも、あなた向けの返しは動く。\n" +
@@ -452,18 +455,20 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
   async function enableDaily8OnRegistration({ db, admin, appUserId }) {
     if (!appUserId) return;
+
     await db.collection("users").doc(appUserId).set(
       {
-        profile: { status: "active" },
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        status: "active",
         natal: {
           enabled: true,
           delivery: { daily_8: true },
         },
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
   }
+
 
   return {
     NATAL_STAGE,

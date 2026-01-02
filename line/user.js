@@ -124,13 +124,16 @@ function createLineUser({ db, admin, config = {} }) {
         await db.collection("users").doc(appUserId).set(
             {
                 updated_at: serverNow(),
-                // ✅ どっち参照でも active
-                status: "active",
-                profile: { status: "active", display_name: displayName, timezone: DEFAULT_TZ },
+                status: "active", // ← 正規はここだけ
+                profile: {
+                    display_name: displayName,
+                    timezone: DEFAULT_TZ,
+                },
             },
             { merge: true }
         );
     }
+
 
     return {
         getOrCreateAppUserId,
