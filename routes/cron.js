@@ -97,7 +97,7 @@ function createCronRouter(deps = {}) {
       const orbMaxDeg = clamp(toNumberSafe(b.orb ?? q.orb, 6), 0.1, 12);
       const precisionDeg = clamp(toNumberSafe(b.precision ?? q.precision, 0.01), 0.001, 1);
 
-      const dryRun = boolish(b.dry_run ?? q.dry_run);
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
       const isPublic = String(appUserId) === "public";
 
       const story = await storyService.buildStoryForUser({
@@ -172,7 +172,7 @@ function createCronRouter(deps = {}) {
 
       const dateLocalRaw = b.date_local || q.date_local;
       const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-      const dryRun = boolish(b.dry_run ?? q.dry_run);
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
 
       const mode = String(b.mode || q.mode || "today");      // ★追加
       const target = String(b.target || q.target || "all");  // ★追加
@@ -182,7 +182,7 @@ function createCronRouter(deps = {}) {
         { dateLocal, dryRun, mode, target }
       );
 
-      return res.json({ ok: true, ...result });
+      return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
     }

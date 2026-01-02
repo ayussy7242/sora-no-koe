@@ -1,17 +1,14 @@
 "use strict";
 
 /**
- * line/story.js
- * 🌌 今日 / そら の完全分離レイヤー
- *
- * ✅ 原則
- * - public_sky は appUserId="public", mode="public" 固定
- * - personal_today は appUserId 必須, mode="personal"
- * - mode は必ず明示（暗黙禁止）
- * - utilities（help/start/reset/cancel）は router からここ経由で返してOK
+ * line/story.js — Unified STABLE (v2026.01 unified)
+ * - "today"  => mode:auto (natalあればpersonal、なければpublic-only)
+ * - "sky"    => appUserId="public", mode:public
+ * - utilities handled here (help/start/reset/cancel/test/ping)
  */
 
-function createLineStory({ storyService, renderers, config = {} }) {
+function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
+  if (!db) throw new Error("db is required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser is required");
   if (!renderers?.renderLine) throw new Error("renderers.renderLine is required");
 
@@ -24,12 +21,12 @@ function createLineStory({ storyService, renderers, config = {} }) {
 
   const TEXT = {
     HELP:
-      "使い方🌌（FIX版）\n\n" +
+      "使い方🌌\n\n" +
       "■ コマンドは3つだけ\n" +
-      "・「今日」/「きょう」：あなた基準の今日（登録済みなら personal）\n" +
+      "・「今日」/「きょう」：あなた基準の今日（登録済みなら personal / 未登録なら public）\n" +
       "・「そら」：空の構造だけ（public）\n" +
       "・「わたしのほし」：あなたのネイタル一覧（ASC/MC含む）\n\n" +
-      "■ 個人版（あなたの回路）登録\n" +
+      "■ 個人版登録\n" +
       "・「はじめる」\n\n" +
       "登録で聞くもの（不明OK）\n" +
       "1) 生年月日（例：1990-07-24 / 19900724）\n" +
@@ -50,23 +47,17 @@ function createLineStory({ storyService, renderers, config = {} }) {
     TEST_ACK: "OK🌌 受け取ったよ。\n「今日」/「そら」/「わたしのほし」\n登録は「はじめる」🕊️",
   };
 
-  function safeRender(story) {
-    const msg = renderers.renderLine(story) || "";
-    return msg.length > MAX_LINE_TEXT ? msg.slice(0, MAX_LINE_TEXT) : msg;
+  function safeText(s) {
+    const x = s == null ? "" : String(s);
+    return x.length > MAX_LINE_TEXT ? x.slice(0, MAX_LINE_TEXT) : x;
   }
 
   // timezone helpers (Intl only)
   function ymdInTimeZone(date, timeZone) {
-    const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    return fmt.format(date); // YYYY-MM-DD
+    const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+    return fmt.format(date);
   }
 
-  // asOf を JST 12:00 に固定（あなたの設計に合わせるならここ）
   function asOfIsoFromDateLocal(dateLocal) {
     // JST 12:00 == UTC 03:00
     return `${dateLocal}T03:00:00.000Z`;
@@ -79,38 +70,32 @@ function createLineStory({ storyService, renderers, config = {} }) {
     return { dateLocal, asOfISO };
   }
 
-  async function build({ appUserId, mode }) {
-    if (!appUserId) throw new Error("build requires appUserId");
-    if (!mode) throw new Error("build requires mode");
-
+  async function buildStory({ appUserId, mode }) {
     const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
-
     const story = await storyService.buildStoryForUser({
       appUserId,
-      mode,
+      mode, // "public" or "auto"
       dateLocal,
       asOfISO,
-      timezone: DEFAULT_TZ,
       orbMaxDeg: ORB_MAX_DEG,
       precisionDeg: PRECISION_DEG,
     });
-
-    return { story, text: safeRender(story) };
+    const text = safeText(renderers.renderLine(story));
+    return { story, text };
   }
 
-  async function buildPublicSky() {
-    return await build({ appUserId: "public", mode: "public" });
+  async function buildSky() {
+    return buildStory({ appUserId: "public", mode: "public" });
   }
 
-  async function buildPersonalToday({ appUserId }) {
-    return await build({ appUserId, mode: "personal" });
+  async function buildToday({ appUserId }) {
+    return buildStory({ appUserId, mode: "auto" });
   }
 
-  async function buildPublicWithGuide() {
-    const { story, text } = await buildPublicSky();
-    const guide =
-      "\n\n（あなた基準の“今日”は、LINE登録があると personal で返る🌌\n" + "まず「はじめる」からどうぞ🕊️）";
-    return { story, text: text + guide };
+  async function buildSkyWithGuide() {
+    const { text } = await buildSky();
+    const guide = "\n\n（あなた基準の“今日”は、LINE登録があると personal で返る🌌\nまず「はじめる」からどうぞ🕊️）";
+    return { text: safeText(text + guide) };
   }
 
   function renderFallback() {
@@ -134,33 +119,33 @@ function createLineStory({ storyService, renderers, config = {} }) {
     );
   }
 
+  // ---- natal list (わたしのほし) ----
+  async function renderMyNatal(appUserId) {
+    const snap = await db.collection("natal_cache").doc(appUserId).get();
+    const d = snap.exists ? snap.data() : null;
+    return safeText(renderers.renderNatalListFromCache(d));
+  }
+
   // utilities layer handler
-  async function handleUtilities({ cmd, appUserId, natal }) {
+  async function handleUtilities({ cmd, appUserId }) {
     const c = String(cmd || "").trim();
 
     if (/^(ping)$/i.test(c)) return { text: "pong" };
     if (/^(test|てすと|テスト)$/i.test(c)) return { text: TEXT.TEST_ACK };
-
     if (/^(help|使い方|へるぷ)$/i.test(c)) return { text: TEXT.HELP };
 
     if (/^(やめる|中止|cancel|stop)$/i.test(c)) {
-      if (appUserId && natal?.setNatalStage) {
-        await natal.setNatalStage(appUserId, natal.NATAL_STAGE.idle);
-      }
+      if (appUserId && natal?.setNatalStage) await natal.setNatalStage(appUserId, natal.NATAL_STAGE.idle);
       return { text: TEXT.CANCELLED };
     }
 
     if (/^(リセット|reset|最初から|はじめから|最初からやり直す|はじめからやり直す)$/i.test(c)) {
-      if (appUserId && natal?.resetNatal) {
-        await natal.resetNatal(appUserId);
-      }
+      if (appUserId && natal?.resetNatal) await natal.resetNatal(appUserId);
       return { text: TEXT.RESET_DONE };
     }
 
     if (/^(はじめる|始める|start|begin)$/i.test(c)) {
-      if (appUserId && natal?.setNatalStage) {
-        await natal.setNatalStage(appUserId, natal.NATAL_STAGE.birth_date);
-      }
+      if (appUserId && natal?.setNatalStage) await natal.setNatalStage(appUserId, natal.NATAL_STAGE.birth_date);
       return { text: TEXT.START_NATAL };
     }
 
@@ -168,9 +153,10 @@ function createLineStory({ storyService, renderers, config = {} }) {
   }
 
   return {
-    buildPublicSky,
-    buildPersonalToday,
-    buildPublicWithGuide,
+    buildSky,
+    buildSkyWithGuide,
+    buildToday,
+    renderMyNatal,
     renderFallback,
     renderWelcome,
     handleUtilities,
