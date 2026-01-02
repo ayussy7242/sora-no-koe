@@ -119,7 +119,7 @@ function createLineUser({ db, admin, config = {} }) {
     await db.collection("users").doc(appUserId).set(
       {
         updated_at: serverNow(),
-        profile: { display_name: displayName, timezone: DEFAULT_TZ },
+        profile: { display_name: displayName, timezone: DEFAULT_TZ,status: "active", },
       },
       { merge: true }
     );
