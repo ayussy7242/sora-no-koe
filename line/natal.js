@@ -118,8 +118,8 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       { merge: true }
     );
 
-    await db.collection("natal_cache").doc(appUserId).delete().catch(() => {});
-    await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => {});
+    await db.collection("natal_cache").doc(appUserId).delete().catch(() => { });
+    await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => { });
   }
 
   async function saveBirthDate(appUserId, dateLocalOrNull) {
@@ -263,23 +263,29 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   // --------------------
   // natal_cache complete check
   // --------------------
-function isNatalCacheComplete(cache) {
-  if (!cache || typeof cache !== "object") return false;
+  function isNatalCacheComplete(cache) {
+    if (!cache || typeof cache !== "object") return false;
 
-  const bodies = cache?.min?.bodies;
-  const hasBodies = !!bodies && typeof bodies === "object" && Object.keys(bodies).length > 0;
+    const bodies = cache?.min?.bodies || cache?.min?.natal_positions;
+    const hasBodies = !!bodies && typeof bodies === "object" && Object.keys(bodies).length > 0;
 
-  const a = cache?.houses?.angles;
-  const asc = Number(a?.ASC);
-  const mc = Number(a?.MC);
+    // 正規
+    const a = cache?.houses?.angles;
+    let asc = Number(a?.ASC);
+    let mc = Number(a?.MC);
 
-  const hasAngles =
-    Number.isFinite(asc) && asc >= 0 && asc < 360 &&
-    Number.isFinite(mc) && mc >= 0 && mc < 360 &&
-    Math.abs(asc - mc) > 1e-9;
+    // フォールバック（top-level cusp）
+    if (!Number.isFinite(asc)) asc = Number(cache?.["1"] ?? cache?.[1]);
+    if (!Number.isFinite(mc)) mc = Number(cache?.["10"] ?? cache?.[10]);
 
-  return hasBodies && hasAngles;
-}
+    const hasAngles =
+      Number.isFinite(asc) && asc >= 0 && asc < 360 &&
+      Number.isFinite(mc) && mc >= 0 && mc < 360 &&
+      Math.abs(asc - mc) > 1e-9;
+
+    return hasBodies && hasAngles;
+  }
+
 
 
   // --------------------
@@ -293,7 +299,7 @@ function isNatalCacheComplete(cache) {
       // まずそのまま
       const geo = await geocoder.geocodePlace(placeText);
       if (geo?.ok) return geo;
-    } catch (_) {}
+    } catch (_) { }
 
     // ちょい整形（雑に強く）
     const s = String(placeText || "").trim().replace(/\s+/g, " ");
@@ -311,7 +317,7 @@ function isNatalCacheComplete(cache) {
       try {
         const geo = await geocoder.geocodePlace(q);
         if (geo?.ok) return geo;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return { ok: false, status: "ZERO_RESULTS", reason: "not found", candidates: [] };
@@ -415,7 +421,7 @@ function isNatalCacheComplete(cache) {
 
     // no cache → mark + enqueue
     if (!snap.exists) {
-      await ref.set({ needs_compute: true, updated_at: serverNow() }, { merge: true }).catch(() => {});
+      await ref.set({ needs_compute: true, updated_at: serverNow() }, { merge: true }).catch(() => { });
       await enqueueNatalCalcJob(appUserId);
       return { text: "ネイタル計算を開始したよ🌌\n少し後にもう一度「わたしのほし」って送ってね🕊️" };
     }

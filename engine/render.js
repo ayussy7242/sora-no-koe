@@ -411,8 +411,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   function pickAnglesFromNatalCache(d) {
-    // ありそうな置き場全部拾う（現場あるある対応）
     const angles =
+      d?.houses?.angles ||          // 正規ルート
       d?.min?.angles ||
       d?.angles ||
       d?.ascmc ||
@@ -420,17 +420,23 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       d?.min?.ascmc ||
       null;
 
-    const asc =
+    // 1) 正規ルートがあればそれを使う
+    let asc =
       angles?.ASC ?? angles?.asc ?? angles?.asc_deg ??
       d?.min?.ASC ?? d?.min?.asc ??
       d?.ASC ?? d?.asc ??
       null;
 
-    const mc =
+    let mc =
       angles?.MC ?? angles?.mc ?? angles?.mc_deg ??
       d?.min?.MC ?? d?.min?.mc ??
       d?.MC ?? d?.mc ??
       null;
+
+    // 2) フォールバック：ハウスカスプが top-level にある場合
+    //    ASC = cusp1, MC = cusp10
+    if (!Number.isFinite(Number(asc))) asc = d?.["1"] ?? d?.[1] ?? asc;
+    if (!Number.isFinite(Number(mc))) mc = d?.["10"] ?? d?.[10] ?? mc;
 
     return { asc, mc };
   }
