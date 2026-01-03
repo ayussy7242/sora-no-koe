@@ -40,9 +40,28 @@ function boolish(v) {
   return ["1", "true", "yes", "on"].includes(v.toLowerCase());
 }
 
+function normLower(x, fallback = "") {
+  const s = x == null ? "" : String(x);
+  const t = s.trim().toLowerCase();
+  return t || fallback;
+}
+
+function pickMode(x) {
+  const m = normLower(x, "today");
+  return m === "sky" ? "sky" : "today";
+}
+
+function pickTarget(x) {
+  const t = normLower(x, "all");
+  return t === "owner" ? "owner" : "all";
+}
+
 // -------------------- router factory --------------------
 function createCronRouter(deps = {}) {
   const router = express.Router();
+
+  // ✅ ここ超重要：cron配下だけでも body を確実に読む
+  router.use(express.json({ limit: "1mb" }));
 
   const env = deps.env || {};
   const db = deps.db;
@@ -63,7 +82,7 @@ function createCronRouter(deps = {}) {
     const CRON_TOKEN = env.CRON_TOKEN;
 
     if (!CRON_TOKEN) return { ok: false, status: 500, message: "CRON_TOKEN is not set" };
-    if (token !== CRON_TOKEN) return { ok: false, status: 401, message: "invalid cron token" };
+    if (String(token) !== String(CRON_TOKEN)) return { ok: false, status: 401, message: "invalid cron token" };
     return { ok: true };
   }
 
@@ -74,6 +93,7 @@ function createCronRouter(deps = {}) {
       timezone: env.DEFAULT_TZ,
       schema_version: env.SCHEMA_VERSION,
       has_swisseph: !!swisseph,
+      has_cron_token: !!env.CRON_TOKEN,
     });
   });
 
@@ -102,7 +122,7 @@ function createCronRouter(deps = {}) {
 
       const story = await storyService.buildStoryForUser({
         appUserId,
-        ...(isPublic ? { mode: "public" } : {}),
+        ...(isPublic ? { mode: "public" } : { mode: "auto" }),
         dateLocal,
         asOfISO,
         orbMaxDeg,
@@ -161,7 +181,7 @@ function createCronRouter(deps = {}) {
     }
   });
 
-  // ✅ POST /cron/daily8 : posts_daily を配信（LINE） + posts_daily_delivery ログ
+  // ✅ POST /cron/daily8 : LINE配信 + posts_daily_delivery ログ
   router.post("/daily8", async (req, res) => {
     const gate = requireCronToken(req);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
@@ -174,11 +194,11 @@ function createCronRouter(deps = {}) {
       const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
       const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
 
-      const mode = String(b.mode || q.mode || "today");      // ★追加
-      const target = String(b.target || q.target || "all");  // ★追加
+      const mode = pickMode(b.mode ?? q.mode);
+      const target = pickTarget(b.target ?? q.target);
 
       const result = await runDaily8(
-        { db, admin, env, storyService, renderers },         // ★ここが本命
+        { db, admin, env, storyService, renderers },
         { dateLocal, dryRun, mode, target }
       );
 
@@ -187,9 +207,6 @@ function createCronRouter(deps = {}) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
     }
   });
-
-
-
 
   // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {
@@ -202,7 +219,6 @@ function createCronRouter(deps = {}) {
 
     try {
       if (!swisseph) return bad(res, 500, "deps.swisseph missing");
-
       return await handleJobsWorker(req, res, { db, admin, env, ok, bad, swisseph });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/worker" });

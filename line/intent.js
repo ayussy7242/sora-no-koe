@@ -13,18 +13,17 @@
 function normalizeText(text) {
   return String(text ?? "")
     .trim()
-    .replace(/\u3000/g, " ")   // 全角スペース→半角
-    .replace(/\s+/g, " ");     // 連続スペースつぶす
+    .replace(/\u3000/g, " ")  // 全角スペース→半角
+    .replace(/\s+/g, " ");   // 連続スペースつぶす
 }
 
 function stripDecorations(text) {
-  // 絵文字・装飾っぽいものを落とす（必要なら追加）
-  return String(text)
-    .replace(/[🌌✨⭐️💫🩷🩵💙♾️🛜👽🔥☀️🌙🛸📡📮🕊️]+/g, "");
+  // ざっくり「装飾」だけ落とす（安全側）
+  // ※絵文字全般を完全除去は難しいので、よく使う系を削る
+  return String(text).replace(/[🌌✨⭐️💫🩷🩵💙♾️🛜👽🔥☀️🌙🛸📡📮🕊️]+/g, "");
 }
 
 function stripPunct(text) {
-  // 記号を落とす
   return String(text)
     .replace(/[！!？?。．,.、，・:;／/\\\-_—~〜…'"“”‘’]+/g, "")
     .replace(/[【】「」『』（）()\[\]{}<>]/g, "");
@@ -40,24 +39,17 @@ function normalizeForCommand(text) {
   t = stripDecorations(t);
   t = stripPunct(t);
   t = normalizeText(t);
-
-  // lower（英語系）
   t = t.toLowerCase();
-
-  // 最後にスペース全削除（コマンド判定は “塊” で見る）
   t = t.replace(/\s+/g, "");
-
   return t;
 }
 
 const INTENT = Object.freeze({
-  // core
   START: "start",
   PUBLIC_SKY: "public_sky",
   PERSONAL_TODAY: "personal_today",
   NATAL: "natal_list",
 
-  // utilities（routes/line.js の utilities layer で使う想定）
   HELP: "help",
   RESET: "reset",
   CANCEL: "cancel",
@@ -65,10 +57,6 @@ const INTENT = Object.freeze({
   TEST: "test",
 });
 
-/**
- * 同義語マップ
- * normalizeForCommand 後の “正規化キー” で判定する
- */
 const MAP = new Map([
   // START / 登録導線
   ["はじめる", INTENT.START],
@@ -79,7 +67,7 @@ const MAP = new Map([
   ["begin", INTENT.START],
   ["register", INTENT.START],
 
-  // PERSONAL_TODAY（個人）
+  // PERSONAL_TODAY（個人 or 自動）
   ["今日", INTENT.PERSONAL_TODAY],
   ["きょう", INTENT.PERSONAL_TODAY],
   ["今日の星", INTENT.PERSONAL_TODAY],
@@ -98,7 +86,6 @@ const MAP = new Map([
 
   // NATAL
   ["わたしのほし", INTENT.NATAL],
-  ["わたし", INTENT.NATAL], // 迷いやすいけど導線としては有効
   ["ネイタル", INTENT.NATAL],
   ["ネイタルチャート", INTENT.NATAL],
   ["出生図", INTENT.NATAL],
@@ -126,10 +113,10 @@ const MAP = new Map([
   // PING
   ["ping", INTENT.PING],
   ["疎通", INTENT.PING],
-  ["てすと", INTENT.PING],
 
   // TEST
   ["test", INTENT.TEST],
+  ["てすと", INTENT.TEST],
   ["テスト", INTENT.TEST],
 ]);
 
@@ -139,10 +126,6 @@ function intentFromCommand(rawText) {
   return MAP.get(key) || null;
 }
 
-/**
- * 不明入力（出生情報で使う）
- * normalizeForCommand後のキーで判定
- */
 function isUnknown(text) {
   const t = normalizeForCommand(text);
   return /^(不明|unknown|dontknow|わからない|分からない|知らない)$/i.test(t);
