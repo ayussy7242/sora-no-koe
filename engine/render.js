@@ -1,16 +1,17 @@
 "use strict";
 
 /**
- * render.js (STABLE / V1-source-of-truth) — Unified (v2025.12+)
+ * render.js (STABLE / V1-source-of-truth) — Unified (v2026.01+)
  * - dict の V1原本(ASPECTS_V1/PLANETS_V1/POINTS_V1/SIGNS_V1) を直接参照して描画
  * - 互換マップ(BODY_JA/POINT_JA/ASPECT_JA)は保険として残す
  * - 占い化しない（no prediction / no should / no good-bad）
  *
- * Updates (v2025.12+):
- * - orb_max_deg を story.meta.rules から追従（weightFromOrbの6固定を撤廃）
- * - buildNoContactLine の文言を「日付(＋ユーザー)で安定」させる（seeded）
- * - 外惑星/木星土星/Vertex の日本語ラベルを保険で内蔵（dict未定義でも日本語維持）
- * - 「わたしのほし」: natal_cache からネイタル一覧（ASC/MC含む）を描画
+ * ✅ This unified build fixes:
+ * - withSignJaPublic 未定義で /stories が落ちる問題を解消
+ * - publicSignJa の二重定義を解消（1本化）
+ * - transit_signs が無い場合も「経度から星座算出」して X/IG/LINE に星座を付与
+ * - buildNoContactLine を日付(+user)で安定（seeded）
+ * - 「わたしのほし」: natal_cache からネイタル一覧（ASC/MC必須）を描画
  */
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
@@ -63,6 +64,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         feel: Array.isArray(v?.feel) ? v.feel : [],
       };
     }
+    // guard (minimum set)
     out.square ||= { label_ja: "スクエア", core: null, sora: null, feel: [] };
     out.trine ||= { label_ja: "トライン", core: null, sora: null, feel: [] };
     out.opposition ||= { label_ja: "オポジション", core: null, sora: null, feel: [] };
@@ -167,12 +169,61 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     // dictがあれば優先
     if (SIGNS_V1?.signs) {
-      const orderKeys = ["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"];
+      const orderKeys = [
+        "aries", "taurus", "gemini", "cancer", "leo", "virgo",
+        "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"
+      ];
       const key = orderKeys[signIndex];
       const s = SIGNS_V1.signs?.[key];
       if (s?.label_ja) return s.label_ja;
     }
     return FALLBACK_SIGNS_JA[signIndex];
+  }
+
+  function mod360(x) {
+    const n = Number(x);
+    if (!Number.isFinite(n)) return null;
+    return ((n % 360) + 360) % 360;
+  }
+
+  // story内の「トランジット経度が入ってそうな場所」から拾う
+  function getTransitLonFromStory(story, bodyKey) {
+    return (
+      story?.public?.transit?.bodies?.[bodyKey] ??
+      story?.public?.transit?.bodies_deg?.[bodyKey] ??
+      story?.public?.transit_longitudes?.[bodyKey] ??
+      story?.public?.bodies?.[bodyKey] ??
+      story?.public?.transit_bodies?.[bodyKey] ??
+      null
+    );
+  }
+
+  function withSignJaPublic(story, bodyKey) {
+    const s = story?.public?.transit_signs?.[bodyKey]?.sign_ja;
+    return s ? `（${s}）` : "";
+  }
+
+
+  /**
+   * publicSignJa:
+   * 1) story.public.transit_signs にあれば最優先
+   * 2) 無ければ story 内の経度から星座を算出
+   */
+  function publicSignJa(story, bodyKey) {
+    const direct = story?.public?.transit_signs?.[bodyKey]?.sign_ja;
+    if (direct) return direct;
+
+    const lonRaw = getTransitLonFromStory(story, bodyKey);
+    const lon = mod360(lonRaw);
+    if (!Number.isFinite(lon)) return null;
+
+    const signIndex = Math.floor(lon / 30);
+    return signJaFromIndex(signIndex);
+  }
+
+  function withSignJaPublic(story, bodyKey) {
+    const s = publicSignJa(story, bodyKey);
+    return s ? `（${s}）` : "";
   }
 
   // --------------------
@@ -215,8 +266,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // extract today's contacts
   // --------------------
   function getTodayContacts(story) {
-    const personalTop = Array.isArray(story?.personal?.touch_points_top3) ? story.personal.touch_points_top3 : [];
-    const publicTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+    const personalTop = Array.isArray(story?.personal?.touch_points_top3)
+      ? story.personal.touch_points_top3
+      : [];
+    const publicTop = Array.isArray(story?.public?.sky_top)
+      ? story.public.sky_top
+      : [];
 
     const hasNatal = personalTop.length > 0;
     const rows = (hasNatal ? personalTop : publicTop).slice(0, 3);
@@ -230,6 +285,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
           aspectType: r.aspect,
           aspectDeg: r.aspect_deg,
           orb: r.orb_deg,
+          natalSignJa: r.natal_sign_ja || null,
+          transitSignJa: r.transit_sign_ja || null,
         };
       }
       return {
@@ -239,6 +296,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         aspectType: r.type,
         aspectDeg: r.aspect_deg,
         orb: r.orb_deg,
+        aSignJa: r.a_sign_ja || null,
+        bSignJa: r.b_sign_ja || null,
       };
     });
 
@@ -412,7 +471,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
   function pickAnglesFromNatalCache(d) {
     const angles =
-      d?.houses?.angles ||          // 正規ルート
+      d?.houses?.angles ||
       d?.min?.angles ||
       d?.angles ||
       d?.ascmc ||
@@ -420,7 +479,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       d?.min?.ascmc ||
       null;
 
-    // 1) 正規ルートがあればそれを使う
     let asc =
       angles?.ASC ?? angles?.asc ?? angles?.asc_deg ??
       d?.min?.ASC ?? d?.min?.asc ??
@@ -433,8 +491,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       d?.MC ?? d?.mc ??
       null;
 
-    // 2) フォールバック：ハウスカスプが top-level にある場合
-    //    ASC = cusp1, MC = cusp10
+    // fallback: house cusps on top-level
     if (!Number.isFinite(Number(asc))) asc = d?.["1"] ?? d?.[1] ?? asc;
     if (!Number.isFinite(Number(mc))) mc = d?.["10"] ?? d?.[10] ?? mc;
 
@@ -446,7 +503,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const bodies =
       d?.min?.bodies ||
-      d?.min?.natal_positions ||   // ✅これを追加（いまココに入ってる）
+      d?.min?.natal_positions ||
       d?.natal_positions ||
       d?.positions ||
       null;
@@ -457,7 +514,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const { asc, mc } = pickAnglesFromNatalCache(d);
 
-    // ASC/MC 必須：無いなら「データ側が未保存」なので正直に言う
     if (!Number.isFinite(Number(asc)) || !Number.isFinite(Number(mc))) {
       return [
         "🌌 わたしのほし（ネイタル一覧）",
@@ -477,14 +533,10 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     };
 
     const lines = [];
-
-    // 角度（必須）
     lines.push(`${glyph.ASC} ${fmtPointJa("ASC")}：${lonToSignDegMin(asc)}`);
     lines.push(`${glyph.MC}  ${fmtPointJa("MC")}：${lonToSignDegMin(mc)}`);
+    lines.push("");
 
-    lines.push(""); // spacer
-
-    // 天体
     for (const k of order) {
       const v = bodies[k];
       const str = lonToSignDegMin(v);
@@ -521,9 +573,16 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       const deg = fmtDeg(r.aspectDeg);
       const orb = fmtDeg(r.orb);
 
+      // ✅ 星座（サイン）
+      const aSignJa = hasNatal ? r.natalSignJa : (r.aSignJa || publicSignJa(story, r.aKey));
+      const bSignJa = hasNatal ? r.transitSignJa : (r.bSignJa || publicSignJa(story, r.bKey));
+
+      const aSign = aSignJa ? `（${aSignJa}）` : "";
+      const bSign = bSignJa ? `（${bSignJa}）` : "";
+
       const title = hasNatal
-        ? `${circ[i] || `${i + 1}.`} ネイタル: ${aJa} × トランジット: ${bJa}｜${aspJa}（${deg}°｜orb ${orb}°）`
-        : `${circ[i] || `${i + 1}.`} ${aJa} × ${bJa}｜${aspJa}（${deg}°｜orb ${orb}°）`;
+        ? `${circ[i] || `${i + 1}.`} ネイタル: ${aJa}${aSign} × トランジット: ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`
+        : `${circ[i] || `${i + 1}.`} ${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`;
 
       const mean = oneLineMeaning({ aKey: r.aKey, bKey: r.bKey, aspectType: r.aspectType });
       return `${title}\n${mean}`;
@@ -558,7 +617,15 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const moonSign = story?.public?.moon?.sign_ja || null;
 
     const skyLines = sky.length
-      ? sky.map((s, i) => `${i + 1}) ${fmtBodyJa(s.a)} × ${fmtBodyJa(s.b)}｜${fmtAspectJa(s.type)}（orb ${fmtDeg(s.orb_deg)}°）`).join("\n")
+      ? sky
+        .map((s, i) => {
+          const a = fmtBodyJa(s.a);
+          const b = fmtBodyJa(s.b);
+          const aSign = withSignJaPublic(story, s.a);
+          const bSign = withSignJaPublic(story, s.b);
+          return `${i + 1}) ${a}${aSign} × ${b}${bSign}｜${fmtAspectJa(s.type)}（orb ${fmtDeg(s.orb_deg)}°）`;
+        })
+        .join("\n")
       : buildNoContactLine(story);
 
     const moonLine = moonSign ? `\n月は ${moonSign} を通過中。` : "";
@@ -573,13 +640,22 @@ ${skyLines}
 解釈は、あなたのもの。`;
   }
 
+
   function renderIG(story) {
     const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
     const moonSign = story?.public?.moon?.sign_ja || null;
     const sky = story?.public?.sky_top || [];
 
     const skyLines = sky.length
-      ? sky.map((s) => `・${fmtBodyJa(s.a)} × ${fmtBodyJa(s.b)}｜${fmtAspectJa(s.type)}（orb ${fmtDeg(s.orb_deg)}°）`).join("\n")
+      ? sky
+        .map((s) => {
+          const a = fmtBodyJa(s.a);
+          const b = fmtBodyJa(s.b);
+          const aSign = withSignJaPublic(story, s.a);
+          const bSign = withSignJaPublic(story, s.b);
+          return `・${a}${aSign} × ${b}${bSign}｜${fmtAspectJa(s.type)}（orb ${fmtDeg(s.orb_deg)}°）`;
+        })
+        .join("\n")
       : `・${buildNoContactLine(story)}`;
 
     const moonLine = moonSign ? `月は ${moonSign} を通過中。` : "月のサインは取得中。";
@@ -599,6 +675,7 @@ ${yoin}
 星は語る。決めるのは、人。`;
   }
 
+
   return {
     renderLine,
     renderX,
@@ -606,7 +683,7 @@ ${yoin}
     fmtAspectJa,
     fmtBodyJa,
     fmtPointJa,
-    renderNatalListFromCache, // ✅ ここが大事：LINEから呼べる
+    renderNatalListFromCache,
   };
 }
 
