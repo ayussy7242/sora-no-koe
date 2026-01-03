@@ -140,7 +140,7 @@ const FEATURES = {
 };
 
 //WORKER
-const WORKER_PUSH_NATAL_RESULT = boolEnv("WORKER_PUSH_NATAL_RESULT", false);
+const WORKER_PUSH_NATAL_RESULT = getEnv("WORKER_PUSH_NATAL_RESULT", { defaultValue: "0" });
 
 // テスト用（任意）：特定のLINEだけに送る
 const WORKER_PUSH_ONLY_LINE_USER_ID = getEnv("WORKER_PUSH_ONLY_LINE_USER_ID", { defaultValue: null });
