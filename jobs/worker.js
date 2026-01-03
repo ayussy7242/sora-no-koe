@@ -486,7 +486,7 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   if (!swisseph) throw new Error("deps.swisseph required");
 
   // env参照はここに統一（process.env + deps.env）
-  const env2 = { ...(process.env || {}), ...(deps.env || {}) };
+  const env2 = { ...(deps.env || {}), ...(process.env || {}) };
 
   const DEBUG_HOUSES = String(env2.DEBUG_HOUSES || "0") === "1";
 
@@ -783,7 +783,7 @@ async function handleJobsWorker(req, res, deps = {}) {
   if (!swisseph) throw new Error("deps.swisseph required");
 
   // env参照はここに統一
-  const env2 = { ...(process.env || {}), ...(deps.env || {}) };
+  const env2 = { ...(deps.env || {}), ...(process.env || {}) };
 
   const MAX_ATTEMPTS = Number(env2.JOBS_MAX_ATTEMPTS || 5);
   const LEASE_MINUTES = Number(env2.JOBS_LEASE_MINUTES || 10);
