@@ -707,51 +707,45 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     const ENABLE_PUSH = String(env2.WORKER_PUSH_NATAL_RESULT || "0") === "1";
     const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN || null;
 
-    // const OWNER_ONLY =
-    //   env2.OWNER_APP_USER_ID &&
-    //   String(env2.OWNER_APP_USER_ID) === String(appUserId);
+    // テスト用（本番解放したいなら 0 にする or この条件自体を消す）
+    const OWNER_APP = String(env2.OWNER_APP_USER_ID || "").trim();
+    const OWNER_ONLY = OWNER_APP ? (String(appUserId) === OWNER_APP) : false;
 
-    // push自体をやらない条件なら「何もしない」で終わり（関数returnしない）
-    if (!ENABLE_PUSH || !OWNER_ONLY || !accessToken) {
-      // skip push
-    } else {
-      const userSnap = await db.collection("users").doc(appUserId).get();
-      const user = userSnap.exists ? (userSnap.data() || {}) : {};
-      const lineUserId = user?.channels?.line?.line_user_id || null;
+    if (!ENABLE_PUSH || !accessToken) return;
 
-      if (!lineUserId) {
-        // skip push
-      } else {
-        // latest を読んで「最新の notify」を見る（冪等の最終防衛）
-        const latest = (await cacheRef.get()).data() || patch;
+    // ✅ オーナー限定中なら、オーナー以外は送らない
+    if (OWNER_APP && !OWNER_ONLY) return;
 
-        const lastSentHash =
-          latest?.notify?.last_sent_birth_hash ||
-          existing?.notify?.last_sent_birth_hash ||
-          null;
+    const userSnap = await db.collection("users").doc(appUserId).get();
+    const user = userSnap.exists ? (userSnap.data() || {}) : {};
+    const lineUserId = user?.channels?.line?.line_user_id || null;
+    if (!lineUserId) return;
 
-        const shouldSend = String(lastSentHash || "") !== String(birthHash);
-        if (shouldSend) {
-          const text = renderNatalListFromCache(latest);
+    const latest = (await cacheRef.get()).data() || patch;
 
-          await linePush(accessToken, lineUserId, text);
+    const lastSentHash =
+      latest?.notify?.last_sent_birth_hash ||
+      existing?.notify?.last_sent_birth_hash ||
+      null;
 
-          // notify はドットパスで更新（将来のキー消し事故防止）
-          await cacheRef.set(
-            {
-              "notify.last_sent_birth_hash": birthHash,
-              "notify.last_sent_line_user_id": lineUserId,
-              "notify.last_sent_at": admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
-      }
-    }
+    const shouldSend = String(lastSentHash || "") !== String(birthHash);
+    if (!shouldSend) return;
+
+    const text = renderNatalListFromCache(latest);
+    await linePush(accessToken, lineUserId, text);
+
+    await cacheRef.set(
+      {
+        "notify.last_sent_birth_hash": birthHash,
+        "notify.last_sent_line_user_id": lineUserId,
+        "notify.last_sent_at": admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
   } catch (e) {
     console.log("[worker] push skipped/failed:", e?.message || String(e));
   }
-
+  
   return {
     ok: true,
     processed: 1,
