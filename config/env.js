@@ -139,6 +139,13 @@ const FEATURES = {
   AI_EXPANSION: boolEnv("FEATURE_AI_EXPANSION", false),
 };
 
+//WORKER
+const WORKER_PUSH_NATAL_RESULT = boolEnv("WORKER_PUSH_NATAL_RESULT", false);
+
+// テスト用（任意）：特定のLINEだけに送る
+const WORKER_PUSH_ONLY_LINE_USER_ID = getEnv("WORKER_PUSH_ONLY_LINE_USER_ID", { defaultValue: null });
+
+
 // --------------------
 // export
 // --------------------
@@ -196,4 +203,8 @@ module.exports = {
 
   // feature flags
   FEATURES,
+
+  //worker
+  WORKER_PUSH_NATAL_RESULT,
+  WORKER_PUSH_ONLY_LINE_USER_ID
 };
