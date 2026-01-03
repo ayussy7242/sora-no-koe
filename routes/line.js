@@ -272,7 +272,7 @@ function createLineRouter(deps = {}) {
             // modules instance
             const user = createLineUser({ db, admin, config: env });
             const natal = createLineNatal({ db, admin, geocoder, renderers, config: env });
-            const story = createLineStory({ storyService, renderers, config: env });
+            const story = createLineStory({ db, admin, storyService, renderers, config: env });
 
             // signature verify
             const rawBuf = getRawBodyBuffer(req);
