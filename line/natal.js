@@ -2,13 +2,13 @@
 
 /**
  * line/natal.js
- * 🌌 ネイタル登録・収集・計算・表示の完全管理
+ * 🌌 ネイタル登録・収集・計算・表示の統合管理（UNIFIED STABLE）
  *
- * ✅ やること
- * - stage: birth_date → birth_time → birth_place
- * - users.natal.birth に保存
- * - geo が取れたら finalize + enqueue job
- * - natal_list は natal_cache を見て表示/再計算
+ * ✅ 正本
+ * - 登録ステート: line_users.state（pending_* / ready）
+ * - birth保存: users/{appUserId}.natal.birth
+ * - 計算結果: natal_cache/{appUserId}
+ * - ジョブ: jobs_natal_calc/{appUserId}
  */
 
 const { isUnknown } = require("./intent");
@@ -21,7 +21,13 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   const DEFAULT_TZ = config.DEFAULT_TZ || "Asia/Tokyo";
   const MAX_LINE_TEXT = Number(config.MAX_LINE_TEXT || 4800);
 
-  // copy
+  const FLOW_STATE = Object.freeze({
+    PENDING_BIRTH_DATE: "pending_birth_date",
+    PENDING_BIRTH_TIME: "pending_birth_time",
+    PENDING_BIRTH_PLACE: "pending_birth_place",
+    READY: "ready",
+  });
+
   const TEXT = {
     START_NATAL:
       "個人版（あなたの回路）を登録するよ🌌\n\n" +
@@ -36,7 +42,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     ASK_BIRTH_PLACE:
       "最後に【出生地】を送ってね。\n" +
       "例：東京 / 神奈川県横浜市 / Shimizu, Hokkaido / Tono, Iwate\n\n" +
-      "（場所は、緯度経度に変換して計算に使うよ）\n" +
+      "（場所は緯度経度に変換して計算に使うよ）\n" +
       "わからなければ「不明」でもOK。",
     ERR_BIRTHDATE:
       "生年月日が読み取れなかった🙏\n" +
@@ -48,16 +54,14 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       "わからなければ「不明」でもOK。",
     NATAL_DONE:
       "登録できた🌌\n\n" +
-      "これで「今日」を送ると、\n" +
-      "空の配置＋あなたの回路で返るよ。\n\n" +
-      "💫 毎朝8時のお届け（ネイタル登録済み）も対象になったよ📮\n\n"+
-      "「今日」→ あなた基準の今日（回路登録済みなら）\n" +
-      "「そら」→ 空の構造だけ（public）\n" +
-      "「わたしのほし」→ あなたのネイタル一覧（ASC/MC含む）\n",
+      "「今日」→ 登録があれば personal が立ち上がる\n" +
+      "「そら」→ 今日の空の構造\n" +
+      "「わたしのほし」→ ネイタル一覧（ASC/MC含む）\n\n" +
+      "💫 毎朝8時のお届け（登録済み）も対象になったよ📮",
     NATAL_PARTIAL_SKIP:
       "受け取ったよ🌌\n\n" +
-      "いまの情報でも、あなた向けの返しは動く。\n" +
-      "まず「今日」を送ってみて。\n\n" +
+      "いまの情報でも、個人版は動く。\n" +
+      "出生地が不明の場合は、一部要素が簡略になることがある。\n\n" +
       "あとで整えたくなったら「はじめる」で上書きできるよ🕊️",
   };
 
@@ -66,88 +70,44 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   }
 
   // --------------------
-  // Stages
+  // state (line_users)
   // --------------------
-  const NATAL_STAGE = Object.freeze({
-    idle: "idle",
-    birth_date: "birth_date",
-    birth_time: "birth_time",
-    birth_place: "birth_place",
-    done: "done",
-  });
-
-  function getNatalStage(userDoc) {
-    return userDoc?.natal?.collect?.stage || NATAL_STAGE.idle;
+  async function getLineState(lineUserId) {
+    if (!lineUserId) return FLOW_STATE.READY;
+    const snap = await db.collection("line_users").doc(lineUserId).get();
+    if (!snap.exists) return FLOW_STATE.PENDING_BIRTH_DATE;
+    return snap.data()?.state || FLOW_STATE.PENDING_BIRTH_DATE;
   }
 
-  async function setNatalStage(appUserId, stage) {
-    if (!appUserId) return;
-    await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: serverNow(),
-        natal: { collect: { stage, updated_at: serverNow(), version: 1 } },
-      },
+  async function setLineState(lineUserId, state) {
+    if (!lineUserId) return;
+    await db.collection("line_users").doc(lineUserId).set(
+      { state, updated_at: serverNow(), meta: { last_event_type: "natal_state", last_seen_at: serverNow() } },
       { merge: true }
     );
   }
 
-  async function getUserDoc(appUserId) {
-    if (!appUserId) return null;
-    const snap = await db.collection("users").doc(appUserId).get();
-    return snap.exists ? snap.data() : null;
-  }
-
-  async function resetNatal(appUserId) {
-    if (!appUserId) return;
-
-    await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: serverNow(),
-        natal: {
-          enabled: false,
-          collect: { stage: NATAL_STAGE.idle, updated_at: serverNow(), version: 1 },
-          birth: {
-            date_local: null,
-            time_hm: null,
-            place_text: null,
-            lat: null,
-            lon: null,
-            place_formatted: null,
-            place_id: null,
-            timezone: DEFAULT_TZ,
-          },
-        },
-      },
-      { merge: true }
-    );
-
-    await db.collection("natal_cache").doc(appUserId).delete().catch(() => { });
-    await enableDaily8OnRegistration({ db, admin, appUserId });
-
-    await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => { });
-  }
-
+  // --------------------
+  // users birth save
+  // --------------------
   async function saveBirthDate(appUserId, dateLocalOrNull) {
+    if (!appUserId) return;
     await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: serverNow(),
-        natal: { birth: { date_local: dateLocalOrNull, timezone: DEFAULT_TZ } },
-      },
+      { updated_at: serverNow(), natal: { birth: { date_local: dateLocalOrNull, timezone: DEFAULT_TZ } } },
       { merge: true }
     );
   }
 
   async function saveBirthTime(appUserId, timeHmOrNull) {
+    if (!appUserId) return;
     await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: serverNow(),
-        natal: { birth: { time_hm: timeHmOrNull, timezone: DEFAULT_TZ } },
-      },
+      { updated_at: serverNow(), natal: { birth: { time_hm: timeHmOrNull, timezone: DEFAULT_TZ } } },
       { merge: true }
     );
   }
 
   async function saveBirthPlace(appUserId, { placeText, geo }) {
+    if (!appUserId) return;
     await db.collection("users").doc(appUserId).set(
       {
         updated_at: serverNow(),
@@ -166,21 +126,55 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     );
   }
 
-  async function finalizeNatal(appUserId) {
-    await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: serverNow(),
-        status: "active",
-        profile: { status: "active" },
-        natal: {
-          enabled: true,
-          completed_at: serverNow(),
-          collect: { stage: NATAL_STAGE.done, updated_at: serverNow(), version: 1 },
-          delivery: { daily_8: true },
+  async function finalizeNatal(appUserId, lineUserId) {
+    // users側に「登録済み」フラグを持つ（storyServiceが参照してもよい）
+    if (appUserId) {
+      await db.collection("users").doc(appUserId).set(
+        {
+          updated_at: serverNow(),
+          status: "active",
+          natal: {
+            enabled: true,
+            completed_at: serverNow(),
+            delivery: { daily_8: true },
+          },
         },
-      },
-      { merge: true }
-    );
+        { merge: true }
+      );
+    }
+
+    // line_users.state は READY
+    if (lineUserId) await setLineState(lineUserId, FLOW_STATE.READY);
+  }
+
+  async function resetNatal(appUserId, lineUserId) {
+    if (appUserId) {
+      await db.collection("users").doc(appUserId).set(
+        {
+          updated_at: serverNow(),
+          natal: {
+            enabled: false,
+            birth: {
+              date_local: null,
+              time_hm: null,
+              place_text: null,
+              lat: null,
+              lon: null,
+              place_formatted: null,
+              place_id: null,
+              timezone: DEFAULT_TZ,
+            },
+            delivery: { daily_8: false },
+          },
+        },
+        { merge: true }
+      );
+
+      await db.collection("natal_cache").doc(appUserId).delete().catch(() => {});
+      await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => {});
+    }
+
+    if (lineUserId) await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_DATE);
   }
 
   // --------------------
@@ -189,7 +183,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   function parseYYYYMMDD(text) {
     const t = String(text || "").trim();
 
-    // 1990-07-24 / 1990/07/24 / 1990.07.24
     const m1 = t.match(/(\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2})/);
     if (m1) {
       const cand = String(m1[1]).trim().replace(/[\/\.]/g, "-");
@@ -205,7 +198,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       return dateLocal;
     }
 
-    // 19900724
     const m2 = t.match(/(\d{8})/);
     if (m2) {
       const s = m2[1];
@@ -235,7 +227,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   }
 
   // --------------------
-  // enqueue job (fixed docId)
+  // enqueue job (docId fixed = appUserId)
   // --------------------
   async function enqueueNatalCalcJob(appUserId) {
     if (!appUserId) return;
@@ -249,7 +241,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     const job = {
       status: "queued",
       attempts: 0,
-      created_at: admin.firestore.Timestamp.now(), // orderBy用に即値
+      created_at: admin.firestore.Timestamp.now(),
       updated_at: serverNow(),
       app_user_id: appUserId,
       birth: {
@@ -276,12 +268,10 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     const bodies = cache?.min?.bodies || cache?.min?.natal_positions;
     const hasBodies = !!bodies && typeof bodies === "object" && Object.keys(bodies).length > 0;
 
-    // 正規
     const a = cache?.houses?.angles;
     let asc = Number(a?.ASC);
     let mc = Number(a?.MC);
 
-    // フォールバック（top-level cusp）
     if (!Number.isFinite(asc)) asc = Number(cache?.["1"] ?? cache?.[1]);
     if (!Number.isFinite(mc)) mc = Number(cache?.["10"] ?? cache?.[10]);
 
@@ -293,8 +283,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     return hasBodies && hasAngles;
   }
 
-
-
   // --------------------
   // geocode best effort
   // --------------------
@@ -303,81 +291,72 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       return { ok: false, status: "NO_GEOCODER", reason: "geocoder not injected", candidates: [] };
     }
     try {
-      // まずそのまま
       const geo = await geocoder.geocodePlace(placeText);
       if (geo?.ok) return geo;
-    } catch (_) { }
+    } catch (_) {}
 
-    // ちょい整形（雑に強く）
     const s = String(placeText || "").trim().replace(/\s+/g, " ");
     const variants = Array.from(
-      new Set([
-        s,
-        s.replace(/　/g, " "),
-        s.replace(/、/g, " "),
-        `${s} Japan`,
-        `${s} 日本`,
-      ])
+      new Set([s, s.replace(/　/g, " "), s.replace(/、/g, " "), `${s} Japan`, `${s} 日本`])
     );
 
     for (const q of variants) {
       try {
         const geo = await geocoder.geocodePlace(q);
         if (geo?.ok) return geo;
-      } catch (_) { }
+      } catch (_) {}
     }
 
     return { ok: false, status: "ZERO_RESULTS", reason: "not found", candidates: [] };
   }
 
   // --------------------
-  // handle collect (stage progression)
+  // handle collect (state progression)
   // --------------------
-  async function handleCollect({ appUserId, rawText }) {
-    if (!appUserId) return null;
+  async function handleCollect({ lineUserId, appUserId, rawText }) {
+    if (!lineUserId || !appUserId) return null;
 
-    const userDoc = await getUserDoc(appUserId);
-    const stage = getNatalStage(userDoc);
+    const state = await getLineState(lineUserId);
 
-    // idle/done は何もしない（通常のintentへ）
-    if (stage === NATAL_STAGE.idle || stage === NATAL_STAGE.done) return null;
+    // READY は通常処理へ
+    if (state === FLOW_STATE.READY) return null;
 
-    // birth_date
-    if (stage === NATAL_STAGE.birth_date) {
+    // pending_birth_date
+    if (state === FLOW_STATE.PENDING_BIRTH_DATE) {
       if (isUnknown(rawText)) {
         await saveBirthDate(appUserId, null);
-        await setNatalStage(appUserId, NATAL_STAGE.birth_time);
+        await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_TIME);
         return { text: TEXT.ASK_BIRTH_TIME };
       }
       const d = parseYYYYMMDD(rawText);
       if (!d) return { text: TEXT.ERR_BIRTHDATE };
 
       await saveBirthDate(appUserId, d);
-      await setNatalStage(appUserId, NATAL_STAGE.birth_time);
+      await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_TIME);
       return { text: TEXT.ASK_BIRTH_TIME };
     }
 
-    // birth_time
-    if (stage === NATAL_STAGE.birth_time) {
+    // pending_birth_time
+    if (state === FLOW_STATE.PENDING_BIRTH_TIME) {
       if (isUnknown(rawText)) {
         await saveBirthTime(appUserId, null);
-        await setNatalStage(appUserId, NATAL_STAGE.birth_place);
+        await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_PLACE);
         return { text: TEXT.ASK_BIRTH_PLACE };
       }
       const hm = parseHHMM(rawText);
       if (!hm) return { text: TEXT.ERR_BIRTHTIME };
 
       await saveBirthTime(appUserId, hm);
-      await setNatalStage(appUserId, NATAL_STAGE.birth_place);
+      await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_PLACE);
       return { text: TEXT.ASK_BIRTH_PLACE };
     }
 
-    // birth_place
-    if (stage === NATAL_STAGE.birth_place) {
+    // pending_birth_place
+    if (state === FLOW_STATE.PENDING_BIRTH_PLACE) {
       if (isUnknown(rawText)) {
         await saveBirthPlace(appUserId, { placeText: null, geo: null });
         await enqueueNatalCalcJob(appUserId);
-        await finalizeNatal(appUserId);
+        await finalizeNatal(appUserId, lineUserId);
         return { text: TEXT.NATAL_PARTIAL_SKIP };
       }
 
@@ -387,29 +366,26 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       await saveBirthPlace(appUserId, { placeText, geo });
 
       if (geo?.ok) {
-        await finalizeNatal(appUserId);
         await enqueueNatalCalcJob(appUserId);
+        await finalizeNatal(appUserId, lineUserId);
         return { text: TEXT.NATAL_DONE };
       }
 
-      // geocode failed → もう一回書き方変える案内
       let reasonText =
         "場所が特定できなかったみたい🕊️\n" +
         "・市区町村だけ（例：遠野市）\n" +
         "・英語表記（例：Tono, Iwate）\n" +
         "・座標（例：39.33, 141.53）\n\n" +
-        "どれかで再送するか、「不明」で進めるよ。";
+        "書き方を変えるか、「不明」でも進める。";
 
       if (geo?.status === "NO_GEOCODER") {
         reasonText =
           "いまサーバー側に地図変換（geocoder）が入ってないっぽい🙏\n" +
           "開発者が直すやつ。\n\n" +
-          "いまは「不明」で進んでもOKだよ。";
+          "いまは「不明」で進んでもOK。";
       }
 
-      return {
-        text: "受け取ったよ🌌\n出生地を“地図の座標”に整えようとしてるところ。\n\n" + reasonText,
-      };
+      return { text: "受け取ったよ🌌\n出生地を座標に整えようとしてる。\n\n" + reasonText };
     }
 
     return null;
@@ -419,67 +395,44 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   // natal list
   // --------------------
   async function handleNatalList({ appUserId }) {
-    if (!appUserId) {
-      return { text: "個人版はLINEの中で紐づく設計だよ🌌\nまず「はじめる」で登録してね🕊️" };
-    }
+    if (!appUserId) return { text: "個人版はLINEの中で紐づく設計だよ🌌\nまず「はじめる」" };
 
     const ref = db.collection("natal_cache").doc(appUserId);
     const snap = await ref.get();
 
-    // no cache → mark + enqueue
     if (!snap.exists) {
-      await ref.set({ needs_compute: true, updated_at: serverNow() }, { merge: true }).catch(() => { });
+      await ref.set({ needs_compute: true, updated_at: serverNow() }, { merge: true }).catch(() => {});
       await enqueueNatalCalcJob(appUserId);
-      return { text: "ネイタル計算を開始したよ🌌\n少し後にもう一度「わたしのほし」って送ってね🕊️" };
+      return { text: "ネイタル計算を開始したよ🌌\n完了すると一覧が出る。" };
     }
 
     const cache = snap.data() || {};
 
-    // computing
     if (cache.needs_compute === true) {
-      return { text: "ネイタル計算中みたい🌌\n少し後にもう一度「わたしのほし」って送ってね🕊️" };
+      return { text: "ネイタル計算中みたい🌌\n完了すると一覧が出る。" };
     }
 
-    // broken → recompute
     if (!isNatalCacheComplete(cache)) {
       await ref.set({ needs_compute: true, updated_at: serverNow() }, { merge: true });
       await enqueueNatalCalcJob(appUserId);
-      return { text: "ネイタル情報を整え直してるよ🌌\n少し後にもう一度「わたしのほし」って送ってね🕊️" };
+      return { text: "ネイタル情報を整え直してるよ🌌\n完了すると一覧が出る。" };
     }
 
-    // render
     const rendered = renderers.renderNatalListFromCache(cache) || "";
     const text = rendered.length > MAX_LINE_TEXT ? rendered.slice(0, MAX_LINE_TEXT) : rendered;
     return { text };
   }
 
-  async function enableDaily8OnRegistration({ db, admin, appUserId }) {
-    if (!appUserId) return;
-
-    await db.collection("users").doc(appUserId).set(
-      {
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        status: "active",
-        natal: {
-          enabled: true,
-          delivery: { daily_8: true },
-        },
-      },
-      { merge: true }
-    );
-  }
-
-
   return {
-    NATAL_STAGE,
-    getNatalStage,
-    setNatalStage,
+    FLOW_STATE,
+    getLineState,
+    setLineState,
     resetNatal,
     enqueueNatalCalcJob,
     isNatalCacheComplete,
     handleCollect,
     handleNatalList,
-    enableDaily8OnRegistration
+    finalizeNatal,
   };
 }
 

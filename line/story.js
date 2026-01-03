@@ -2,9 +2,9 @@
 
 /**
  * line/story.js — Unified STABLE (v2026.01 unified)
- * - "today"  => mode:auto (natalあればpersonal、なければpublic-only)
- * - "sky"    => appUserId="public", mode:public
- * - utilities handled here (help/start/reset/cancel/test/ping)
+ * - "今日" => mode:auto（natalがあればpersonal、なければpublic-only想定）
+ * - "そら" => appUserId="public", mode:public
+ * - utilities (help/start/reset/cancel/test/ping) もここ
  */
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
@@ -22,17 +22,22 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   const TEXT = {
     HELP:
       "使い方🌌\n\n" +
-      "■ コマンドは3つだけ\n" +
-      "・「今日」/「きょう」：あなた基準の今日（登録済みなら personal / 未登録なら public）\n" +
+      "■ コマンドは3つ\n" +
+      "・「今日」/「きょう」：登録があれば personal / 未登録なら public\n" +
       "・「そら」：空の構造だけ（public）\n" +
-      "・「わたしのほし」：あなたのネイタル一覧（ASC/MC含む）\n\n" +
+      "・「わたしのほし」：ネイタル一覧（ASC/MC含む）\n\n" +
       "■ 個人版登録\n" +
       "・「はじめる」\n\n" +
       "登録で聞くもの（不明OK）\n" +
       "1) 生年月日（例：1990-07-24 / 19900724）\n" +
       "2) 出生時刻（例：12:18）\n" +
       "3) 出生地（例：札幌 / Yokohama / Tono, Iwate）",
-    FALLBACK: "コマンドはこの3つだけだよ🌌\n「今日」/「きょう」\n「そら」\n「わたしのほし」\n\n個人版の登録は「はじめる」",
+    FALLBACK:
+      "コマンドはこの3つだけ🌌\n" +
+      "「今日」/「きょう」\n" +
+      "「そら」\n" +
+      "「わたしのほし」\n\n" +
+      "個人版の登録は「はじめる」",
     START_NATAL:
       "個人版（あなたの回路）を登録するよ🌌\n\n" +
       "まずは【生年月日】を送ってね。\n" +
@@ -44,7 +49,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       "またやるなら「はじめる」\n" +
       "今日だけ見るなら「そら」/「今日」",
     RESET_DONE: "ネイタル登録をリセットしたよ🌌\nもう一回やるなら「はじめる」",
-    TEST_ACK: "OK🌌 受け取ったよ。\n「今日」/「そら」/「わたしのほし」\n登録は「はじめる」🕊️",
+    TEST_ACK: "OK🌌 受け取った。\n「今日」/「そら」/「わたしのほし」\n登録は「はじめる」🕊️",
   };
 
   function safeText(s) {
@@ -52,7 +57,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return x.length > MAX_LINE_TEXT ? x.slice(0, MAX_LINE_TEXT) : x;
   }
 
-  // timezone helpers (Intl only)
   function ymdInTimeZone(date, timeZone) {
     const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
     return fmt.format(date);
@@ -74,7 +78,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
     const story = await storyService.buildStoryForUser({
       appUserId,
-      mode, // "public" or "auto"
+      mode, // "public" | "auto"
       dateLocal,
       asOfISO,
       orbMaxDeg: ORB_MAX_DEG,
@@ -93,9 +97,11 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   async function buildSkyWithGuide() {
-    const { text } = await buildSky();
-    const guide = "\n\n（あなた基準の“今日”は、LINE登録があると personal で返る🌌\nまず「はじめる」からどうぞ🕊️）";
-    return { text: safeText(text + guide) };
+    const { story, text } = await buildSky();
+    const guide =
+      "\n\n（「今日」は登録があると personal が立ち上がりやすい🌌\n" +
+      "登録は「はじめる」）";
+    return { story, text: safeText(text + guide) };
   }
 
   function renderFallback() {
@@ -111,23 +117,15 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       "ここは「占い」じゃなくて、\n" +
       "今日の星の配置を“そのまま置く”場所。\n" +
       "解釈は、あなたのもの。\n\n" +
-      "まずは👇\n\n" +
       "「はじめる」→ 個人版（あなたの回路）を登録\n" +
-      "「そら」→ 空の構造だけ（public）\n" +
+      "「そら」→ 空の構造（public）\n" +
       "「使い方」→ ヘルプ\n\n" +
       "（わからないところは「不明」でOK）"
     );
   }
 
-  // ---- natal list (わたしのほし) ----
-  async function renderMyNatal(appUserId) {
-    const snap = await db.collection("natal_cache").doc(appUserId).get();
-    const d = snap.exists ? snap.data() : null;
-    return safeText(renderers.renderNatalListFromCache(d));
-  }
-
-  // utilities layer handler
-  async function handleUtilities({ cmd, appUserId }) {
+  // utilities handler
+  async function handleUtilities({ cmd, appUserId, lineUserId }) {
     const c = String(cmd || "").trim();
 
     if (/^(ping)$/i.test(c)) return { text: "pong" };
@@ -135,17 +133,17 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     if (/^(help|使い方|へるぷ)$/i.test(c)) return { text: TEXT.HELP };
 
     if (/^(やめる|中止|cancel|stop)$/i.test(c)) {
-      if (appUserId && natal?.setNatalStage) await natal.setNatalStage(appUserId, natal.NATAL_STAGE.idle);
+      if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.READY);
       return { text: TEXT.CANCELLED };
     }
 
     if (/^(リセット|reset|最初から|はじめから|最初からやり直す|はじめからやり直す)$/i.test(c)) {
-      if (appUserId && natal?.resetNatal) await natal.resetNatal(appUserId);
+      if (natal?.resetNatal) await natal.resetNatal(appUserId, lineUserId);
       return { text: TEXT.RESET_DONE };
     }
 
     if (/^(はじめる|始める|start|begin)$/i.test(c)) {
-      if (appUserId && natal?.setNatalStage) await natal.setNatalStage(appUserId, natal.NATAL_STAGE.birth_date);
+      if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.PENDING_BIRTH_DATE);
       return { text: TEXT.START_NATAL };
     }
 
@@ -156,7 +154,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     buildSky,
     buildSkyWithGuide,
     buildToday,
-    renderMyNatal,
     renderFallback,
     renderWelcome,
     handleUtilities,

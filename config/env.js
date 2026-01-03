@@ -104,6 +104,10 @@ const LINE_ACCOUNT_NAME = getEnv("LINE_ACCOUNT_NAME", { defaultValue: null });
 const OWNER_LINE_USER_ID = getEnv("OWNER_LINE_USER_ID", { defaultValue: null });
 const MAX_LINE_TEXT = numEnv("MAX_LINE_TEXT", 4800);
 
+
+//Profile
+const OWNER_APP_USER_ID = getEnv("OWNER_APP_USER_ID", { defaultValue: null });
+
 // --------------------
 // Google Maps / Geocoding
 // --------------------
@@ -172,6 +176,9 @@ module.exports = {
   LINE_ACCOUNT_NAME,
   OWNER_LINE_USER_ID,
   MAX_LINE_TEXT,
+
+  //Profile
+  OWNER_APP_USER_ID,
 
   // Google Maps / Geo
   GOOGLE_MAPS_API_KEY,
