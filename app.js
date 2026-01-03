@@ -19,18 +19,30 @@ function createReqId() {
   return crypto.randomBytes(8).toString("hex");
 }
 
-function safeJsonMiddleware() {
-  const json = express.json({ limit: "2mb" });
-
-  return (req, res, next) => {
-    // LINE webhook は rawBody が読むので json は当てない
-    if (req.originalUrl.startsWith("/line/webhook")) {
-      return next();
-    }
-    return json(req, res, next);
-  };
+function isLineWebhookPath(req) {
+  // /line/webhook と、その配下（将来拡張）を全部除外
+  return req?.originalUrl?.startsWith("/line/webhook");
 }
 
+/**
+ * ✅ LINE webhook を “完全に” 除外する body parser
+ * - json も urlencoded も webhook では絶対に走らせない
+ * - rawBody は routes/line.js 側で読む（正解）
+ */
+function safeBodyParsers() {
+  const json = express.json({ limit: "2mb" });
+  const urlencoded = express.urlencoded({ extended: true, limit: "2mb" });
+
+  return (req, res, next) => {
+    if (isLineWebhookPath(req)) return next();
+
+    // JSON → urlencoded の順で当てる
+    json(req, res, (err) => {
+      if (err) return next(err);
+      urlencoded(req, res, next);
+    });
+  };
+}
 
 function maskSecrets(obj) {
   const clone = { ...(obj || {}) };
@@ -58,12 +70,11 @@ function buildMeta(deps) {
 // --------------------
 // createApp
 // --------------------
-
 function createApp(deps = {}) {
   const app = express();
   const env = deps.env || {};
 
-  // ✅ 追加：どのルータ/ミドルウェアからでも deps を参照できるようにする
+  // ✅ どこからでも deps を参照できる
   app.locals.deps = deps;
 
   app.disable("x-powered-by");
@@ -80,6 +91,8 @@ function createApp(deps = {}) {
     const start = Date.now();
     res.on("finish", () => {
       const ms = Date.now() - start;
+
+      // health はノイズなので抑制（/line/health も含めたいなら startsWith("/health") はそのまま）
       if (!req.originalUrl.startsWith("/health")) {
         console.log(
           `[${req.id}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`
@@ -89,9 +102,8 @@ function createApp(deps = {}) {
     next();
   });
 
-  // body parsers
-  app.use(safeJsonMiddleware());
-  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+  // ✅ body parsers（ここが肝）
+  app.use(safeBodyParsers());
 
   // --------------------
   // root / meta
@@ -121,8 +133,7 @@ function createApp(deps = {}) {
   // --------------------
   // feature routers
   // --------------------
-  const healthRouter = createHealthRouter(deps);
-  app.use("/health", healthRouter);
+  app.use("/health", createHealthRouter(deps));
 
   app.use("/transit", createTransitRouter(deps));
   app.use("/stories", createStoriesRouter(deps));
