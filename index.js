@@ -158,6 +158,7 @@ const deps = {
 };
 
 const app = createApp(deps);
+app.locals.deps = deps;
 
 // --------------------
 // Functions Framework
