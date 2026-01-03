@@ -707,9 +707,9 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     const ENABLE_PUSH = String(env2.WORKER_PUSH_NATAL_RESULT || "0") === "1";
     const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN || null;
 
-    const OWNER_ONLY =
-      env2.OWNER_APP_USER_ID &&
-      String(env2.OWNER_APP_USER_ID) === String(appUserId);
+    // const OWNER_ONLY =
+    //   env2.OWNER_APP_USER_ID &&
+    //   String(env2.OWNER_APP_USER_ID) === String(appUserId);
 
     // push自体をやらない条件なら「何もしない」で終わり（関数returnしない）
     if (!ENABLE_PUSH || !OWNER_ONLY || !accessToken) {
