@@ -71,12 +71,16 @@ function envFlag(v, defaultOn = true) {
 
 // ✅ deps補完ヘルパ（修正版・マージ型）
 function resolveDeps(req, initialDeps) {
-  const base = initialDeps && typeof initialDeps === "object" ? initialDeps : {};
-  const injected = req?.app?.locals?.deps;
-  const extra = injected && typeof injected === "object" ? injected : {};
+    const injected = req?.app?.locals?.deps || {};
+    const base = initialDeps || {};
 
-  // ✅ injected を優先して上書き（db/admin などの “必須” を落とさない）
-  return { ...base, ...extra };
+    // injected を優先して上書き（db/admin/renderers を確実に拾う）
+    const merged = { ...base, ...injected };
+
+    // env だけはオブジェクトをマージ（欠け防止）
+    merged.env = { ...(base.env || {}), ...(injected.env || {}) };
+
+    return merged;
 }
 
 // --------------------
@@ -273,20 +277,39 @@ function createLineRouter(deps = {}) {
             // signature verify
             const rawBuf = getRawBodyBuffer(req);
             const sig = req.header("x-line-signature");
-            const ver = verifySignature({ rawBodyBuf: rawBuf, signature: sig });
 
-            if (!ver.ok) {
-                console.log("[line:webhook] signature NG", {
+            // raw が取れてる時だけ厳密検証
+            if (rawBuf) {
+                const ver = verifySignature({ rawBodyBuf: rawBuf, signature: sig });
+
+                if (!ver.ok) {
+                    console.log("[line:webhook] signature NG", {
+                        request_id: requestId,
+                        reason: ver.reason,
+                        has_raw: !!rawBuf,
+                        raw_len: rawBuf?.length || 0,
+                        has_sig: !!sig,
+                    });
+                    if (LINE_WEBHOOK_STRICT) {
+                        return res.status(401).json({ ok: false, reason: ver.reason, request_id: requestId });
+                    }
+                    // non-strict は 200 で握る（再送ループ防止）
+                    return res.status(200).json({ ok: true });
+                }
+            } else {
+                // raw が取れない（Functions Framework等で先に body パース済みの可能性）
+                console.log("[line:webhook] raw body missing (soft)", {
                     request_id: requestId,
-                    reason: ver.reason,
-                    has_raw: !!rawBuf,
-                    raw_len: rawBuf?.length || 0,
+                    has_body: req.body != null,
                     has_sig: !!sig,
                 });
-                if (LINE_WEBHOOK_STRICT) return res.status(401).json({ ok: false, reason: ver.reason, request_id: requestId });
-                return res.status(200).json({ ok: true });
-            }
 
+                // strict の時だけ弾く
+                if (LINE_WEBHOOK_STRICT) {
+                    return res.status(401).json({ ok: false, reason: "raw body missing", request_id: requestId });
+                }
+                // non-strict は続行（req.body を使って処理する）
+            }
             // parse body
             let body = null;
             try {
