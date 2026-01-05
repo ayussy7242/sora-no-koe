@@ -14,9 +14,8 @@
  *
  * Notes:
  * - LINE API 制約（4800文字）に合わせて toSafeText で安全化
- * - 失敗ログを書きたい場合は posts_daily_delivery へ追記する運用が可能
+ * - dry_run=true のときは絶対に送らない（事故防止）
  */
-
 
 "use strict";
 
@@ -43,6 +42,13 @@ function normLower(x, fallback = "") {
 function pickTarget(x) {
   const t = normLower(x, "all");
   return t === "owner" ? "owner" : "all";
+}
+function toBool(v, defaultValue = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v === undefined || v === null || v === "") return defaultValue;
+  const s = String(v).trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
 }
 
 // LINE push
@@ -75,13 +81,14 @@ async function sendDaily8(deps, opts = {}) {
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const target = pickTarget(opts.target);
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run, false);
 
   const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
 
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
 
-  // owner は1件だけ読む
+  // ---------- owner ----------
   if (target === "owner") {
     const ownerAppUserId = env.OWNER_APP_USER_ID;
     if (!ownerAppUserId) throw new Error("OWNER_APP_USER_ID not set");
@@ -90,27 +97,46 @@ async function sendDaily8(deps, opts = {}) {
     if (!snap.exists) throw new Error(`outbox missing for owner: ${dateLocal}`);
 
     const item = snap.data() || {};
-    await linePushText({ accessToken, to: item.line_user_id, text: item.text });
+    if (!item.line_user_id) throw new Error("outbox item missing line_user_id");
+    if (!isNonEmptyText(item.text)) throw new Error("outbox item text empty");
 
-    return { ok: true, date_local: dateLocal, target, sent: 1 };
+    if (!dryRun) {
+      await linePushText({ accessToken, to: item.line_user_id, text: item.text });
+      return { ok: true, date_local: dateLocal, target, sent: 1, failed: 0, dry_run: dryRun };
+    }
+    return { ok: true, date_local: dateLocal, target, sent: 0, failed: 0, dry_run: dryRun };
   }
 
-  // all は outbox 全件
+  // ---------- all ----------
   const qsnap = await outboxRoot.get();
+  const planned = qsnap.size;
   let sent = 0, failed = 0;
 
   for (const doc of qsnap.docs) {
     const item = doc.data() || {};
     try {
-      await linePushText({ accessToken, to: item.line_user_id, text: item.text });
-      sent++;
-    } catch (e) {
+      if (!item.line_user_id) throw new Error("missing line_user_id");
+      if (!isNonEmptyText(item.text)) throw new Error("text empty");
+
+      if (!dryRun) {
+        await linePushText({ accessToken, to: item.line_user_id, text: item.text });
+        sent++;
+      }
+    } catch (_e) {
       failed++;
-      // 必要ならここで失敗ログを書いてもOK（posts_daily_delivery流用でも良い）
+      // ここで delivery ログ書くなら追加可能
     }
   }
 
-  return { ok: failed === 0, date_local: dateLocal, target, sent, failed };
+  return {
+    ok: failed === 0,
+    date_local: dateLocal,
+    target,
+    planned,
+    sent: dryRun ? 0 : sent,
+    failed,
+    dry_run: dryRun,
+  };
 }
 
 module.exports = { sendDaily8 };
