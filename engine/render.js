@@ -680,11 +680,18 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const deg = fmtDeg(tp.aspect_deg);
     const orb = fmtDeg(tp.orb_deg);
 
-    const title = `${labelPrefix}${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`;
-    const mean = oneLineMeaning({ aKey, bKey, aspectType: tp.aspect });
+    const { LABELS } = RENDER_COPY;
 
+    const title =
+      `${labelPrefix}` +
+      `${LABELS?.NATAL || "ネイタル："}${aJa}${aSign} × ` +
+      `${LABELS?.TRANSIT || "トランジット："}${bJa}${bSign}` +
+      `｜${aspJa}（${deg}°｜orb ${orb}°）`;
+
+    const mean = oneLineMeaning({ aKey, bKey, aspectType: tp.aspect });
     return `${title}\n${mean}`;
   }
+
 
 
 
