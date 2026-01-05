@@ -7,6 +7,8 @@
  * - utilities (help/start/reset/cancel/test/ping) もここ
  */
 
+const { LINE_COPY } = require("../copy");
+
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser is required");
@@ -19,38 +21,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   const BOT_NAME = config.LINE_ACCOUNT_NAME || config.BOT_NAME || "ソラのこえ。｜今日の星を置く🌌";
 
-  const TEXT = {
-    HELP:
-      "使い方🌌\n\n" +
-      "■ コマンドは3つ\n" +
-      "・「今日」/「きょう」：登録があれば personal / 未登録なら public\n" +
-      "・「そら」：空の構造だけ（public）\n" +
-      "・「わたしのほし」：ネイタル一覧（ASC/MC含む）\n\n" +
-      "■ 個人版登録\n" +
-      "・「はじめる」\n\n" +
-      "登録で聞くもの（不明OK）\n" +
-      "1) 生年月日（例：1990-07-24 / 19900724）\n" +
-      "2) 出生時刻（例：12:18）\n" +
-      "3) 出生地（例：札幌 / Yokohama / Tono, Iwate）",
-    FALLBACK:
-      "コマンドはこの3つだけ🌌\n" +
-      "「今日」/「きょう」\n" +
-      "「そら」\n" +
-      "「わたしのほし」\n\n" +
-      "個人版の登録は「はじめる」",
-    START_NATAL:
-      "個人版（あなたの回路）を登録するよ🌌\n\n" +
-      "まずは【生年月日】を送ってね。\n" +
-      "例：1990-07-24（または 19900724）\n\n" +
-      "わからなければ「不明」でもOK。\n" +
-      "やめるなら「やめる」",
-    CANCELLED:
-      "OK、登録は中断したよ🌌\n" +
-      "またやるなら「はじめる」\n" +
-      "今日だけ見るなら「そら」/「今日」",
-    RESET_DONE: "ネイタル登録をリセットしたよ🌌\nもう一回やるなら「はじめる」",
-    TEST_ACK: "OK🌌 受け取った。\n「今日」/「そら」/「わたしのほし」\n登録は「はじめる」🕊️",
-  };
 
   function safeText(s) {
     const x = s == null ? "" : String(s);
@@ -105,23 +75,15 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   function renderFallback() {
-    return TEXT.FALLBACK;
+    return LINE_COPY.FALLBACK;
   }
 
   function renderWelcome(profile) {
     const nickname = profile?.displayName || "あなた";
-    return (
-      `${nickname}さん\n` +
-      `はじめまして！${BOT_NAME}です。\n` +
-      "友だち追加ありがとう🛸✨\n\n" +
-      "ここは「占い」じゃなくて、\n" +
-      "今日の星の配置を“そのまま置く”場所。\n" +
-      "解釈は、あなたのもの。\n\n" +
-      "「はじめる」→ 個人版（あなたの回路）を登録\n" +
-      "「そら」→ 空の構造（public）\n" +
-      "「使い方」→ ヘルプ\n\n" +
-      "（わからないところは「不明」でOK）"
-    );
+    return LINE_COPY.WELCOME({
+      nickname,
+      botName: BOT_NAME,
+    });
   }
 
   // utilities handler
@@ -129,22 +91,22 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     const c = String(cmd || "").trim();
 
     if (/^(ping)$/i.test(c)) return { text: "pong" };
-    if (/^(test|てすと|テスト)$/i.test(c)) return { text: TEXT.TEST_ACK };
-    if (/^(help|使い方|へるぷ)$/i.test(c)) return { text: TEXT.HELP };
+    if (/^(test|てすと|テスト)$/i.test(c)) return { text: LINE_COPY.TEST_ACK };
+    if (/^(help|使い方|へるぷ)$/i.test(c)) return { text: LINE_COPY.HELP };
 
     if (/^(やめる|中止|cancel|stop)$/i.test(c)) {
       if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.READY);
-      return { text: TEXT.CANCELLED };
+      return { text: LINE_COPY.CANCELLED };
     }
 
     if (/^(リセット|reset|最初から|はじめから|最初からやり直す|はじめからやり直す)$/i.test(c)) {
       if (natal?.resetNatal) await natal.resetNatal(appUserId, lineUserId);
-      return { text: TEXT.RESET_DONE };
+      return { text: LINE_COPY.RESET_DONE };
     }
 
     if (/^(はじめる|始める|start|begin)$/i.test(c)) {
       if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.PENDING_BIRTH_DATE);
-      return { text: TEXT.START_NATAL };
+      return { text: LINE_COPY.START_NATAL };
     }
 
     return null;

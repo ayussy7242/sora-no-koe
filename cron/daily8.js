@@ -1,18 +1,20 @@
 "use strict";
 
 /**
- * cron/daily8.js — Unified STABLE (v2026.01 unified)
+ * cron/daily8.js (legacy / unified sender)
  *
- * ✅ target:
- *  - "all"   : users条件に合う全員
- *  - "owner" : OWNER_APP_USER_ID + OWNER_LINE_USER_ID のみ
+ * Role:
+ * - 旧方式：対象抽出 → story生成 → renderer → LINE push を1ジョブで完結させる。
  *
- * ✅ mode:
- *  - "today" : storyService.buildStoryForUser(mode="auto") → renderer
- *  - "sky"   : storyService.buildStoryForUser(appUserId="public", mode="public") → renderer
+ * Current Policy (IMPORTANT):
+ * - 運用は rebuild8 (07:58) + send8 (08:00) に分割したため、
+ *   daily8 は通常スケジュールから外す（同時実行による二重送信防止）。
  *
- * ✅ logs:
- * posts_daily_delivery/{dateLocal}/deliveries/{appUserId}  (appUserIdは実IDで統一)
+ * Use Cases:
+ * - 手動テスト / 一時的な緊急配信 / outbox方式へ移行する前の互換運用
+ *
+ * Logs:
+ * - posts_daily_delivery/{dateLocal}/deliveries/{appUserId} に送信結果を記録
  */
 
 function isYYYYMMDD(s) {

@@ -28,6 +28,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const PLANETS_META_IN = dict?.PLANETS_META || null;
   const POINTS_META_IN = dict?.POINTS_META || null;
 
+  // COPY
+  const { RENDER_COPY } = require("../copy");
+
   // --------------------
   // internal safe JA maps (in case dict is missing)
   // --------------------
@@ -157,8 +160,27 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // sign helpers
   // --------------------
   function signMeta(signKey) {
-    return SIGNS_V1?.signs?.[signKey] || null;
+    const raw = String(signKey || "");
+    const lower = raw.toLowerCase();
+
+    // 1) dictが "leo" 形式（小文字）ならここで取れる
+    const byLower = SIGNS_V1?.signs?.[lower];
+    if (byLower) return byLower;
+
+    // 2) もし dict が "Leo" 形式（先頭大文字）で持ってる場合
+    const byRaw = SIGNS_V1?.signs?.[raw];
+    if (byRaw) return byRaw;
+
+    // 3) もし dict が "Leo" じゃなくて "LEO" とか変な形でも保険（キー一覧を舐める）
+    const signs = SIGNS_V1?.signs;
+    if (signs && typeof signs === "object") {
+      const hitKey = Object.keys(signs).find((k) => String(k).toLowerCase() === lower);
+      if (hitKey) return signs[hitKey];
+    }
+
+    return null;
   }
+
 
   function signJaFromIndex(signIndex) {
     const FALLBACK_SIGNS_JA = [
@@ -197,12 +219,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       null
     );
   }
-
-  function withSignJaPublic(story, bodyKey) {
-    const s = story?.public?.transit_signs?.[bodyKey]?.sign_ja;
-    return s ? `（${s}）` : "";
-  }
-
 
   /**
    * publicSignJa:
@@ -331,8 +347,10 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const left = aCore ? `${aLabel}（${aCore}）` : aLabel;
     const right = bCore ? `${bLabel}（${bCore}）` : bLabel;
 
-    if (ac) return `${left} と ${right} が「${ac}」の質感で触れやすい配置。`;
-    return `${left} と ${right} の噛み合い方が動きやすい配置。`;
+    if (ac) {
+      return RENDER_COPY.MEANING_WITH_ASPECT_CORE(left, right, ac);
+    }
+    return RENDER_COPY.MEANING_NO_ASPECT_CORE(left, right);
   }
 
   // --------------------
@@ -346,54 +364,24 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const modality = s?.modality || null;
     const signJa = s?.label_ja || story?.public?.moon?.sign_ja || null;
 
-    const poolByElement = {
-      fire: [
-        "火はあるけど、点火は急がなくていい。",
-        "熱を一点に集める前に、余白を残すと綺麗。",
-        "勢いより、芯の温度を確かめると落ち着く。",
-      ],
-      earth: [
-        "情報を増やすより、形を整えるほど楽になる。",
-        "小さく整えるだけで、輪郭が戻りやすい。",
-        "やることを減らすほど、手触りが良くなる。",
-      ],
-      air: [
-        "考えを増やすより、言葉を軽く並べ直すと通る。",
-        "整理すると、会話や情報の流れが戻りやすい。",
-        "結論を急がず、視点を入れ替えるだけで十分。",
-      ],
-      water: [
-        "反応を説明しなくていい。余韻だけ残してOK。",
-        "気持ちはそのまま置くと、自然に沈んでいく。",
-        "境界を薄くしすぎず、距離感を整えると楽。",
-      ],
-      default: [
-        "強い接触が少ない分、余白が扱いやすい。",
-        "今日は静かな配置。増やさず整えると軽い。",
-        "外より内のノイズが減りやすい。",
-      ],
-    };
-
-    const poolByModality = {
-      cardinal: ["始める前の整地が効く。", "最初の一手を小さくするほど綺麗。"],
-      fixed: ["守るものを決めると安定する。", "変えない場所があると楽。"],
-      mutable: ["微調整で十分。やり直しが軽い。", "流れに合わせて少しだけ変える。"],
-      default: [""],
-    };
-
+    // 🔑 seed（日付＋ユーザーで安定）
     const dateLocal = story?.meta?.date_local || "";
     const userId = story?.personal?.user_id || "public";
+
     const seedBase = `${dateLocal}|${userId}|no_contact`;
 
-    const aPool = poolByElement[element] || poolByElement.default;
+    const pools = RENDER_COPY.NO_CONTACT;
+
+    const aPool = pools.byElement[element] || pools.byElement.default;
     const a = pickStable(aPool, seedBase + "|a");
 
-    const bPool = poolByModality[modality] || poolByModality.default;
+    const bPool = pools.byModality[modality] || pools.byModality.default;
     const b = pickStable(bPool, seedBase + "|b") || "";
 
-    const head = signJa ? `（月は ${signJa} の空気）` : "";
-    return `${head}${head ? " " : ""}${a}${b ? " " + b : ""}`.trim();
+    const head = pools.headMoonTaste(signJa);
+    return pools.glue(head, a, b);
   }
+
 
   function buildYoinLine(story) {
     const { rows } = getTodayContacts(story);
@@ -443,11 +431,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const s = moonSignKey ? signMeta(moonSignKey) : null;
 
     const hint = s?.core || s?.sora_short || s?.field || null;
-    const tail = hint ? `（${hint}）` : "";
 
-    return moonSignJa
-      ? `【今日の月の位置】\n月は ${moonSignJa}${tail ? " " + tail : ""} を通過中。`
-      : `【今日の月の位置】\n月のサインは取得中。`;
+    if (moonSignJa) {
+      return RENDER_COPY.MOON_LINE_OK(moonSignJa, hint);
+    }
+    return RENDER_COPY.MOON_LINE_LOADING();
+
   }
 
   // --------------------
@@ -509,20 +498,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       null;
 
     if (!bodies || typeof bodies !== "object") {
-      return "🌌 わたしのほし（ネイタル一覧）\n\n（まだネイタルが準備中みたい）\n「はじめる」から登録してみてね🕊️";
+      return RENDER_COPY.NATAL_LIST.NOT_READY();
     }
 
     const { asc, mc } = pickAnglesFromNatalCache(d);
 
     if (!Number.isFinite(Number(asc)) || !Number.isFinite(Number(mc))) {
-      return [
-        "🌌 わたしのほし（ネイタル一覧）",
-        "",
-        "ASC/MC がまだ見つからなかった🙏",
-        "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
-        "",
-        "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるからここでは止めてる。",
-      ].join("\n");
+      return RENDER_COPY.NATAL_LIST.MISSING_ANGLES();
     }
 
     const order = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
@@ -545,68 +527,166 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       lines.push(`${glyph[k]} ${label}：${str}`);
     }
 
-    const note =
-      "\n※ これは「配置」の一覧です。\n" +
-      "※ 意味や解釈は置いていません。\n\n" +
-      "星は語る。\n決めるのは、人。";
+    const note = RENDER_COPY.NATAL_LIST.NOTE();
 
-    return ["🌌 わたしのほし（ネイタル一覧）", "", ...lines, note].join("\n");
+    return [RENDER_COPY.HEAD_NATAL_LIST, "", ...lines, note].join("\n");
   }
 
   // --------------------
-  // LINE v3
+  // LINE v3 (STABLE / Unified)
+  // - copyはRENDER_COPYのみ参照（直書きしない）
+  // - personal層は重複（touchとhidden等）を除去して表示
+  // - 足りない場合も落ちずに自然に出す
   // --------------------
   function renderLine(story) {
     const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
-    const { hasNatal, rows } = getTodayContacts(story);
+    const layers = getSkyLayers(story);
 
-    const head2 = hasNatal
-      ? "【今日の星の配置（あなたの座標と空の構造）】"
-      : "【今日の星の配置（空の構造）】";
+    const hasPersonal = !!layers; // sky_layers があれば personal 表示
+    const head = hasPersonal ? RENDER_COPY.HEAD_PERSONAL : RENDER_COPY.HEAD_PUBLIC;
 
-    const circ = ["①", "②", "③"];
+    let bodyBlock = "";
 
-    const lines = rows.map((r, i) => {
-      const aJa = fmtAnyJa(r.aKey);
-      const bJa = fmtAnyJa(r.bKey);
-      const aspJa = fmtAspectJa(r.aspectType);
-      const deg = fmtDeg(r.aspectDeg);
-      const orb = fmtDeg(r.orb);
+    // --- helper: personal TP uniqueness ---
+    function tpKey(tp) {
+      if (!tp) return "";
+      // 最低限同一判定に必要な三要素
+      return `${tp.natal_body_or_point || ""}|${tp.transit_body || ""}|${tp.aspect || ""}`;
+    }
 
-      // ✅ 星座（サイン）
-      const aSignJa = hasNatal ? r.natalSignJa : (r.aSignJa || publicSignJa(story, r.aKey));
-      const bSignJa = hasNatal ? r.transitSignJa : (r.bSignJa || publicSignJa(story, r.bKey));
+    if (hasPersonal) {
+      const theme0 = layers.theme?.[0] || null;
+      const touch = Array.isArray(layers.touch) ? layers.touch : [];
+      const hidden0 = layers.hidden?.[0] || null;
 
-      const aSign = aSignJa ? `（${aSignJa}）` : "";
-      const bSign = bSignJa ? `（${bSignJa}）` : "";
+      const used = new Set();
+      const parts = [];
 
-      const title = hasNatal
-        ? `${circ[i] || `${i + 1}.`} ネイタル: ${aJa}${aSign} × トランジット: ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`
-        : `${circ[i] || `${i + 1}.`} ${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`;
+      // copy 正本（固定文言は render.js に置かない）
+      const { HEAD_LAYERS, CIRCLES } = RENDER_COPY;
+      // ① Theme（1つ）
+      if (theme0) {
+        used.add(tpKey(theme0));
+        parts.push(
+          `${HEAD_LAYERS.THEME}\n` +
+          formatPersonalTPLine(story, theme0, `${CIRCLES[0]} `)
+        );
+      }
 
-      const mean = oneLineMeaning({ aKey: r.aKey, bKey: r.bKey, aspectType: r.aspectType });
-      return `${title}\n${mean}`;
-    });
+      // ②③ Touch（最大2つ）
+      if (touch[0]) {
+        used.add(tpKey(touch[0]));
+        parts.push(
+          `${HEAD_LAYERS.TOUCH}\n` +
+          formatPersonalTPLine(story, touch[0], `${CIRCLES[1]} `)
+        );
+      }
+
+      if (touch[1]) {
+        used.add(tpKey(touch[1]));
+        // 同セクション内で続ける（見出しは付けない）
+        parts.push(
+          formatPersonalTPLine(story, touch[1], `${CIRCLES[2]} `)
+        );
+      }
+
+      // Hidden（重複してたら出さない）
+      const hidden = hidden0 && !used.has(tpKey(hidden0)) ? hidden0 : null;
+
+      if (hidden) {
+        parts.push(
+          `${HEAD_LAYERS.HIDDEN}\n` +
+          formatPersonalTPLine(story, hidden, "・")
+        );
+      }
+
+      // もしpersonal層が全部空なら、余白文言へ（落とさない）
+      bodyBlock = parts.filter(Boolean).join("\n\n");
+      if (!bodyBlock) bodyBlock = buildNoContactLine(story);
+    } else {
+      // --- public top3 (従来) ---
+      const { rows } = getTodayContacts(story);
+      const circ = Array.isArray(RENDER_COPY.CIRCLES) ? RENDER_COPY.CIRCLES : ["①", "②", "③"];
+
+      const lines = rows.map((r, i) => {
+        const aJa = fmtAnyJa(r.aKey);
+        const bJa = fmtAnyJa(r.bKey);
+
+        const aspJa = fmtAspectJa(r.aspectType);
+        const deg = fmtDeg(r.aspectDeg);
+        const orb = fmtDeg(r.orb);
+
+        const aSignJa = r.aSignJa || publicSignJa(story, r.aKey);
+        const bSignJa = r.bSignJa || publicSignJa(story, r.bKey);
+
+        const aSign = aSignJa ? `（${aSignJa}）` : "";
+        const bSign = bSignJa ? `（${bSignJa}）` : "";
+
+        const title = `${circ[i] || `${i + 1}.`} ${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`;
+        const mean = oneLineMeaning({ aKey: r.aKey, bKey: r.bKey, aspectType: r.aspectType });
+
+        return `${title}\n${mean}`;
+      });
+
+      bodyBlock = lines.length ? lines.join("\n\n") : buildNoContactLine(story);
+    }
 
     const moonLine = buildMoonLine(story);
     const yoin = buildYoinLine(story);
-    const noContact = buildNoContactLine(story);
 
     return [
-      `🌌 今日のソラのこえ。｜${dateLabel}`,
-      ``,
-      head2,
-      lines.length ? lines.join("\n\n") : noContact,
-      ``,
+      RENDER_COPY.LINE_TITLE(dateLabel),
+      "",
+      head,
+      "",
+      bodyBlock,
+      "",
       moonLine,
-      ``,
-      `【今日の余韻】`,
+      "",
+      RENDER_COPY.HEAD_YOIN,
       yoin,
-      ``,
-      `解釈は、あなたのもの。`,
-      `星は語る。決めるのは、人。`,
+      "",
+      ...RENDER_COPY.FOOTER_LINE,
     ].join("\n");
   }
+
+
+
+
+  function getSkyLayers(story) {
+    const layers = story?.personal?.sky_layers;
+    if (!layers) return null;
+
+    const theme = Array.isArray(layers.theme) ? layers.theme : [];
+    const touch = Array.isArray(layers.touch) ? layers.touch : [];
+    const hidden = Array.isArray(layers.hidden) ? layers.hidden : [];
+
+    return { theme, touch, hidden };
+  }
+
+  function formatPersonalTPLine(story, tp, labelPrefix = "") {
+    if (!tp) return "";
+
+    const aKey = tp.natal_body_or_point;
+    const bKey = tp.transit_body;
+
+    const aJa = fmtAnyJa(aKey);
+    const bJa = fmtAnyJa(bKey);
+
+    const aSign = tp.natal_sign_ja ? `（${tp.natal_sign_ja}）` : "";
+    const bSign = tp.transit_sign_ja ? `（${tp.transit_sign_ja}）` : "";
+
+    const aspJa = fmtAspectJa(tp.aspect);
+    const deg = fmtDeg(tp.aspect_deg);
+    const orb = fmtDeg(tp.orb_deg);
+
+    const title = `${labelPrefix}${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（${deg}°｜orb ${orb}°）`;
+    const mean = oneLineMeaning({ aKey, bKey, aspectType: tp.aspect });
+
+    return `${title}\n${mean}`;
+  }
+
+
 
   // --------------------
   // X / IG
@@ -631,13 +711,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const moonLine = moonSign ? `\n月は ${moonSign} を通過中。` : "";
     const yoin = buildYoinLine(story);
 
-    return `🌌 ソラのこえ。
-［${dateLabel}｜空の配置］${moonLine}
-
-${skyLines}
-
-余韻：${yoin}
-解釈は、あなたのもの。`;
+    return RENDER_COPY.X_FORMAT.BLOCK({
+      dateLabel,
+      moonLine,
+      skyLines,
+      yoin,
+    });
   }
 
 
@@ -661,18 +740,12 @@ ${skyLines}
     const moonLine = moonSign ? `月は ${moonSign} を通過中。` : "月のサインは取得中。";
     const yoin = buildYoinLine(story);
 
-    return `🌌 ソラのこえ。｜${dateLabel}
-
-${moonLine}
-
-【空の主な配置】
-${skyLines}
-
-【余韻】
-${yoin}
-
-解釈は、あなたのもの。
-星は語る。決めるのは、人。`;
+    return RENDER_COPY.IG_FORMAT.BLOCK({
+      dateLabel,
+      moonLine,
+      skyLines,
+      yoin,
+    });
   }
 
 
