@@ -75,6 +75,7 @@ function pickTarget(x) {
   return t === "owner" ? "owner" : "all";
 }
 
+
 // -------------------- router factory --------------------
 function createCronRouter(deps = {}) {
   const router = express.Router();
@@ -162,7 +163,7 @@ function createCronRouter(deps = {}) {
       return res.status(500).json({ ok: false, error: e?.message || String(e) });
     }
   });
-
+  
   router.post("/send8", async (req, res) => {
     const gate = requireCronToken(req);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
@@ -170,15 +171,24 @@ function createCronRouter(deps = {}) {
     try {
       const q = req.query || {};
       const b = req.body || {};
-      const dateLocal = isYYYYMMDD(b.date_local || q.date_local) ? String(b.date_local || q.date_local) : toDateLocalJST();
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
+
       const target = pickTarget(b.target ?? q.target);
 
-      const result = await sendDaily8({ db, admin, env }, { dateLocal, target });
+      // ✅ 追加：dry_run を拾う（クエリ/ボディ両対応）
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+
+      // ✅ 追加：dryRun を sendDaily8 に渡す
+      const result = await sendDaily8({ db, admin, env }, { dateLocal, target, dryRun });
+
       return res.json(result);
     } catch (e) {
-      return res.status(500).json({ ok: false, error: e?.message || String(e) });
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/send8" });
     }
   });
+
 
   // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {
