@@ -1,8 +1,27 @@
+/*  定期配信は 2段構えで固定：
+ *  - 07:58  /cron/rebuild8  : story再生成 + text再生成 → outbox保存（送信しない）
+ *  - 08:00  /cron/send8     : outboxを読むだけでLINE push（生成しない）
+ *
+ * /cron/daily8 は “レガシー兼デバッグ用”：
+ *  - 生成 + 即送信（outboxを使わない）
+ *  - Cloud Schedulerの定期運用では使用しない（手動検証・臨時配信向け）
+ *
+ * mode:
+ *  - today : personal（storyService mode="auto"）
+ *  - sky   : public sky（appUserId="public", mode="public"）
+ *
+ * target:
+ *  - owner : OWNER_APP_USER_ID + OWNER_LINE_USER_ID のみ
+ *  - all   : users条件（active / natal.enabled / natal.delivery.daily_8）に合う全員
+ */
+
 "use strict";
 
 const express = require("express");
 const { handleJobsWorker } = require("../jobs/worker");
 const { runDaily8 } = require("../cron/daily8");
+const { rebuildDaily8 } = require("../cron/rebuild");
+const { sendDaily8 } = require("../cron/send");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -64,6 +83,7 @@ function createCronRouter(deps = {}) {
   router.use(express.json({ limit: "1mb" }));
 
   const env = deps.env || {};
+  const env2 = { ...(env || {}), ...(process.env || {}) };
   const db = deps.db;
   const admin = deps.admin;
   const swisseph = deps.swisseph;
@@ -79,7 +99,7 @@ function createCronRouter(deps = {}) {
 
   function requireCronToken(req) {
     const token = req.header("x-cron-token") || "";
-    const CRON_TOKEN = env.CRON_TOKEN;
+    const CRON_TOKEN = env2.CRON_TOKEN;
 
     if (!CRON_TOKEN) return { ok: false, status: 500, message: "CRON_TOKEN is not set" };
     if (String(token) !== String(CRON_TOKEN)) return { ok: false, status: 401, message: "invalid cron token" };
@@ -97,89 +117,6 @@ function createCronRouter(deps = {}) {
     });
   });
 
-  // POST /cron/daily : posts_daily 生成
-  router.post("/daily", async (req, res) => {
-    const gate = requireCronToken(req);
-    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily" });
-
-    try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const appUserId = String(b.app_user_id || q.app_user_id || "public");
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-
-      const asOfRaw = b.as_of || q.as_of;
-      const asOfISO = isValidISO(asOfRaw) ? String(asOfRaw) : asOfIsoFromDateLocalJST(dateLocal);
-
-      const orbMaxDeg = clamp(toNumberSafe(b.orb ?? q.orb, 6), 0.1, 12);
-      const precisionDeg = clamp(toNumberSafe(b.precision ?? q.precision, 0.01), 0.001, 1);
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const isPublic = String(appUserId) === "public";
-
-      const story = await storyService.buildStoryForUser({
-        appUserId,
-        ...(isPublic ? { mode: "public" } : { mode: "auto" }),
-        dateLocal,
-        asOfISO,
-        orbMaxDeg,
-        precisionDeg,
-      });
-
-      const texts = {
-        line: renderers.renderLine(story),
-        x: renderers.renderX(story),
-        ig: renderers.renderIG(story),
-      };
-
-      const story_doc_id = `${appUserId}-${dateLocal}`;
-      const posts_doc_id = `${dateLocal}`;
-      let saved = false;
-
-      if (!dryRun) {
-        await db.collection("stories").doc(story_doc_id).set(story, { merge: true });
-
-        await db.collection("posts_daily").doc(posts_doc_id).set(
-          {
-            meta: {
-              project: env.PROJECT,
-              timezone: env.DEFAULT_TZ,
-              schema_version: env.SCHEMA_VERSION,
-              date_local: dateLocal,
-              as_of: asOfISO,
-              generated_at_utc: new Date().toISOString(),
-            },
-            app_user_id: appUserId,
-            texts,
-            story_ref: { collection: "stories", doc_id: story_doc_id },
-          },
-          { merge: true }
-        );
-
-        saved = true;
-      }
-
-      return res.json({
-        ok: true,
-        dry_run: dryRun,
-        saved,
-        date_local: dateLocal,
-        as_of: asOfISO,
-        app_user_id: appUserId,
-        story_doc_id,
-        posts_doc_id,
-        preview: {
-          sky_top: story?.public?.sky_top || [],
-          moon: story?.public?.moon || null,
-        },
-      });
-    } catch (e) {
-      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily" });
-    }
-  });
 
   // ✅ POST /cron/daily8 : LINE配信 + posts_daily_delivery ログ
   router.post("/daily8", async (req, res) => {
@@ -208,6 +145,41 @@ function createCronRouter(deps = {}) {
     }
   });
 
+  router.post("/rebuild8", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+      const dateLocal = isYYYYMMDD(b.date_local || q.date_local) ? String(b.date_local || q.date_local) : toDateLocalJST();
+      const mode = pickMode(b.mode ?? q.mode);
+      const target = pickTarget(b.target ?? q.target);
+
+      const result = await rebuildDaily8({ db, admin, env, storyService, renderers }, { dateLocal, mode, target });
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    }
+  });
+
+  router.post("/send8", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+      const dateLocal = isYYYYMMDD(b.date_local || q.date_local) ? String(b.date_local || q.date_local) : toDateLocalJST();
+      const target = pickTarget(b.target ?? q.target);
+
+      const result = await sendDaily8({ db, admin, env }, { dateLocal, target });
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    }
+  });
+
   // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {
     const gate = requireCronToken(req);
@@ -229,3 +201,4 @@ function createCronRouter(deps = {}) {
 }
 
 module.exports = { createCronRouter };
+

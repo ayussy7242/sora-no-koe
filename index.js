@@ -8,6 +8,12 @@
  */
 "use strict";
 
+
+const path = require("path");          // ← これが抜けてた！
+require("dotenv").config({
+  path: path.join(__dirname, ".env"),
+});
+
 const functions = require("@google-cloud/functions-framework");
 const { createApp } = require("./app");
 

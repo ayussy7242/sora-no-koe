@@ -80,8 +80,15 @@ function createStoryService({
   // ------------------------
   function signKeyFromLon(lonDeg) {
     const idx = Math.floor(norm360(lonDeg) / 30);
-    return SIGNS_V1?.order?.[idx] ?? null;
+
+    const fallbackOrder = [
+      "aries", "taurus", "gemini", "cancer", "leo", "virgo",
+      "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"
+    ];
+
+    return SIGNS_V1?.order?.[idx] ?? fallbackOrder[idx] ?? null;
   }
+
 
   function signJaFromKey(signKey) {
     return SIGNS_V1?.signs?.[signKey]?.label_ja ?? null;
@@ -360,6 +367,7 @@ function createStoryService({
         date_local: dateLocal,
         as_of: asOfISO,
         generated_at_utc: nowIso(),
+        user_id: appUserId, // ←これ追加
         engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
         rules,
       },
@@ -405,14 +413,69 @@ function createStoryService({
     return story; // no personal at all
   }
 
+
+  function buildSkyLayersFromTouchPoints(tps = []) {
+    const sorted = [...tps].sort((a, b) => (a.orb_deg ?? 99) - (b.orb_deg ?? 99));
+
+    const slow = new Set(["Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]);
+    const lum = new Set(["Sun", "Moon"]);
+
+    // theme：遅い天体が絡む & orb小 を最優先。なければ最小orb
+    const themeOne =
+      sorted.find(x => slow.has(x.transit_body) || slow.has(x.natal_body_or_point)) ??
+      sorted[0] ??
+      null;
+
+    // touch：今日ひっかかりやすい＝orb小 +（個人座標に触れやすい点を少し優遇）
+    // 例：ASC/MC/太陽/月あたりを優遇（好みで調整）
+    const importantNatal = new Set(["ASC", "MC", "Sun", "Moon", "Mercury", "Venus", "Mars"]);
+    const touchPool = sorted
+      .filter(x => x !== themeOne)
+      .sort((a, b) => {
+        const ai = importantNatal.has(a.natal_body_or_point) ? -0.15 : 0;
+        const bi = importantNatal.has(b.natal_body_or_point) ? -0.15 : 0;
+        return (a.orb_deg ?? 99) + ai - ((b.orb_deg ?? 99) + bi);
+      });
+
+    const touch = touchPool.slice(0, 2);
+
+    // hidden：超タイト(<=0.3)があればそれ。なければ「遅い×そこそこタイト」
+    const hiddenOne =
+      sorted.find(x => x !== themeOne && (x.orb_deg ?? 99) <= 0.3) ??
+      sorted.find(x =>
+        x !== themeOne &&
+        (slow.has(x.transit_body) || slow.has(x.natal_body_or_point)) &&
+        (x.orb_deg ?? 99) <= 1.2
+      ) ??
+      null;
+
+    const hidden = hiddenOne ? [hiddenOne] : [];
+
+    return { theme: themeOne ? [themeOne] : [], touch, hidden };
+  }
+
   function buildPersonalStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg, touchPointsAll }) {
     const story = baseStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
+
+    // ✅ 三層にするには Top3 じゃなく候補も必要
+    const touch_points_all = pickTopByOrb(touchPointsAll, 18); // 12〜20でOK
+    const sky_layers = buildSkyLayersFromTouchPoints(touch_points_all);
+
     story.personal = {
       user_id: appUserId,
       user: { display_name: displayName ?? null },
       privacy: { contains_personal_data: true, allowed_channels: ["line"] },
-      touch_points_top3: pickTopByOrb(touchPointsAll, 3),
+
+      // ✅ 元データ（候補）
+      touch_points_all,
+
+      // ✅ 従来互換（今のrenderがTop3参照してても壊れない）
+      touch_points_top3: touch_points_all.slice(0, 3),
+
+      // ✅ 三層
+      sky_layers,
     };
+
     attachResonanceBullets(story, { allowPersonal: true });
     return story;
   }
@@ -444,7 +507,7 @@ function createStoryService({
         const ud = u.data() || {};
         displayName = ud.display_name ?? ud?.profile?.display_name ?? ud?.channels?.line?.profile?.display_name ?? null;
       }
-    } catch (_e) {}
+    } catch (_e) { }
 
     const transitInfo = computeTransitsSwiss(asOfISO, prec);
 
