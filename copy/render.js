@@ -1,10 +1,11 @@
 "use strict";
 
 /**
- * copy/render.js — V1 正本（Render Copy）
- * - render.js が出す「固定文言」をすべてここに集約
- * - Bトーン（少しだけ可愛い / アイコン寄せ）だけど、星の“中身”は占い化しない
- * - render.js からは「文字列を組む」だけにする
+ * copy/render.js — 正本（Render Copy）
+ * - render.js が出す「固定文言」をここに集約
+ * - トンマナ統一：「占いじゃない／構造を置く／解釈はあなた」
+ * - 用語統一：「あなたの星」「今日のソラ」「今日の星（あなたの星×今日のソラ）」
+ * - render.js は “組み立て” だけ（判断しない）
  */
 
 const RENDER_COPY = Object.freeze({
@@ -20,14 +21,14 @@ const RENDER_COPY = Object.freeze({
     IG_TITLE: (dateLabel) => `🌌 ソラのこえ。｜${dateLabel}`,
 
     // --------------------
-    // Section Heads
+    // Section Heads（用語統一）
     // --------------------
-    HEAD_PERSONAL: "【今日の星の配置（あなたの座標×空の構造）】",
-    HEAD_PUBLIC: "【今日の星の配置（空の構造）】",
-    HEAD_SKY: "【空の主な配置】",
-    HEAD_MOON: "【今日の月の位置】",
+    HEAD_TODAY: "【今日の星（あなたの星×今日のソラ）】",
+    HEAD_SKY: "【今日のソラ（星の配置）】",
+    HEAD_SKY_MAIN: "【星の主な配置】",
+    HEAD_MOON: "【今日の月】",
     HEAD_YOIN: "【今日の余韻】",
-    HEAD_NATAL_LIST: "🌌 わたしのほし（ネイタル一覧）",
+    HEAD_NATAL_LIST: "🌌 わたしのほし（あなたの星の一覧）",
 
     // --------------------
     // Footer / Philosophy
@@ -42,9 +43,10 @@ const RENDER_COPY = Object.freeze({
     CIRCLES: ["①", "②", "③"],
     ORB_LABEL: (orb) => `orb ${orb}°`,
     DEG_LABEL: (deg, orb) => `（${deg}°｜orb ${orb}°）`,
+    YOIN_PREFIX_X: "余韻：",
 
     // --------------------
-    // Meaning line templates (non-predictive)
+    // Meaning line templates（占い化しない／断定しない）
     // --------------------
     MEANING_WITH_ASPECT_CORE: (left, right, aspectCore) =>
         `${left} と ${right} が「${aspectCore}」の質感で触れやすい配置。`,
@@ -61,14 +63,7 @@ const RENDER_COPY = Object.freeze({
     MOON_LINE_LOADING: () => `${RENDER_COPY.HEAD_MOON}\n月のサインは取得中。`,
 
     // --------------------
-    // Yoin label
-    // --------------------
-    YOIN_PREFIX_X: "余韻：",
-
-    // --------------------
-    // No-contact pools
-    // - 星の接触が少ない日用の “余白” 文言
-    // - render.js は element/modality をキーにここから選ぶだけ
+    // No-contact pools（接触少ない日の“余白”）
     // --------------------
     NO_CONTACT: {
         byElement: {
@@ -115,51 +110,54 @@ const RENDER_COPY = Object.freeze({
     },
 
     // --------------------
-    // X / IG formatting templates
+    // Today layers（personal-only：3層ラベル）
     // --------------------
-    X_FORMAT: {
-        DATE_LINE: (dateLabel) => `［${dateLabel}｜空の配置］`,
-        MOON_LINE: (moonSignJa) => (moonSignJa ? `\n月は ${moonSignJa} を通過中。` : ""),
-        SKY_LINE: (i, a, aSign, b, bSign, aspectJa, orb) =>
-            `${i}) ${a}${aSign} × ${b}${bSign}｜${aspectJa}（orb ${orb}°）`,
-        BLOCK: ({ dateLabel, moonLine, skyLines, yoin }) =>
-            `${RENDER_COPY.X_TITLE()}
-${RENDER_COPY.X_FORMAT.DATE_LINE(dateLabel)}${moonLine}
-
-${skyLines}
-
-${RENDER_COPY.YOIN_PREFIX_X}${yoin}
-${RENDER_COPY.FOOTER_X}`,
-    },
-
-    IG_FORMAT: {
-        MOON_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
-        SKY_LINE: (a, aSign, b, bSign, aspectJa, orb) =>
-            `・${a}${aSign} × ${b}${bSign}｜${aspectJa}（orb ${orb}°）`,
-        BLOCK: ({ dateLabel, moonLine, skyLines, yoin }) =>
-            `${RENDER_COPY.IG_TITLE(dateLabel)}
-
-${moonLine}
-
-${RENDER_COPY.HEAD_SKY}
-${skyLines}
-
-${RENDER_COPY.HEAD_YOIN}
-${yoin}
-
-${RENDER_COPY.FOOTER_IG}`,
+    HEAD_LAYERS: {
+        THEME: "【今日の中心（触れやすい場所）】",
+        TOUCH: "【引っかかりやすい接点】",
+        HIDDEN: "【ひそやかな接点】",
     },
 
     // --------------------
-    // Natal list copy (when cache missing / incomplete)
+    // Rare aspects（見つかった日だけ）
+    // --------------------
+    RARE: {
+        HEAD: "【🧩 レア共鳴（見つかった日だけ）】",
+
+        LABEL: {
+            quincunx_150: "インコンジャンクト",
+            quintile_72: "クインタイル",
+            biquintile_144: "バイクインタイル",
+            semi_sextile_30: "セミセクスタイル",
+            semi_square_45: "セミスクエア",
+            sesqui_square_135: "セスキスクエア",
+        },
+
+        CORE: {
+            quincunx_150: "性質が違って、自然に噛み合いにくい配置（調整ポイントが浮かびやすい）。",
+            quintile_72: "工夫や創造の回路が立ち上がりやすい配置（意識すると活かしやすい）。",
+            biquintile_144: "創造の反復・熟成がテーマになりやすい配置（繰り返しで形になりやすい）。",
+            semi_sextile_30: "気配レベルの接点が生まれやすい配置（ほぼ無意識に反応することも）。",
+            semi_square_45: "小さな摩擦・微調整が起きやすい配置（些細なズレとして出ることも）。",
+            sesqui_square_135: "蓄積した摩擦が表に出やすい配置（方向転換の合図として現れることも）。",
+        },
+
+        LINE: ({ a, aSign, b, bSign, aspectLabel, orb }) =>
+            `・${a}${aSign} × ${b}${bSign}｜${aspectLabel}（orb ${orb}°）`,
+
+        MEANING: (aspectKey) => RENDER_COPY.RARE.CORE?.[aspectKey] || "",
+    },
+
+    // --------------------
+    // Natal list copy
     // --------------------
     NATAL_LIST: {
         NOT_READY: () =>
             [
                 RENDER_COPY.HEAD_NATAL_LIST,
                 "",
-                "（まだネイタルが準備中みたい）",
-                "「はじめる」から登録してみてね🕊️",
+                "（まだ準備中みたい）",
+                "LINEで「はじめる」から登録してね🕊️",
             ].join("\n"),
 
         MISSING_ANGLES: () =>
@@ -169,13 +167,13 @@ ${RENDER_COPY.FOOTER_IG}`,
                 "ASC/MC がまだ見つからなかった🙏",
                 "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
                 "",
-                "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるからここでは止めてる。",
+                "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるのでここでは止めてる。",
             ].join("\n"),
 
         NOTE: () =>
             [
                 "",
-                "※ これは「配置」の一覧です。",
+                "※ これは「星の配置」の一覧です。",
                 "※ 意味や解釈は置いていません。",
                 "",
                 "星は語る。",
@@ -184,31 +182,191 @@ ${RENDER_COPY.FOOTER_IG}`,
     },
 
     // --------------------
-    // Optional: small cute guide (render.jsで使いたい時だけ)
+    // Optional guide（意味不明ワードを排除）
     // --------------------
     GUIDE: {
-        // 例）LINEで sky-only のとき、最後に付けたい場合に使える
         SKY_ONLY_HINT: () =>
-            "\n\n（「今日」は登録があると personal が立ち上がりやすい🌌\n登録は「はじめる」）",
+            "\n\n（「今日」は、登録があると “あなたの星×今日のソラ” が見られる🌌\n登録は LINEで「はじめる」）",
     },
 
     // --------------------
-    // Today layers (personal only)
-    // --------------------
-    HEAD_LAYERS: {
-        THEME: "【今日の中心（いちばん触れやすい場所）】",
-        TOUCH: "【引っかかりやすい接点】",
-        HIDDEN: "【ひそやかな接点】",
-    },
-
-    // --------------------
-    // Optional labels
+    // Labels
     // --------------------
     LABELS: {
         NATAL: "ネイタル：",
         TRANSIT: "トランジット：",
     },
 
+    // --------------------
+    // Yoin（短く、気持ち悪くならない断定回避）
+    // --------------------
+    YOIN: {
+        FALLBACK: "空の密度が少し上がる日。",
+
+        ELEMENT_PHRASE: {
+            fire: "熱が立ち上がりやすい空。",
+            earth: "現実に落とし込む圧が出やすい空。",
+            air: "情報と会話が動きやすい空。",
+            water: "感情と余韻が浸透しやすい空。",
+        },
+
+        MODALITY_PHRASE: {
+            cardinal: "動かす方向へ傾きやすい",
+            fixed: "保つ／固める方向へ寄りやすい",
+            mutable: "切り替え／揺らす方向へ流れやすい",
+        },
+
+        BUILD: ({ topElement, topModality, aspectLabel, aspectCoreText } = {}) => {
+            const head =
+                (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) ||
+                RENDER_COPY.YOIN.FALLBACK;
+
+            const tailBits = [];
+            if (topModality && RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]) {
+                tailBits.push(RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]);
+            }
+            if (aspectCoreText) tailBits.push(`質感は「${aspectCoreText}」寄り`);
+            else if (aspectLabel) tailBits.push(`質感は ${aspectLabel} 寄り`);
+
+            // ✅ 句点でつなぐ（スペース残さない）
+            const tail = tailBits.length ? `${tailBits.join("、")}。` : "";
+
+            const out = `${head}${tail ? ` ${tail}` : ""}`.trim();
+
+            // ✅ 長文化防止
+            if (out.length > 90) return head;
+
+            // ✅ 念のため：句点の後の余計な空白を消す
+            return out.replace(/。\s+/g, "。").trim();
+        },
+
+    },
+
+    // --------------------
+    // X formatting（compact template / CLEAN）
+    // --------------------
+    X_FORMAT: {
+        // 🌌 2026.01.15｜今日のソラ
+        TITLE_LINE: (dateLabel) => `🌌 ${dateLabel}｜今日のソラ`,
+
+        // 月：射手座
+        MOON_LINE: (moonSignJa) => (moonSignJa ? `月：${moonSignJa}` : ""),
+
+        // ☄️金星 山羊座 ×土星 魚座｜セクスタイル 0.2°
+        SKY_LINE: ({ emoji = "☄️", aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) => {
+            const aSign = aSignJa ? ` ${aSignJa}` : "";
+            const bSign = bSignJa ? ` ${bSignJa}` : "";
+            const o = typeof orb === "number" ? orb.toFixed(1) : String(orb);
+            return `${emoji}${aLabel}${aSign} ×${bLabel}${bSign}｜${aspectJa} ${o}°`;
+        },
+
+        // 🌙月 射手座 ×木星 蟹座｜バイクインタイル 0.1°
+        SECRET_LINE: ({ aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) =>
+            RENDER_COPY.X_FORMAT.SKY_LINE({
+                emoji: "🌙",
+                aLabel,
+                aSignJa,
+                bLabel,
+                bSignJa,
+                aspectJa,
+                orb,
+            }),
+
+        // 余韻は最大2文まで
+        YOIN_LINES_2: (yoin) => {
+            const s = String(yoin || "").trim();
+            if (!s) return "";
+            const parts = s
+                .replaceAll("\n", " ")
+                .split(/。|\n/)
+                .map((x) => x.trim())
+                .filter(Boolean);
+            const top2 = parts.slice(0, 2).join("。");
+            return top2 ? `${top2}。` : s;
+        },
+
+        // キーワード（必要なときだけ）
+        KEYWORDS_LINE: (keywords) => {
+            const arr = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+            if (!arr.length) return "";
+            return `${arr.join("/")}。`;
+        },
+
+        _yoinContainsKeywords: (yoin, keywords) => {
+            const s = String(yoin || "");
+            const arr = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+            if (!s || !arr.length) return false;
+            return arr.every((k) => s.includes(k));
+        },
+
+        // 最終ブロック（意味行なし）
+        BLOCK: ({ dateLabel, moonSignJa, skyLine, secretLine, yoin, toneKeywords }) => {
+            const lines = [];
+
+            lines.push(RENDER_COPY.X_FORMAT.TITLE_LINE(dateLabel));
+            if (moonSignJa) lines.push(RENDER_COPY.X_FORMAT.MOON_LINE(moonSignJa));
+
+            lines.push("");
+            lines.push(skyLine);
+
+            if (secretLine) {
+                lines.push("");
+                lines.push(secretLine);
+            }
+
+            const y = RENDER_COPY.X_FORMAT.YOIN_LINES_2(yoin);
+            if (y) {
+                lines.push("");
+                lines.push(y);
+            }
+
+            const kwLine = RENDER_COPY.X_FORMAT.KEYWORDS_LINE(toneKeywords);
+            const yoinHasKw = RENDER_COPY.X_FORMAT._yoinContainsKeywords(yoin, toneKeywords);
+            if (kwLine && !yoinHasKw) {
+                lines.push("");
+                lines.push(kwLine);
+            }
+
+            lines.push("");
+            lines.push("解釈は、あなたのもの。🌎️🛸");
+
+            return lines.join("\n").replaceAll("\n\n\n", "\n\n");
+        },
+    },
+
+
+
+
+    // --------------------
+    // IG formatting（copy-driven）
+    // --------------------
+    IG_FORMAT: {
+        MOON_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
+
+        SKY_LINE_NUM: (i, a, aSign, b, bSign) => `${i}) ${a}${aSign} × ${b}${bSign}`,
+        SKY_LINE_ASPECT: (aspectJa, orb) => `${aspectJa}（orb ${orb}°）`,
+
+        MEANING_BLOCK: ({ aLabel, aCore, bLabel, bCore, tone, aspectCoreText }) => {
+            const t = tone ? `「${tone}」空気の中で、` : "";
+            return (
+                `${aLabel}（${aCore || "—"}）と、\n` +
+                `${bLabel}（${bCore || "—"}）が、\n\n` +
+                (t ? `${t}\n` : "") +
+                `${aspectCoreText || "—"}。`
+            ).replaceAll("\n\n\n", "\n\n");
+        },
+
+        SECRET_HEAD: "ひそかな配置",
+
+        BLOCK: ({ dateLabel, moonLine, bodyLines, footer }) =>
+            `${RENDER_COPY.IG_TITLE(dateLabel)}
+
+${moonLine}
+
+${bodyLines}
+
+${footer}`,
+    },
 });
 
 module.exports = { RENDER_COPY };

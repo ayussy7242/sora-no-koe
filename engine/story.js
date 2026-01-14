@@ -29,6 +29,9 @@ function createStoryService({
   // aspects list: [{ type, deg }, ...]
   ASPECTS,
 
+  // ✅ add: deep aspects (optional)
+  ASPECTS_DEEP = [],
+
   // env/meta
   DEFAULT_TZ = "Asia/Tokyo",
   PROJECT = "sora-no-koe",
@@ -36,6 +39,8 @@ function createStoryService({
 
   // optional
   buildResonanceBullets,
+
+
 }) {
   if (!db) throw new Error("createStoryService: db required");
   if (!swisseph) throw new Error("createStoryService: swisseph required");
@@ -74,6 +79,13 @@ function createStoryService({
   function clamp(n, min, max) {
     return Math.min(max, Math.max(min, n));
   }
+
+  // ------------------------
+  // aspects lists
+  // ------------------------
+  const ASPECTS_MAJOR = Array.isArray(ASPECTS) ? ASPECTS : [];
+  const ASPECTS_DEEP_LIST = Array.isArray(ASPECTS_DEEP) ? ASPECTS_DEEP : [];
+  const ASPECTS_ALL = [...ASPECTS_MAJOR, ...ASPECTS_DEEP_LIST];
 
   // ------------------------
   // sign helpers
@@ -179,9 +191,10 @@ function createStoryService({
   // ------------------------
   // aspect finder
   // ------------------------
-  function bestAspectForDistance(distDeg) {
+  function bestAspectForDistance(distDeg, aspectsList) {
     let best = null;
-    for (const a of ASPECTS || []) {
+    const list = Array.isArray(aspectsList) ? aspectsList : [];
+    for (const a of list) {
       const delta = Math.abs(distDeg - a.deg);
       if (!best || delta < best.delta) best = { type: a.type, aspect_deg: a.deg, delta };
     }
@@ -291,10 +304,12 @@ function createStoryService({
         if (typeof nLon !== "number") continue;
 
         const dist = absAngularDistance(tLon, nLon);
-        const best = bestAspectForDistance(dist);
+        const best = bestAspectForDistance(dist, ASPECTS_ALL);
+
         if (!best) continue;
 
-        if (Array.isArray(rules?.aspects_used) && !rules.aspects_used.includes(best.type)) continue;
+        const allow = rules?.aspects_used_all;
+        if (Array.isArray(allow) && !allow.includes(best.type)) continue;
         if (best.delta > (rules?.orb_max_deg ?? 6)) continue;
 
         const base = {
@@ -325,7 +340,7 @@ function createStoryService({
     return results.sort((x, y) => x.orb_deg - y.orb_deg);
   }
 
-  function buildPublicSkyTopAll(transitBodies, { orbMaxDeg = 6, max = 3 } = {}) {
+  function buildPublicSkyAll(transitBodies, aspectsList, { orbMaxDeg = 6 } = {}) {
     const keys = Object.keys(transitBodies || {}).filter((k) => typeof transitBodies[k] === "number");
     if (keys.length < 2) return [];
 
@@ -336,7 +351,39 @@ function createStoryService({
         const b = keys[j];
 
         const dist = absAngularDistance(transitBodies[a], transitBodies[b]);
-        const best = bestAspectForDistance(dist);
+        const best = bestAspectForDistance(dist, aspectsList);
+        if (!best) continue;
+
+        if (best.delta <= orbMaxDeg) {
+          out.push({
+            a,
+            b,
+            type: best.type,
+            aspect_deg: best.aspect_deg,
+            orb_deg: Number(best.delta.toFixed(2)),
+          });
+        }
+      }
+    }
+
+    out.sort((x, y) => (x.orb_deg - y.orb_deg) || (x.a + x.b).localeCompare(y.a + y.b));
+    return out;
+  }
+
+
+  function buildPublicSkyTopAll(transitBodies, aspectsList, { orbMaxDeg = 6, max = 3 } = {}) {
+    const keys = Object.keys(transitBodies || {}).filter((k) => typeof transitBodies[k] === "number");
+    if (keys.length < 2) return [];
+
+    const out = [];
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const a = keys[i];
+        const b = keys[j];
+
+        const dist = absAngularDistance(transitBodies[a], transitBodies[b]);
+        const best = bestAspectForDistance(dist, aspectsList);
+
         if (!best) continue;
 
         if (best.delta <= orbMaxDeg) {
@@ -379,10 +426,18 @@ function createStoryService({
           sign_ja: transitInfo?.moon?.sign_ja ?? null,
         },
         transit_signs: transitInfo?.bodies_signs || {},
-        sky_top: buildPublicSkyTopAll(transitInfo?.bodies, {
-          orbMaxDeg: rules?.orb_max_deg ?? 6,
-          max: 3,
-        }),
+        sky_all: buildPublicSkyAll(
+          transitInfo?.bodies,
+          ASPECTS_ALL,
+          { orbMaxDeg: rules?.orb_max_deg ?? 6 }
+        ),
+
+        // 互換維持：従来どおりメジャーだけで top3
+        sky_top: buildPublicSkyTopAll(
+          transitInfo?.bodies,
+          ASPECTS_MAJOR,
+          { orbMaxDeg: rules?.orb_max_deg ?? 6, max: 3 }
+        ),
         tone_hints: { resonance_bullets: [] },
       },
       guardrails: {
@@ -512,7 +567,8 @@ function createStoryService({
     const transitInfo = computeTransitsSwiss(asOfISO, prec);
 
     const rules = {
-      aspects_used: (ASPECTS || []).map((a) => a.type),
+      aspects_used_major: ASPECTS_MAJOR.map((a) => a.type),
+      aspects_used_all: ASPECTS_ALL.map((a) => a.type),
       orb_max_deg: orb,
       sort: "orb_asc",
     };
