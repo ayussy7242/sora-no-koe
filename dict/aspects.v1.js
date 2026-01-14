@@ -14,7 +14,7 @@ const ASPECTS_V1 = {
       key: "conjunction",
       label_ja: "コンジャンクション",
       core: "重なり・融合・増幅",
-      feel: ["強い", "逃げ場がない", "無自覚に出る"],
+      feel: ["強い", "密度が高い", "無自覚に出る"],
       sora: "同じ領域でエネルギーが重なり、性質が強く表れやすい配置。",
       ai_tags: ["dense", "merge"],
     },
@@ -23,8 +23,8 @@ const ASPECTS_V1 = {
       key: "sextile",
       label_ja: "セクスタイル",
       core: "チャンス・協力・選択肢",
-      feel: ["やればできる感じ", "意識すると活きる"],
-      sora: "意識的に使うことで、可能性が広がりやすい配置。",
+      feel: ["通路ができる", "橋がかかる", "選べる幅が増える"],
+      sora: "噛み合うポイントが生まれやすく、選択肢や協力の回路が開きやすい配置。",
       ai_tags: ["option", "bridge"],
     },
     square: {
@@ -32,8 +32,8 @@ const ASPECTS_V1 = {
       key: "square",
       label_ja: "スクエア",
       core: "摩擦・調整・ズレ",
-      feel: ["引っかかる", "ストレス", "試行錯誤"],
-      sora: "進行方向の異なる力が交差し、調整が求められやすい配置。",
+      feel: ["引っかかる", "止まりやすい", "試行錯誤が出る"],
+      sora: "進行方向の異なる力が交差し、摩擦や調整ポイントが表に出やすい配置。",
       ai_tags: ["friction", "adjust"],
     },
     trine: {
@@ -41,8 +41,8 @@ const ASPECTS_V1 = {
       key: "trine",
       label_ja: "トライン",
       core: "調和・才能・自然さ",
-      feel: ["楽", "当たり前", "気づかない才能"],
-      caution: "楽すぎて使われないことが多い",
+      feel: ["楽", "自然", "当たり前すぎて気づきにくい"],
+      caution: "自然すぎて、輪郭が立たないこともある",
       sora: "エネルギーが自然に循環し、無理なく機能しやすい配置。",
       ai_tags: ["flow", "ease"],
     },
@@ -51,13 +51,12 @@ const ASPECTS_V1 = {
       key: "opposition",
       label_ja: "オポジション",
       core: "対立・鏡・関係性",
-      feel: ["葛藤", "引き合い", "投影"],
-      sora: "向かい合う位置関係により、外側の出来事を通してテーマが浮かびやすい配置。",
+      feel: ["引き合う", "外側に映る", "二極が立つ"],
+      sora: "向かい合う位置関係により、テーマが『外側』に映りやすい配置。",
       ai_tags: ["mirror", "polarity"],
     },
   },
 
-  // paid / advanced
   deep_space: {
     enabled_by_default: false,
 
@@ -66,7 +65,7 @@ const ASPECTS_V1 = {
       key: "semi_sextile_30",
       label_ja: "セミセクスタイル",
       core: "気配レベルの関係",
-      feel: ["かすかな接点", "ほぼ無意識"],
+      feel: ["かすかな接点", "ほぼ無意識", "気配で反応する"],
       sora: "意識の外側で、かすかな接点が生まれやすい配置。",
       ai_tags: ["subtle", "hint"],
     },
@@ -76,8 +75,8 @@ const ASPECTS_V1 = {
       key: "semi_square_45",
       label_ja: "セミスクエア",
       core: "小さな苛立ち",
-      feel: ["モヤモヤ", "微不快", "地味にストレス"],
-      sora: "小さな引っかかりが積み重なり、調整のサインとして現れやすい配置。",
+      feel: ["モヤモヤ", "微不快", "地味にひっかかる"],
+      sora: "小さな引っかかりが出やすく、微調整のサインとして現れやすい配置。",
       ai_tags: ["micro_friction", "irritation"],
     },
 
@@ -86,8 +85,8 @@ const ASPECTS_V1 = {
       key: "sesqui_square_135",
       label_ja: "セスキスクエア",
       core: "蓄積された摩擦",
-      feel: ["もう無理", "限界", "爆発前夜"],
-      sora: "積み重なった摩擦が表面化し、方向転換が求められやすい配置。",
+      feel: ["圧が溜まる", "限界感", "表面化しやすい"],
+      sora: "積み重なった摩擦が表に出やすく、転換点として現れやすい配置。",
       ai_tags: ["pressure", "threshold"],
     },
 
@@ -97,7 +96,7 @@ const ASPECTS_V1 = {
       label_ja: "インコンジャンクト",
       core: "噛み合わなさ・調整不能",
       feel: ["違和感", "説明できないズレ", "共通言語がない"],
-      sora: "性質が異なり、自然な調整が難しい配置。",
+      sora: "性質が異なり、自然に噛み合わせにくい配置（調整点が浮かびやすい）。",
       ai_tags: ["mismatch", "recalibration"],
     },
 
@@ -106,8 +105,8 @@ const ASPECTS_V1 = {
       key: "quintile_72",
       label_ja: "クインタイル",
       core: "創造・職人芸",
-      feel: ["ピンポイントな才能", "意識すると覚醒"],
-      sora: "意識的に磨くほど、独自の創造性が立ち上がりやすい配置。",
+      feel: ["工夫が出る", "ピンポイント", "独自の回路"],
+      sora: "独自の工夫や創造の回路が現れやすい配置。",
       ai_tags: ["craft", "creative_edge"],
     },
 
@@ -116,7 +115,7 @@ const ASPECTS_V1 = {
       key: "biquintile_144",
       label_ja: "バイクインタイル",
       core: "創造の反復",
-      feel: ["表現の熟成", "才能の反復"],
+      feel: ["反復", "熟成", "試行錯誤で整う"],
       sora: "反復と試行錯誤を通じて、表現が熟成しやすい配置。",
       ai_tags: ["refine", "iteration"],
     },
@@ -125,14 +124,12 @@ const ASPECTS_V1 = {
       key: "septile_family",
       label_ja: "セプタイル系",
       core: "運命・神秘・説明不能",
-      feel: ["なぜかそうなる", "意味が後から来る"],
-      sora: "理屈を超えた結びつきとして現れやすい配置（深宇宙専用）。",
+      feel: ["理由が言語化しにくい", "意味が後から追いつく", "説明不能な引力"],
+      sora: "理屈の外側で結びつきが生まれやすい配置（深宇宙専用）。",
       ai_tags: ["fate", "mystic"],
-      // degはケースにより 360/7, 2*360/7, 3*360/7 など。ここでは family として扱う
     },
   },
 
-  // utility: aspect degrees list (major only)
   major_list: [
     { type: "conjunction", deg: 0 },
     { type: "sextile", deg: 60 },
@@ -141,5 +138,6 @@ const ASPECTS_V1 = {
     { type: "opposition", deg: 180 },
   ],
 };
+
 
 module.exports = { ASPECTS_V1 };

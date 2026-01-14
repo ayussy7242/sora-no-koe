@@ -81,6 +81,19 @@ const ASPECTS = ASPECTS_V1?.major_list || [
   { type: "opposition", deg: 180 },
 ];
 
+// ✅ deep aspects（方式A：見つかった日だけ出る）
+const deep = ASPECTS_V1?.deep_space || {};
+const ASPECTS_DEEP = [
+  deep?.quincunx_150,
+  deep?.quintile_72,
+  deep?.biquintile_144,
+  deep?.semi_sextile_30,
+  deep?.semi_square_45,
+  deep?.sesqui_square_135,
+]
+  .filter(Boolean)
+  .map((a) => ({ type: a.key, deg: a.deg }));
+
 // ✅ legacy label maps (renderer互換用 / 旧参照が残っても落ちないため)
 // ※ 最新 render は dictの V1 を直接参照するので、ここは “保険”
 const bodies = PLANETS_V1?.bodies || {};
@@ -115,6 +128,7 @@ const storyService = createStoryService({
   // ✅ story 側は SIGNS_V1 を使う（moon sign_key/sign_ja）
   SIGNS_V1,
   ASPECTS,
+  ASPECTS_DEEP, // ✅ 追加
 
   DEFAULT_TZ: env.DEFAULT_TZ,
   PROJECT: env.PROJECT,
