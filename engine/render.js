@@ -821,13 +821,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     if (channel === "x") {
       // ✅ Xは “説明を1回にする” ：地層短文だけを優先して入れる
       // buildYoinGlobal が既に「地層：...中心は...｜...」を吐けるので、それをXの余韻として採用
-      const layerLine = String(
-        buildYoinGlobal(story, { compact: true, maxContacts: 12, minWeight: 0.10 }) || ""
-      ).trim();
+      const centerLine = String(buildYoinCenter(story) || "").trim();
 
       return {
         // Xはここだけ使う（closeは別）
-        xYoinLine: layerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
+        // xYoinLine: layerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
+        xYoinLine: centerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
         // LINE用も返しておく（将来共通化しやすい）
         lineGlobal: "",
         lineCenter: "",
@@ -1081,7 +1080,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       ].filter((v) => typeof v === "string").join("\n")
       : [
         ...yoinLines,
-        // "",
+        "",
         // --- Optional Aftertaste Tails ---------------------------------
         // 以下の2行は「余韻を言葉で導きたい時」用の残り香。
         // 通常はオフ推奨。
