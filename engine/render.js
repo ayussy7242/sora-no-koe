@@ -704,74 +704,154 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // --------------------
-  // X (copy-driven) — ✅ secret混ぜる版（renderは組み立てだけ）
+  // X (copy-driven) — ✅ ROLE版（主役/影/締め seed切替）
   // --------------------
   function renderX(story) {
     const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
     const moonSignJa = story?.public?.moon?.sign_ja || null;
 
+    // 余韻（短文化はcopy側で）
+    const yoinShort = RENDER_COPY.X_FORMAT.YOIN_LINES_2(buildYoinLine(story));
+
+    // ✅ close lines を日付seedで決める
+    const pool = Array.isArray(RENDER_COPY.X_FORMAT.CLOSE_LINES_POOL)
+      ? RENDER_COPY.X_FORMAT.CLOSE_LINES_POOL
+      : [];
+
+    const seed = `${story?.meta?.date_local || dateLabel}|close`;
+    const idx = pool.length ? (hash32(seed) % pool.length) : -1;
+    const closeLines = idx >= 0 ? pool[idx] : RENDER_COPY.X_FORMAT.CLOSE_LINES;
+
+    // 主役（center）
     const center = pickCenterPublicContact(story);
-    const yoin = buildYoinLine(story);
 
+    // ✅ skyがない日は ROLEで統一（主役＝noContact）
     if (!center) {
-      // skyがない日は簡易
-      return [
-        `🌌 ${dateLabel}｜今日のソラ`,
-        moonSignJa ? `月：${moonSignJa}` : "",
-        "",
-        buildNoContactLine(story),
-        "",
-        "解釈は、あなたのもの。🌎️🛸",
-      ].filter(Boolean).join("\n");
-    }
-
-    // center
-    const aLabel = fmtAnyJa(center.a);        // 例: 金星
-    const bLabel = fmtAnyJa(center.b);        // 例: 土星
-    const aSignJa = publicSignJa(story, center.a); // 例: 山羊座
-    const bSignJa = publicSignJa(story, center.b); // 例: 魚座
-    const aspectJa = fmtAspectJa(center.type);     // 例: セクスタイル
-    const orb = Number(center.orb_deg);            // 例: 0.2
-
-    // tone（いまの “空気” を短く一言）
-    const aTone = signMeta(publicSignKey(story, center.a))?.tone || null;
-    const bTone = signMeta(publicSignKey(story, center.b))?.tone || null;
-    const tone = aTone || bTone || ""; // 例: 現実的に形にする
-
-    const skyLine = RENDER_COPY.X_FORMAT.SKY_LINE({
-      emoji: "☄️",
-      aLabel,
-      aSignJa,
-      bLabel,
-      bSignJa,
-      aspectJa,
-      orb,
-    });
-
-    // secret（任意）
-    const secret = pickSecretPublicContact(story);
-    let secretLine = "";
-    if (secret) {
-      secretLine = RENDER_COPY.X_FORMAT.SECRET_LINE({
-        aLabel: fmtAnyJa(secret.a),
-        aSignJa: publicSignJa(story, secret.a),
-        bLabel: fmtAnyJa(secret.b),
-        bSignJa: publicSignJa(story, secret.b),
-        aspectJa: fmtAspectJa(secret.type),
-        orb: Number(secret.orb_deg),
+      const noContact = buildNoContactLine(story);
+      return RENDER_COPY.X_FORMAT.BLOCK_ROLE({
+        dateLabel,
+        moonSignJa,
+        mainLine: noContact,
+        mainArrow: "",
+        shadowLines: [],
+        yoinShort,
+        closeLines,
       });
     }
 
-    return RENDER_COPY.X_FORMAT.BLOCK({
+    // 主役line（☄️）
+    const mainLine = RENDER_COPY.X_FORMAT.SKY_LINE({
+      emoji: "☄️",
+      aLabel: fmtAnyJa(center.a),
+      aSignJa: publicSignJa(story, center.a),
+      bLabel: fmtAnyJa(center.b),
+      bSignJa: publicSignJa(story, center.b),
+      aspectJa: fmtAspectJa(center.type),
+      orb: Number(center.orb_deg),
+    });
+
+    // 主役の矢印（→）：短く、占い化しない
+    const core =
+      (typeof aspectCore === "function" ? aspectCore(center.type) : null) ||
+      ASPECTS_META?.[center.type]?.core ||
+      null;
+
+    const aTone = signMeta(publicSignKey(story, center.a))?.tone || null;
+    const bTone = signMeta(publicSignKey(story, center.b))?.tone || null;
+    const tone = aTone || bTone || "";
+
+    const mainArrow = RENDER_COPY.X_FORMAT.MAIN_ARROW(core || tone || "");
+
+    // 影（最大2本）
+    const shadowLines = [];
+
+    // 影1：topに入ってない最小orb
+    const secret = pickSecretPublicContact(story);
+    if (secret) {
+      shadowLines.push(
+        RENDER_COPY.X_FORMAT.SECRET_LINE({
+          aLabel: fmtAnyJa(secret.a),
+          aSignJa: publicSignJa(story, secret.a),
+          bLabel: fmtAnyJa(secret.b),
+          bSignJa: publicSignJa(story, secret.b),
+          aspectJa: fmtAspectJa(secret.type),
+          orb: Number(secret.orb_deg),
+        })
+      );
+    }
+
+    // 影2：sky_top[1]（secretと同一なら除外）
+    const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+    const t2 = skyTop?.[1] || null;
+
+    const isDup =
+      t2 &&
+      secret &&
+      (typeof skyKey === "function"
+        ? skyKey(t2) === skyKey(secret)
+        : `${t2.a}|${t2.b}|${t2.type}` === `${secret.a}|${secret.b}|${secret.type}`);
+
+    if (t2 && !isDup) {
+      shadowLines.push(
+        RENDER_COPY.X_FORMAT.SKY_LINE({
+          emoji: "☄️",
+          aLabel: fmtAnyJa(t2.a),
+          aSignJa: publicSignJa(story, t2.a),
+          bLabel: fmtAnyJa(t2.b),
+          bSignJa: publicSignJa(story, t2.b),
+          aspectJa: fmtAspectJa(t2.type),
+          orb: Number(t2.orb_deg),
+        })
+      );
+    }
+
+    // まず2本までで組む
+    let text = RENDER_COPY.X_FORMAT.BLOCK_ROLE({
       dateLabel,
       moonSignJa,
-      skyLine,
-      tone,
-      secretLine,
-      yoin,
+      mainLine,
+      mainArrow,
+      shadowLines: shadowLines.slice(0, 2),
+      yoinShort,
+      closeLines,
     });
-  }
 
+    // 長い日は影を1本に落とす（安全弁）
+    if (text.length > 270) {
+      text = RENDER_COPY.X_FORMAT.BLOCK_ROLE({
+        dateLabel,
+        moonSignJa,
+        mainLine,
+        mainArrow,
+        shadowLines: shadowLines.slice(0, 1),
+        yoinShort,
+        closeLines,
+      });
+    }
+
+    // それでも長い日は矢印を落とす（最終）
+    if (text.length > 270) {
+      text = RENDER_COPY.X_FORMAT.BLOCK_ROLE({
+        dateLabel,
+        moonSignJa,
+        mainLine,
+        mainArrow: "",
+        shadowLines: shadowLines.slice(0, 1),
+        yoinShort,
+        closeLines,
+      });
+    }
+
+    // DEBUG (remove later)
+    console.log("[X]", {
+      date: story?.meta?.date_local,
+      hasCenter: !!center,
+      shadowCount: shadowLines.length,
+      textLen: text.length,
+    });
+
+    return text;
+  }
 
 
   // --------------------

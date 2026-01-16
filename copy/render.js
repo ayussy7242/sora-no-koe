@@ -274,15 +274,26 @@ const RENDER_COPY = Object.freeze({
 
         // 余韻は最大2文まで
         YOIN_LINES_2: (yoin) => {
-            const s = String(yoin || "").trim();
+            let s = String(yoin || "").trim();
             if (!s) return "";
-            const parts = s
-                .replaceAll("\n", " ")
-                .split(/。|\n/)
-                .map((x) => x.trim())
-                .filter(Boolean);
+
+            // 改行はスペース化
+            s = s.replace(/\s+/g, " ");
+
+            // 句点優先で分割。なければ区切り記号でも分割。
+            let parts = s.split("。").map(x => x.trim()).filter(Boolean);
+            if (parts.length < 2) {
+                parts = s.split(/[｜/]/).map(x => x.trim()).filter(Boolean);
+            }
+            if (parts.length < 2) {
+                parts = s.split("、").map(x => x.trim()).filter(Boolean);
+            }
+
             const top2 = parts.slice(0, 2).join("。");
-            return top2 ? `${top2}。` : s;
+            const out = top2 ? `${top2}。` : s;
+
+            // 最終安全弁：長すぎたら文字数でカット
+            return out.length > 130 ? out.slice(0, 127) + "…" : out;
         },
 
         // キーワード（必要なときだけ）
@@ -298,6 +309,59 @@ const RENDER_COPY = Object.freeze({
             if (!s || !arr.length) return false;
             return arr.every((k) => s.includes(k));
         },
+
+        // 【主役】/【影】の見出し
+        ROLE_HEAD_MAIN: "【主役】",
+        ROLE_HEAD_SHADOW: "【影】",
+
+        // 主役の一言（→の行）
+        // 例: → 思考と拡大が、現実の場で向き合う
+        MAIN_ARROW: (s) => (s ? `→ ${String(s).trim()}` : ""),
+
+        // 締め（毎回固定）
+        CLOSE_LINES: ["空気は一方向じゃない。", "読む場所は、選んでいい。", "", "星は語る。🌎🛸"],
+
+        CLOSE_LINES_POOL: [
+            ["切り替えていい。", "今日は今日の速度がある。", "", "星は語る。🌎🛸"],
+            ["動いてもいい。", "動かなくても、進んでいる。", "", "星は語る。🌎🛸"],
+            ["言葉にしなくてもいい。", "感じた時点で、もう受信してる。", "", "星は語る。🌎🛸"],
+            ["視野は、広げてもいい。", "縮めても、間違いじゃない。", "", "星は語る。🌎🛸"],
+            ["誰かとでも、ひとりでも。", "今日はどちらでも成立する。", "", "星は語る。🌎🛸"],
+            ["意味を探さなくていい。", "感覚が先に来る日もある。", "", "星は語る。🌎🛸"],
+            ["静かでいい。", "回収するだけの日も、必要。", "", "星は語る。🌎🛸"],
+        ],
+
+        // 主役/影フォーマット本体
+        BLOCK_ROLE: ({ dateLabel, moonSignJa, mainLine, mainArrow, shadowLines = [], yoinShort, closeLines }) => {
+            const lines = [];
+            lines.push(`🌌 ${dateLabel}｜空の配置`);
+            if (moonSignJa) lines.push(`月：${moonSignJa}`);
+
+            lines.push("");
+            lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_MAIN);
+            lines.push(mainLine);
+            if (mainArrow) lines.push(mainArrow);
+
+            if (shadowLines.length) {
+                lines.push("");
+                lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_SHADOW);
+                shadowLines.forEach((l) => lines.push(l));
+            }
+
+            if (yoinShort) {
+                lines.push("");
+                lines.push(yoinShort);
+            }
+
+            // ✅ ここがポイント：closeLines が来たらそれ、なければデフォルト
+            const closing = Array.isArray(closeLines) ? closeLines : RENDER_COPY.X_FORMAT.CLOSE_LINES;
+
+            lines.push("");
+            lines.push(...closing);
+
+            return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        },
+
 
         // 最終ブロック（意味行なし）
         BLOCK: ({ dateLabel, moonSignJa, skyLine, secretLine, yoin, toneKeywords }) => {
@@ -333,7 +397,6 @@ const RENDER_COPY = Object.freeze({
             return lines.join("\n").replaceAll("\n\n\n", "\n\n");
         },
     },
-
 
 
 
