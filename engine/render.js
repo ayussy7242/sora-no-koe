@@ -1038,7 +1038,10 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       lines.push("");
 
       if (main1) lines.push(main1);
-      if (keepSecond && main2) lines.push(main2);
+      if (keepSecond && main2) {
+        lines.push("");      // ← これを1行追加
+        lines.push(main2);
+      }
 
       if (keepYoin && yoin) {
         lines.push("");
