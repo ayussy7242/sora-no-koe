@@ -32,361 +32,363 @@ const FOOTER_IG = FOOTER_LINE.join("\n");
 // Render Copy
 // --------------------
 const RENDER_COPY = Object.freeze({
-  // --------------------
-  // Brand / Titles
-  // --------------------
-  BRAND_LINE: BRAND,
-  BRAND_X: BRAND,
-  BRAND_IG: BRAND,
+    // --------------------
+    // Brand / Titles
+    // --------------------
+    BRAND_LINE: BRAND,
+    BRAND_X: BRAND,
+    BRAND_IG: BRAND,
 
-  LINE_TITLE: (dateLabel) => `🌌 今日のソラのこえ。｜${dateLabel}`,
-  X_TITLE: () => `🌌 ${BRAND}`,
-  IG_TITLE: (dateLabel) => `🌌 ${BRAND}｜${dateLabel}`,
+    LINE_TITLE: (dateLabel) => `🌌 今日のソラのこえ。｜${dateLabel}`,
+    X_TITLE: () => `🌌 ${BRAND}`,
+    IG_TITLE: (dateLabel) => `🌌 ${BRAND}｜${dateLabel}`,
 
-  // --------------------
-  // Section Heads（用語統一）
-  // --------------------
-  HEAD_TODAY,
-  HEAD_SKY,
-  HEAD_SKY_MAIN,
-  HEAD_MOON,
-  HEAD_YOIN,
-  HEAD_NATAL_LIST,
+    // --------------------
+    // Section Heads（用語統一）
+    // --------------------
+    HEAD_TODAY,
+    HEAD_SKY,
+    HEAD_SKY_MAIN,
+    HEAD_MOON,
+    HEAD_YOIN,
+    HEAD_NATAL_LIST,
 
-  // ✅ v3.3: 詳細版「地層の余韻」見出し（空なら render.js 側で非表示）
-  HEAD_YOIN_GLOBAL,
+    // ✅ v3.3: 詳細版「地層の余韻」見出し（空なら render.js 側で非表示）
+    HEAD_YOIN_GLOBAL,
 
-  // --------------------
-  // Footer / Philosophy
-  // --------------------
-  FOOTER_LINE,
-  FOOTER_X,
-  FOOTER_IG,
+    // --------------------
+    // Footer / Philosophy
+    // --------------------
+    FOOTER_LINE,
+    FOOTER_X,
+    FOOTER_IG,
 
-  // --------------------
-  // Generic small bits
-  // --------------------
-  CIRCLES: ["①", "②", "③"],
-  ORB_LABEL: (orb) => `orb ${orb}°`,
-  DEG_LABEL: (deg, orb) => `（${deg}°｜orb ${orb}°）`,
-  YOIN_PREFIX_X: "余韻：",
+    // --------------------
+    // Generic small bits
+    // --------------------
+    CIRCLES: ["①", "②", "③"],
+    ORB_LABEL: (orb) => `orb ${orb}°`,
+    DEG_LABEL: (deg, orb) => `（${deg}°｜orb ${orb}°）`,
+    YOIN_PREFIX_X: "余韻：",
 
-  // --------------------
-  // Meaning line templates（占い化しない／断定しない）
-  // --------------------
-  MEANING_WITH_ASPECT_CORE: (left, right, aspectCore) =>
-    `${left} と \n${right} が\n「${aspectCore}」の質感で触れやすい配置。`,
-  MEANING_NO_ASPECT_CORE: (left, right) =>
-    `${left} と \n${right} の\n噛み合い方が動きやすい配置。`,
+    // --------------------
+    // Meaning line templates（占い化しない／断定しない）
+    // --------------------
+    MEANING_WITH_ASPECT_CORE: (left, right, aspectCore) =>
+        `${left} と \n${right} が\n「${aspectCore}」の質感で触れやすい配置。`,
+    MEANING_NO_ASPECT_CORE: (left, right) =>
+        `${left} と \n${right} の\n噛み合い方が動きやすい配置。`,
 
-  // --------------------
-  // Moon line
-  // --------------------
-  MOON_LINE_OK: (moonSignJa, hintOrNull) =>
-    hintOrNull
-      ? `${HEAD_MOON}\n月は ${moonSignJa}（${hintOrNull}） を通過中。`
-      : `${HEAD_MOON}\n月は ${moonSignJa} を通過中。`,
-  MOON_LINE_LOADING: () => `${HEAD_MOON}\n月のサインは取得中。`,
+    // --------------------
+    // Moon line
+    // --------------------
+    MOON_LINE_OK: (moonSignJa, hintOrNull) =>
+        hintOrNull
+            ? `${HEAD_MOON}\n月は ${moonSignJa}（${hintOrNull}） を通過中。`
+            : `${HEAD_MOON}\n月は ${moonSignJa} を通過中。`,
+    MOON_LINE_LOADING: () => `${HEAD_MOON}\n月のサインは取得中。`,
 
-  // --------------------
-  // No-contact pools（接触少ない日の“余白”）
-  // --------------------
-  NO_CONTACT: {
-    byElement: {
-      fire: [
-        "火はあるけど、点火は急がなくていい。",
-        "熱を一点に集める前に、余白を残すと綺麗。",
-        "勢いより、芯の温度を確かめると落ち着く。",
-      ],
-      earth: [
-        "情報を増やすより、形を整えるほど楽になる。",
-        "小さく整えるだけで、輪郭が戻りやすい。",
-        "やることを減らすほど、手触りが良くなる。",
-      ],
-      air: [
-        "考えを増やすより、言葉を軽く並べ直すと通る。",
-        "整理すると、会話や情報の流れが戻りやすい。",
-        "結論を急がず、視点を入れ替えるだけで十分。",
-      ],
-      water: [
-        "反応を説明しなくていい。余韻だけ残してOK。",
-        "気持ちはそのまま置くと、自然に沈んでいく。",
-        "境界を薄くしすぎず、距離感を整えると楽。",
-      ],
-      default: [
-        "強い接触が少ない分、余白が扱いやすい。",
-        "今日は静かな配置。増やさず整えると軽い。",
-        "外より内のノイズが減りやすい。",
-      ],
+    // --------------------
+    // No-contact pools（接触少ない日の“余白”）
+    // --------------------
+    NO_CONTACT: {
+        byElement: {
+            fire: [
+                "火はあるけど、点火は急がなくていい。",
+                "熱を一点に集める前に、余白を残すと綺麗。",
+                "勢いより、芯の温度を確かめると落ち着く。",
+            ],
+            earth: [
+                "情報を増やすより、形を整えるほど楽になる。",
+                "小さく整えるだけで、輪郭が戻りやすい。",
+                "やることを減らすほど、手触りが良くなる。",
+            ],
+            air: [
+                "考えを増やすより、言葉を軽く並べ直すと通る。",
+                "整理すると、会話や情報の流れが戻りやすい。",
+                "結論を急がず、視点を入れ替えるだけで十分。",
+            ],
+            water: [
+                "反応を説明しなくていい。余韻だけ残してOK。",
+                "気持ちはそのまま置くと、自然に沈んでいく。",
+                "境界を薄くしすぎず、距離感を整えると楽。",
+            ],
+            default: [
+                "強い接触が少ない分、余白が扱いやすい。",
+                "今日は静かな配置。増やさず整えると軽い。",
+                "外より内のノイズが減りやすい。",
+            ],
+        },
+
+        byModality: {
+            cardinal: ["始める前の整地が効く。", "最初の一手を小さくするほど綺麗。"],
+            fixed: ["守るものを決めると安定する。", "変えない場所があると楽。"],
+            mutable: ["微調整で十分。やり直しが軽い。", "流れに合わせて少しだけ変える。"],
+            default: [""],
+        },
+
+        headMoonTaste: (moonSignJa) => (moonSignJa ? `（月は ${moonSignJa} の空気）` : ""),
+        glue: (head, a, b) => {
+            const h = head ? `${head} ` : "";
+            const bb = b ? ` ${b}` : "";
+            return `${h}${a}${bb}`.trim();
+        },
     },
 
-    byModality: {
-      cardinal: ["始める前の整地が効く。", "最初の一手を小さくするほど綺麗。"],
-      fixed: ["守るものを決めると安定する。", "変えない場所があると楽。"],
-      mutable: ["微調整で十分。やり直しが軽い。", "流れに合わせて少しだけ変える。"],
-      default: [""],
+    // --------------------
+    // Today layers（personal-only：3層ラベル）
+    // --------------------
+    HEAD_LAYERS: {
+        THEME: "【今日の中心（触れやすい場所）】",
+        TOUCH: "【引っかかりやすい接点】",
+        HIDDEN: "【ひそやかな接点】",
     },
 
-    headMoonTaste: (moonSignJa) => (moonSignJa ? `（月は ${moonSignJa} の空気）` : ""),
-    glue: (head, a, b) => {
-      const h = head ? `${head} ` : "";
-      const bb = b ? ` ${b}` : "";
-      return `${h}${a}${bb}`.trim();
-    },
-  },
-
-  // --------------------
-  // Today layers（personal-only：3層ラベル）
-  // --------------------
-  HEAD_LAYERS: {
-    THEME: "【今日の中心（触れやすい場所）】",
-    TOUCH: "【引っかかりやすい接点】",
-    HIDDEN: "【ひそやかな接点】",
-  },
-
-  // --------------------
-  // Labels
-  // --------------------
-  LABELS: {
-    NATAL: "ネイタル：",
-    TRANSIT: "トランジット：",
-  },
-
-  // --------------------
-  // Natal list copy
-  // --------------------
-  NATAL_LIST: {
-    NOT_READY: () =>
-      [
-        HEAD_NATAL_LIST,
-        "",
-        "（まだ準備中みたい）",
-        "LINEで「はじめる」から登録してね🕊️",
-      ].join("\n"),
-
-    MISSING_ANGLES: () =>
-      [
-        HEAD_NATAL_LIST,
-        "",
-        "ASC/MC がまだ見つからなかった🙏",
-        "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
-        "",
-        "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるのでここでは止めてる。",
-      ].join("\n"),
-
-    NOTE: () =>
-      [
-        "",
-        "※ これは「星の配置」の一覧です。",
-        "※ 意味や解釈は置いていません。",
-        "",
-        "星は語る。",
-        "決めるのは、人。🌎️🛸✨️",
-      ].join("\n"),
-  },
-
-  // --------------------
-  // Yoin（余韻：短文）
-  // --------------------
-  YOIN: {
-    FALLBACK: "空の密度が少し上がる日。",
-
-    ELEMENT_PHRASE: {
-      fire: "熱が立ち上がりやすい空。",
-      earth: "現実に落とし込む圧が出やすい空。",
-      air: "情報と会話が動きやすい空。",
-      water: "感情と余韻が浸透しやすい空。",
-      mixed: "要素が混ざって、決めすぎなくていい空。",
+    // --------------------
+    // Labels
+    // --------------------
+    LABELS: {
+        NATAL: "ネイタル：",
+        TRANSIT: "トランジット：",
     },
 
-    MODALITY_PHRASE: {
-      cardinal: "動かす方向へ傾きやすい",
-      fixed: "保つ／固める方向へ寄りやすい",
-      mutable: "切り替え／揺らす方向へ流れやすい",
-      mixed: "ペース配分で形が変わりやすい",
+    // --------------------
+    // Natal list copy
+    // --------------------
+    NATAL_LIST: {
+        NOT_READY: () =>
+            [
+                HEAD_NATAL_LIST,
+                "",
+                "（まだ準備中みたい）",
+                "LINEで「はじめる」から登録してね🕊️",
+            ].join("\n"),
+
+        MISSING_ANGLES: () =>
+            [
+                HEAD_NATAL_LIST,
+                "",
+                "ASC/MC がまだ見つからなかった🙏",
+                "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
+                "",
+                "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるのでここでは止めてる。",
+            ].join("\n"),
+
+        NOTE: () =>
+            [
+                "",
+                "※ これは「星の配置」の一覧です。",
+                "※ 意味や解釈は置いていません。",
+                "",
+                "星は語る。",
+                "決めるのは、人。🌎️🛸✨️",
+            ].join("\n"),
     },
 
-    TAIL_POOL_1: [
-      "今日の理解は、あとで追いつくかもしれない。",
-      "言葉にしなくても、構造は残る。",
-      "決めなくていいまま、置いておける日。",
-      "動いてもいい。動かなくても、壊れない。",
-      "答えより、手触りを持ち帰る。",
-      "意味づけは、あなたのタイミングで。",
-    ],
+    // --------------------
+    // Yoin（余韻：短文）
+    // --------------------
+    YOIN: {
+        FALLBACK: "空の密度が少し上がる日。",
 
-    TAIL_POOL_2: [
-      "先に身体、あとで言葉。",
-      "焦点を変えるだけで、景色が変わる日。",
-      "余白を残して、次に渡す。",
-      "今日は“結論”じゃなくて“残響”で十分。",
-      "これでいい、を急がない。",
-    ],
+        ELEMENT_PHRASE: {
+            fire: "熱が立ち上がりやすい空。",
+            earth: "現実に落とし込む圧が出やすい空。",
+            air: "情報と会話が動きやすい空。",
+            water: "感情と余韻が浸透しやすい空。",
+            mixed: "要素が混ざって、決めすぎなくていい空。",
+        },
 
-    BUILD: ({ topElement, topModality, aspectLabel } = {}) => {
-      const head =
-        (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) ||
-        RENDER_COPY.YOIN.FALLBACK;
+        MODALITY_PHRASE: {
+            cardinal: "動かす方向へ傾きやすい",
+            fixed: "保つ／固める方向へ寄りやすい",
+            mutable: "切り替え／揺らす方向へ流れやすい",
+            mixed: "ペース配分で形が変わりやすい",
+        },
 
-      const tailBits = [];
-      if (topModality && RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]) {
-        tailBits.push(RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]);
-      }
-      if (aspectLabel) tailBits.push(`質感は ${aspectLabel} 寄り`);
+        TAIL_POOL_1: [
+            "今日の理解は、あとで追いつくかもしれない。",
+            "言葉にしなくても、構造は残る。",
+            "決めなくていいまま、置いておける日。",
+            "動いてもいい。動かなくても、壊れない。",
+            "答えより、手触りを持ち帰る。",
+            "意味づけは、あなたのタイミングで。",
+        ],
 
-      const tail = tailBits.length ? `${tailBits.join("、")}。` : "";
-      const out = `${head}${tail ? ` ${tail}` : ""}`.trim();
+        TAIL_POOL_2: [
+            "先に身体、あとで言葉。",
+            "焦点を変えるだけで、景色が変わる日。",
+            "余白を残して、次に渡す。",
+            "今日は“結論”じゃなくて“残響”で十分。",
+            "これでいい、を急がない。",
+        ],
 
-      if (out.length > 90) return head;
-      return out.replace(/。\s+/g, "。").trim();
+        BUILD: ({ topElement, topModality, aspectLabel } = {}) => {
+            const head =
+                (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) ||
+                RENDER_COPY.YOIN.FALLBACK;
+
+            const tailBits = [];
+            if (topModality && RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]) {
+                tailBits.push(RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]);
+            }
+            if (aspectLabel) tailBits.push(`質感は ${aspectLabel} 寄り`);
+
+            const tail = tailBits.length ? `${tailBits.join("、")}。` : "";
+            const out = `${head}${tail ? ` ${tail}` : ""}`.trim();
+
+            if (out.length > 90) return head;
+            return out.replace(/。\s+/g, "。").trim();
+        },
+
+        // ✅ v3.3：global短文 + center短文 を「そのまま縦連結」するだけ
+        GLUE: (globalText, centerText) => {
+            const g = String(globalText || "").trim();
+            const c = String(centerText || "").trim();
+            if (!g && !c) return "";
+            if (!g) return c;
+            if (!c) return g;
+            return `${g} ${c}`; // 改行じゃなくスペース
+        },
     },
 
-    // ✅ v3.3：global短文 + center短文 を「そのまま縦連結」するだけ
-    GLUE: (globalText, centerText) => {
-      const g = String(globalText || "").trim();
-      const c = String(centerText || "").trim();
-      if (!g && !c) return "";
-      if (!g) return c;
-      if (!c) return g;
-      return `${g} ${c}`; // 改行じゃなくスペース
-    },
-  },
+    // --------------------
+    // Yoin Global（余韻：地層） v3.3
+    // --------------------
+    YOIN_GLOBAL: {
+        TAIL_POOL: [
+            "空は“結論”より“配置”を残す。",
+            "強さは、派手さじゃなく配分で決まる。",
+            "今日は層が厚い。言葉はあとで追いつく。",
+            "同じ現象でも、受け取り方は何層もある。",
+            "静かに、編み直せる日。",
+        ],
 
-  // --------------------
-  // Yoin Global（余韻：地層） v3.3
-  // --------------------
-  YOIN_GLOBAL: {
-    TAIL_POOL: [
-      "空は“結論”より“配置”を残す。",
-      "強さは、派手さじゃなく配分で決まる。",
-      "今日は層が厚い。言葉はあとで追いつく。",
-      "同じ現象でも、受け取り方は何層もある。",
-      "静かに、編み直せる日。",
-    ],
+        BUILD_SHORT: ({ topElement, topModality, core1, core2, seedBase, pickStable } = {}) => {
+            const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合", unknown: "未判定" };
+            const modalityJa = { cardinal: "活動", fixed: "不動", mutable: "柔軟", mixed: "混合", unknown: "未判定" };
 
-    BUILD_SHORT: ({ topElement, topModality, core1, core2, seedBase, pickStable } = {}) => {
-      const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合", unknown: "未判定" };
-      const modalityJa = { cardinal: "活動", fixed: "不動", mutable: "柔軟", mixed: "混合", unknown: "未判定" };
+            const layer = `${elementJa[topElement] || "混合"}×${modalityJa[topModality] || "混合"}`;
+            const theme = core1 ? `中心は「${core1}」` : "中心は「言葉より手触り」";
+            const sub = core2 ? `／副旋律「${core2}」` : "";
 
-      const layer = `${elementJa[topElement] || "混合"}×${modalityJa[topModality] || "混合"}`;
-      const theme = core1 ? `中心は「${core1}」` : "中心は「言葉より手触り」";
-      const sub = core2 ? `／副旋律「${core2}」` : "";
+            let out = `地層：${layer}。${theme}${sub}`.trim();
 
-      let out = `地層：${layer}。${theme}${sub}`.trim();
+            const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
+            const tail = (typeof pickStable === "function" && seedBase && pool.length)
+                ? pickStable(pool, seedBase + "|tail")
+                : "";
 
-      const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
-      const tail = (typeof pickStable === "function" && seedBase && pool.length)
-        ? pickStable(pool, seedBase + "|tail")
-        : "";
+            if (tail) out = `${out}｜${tail}`;
+            return out.length > 90 ? `地層：${layer}。${theme}` : out;
+        },
 
-      if (tail) out = `${out}｜${tail}`;
-      return out.length > 90 ? `地層：${layer}。${theme}` : out;
-    },
+        BUILD_DETAIL: ({ story, seedBase, pickStable, buildYoinGlobal }) => {
+            const short = typeof buildYoinGlobal === "function"
+                ? buildYoinGlobal(story, { compact: false, maxContacts: 12, minWeight: 0.10 })
+                : "";
 
-    BUILD_DETAIL: ({ story, seedBase, pickStable, buildYoinGlobal }) => {
-      const short = typeof buildYoinGlobal === "function"
-        ? buildYoinGlobal(story, { compact: false, maxContacts: 12, minWeight: 0.10 })
-        : "";
+            const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
+            const tail = (typeof pickStable === "function" && seedBase && pool.length)
+                ? pickStable(pool, seedBase + "|detail_tail")
+                : "";
 
-      const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
-      const tail = (typeof pickStable === "function" && seedBase && pool.length)
-        ? pickStable(pool, seedBase + "|detail_tail")
-        : "";
-
-      return [short, tail].filter(Boolean).join("\n");
-    },
-  },
-
-  // --------------------
-  // X formatting（compact template / CLEAN）
-  // --------------------
-  X_FORMAT: {
-    TITLE_LINE: (dateLabel) => `🌌 ${dateLabel}｜今日のソラ`,
-    MOON_LINE: (moonSignJa) => (moonSignJa ? `月：${moonSignJa}` : ""),
-
-    SKY_LINE: ({ emoji = "☄️", aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) => {
-      const aSign = aSignJa ? ` ${aSignJa}` : "";
-      const bSign = bSignJa ? ` ${bSignJa}` : "";
-      const o = typeof orb === "number" ? orb.toFixed(1) : String(orb);
-      return `${emoji}${aLabel}${aSign} ×${bLabel}${bSign}｜${aspectJa} ${o}°`;
+            return [short, tail].filter(Boolean).join("\n");
+        },
     },
 
-    SECRET_LINE: ({ aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) =>
-      RENDER_COPY.X_FORMAT.SKY_LINE({
-        emoji: "🌙",
-        aLabel,
-        aSignJa,
-        bLabel,
-        bSignJa,
-        aspectJa,
-        orb,
-      }),
+    // --------------------
+    // X formatting（compact template / CLEAN）
+    // --------------------
+    X_FORMAT: {
+        TITLE_LINE: (dateLabel) => `🌌 ${dateLabel}｜今日のソラ`,
+        MOON_LINE: (moonSignJa) => (moonSignJa ? `🌙月: ${moonSignJa}` : ""),
 
-    ROLE_HEAD_MAIN: "【主役】",
-    ROLE_HEAD_SHADOW: "【影】",
-    MAIN_ARROW: (s) => (s ? `→ ${String(s).trim()}` : ""),
+        SKY_LINE: ({ emoji = "☄️", aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) => {
+            const aSign = aSignJa ? ` ${aSignJa}` : "";
+            const bSign = bSignJa ? ` ${bSignJa}` : "";
+            const o = typeof orb === "number" ? orb.toFixed(1) : String(orb);
+            return `${emoji}${aLabel}${aSign} ×${bLabel}${bSign}｜${aspectJa} ${o}°`;
+        },
 
-    CLOSE_LINES: ["空気は一方向じゃない。", "読む場所は、選んでいい。", "", FOOTER_X],
+        SECRET_LINE: ({ aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) =>
+            RENDER_COPY.X_FORMAT.SKY_LINE({
+                emoji: "🪐",
+                aLabel,
+                aSignJa,
+                bLabel,
+                bSignJa,
+                aspectJa,
+                orb,
+            }),
 
-    CLOSE_LINES_POOL: [
-      ["切り替えていい。", "今日は今日の速度がある。", "", FOOTER_X],
-      ["動いてもいい。", "動かなくても、進んでいる。", "", FOOTER_X],
-      ["言葉にしなくてもいい。", "感じた時点で、もう受信してる。", "", FOOTER_X],
-      ["視野は、広げてもいい。", "縮めても、間違いじゃない。", "", FOOTER_X],
-      ["誰かとでも、ひとりでも。", "今日はどちらでも成立する。", "", FOOTER_X],
-      ["意味を探さなくていい。", "感覚が先に来る日もある。", "", FOOTER_X],
-      ["静かでいい。", "回収するだけの日も、必要。", "", FOOTER_X],
-    ],
+        ROLE_HEAD_MAIN: "主役: ",
+        ROLE_HEAD_SHADOW: "影: ",
+        MAIN_ARROW: (s) => (s ? `→ ${String(s).trim()}` : ""),
 
-    BLOCK_ROLE: ({ dateLabel, moonSignJa, mainLine, mainArrow, shadowLines = [], yoinShort, closeLines }) => {
-      const lines = [];
-      lines.push(`🌌 ${dateLabel}｜空の配置`);
-      if (moonSignJa) lines.push(`月：${moonSignJa}`);
+        CLOSE_LINES: ["空気は一方向じゃない。", "読む場所は、選んでいい。", "", FOOTER_X],
 
-      lines.push("");
-      lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_MAIN);
-      lines.push(mainLine);
-      if (mainArrow) lines.push(mainArrow);
+        CLOSE_LINES_POOL: [
+            ["切り替えていい。", "今日は今日の速度がある。", "", FOOTER_X],
+            ["動いてもいい。", "動かなくても、進んでいる。", "", FOOTER_X],
+            ["言葉にしなくてもいい。", "感じた時点で、もう受信してる。", "", FOOTER_X],
+            ["視野は、広げてもいい。", "縮めても、間違いじゃない。", "", FOOTER_X],
+            ["誰かとでも、ひとりでも。", "今日はどちらでも成立する。", "", FOOTER_X],
+            ["意味を探さなくていい。", "感覚が先に来る日もある。", "", FOOTER_X],
+            ["静かでいい。", "回収するだけの日も、必要。", "", FOOTER_X],
+        ],
 
-      if (shadowLines.length) {
-        lines.push("");
-        lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_SHADOW);
-        shadowLines.forEach((l) => lines.push(l));
-      }
+        BLOCK_ROLE: ({ dateLabel, moonSignJa, mainLine, mainArrow, shadowLines = [], yoinShort, closeLines }) => {
+            const lines = [];
+            lines.push(`🌌 ${dateLabel}｜空の配置`);
+            if (moonSignJa) lines.push(`月：${moonSignJa}`);
 
-      if (yoinShort) {
-        lines.push("");
-        lines.push(yoinShort);
-      }
+            lines.push("");
+            lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_MAIN);
+            lines.push(mainLine);
 
-      const closing = Array.isArray(closeLines) ? closeLines : RENDER_COPY.X_FORMAT.CLOSE_LINES;
-      lines.push("");
-      lines.push(...closing);
+            //Xでは使わない
+            //   if (mainArrow) lines.push(mainArrow);
 
-      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-    },
-  },
+            if (shadowLines.length) {
+                lines.push("");
+                lines.push(RENDER_COPY.X_FORMAT.ROLE_HEAD_SHADOW);
+                shadowLines.forEach((l) => lines.push(l));
+            }
 
-  // --------------------
-  // IG formatting（copy-driven）
-  // --------------------
-  IG_FORMAT: {
-    MOON_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
-    SKY_LINE_NUM: (i, a, aSign, b, bSign) => `${i}) ${a}${aSign} × ${b}${bSign}`,
-    SKY_LINE_ASPECT: (aspectJa, orb) => `${aspectJa}（orb ${orb}°）`,
+            // if (yoinShort) {
+            //     lines.push("");
+            //     lines.push(yoinShort);
+            // }
 
-    MEANING_BLOCK: ({ aLabel, aCore, bLabel, bCore, tone, aspectCoreText }) => {
-      const t = tone ? `「${tone}」空気の中で、` : "";
-      return (
-        `${aLabel}（${aCore || "—"}）と、\n` +
-        `${bLabel}（${bCore || "—"}）が、\n\n` +
-        (t ? `${t}\n` : "") +
-        `${aspectCoreText || "—"}。`
-      ).replaceAll("\n\n\n", "\n\n");
+            const closing = Array.isArray(closeLines) ? closeLines : RENDER_COPY.X_FORMAT.CLOSE_LINES;
+            lines.push("");
+            lines.push(...closing);
+
+            return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        },
     },
 
-    SECRET_HEAD: "ひそかな配置",
-  },
+    // --------------------
+    // IG formatting（copy-driven）
+    // --------------------
+    IG_FORMAT: {
+        MOON_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
+        SKY_LINE_NUM: (i, a, aSign, b, bSign) => `${i}) ${a}${aSign} × ${b}${bSign}`,
+        SKY_LINE_ASPECT: (aspectJa, orb) => `${aspectJa}（orb ${orb}°）`,
+
+        MEANING_BLOCK: ({ aLabel, aCore, bLabel, bCore, tone, aspectCoreText }) => {
+            const t = tone ? `「${tone}」空気の中で、` : "";
+            return (
+                `${aLabel}（${aCore || "—"}）と、\n` +
+                `${bLabel}（${bCore || "—"}）が、\n\n` +
+                (t ? `${t}\n` : "") +
+                `${aspectCoreText || "—"}。`
+            ).replaceAll("\n\n\n", "\n\n");
+        },
+
+        SECRET_HEAD: "ひそかな配置",
+    },
 });
 
 module.exports = { RENDER_COPY };
