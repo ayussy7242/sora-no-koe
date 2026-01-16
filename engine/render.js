@@ -2,15 +2,20 @@
 "use strict";
 
 /**
- * render.js (STABLE / V1-source-of-truth) — Unified v3.3 (v2026.01+)
+ * render.js (STABLE / V1-source-of-truth) — Unified v3.3.4 (v2026.01+)
  * - dict の V1原本(ASPECTS_V1/PLANETS_V1/POINTS_V1/SIGNS_V1) を直接参照して描画
  * - 互換マップ(BODY_JA/POINT_JA/ASPECT_JA)は保険として残す
  * - 占い化しない（no prediction / no should / no good-bad）
  *
- * ✅ v3.3
+ * ✅ v3.3.x
  * - buildYoinGlobal(): sky_all / personal layers から「地層の余韻（短文）」を生成（非予言）
  * - buildYoinLine(): 余韻（global短文 + center短文）を GLUE で合成
- * - LINE: 余韻(v3.3) + 残り香(seed) に加え、任意で「地層の余韻（詳細ブロック）」も出せる（copy側がHEAD_YOIN_GLOBALを持つ時だけ）
+ *
+ * ✅ v3.3.4 (FIX + Simplify)
+ * - _formatSkyLineX / _formatYoinForX の重複定義を根絶（1つだけ）
+ * - X の closeLines は close_picker.js に一本化（カテゴリ→安定抽選）
+ * - X_FORMAT.BLOCK_ROLE は使わない（copy側に未定義キーがあり得るため）
+ * - footer は renderX が最後に 1 回だけ付ける（重複禁止 / 混入検知）
  */
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
@@ -29,6 +34,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
   // COPY (source of truth for fixed wording)
   const { RENDER_COPY } = require("../copy/render");
+
+  // close picker (カテゴリ選択ルール表)
+  const { pickCloseLines } = require("../engine/close_picker");
 
   // --------------------
   // internal safe JA maps (in case dict is missing)
@@ -449,7 +457,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const m = Number(orbMax);
     if (!Number.isFinite(o) || !Number.isFinite(m) || m <= 0) return 0;
 
-    // orbが小さいほど強い。最低ラインは0.15で床を作る（弱すぎるノイズを切る）
     const w = 1 - Math.min(Math.max(o, 0), m) / m;
     return Math.max(0.15, w);
   }
@@ -495,7 +502,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return RENDER_COPY.YOIN.BUILD({
       topElement,
       topModality,
-      aspectLabel: aspectCoreText || null, // ✅ これ追加：余韻に“質感”が入る
+      aspectLabel: aspectCoreText || null,
     });
   }
 
@@ -757,77 +764,59 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // --------------------
-  // helpers (v3.3.3)
+  // helpers for yoin blocks
   // --------------------
   function _stripQualityPhrase(s) {
-    // 「質感は ◯◯ 寄り。」の重複を消す（「」有無・空白揺れ・句読点揺れ対応）
     let out = String(s || "");
 
-    // 1) 「質感は「◯◯」寄り。」
     out = out.replace(/[,、]?\s*質感は\s*「[^」]+」\s*寄り。?/g, "");
-
-    // 2) 「質感は ◯◯ 寄り。」（カギカッコ無し）
-    //    例: "、質感は チャンス・協力・選択肢 寄り。"
     out = out.replace(/[,、]?\s*質感は\s*[^。]+?\s*寄り。?/g, "");
 
-    // 取り残しの読点/空白を掃除
     out = out.replace(/[,、]\s*。/g, "。");
     out = out.replace(/[,、]\s*$/g, "");
+    out = out.replace(/。\s+/g, "。\n");
     out = out.replace(/\s{2,}/g, " ").trim();
 
-    // 文末を「。」で揃える（空ならそのまま）
     if (out && !out.endsWith("。")) out += "。";
     return out;
   }
 
   function _splitYoinForLine(yoinSummaryRaw) {
-    // buildYoinLine() が返す「global+center」1行を、LINE向けに “地層行 / 中心行” に分割する
-    // 例:
-    //  地層：...｜...。要素が混ざって...、質感は「...」寄り。
-    // =>
-    //  地層：...｜...
-    //  要素が混ざって...
     const s = String(yoinSummaryRaw || "").trim();
     if (!s) return { globalLine: "", centerLine: "" };
 
-    // 先頭が「地層：」なら、最初の「。」で切る
     const isLayer = s.startsWith("地層：");
     if (!isLayer) return { globalLine: "", centerLine: _stripQualityPhrase(s) };
 
     const idx = s.indexOf("。");
     if (idx < 0) return { globalLine: s, centerLine: "" };
 
-    const globalLine = s.slice(0, idx).trim(); // 「。」は落とす（1行化）
+    const globalLine = s.slice(0, idx + 1).trim(); // "。"を含める
     const rest = s.slice(idx + 1).trim();
-    const centerLine = _stripQualityPhrase(rest);
+    const centerLine = _stripQualityPhrase(rest).replace(/｜/g, "\n");
 
     return { globalLine, centerLine };
   }
 
-  function _buildYoinBlocksV33(story, { channel, seedBase, pickStable }) {
-    // channel: "x" | "line"
-    // 目的：X/LINEで “余韻の役割” を統一しつつ、重複を生まない構造にする
-
-    // buildYoinLine は「global+center」合体の正本（copy.YOIN.GLUE優先）
+  function _buildYoinBlocks(story, { channel, seedBase } = {}) {
     const yoinSummaryRaw = buildYoinLine(story);
 
-    // 残り香（LINEは毎回2行、Xは closeLines 側で出すのでここでは出さない）
     const poolA = Array.isArray(RENDER_COPY?.YOIN?.TAIL_POOL_1) ? RENDER_COPY.YOIN.TAIL_POOL_1 : [];
     const poolB = Array.isArray(RENDER_COPY?.YOIN?.TAIL_POOL_2) ? RENDER_COPY.YOIN.TAIL_POOL_2 : [];
 
-    const tail1 = typeof pickStable === "function" && poolA.length ? pickStable(poolA, seedBase + "|a") : "";
-    const tail2 = typeof pickStable === "function" && poolB.length ? pickStable(poolB, seedBase + "|b") : "";
+    const tail1 = poolA.length ? pickStable(poolA, seedBase + "|a") : "";
+    const tail2 = poolB.length ? pickStable(poolB, seedBase + "|b") : "";
 
     if (channel === "x") {
-      // ✅ Xは “説明を1回にする” ：地層短文だけを優先して入れる
-      // buildYoinGlobal が既に「地層：...中心は...｜...」を吐けるので、それをXの余韻として採用
-      const centerLine = String(buildYoinCenter(story) || "").trim();
+      const layerLine = String(buildYoinGlobal(story, {
+        maxContacts: 10,
+        minWeight: 0.12,
+        includeDeep: true,
+        compact: true,
+      }) || "").trim();
 
       return {
-        // Xはここだけ使う（closeは別）
-        // xYoinLine: layerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
-        xYoinLine: centerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
-        // LINE用も返しておく（将来共通化しやすい）
+        xYoinLine: layerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
         lineGlobal: "",
         lineCenter: "",
         lineTail1: tail1,
@@ -835,7 +824,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       };
     }
 
-    // LINE：地層行と中心行を“分けて”見せる（うるささが消える）
     const { globalLine, centerLine } = _splitYoinForLine(yoinSummaryRaw);
 
     return {
@@ -848,150 +836,47 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   function _filterKeepBlanks(arr) {
-    // ✅ 空文字 "" は残す（改行設計のため）
     return arr.filter((v) => v !== null && v !== undefined);
   }
 
   // --------------------
-  // X (copy-driven) v3.3.3 FULL
+  // X helpers (minimal format)
   // --------------------
-  function renderX(story) {
-    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
-    const moonSignJa = story?.public?.moon?.sign_ja || null;
+  function _formatSkyLineX(story, s, emoji) {
+    if (!s) return "";
+    const aKey = s.a;
+    const bKey = s.b;
 
-    // close lines（日替わり）
-    const pool = Array.isArray(RENDER_COPY.X_FORMAT.CLOSE_LINES_POOL)
-      ? RENDER_COPY.X_FORMAT.CLOSE_LINES_POOL
-      : [];
+    const aLabel = fmtAnyJa(aKey);
+    const bLabel = fmtAnyJa(bKey);
 
-    const seedClose = `${story?.meta?.date_local || dateLabel}|close`;
-    const idx = pool.length ? (hash32(seedClose) % pool.length) : -1;
-    const closeLines = idx >= 0 ? pool[idx] : RENDER_COPY.X_FORMAT.CLOSE_LINES;
+    const aSignJa = s.a_sign_ja || publicSignJa(story, aKey);
+    const bSignJa = s.b_sign_ja || publicSignJa(story, bKey);
 
-    const center = pickCenterPublicContact(story);
-    const MAX = 260;
+    const aspectJa = fmtAspectJa(s.type);
+    const orb = fmtDeg(s.orb_deg);
 
-    const userSeed =
-      story?.personal?.user_id ||
-      story?.meta?.app_user_id ||
-      story?.meta?.appUserId ||
-      "public";
+    return `${emoji}${aLabel} ${aSignJa} × ${bLabel} ${bSignJa}｜${aspectJa} ${orb}°`;
+  }
 
-    const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}|yoin`;
+  function _formatYoinForX(yoinLineRaw) {
+    const s0 = String(yoinLineRaw || "").trim();
+    if (!s0) return "";
 
-    // ✅ X余韻は “地層1行” に固定（重複回避）
-    const yoinPack = _buildYoinBlocksV33(story, {
-      channel: "x",
-      seedBase,
-      pickStable,
-    });
+    const parts = s0
+      .split("｜")
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
 
-    const buildRole = ({ moon, shadowMax, keepYoin, keepArrow }) => {
-      if (!center) {
-        const noContact = buildNoContactLine(story);
-        return RENDER_COPY.X_FORMAT.BLOCK_ROLE({
-          dateLabel,
-          moonSignJa: moon ? moonSignJa : null,
-          mainLine: noContact,
-          mainArrow: "",
-          shadowLines: [],
-          yoinShort: keepYoin ? yoinPack.xYoinLine : "",
-          closeLines,
-        });
-      }
-
-      const mainLine = RENDER_COPY.X_FORMAT.SKY_LINE({
-        emoji: "☄️",
-        aLabel: fmtAnyJa(center.a),
-        aSignJa: publicSignJa(story, center.a),
-        bLabel: fmtAnyJa(center.b),
-        bSignJa: publicSignJa(story, center.b),
-        aspectJa: fmtAspectJa(center.type),
-        orb: Number(center.orb_deg),
-      });
-
-      const core =
-        (typeof aspectCore === "function" ? aspectCore(center.type) : null) ||
-        ASPECTS_META?.[center.type]?.core ||
-        null;
-
-      const aTone = signMeta(publicSignKey(story, center.a))?.tone || null;
-      const bTone = signMeta(publicSignKey(story, center.b))?.tone || null;
-      const tone = aTone || bTone || "";
-
-      const mainArrow = keepArrow ? RENDER_COPY.X_FORMAT.MAIN_ARROW(core || tone || "") : "";
-
-      // ✅ 影：secret優先、なければtop2、最大は shadowMax（variantsで1に寄せる）
-      const shadowLines = [];
-      const secret = pickSecretPublicContact(story);
-      if (secret) {
-        shadowLines.push(
-          RENDER_COPY.X_FORMAT.SECRET_LINE({
-            aLabel: fmtAnyJa(secret.a),
-            aSignJa: publicSignJa(story, secret.a),
-            bLabel: fmtAnyJa(secret.b),
-            bSignJa: publicSignJa(story, secret.b),
-            aspectJa: fmtAspectJa(secret.type),
-            orb: Number(secret.orb_deg),
-          })
-        );
-      }
-
-      const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
-      const t2 = skyTop?.[1] || null;
-
-      const isDup =
-        t2 &&
-        secret &&
-        (typeof skyKey === "function"
-          ? skyKey(t2) === skyKey(secret)
-          : `${t2.a}|${t2.b}|${t2.type}` === `${secret.a}|${secret.b}|${secret.type}`);
-
-      if (t2 && !isDup) {
-        shadowLines.push(
-          RENDER_COPY.X_FORMAT.SKY_LINE({
-            emoji: "☄️",
-            aLabel: fmtAnyJa(t2.a),
-            aSignJa: publicSignJa(story, t2.a),
-            bLabel: fmtAnyJa(t2.b),
-            bSignJa: publicSignJa(story, t2.b),
-            aspectJa: fmtAspectJa(t2.type),
-            orb: Number(t2.orb_deg),
-          })
-        );
-      }
-
-      return RENDER_COPY.X_FORMAT.BLOCK_ROLE({
-        dateLabel,
-        moonSignJa: moon ? moonSignJa : null,
-        mainLine,
-        mainArrow,
-        shadowLines: shadowLines.slice(0, shadowMax),
-        yoinShort: keepYoin ? yoinPack.xYoinLine : "",
-        closeLines,
-      });
-    };
-
-    // ✅ 方針：影は基本1（入らない前提）、あとは削る順序だけ
-    const variants = [
-      { moon: true, shadowMax: 1, keepYoin: true, keepArrow: true },
-      { moon: true, shadowMax: 1, keepYoin: false, keepArrow: true },
-      { moon: true, shadowMax: 1, keepYoin: false, keepArrow: false },
-      { moon: false, shadowMax: 1, keepYoin: false, keepArrow: false },
-    ];
-
-    let text = "";
-    for (const v of variants) {
-      text = buildRole(v);
-      if (text.length <= MAX) break;
+    if (parts.length && parts[0].startsWith("地層：")) {
+      parts[0] = parts[0].replace("。", "。\n");
     }
 
-    if (text.length > MAX) text = text.slice(0, MAX - 1) + "…";
-    return text;
+    return parts.join("\n");
   }
 
   // --------------------
-  // LINE v3.3.3 (Fixed structure + correct blank lines + de-dup yoin)
+  // LINE v3.3.4 (structure fixed)
   // --------------------
   function renderLine(story) {
     const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
@@ -1048,12 +933,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const moonLine = buildMoonLine(story);
 
-    // --------------------
-    // Aftertaste（今日の余韻）v3.3.3
-    // - LINEでは「地層行」と「中心行」を分けて見せる
-    // - 「質感は…寄り」の重複は中心行から除去
-    // - 残り香2行は余韻ブロック内に置く
-    // --------------------
     const userSeed =
       story?.personal?.user_id ||
       story?.meta?.app_user_id ||
@@ -1062,10 +941,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}|yoin`;
 
-    const yoinPack = _buildYoinBlocksV33(story, {
+    const yoinPack = _buildYoinBlocks(story, {
       channel: "line",
       seedBase,
-      pickStable,
     });
 
     const headYoin = RENDER_COPY?.HEAD_YOIN || "【今日の余韻】";
@@ -1074,40 +952,10 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     if (yoinPack.lineGlobal) yoinLines.push(yoinPack.lineGlobal);
     if (yoinPack.lineCenter) yoinLines.push(yoinPack.lineCenter);
 
-    const yoinBlock = RENDER_COPY.LINE_YOIN_COMPACT
-      ? [
-        ...yoinLines,
-      ].filter((v) => typeof v === "string").join("\n")
-      : [
-        ...yoinLines,
-        "",
-        // --- Optional Aftertaste Tails ---------------------------------
-        // 以下の2行は「余韻を言葉で導きたい時」用の残り香。
-        // 通常はオフ推奨。
-        // 理由：
-        // - 上段（地層＋中心）で余韻はすでに閉じている
-        // - ここを出すと「余韻の説明」になりやすい
-        // - ソラのこえ。は“置いて終わる”方が強い
-        //
-        // 必要になるケース例：
-        // - 初期フェーズで世界観を伝えたい時
-        // - LINE新規登録直後（思想の補助線が必要な時）
-        // - 感情が強く揺れる配置の日に、着地点を用意したい時
-        //
-        // 再有効化する場合は、
-        // yoinTail1 / yoinTail2 を yoinBlock に戻すだけでOK。
-        //
-        // "答えより、手触りを持ち帰る。"
-        // "余白を残して、次に渡す."
-        // ---------------------------------------------------------------
-        // yoinPack.lineTail1,
-        // yoinPack.lineTail2,
+    const yoinBlock = [
+      ...yoinLines,
+    ].filter((v) => typeof v === "string" && v.trim()).join("\n");
 
-      ].filter((v) => typeof v === "string").join("\n");
-
-    // --------------------
-    // Optional: Global Yoin Detail block（copyがHEAD_YOIN_GLOBALを持つ時だけ）
-    // --------------------
     const globalHead = RENDER_COPY?.HEAD_YOIN_GLOBAL || "";
     const globalDetail =
       globalHead && typeof RENDER_COPY?.YOIN_GLOBAL?.BUILD_DETAIL === "function"
@@ -1119,7 +967,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         })}`
         : "";
 
-    // ✅ 改行設計：空行 "" を消さない
     return _filterKeepBlanks([
       RENDER_COPY.LINE_TITLE(dateLabel),
       "",
@@ -1138,6 +985,94 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     ]).join("\n");
   }
 
+  // --------------------
+  // X v3.3.4 (minimal / no roles)
+  // --------------------
+  function renderX(story) {
+    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+    const moonSignJa = story?.public?.moon?.sign_ja || "";
+
+    const userSeed =
+      story?.personal?.user_id ||
+      story?.meta?.app_user_id ||
+      story?.meta?.appUserId ||
+      "public";
+
+    const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}`;
+
+    const yoinPack = _buildYoinBlocks(story, {
+      channel: "x",
+      seedBase: `${seedBase}|yoin`,
+    });
+
+    const center = pickCenterPublicContact(story);
+    const secret = pickSecretPublicContact(story);
+
+    const main1 = center ? _formatSkyLineX(story, center, "☄️") : "";
+    const main2 = secret ? _formatSkyLineX(story, secret, "🪐") : "";
+
+    const yoin = _formatYoinForX(yoinPack?.xYoinLine);
+
+    // close lines: close_picker.js からカテゴリ→安定抽選
+    const closeLines = pickCloseLines(RENDER_COPY, story, {
+      seedBase,
+      pickStable,
+    });
+
+    // footer strict guard
+    const footer = String(RENDER_COPY?.FOOTER_X || "星は語る。🌎🛸").trim();
+    const closeArr = (Array.isArray(closeLines) ? closeLines : [String(closeLines || "")])
+      .map((l) => String(l || "").trim())
+      .filter(Boolean)
+      .filter((l) => l !== footer); // 念のため混入除去
+
+    const MAX = 270;
+
+    function build({ keepSecond, keepYoin, keepClose }) {
+      const lines = [];
+
+      lines.push(`🌌 ${dateLabel}｜空の配置`);
+      lines.push("");
+
+      if (moonSignJa) lines.push(`🌙月：${moonSignJa}`);
+      lines.push("");
+
+      if (main1) lines.push(main1);
+      if (keepSecond && main2) lines.push(main2);
+
+      if (keepYoin && yoin) {
+        lines.push("");
+        yoin.split("\n").forEach((l) => lines.push(l));
+      }
+
+      if (keepClose && closeArr.length) {
+        lines.push("");
+        lines.push(...closeArr);
+      }
+
+      lines.push("");
+      lines.push(footer);
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    const variants = [
+      { keepSecond: true, keepYoin: true, keepClose: true },
+      { keepSecond: false, keepYoin: true, keepClose: true },
+      { keepSecond: false, keepYoin: true, keepClose: false },
+      { keepSecond: false, keepYoin: false, keepClose: true },
+      { keepSecond: false, keepYoin: false, keepClose: false },
+    ];
+
+    let text = "";
+    for (const v of variants) {
+      text = build(v);
+      if (text.length <= MAX) break;
+    }
+
+    if (text.length > MAX) text = text.slice(0, MAX - 1) + "…";
+    return text;
+  }
 
   // --------------------
   // IG (copy-driven)
