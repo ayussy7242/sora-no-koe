@@ -356,10 +356,12 @@ const RENDER_COPY = Object.freeze({
                 shadowLines.forEach((l) => lines.push(l));
             }
 
-            // if (yoinShort) {
-            //     lines.push("");
-            //     lines.push(yoinShort);
-            // }
+            const glued = RENDER_COPY.YOIN.GLUE(null, yoinShort);
+            
+            if (glued) {
+                lines.push("");
+                lines.push(glued);
+            }
 
             const closing = Array.isArray(closeLines) ? closeLines : RENDER_COPY.X_FORMAT.CLOSE_LINES;
             lines.push("");
