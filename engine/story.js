@@ -40,7 +40,19 @@ function createStoryService({
   // optional
   buildResonanceBullets,
 
-
+  // ✅ 追加：空層用の伝統重み（外天体0.3）
+  PLANET_WEIGHT = {
+    Sun: 1.0,
+    Moon: 1.0,
+    Mercury: 1.0,
+    Venus: 1.0,
+    Mars: 1.0,
+    Jupiter: 0.8,
+    Saturn: 0.8,
+    Uranus: 0.3,
+    Neptune: 0.3,
+    Pluto: 0.3,
+  },
 }) {
   if (!db) throw new Error("createStoryService: db required");
   if (!swisseph) throw new Error("createStoryService: swisseph required");
@@ -206,6 +218,67 @@ function createStoryService({
       .sort((x, y) => (x?.orb_deg ?? 999) - (y?.orb_deg ?? 999))
       .slice(0, n);
   }
+
+  //
+  // 空層計算
+  //
+
+  function getSignMetaByKey(signKeyRaw) {
+    const key = String(signKeyRaw || "");
+    if (!key) return null;
+
+    // 1) exact
+    if (SIGNS_V1?.signs?.[key]) return SIGNS_V1.signs[key];
+
+    // 2) lowercase hit
+    const low = key.toLowerCase();
+    if (SIGNS_V1?.signs?.[low]) return SIGNS_V1.signs[low];
+
+    // 3) case-insensitive search (safe)
+    const signs = SIGNS_V1?.signs || {};
+    const hit = Object.keys(signs).find(k => k.toLowerCase() === low);
+    return hit ? signs[hit] : null;
+  }
+
+  function computeSkyStrataFromTransits(transitSigns, weights) {
+    const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
+    const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
+
+    for (const [body, info] of Object.entries(transitSigns || {})) {
+      const signKey = String(info?.sign_key || "");
+      if (!signKey) continue;
+
+      const w = Number(weights?.[body] ?? 1.0);
+      if (!Number.isFinite(w) || w <= 0) continue;
+
+      const meta = getSignMetaByKey(signKey);
+      const e = meta?.element || "unknown";
+      const m = meta?.modality || "unknown";
+
+      if (E[e] === undefined) E.unknown += w;
+      else E[e] += w;
+
+      if (M[m] === undefined) M.unknown += w;
+      else M[m] += w;
+    }
+
+    const topKey = (obj) => {
+      const entries = Object.entries(obj).filter(([k, v]) => k !== "unknown" && v > 0);
+      if (!entries.length) return "mixed";
+      entries.sort((a, b) => b[1] - a[1]);
+      // 同点なら mixed にしたいならここ入れる
+      // if (entries[1] && entries[0][1] === entries[1][1]) return "mixed";
+      return entries[0][0];
+    };
+
+    return {
+      element_weighted: E,
+      modality_weighted: M,
+      top_element: topKey(E),
+      top_modality: topKey(M),
+    };
+  }
+
 
   // ------------------------
   // natal cache loader + extractor
@@ -414,7 +487,8 @@ function createStoryService({
         date_local: dateLocal,
         as_of: asOfISO,
         generated_at_utc: nowIso(),
-        user_id: appUserId, // ←これ追加
+        user_id: appUserId,
+        app_user_id: appUserId, // ✅ 互換（renderのseed用）
         engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
         rules,
       },
@@ -426,6 +500,7 @@ function createStoryService({
           sign_ja: transitInfo?.moon?.sign_ja ?? null,
         },
         transit_signs: transitInfo?.bodies_signs || {},
+        sky_strata: computeSkyStrataFromTransits(transitInfo?.bodies_signs, PLANET_WEIGHT),
         sky_all: buildPublicSkyAll(
           transitInfo?.bodies,
           ASPECTS_ALL,
@@ -440,6 +515,7 @@ function createStoryService({
         ),
         tone_hints: { resonance_bullets: [] },
       },
+
       guardrails: {
         no_prediction: true,
         no_good_bad: true,
@@ -453,12 +529,17 @@ function createStoryService({
   }
 
   function attachResonanceBullets(story, { allowPersonal }) {
-    try {
-      if (typeof buildResonanceBullets !== "function") return;
-      const reso = buildResonanceBullets(story, { max: 4, allowPersonal });
-      story.public.tone_hints.resonance_bullets = Array.isArray(reso?.bullets) ? reso.bullets : [];
-    } catch (_e) {
-      story.public.tone_hints.resonance_bullets = [];
+    if (typeof buildResonanceBullets !== "function") return;
+
+    // public safe
+    const pub = buildResonanceBullets(story, { max: 4, allowPersonal: false });
+    story.public.tone_hints.resonance_bullets = Array.isArray(pub?.bullets) ? pub.bullets : [];
+
+    // personal add-on (optional)
+    if (allowPersonal && story.personal) {
+      const per = buildResonanceBullets(story, { max: 4, allowPersonal: true });
+      story.personal.tone_hints ||= {};
+      story.personal.tone_hints.resonance_bullets = Array.isArray(per?.bullets) ? per.bullets : [];
     }
   }
 

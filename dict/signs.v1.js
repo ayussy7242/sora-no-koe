@@ -5,11 +5,15 @@
  * - サイン＝“空気の型”
  * - element / modality も紐づけておく（後段で自動差分が出せる）
  * - tone: 惑星に掛ける「質感フレーズ」（短文・形容詞レイヤー）
+ *
+ * NOTE:
+ * - keys are lowercase canonical ids: aries, taurus, ...
+ * - keep display strings (label_ja etc.) as-is
  */
 const SIGNS_V1 = {
   version: "signs.v1",
   signs: {
-    Aries: {
+    aries: {
       label_ja: "牡羊座",
       element: "fire",
       modality: "cardinal",
@@ -21,7 +25,7 @@ const SIGNS_V1 = {
       ai_tags: ["start", "bold"],
     },
 
-    Taurus: {
+    taurus: {
       label_ja: "牡牛座",
       element: "earth",
       modality: "fixed",
@@ -33,7 +37,7 @@ const SIGNS_V1 = {
       ai_tags: ["ground", "sensory"],
     },
 
-    Gemini: {
+    gemini: {
       label_ja: "双子座",
       element: "air",
       modality: "mutable",
@@ -45,7 +49,7 @@ const SIGNS_V1 = {
       ai_tags: ["exchange", "curious"],
     },
 
-    Cancer: {
+    cancer: {
       label_ja: "蟹座",
       element: "water",
       modality: "cardinal",
@@ -57,7 +61,7 @@ const SIGNS_V1 = {
       ai_tags: ["home", "nurture"],
     },
 
-    Leo: {
+    leo: {
       label_ja: "獅子座",
       element: "fire",
       modality: "fixed",
@@ -69,7 +73,7 @@ const SIGNS_V1 = {
       ai_tags: ["shine", "creative"],
     },
 
-    Virgo: {
+    virgo: {
       label_ja: "乙女座",
       element: "earth",
       modality: "mutable",
@@ -81,7 +85,7 @@ const SIGNS_V1 = {
       ai_tags: ["refine", "analyze"],
     },
 
-    Libra: {
+    libra: {
       label_ja: "天秤座",
       element: "air",
       modality: "cardinal",
@@ -93,7 +97,7 @@ const SIGNS_V1 = {
       ai_tags: ["balance", "relate"],
     },
 
-    Scorpio: {
+    scorpio: {
       label_ja: "蠍座",
       element: "water",
       modality: "fixed",
@@ -105,7 +109,7 @@ const SIGNS_V1 = {
       ai_tags: ["depth", "transform"],
     },
 
-    Sagittarius: {
+    sagittarius: {
       label_ja: "射手座",
       element: "fire",
       modality: "mutable",
@@ -117,7 +121,7 @@ const SIGNS_V1 = {
       ai_tags: ["explore", "expand"],
     },
 
-    Capricorn: {
+    capricorn: {
       label_ja: "山羊座",
       element: "earth",
       modality: "cardinal",
@@ -129,7 +133,7 @@ const SIGNS_V1 = {
       ai_tags: ["build", "discipline"],
     },
 
-    Aquarius: {
+    aquarius: {
       label_ja: "水瓶座",
       element: "air",
       modality: "fixed",
@@ -141,7 +145,7 @@ const SIGNS_V1 = {
       ai_tags: ["innovate", "observe"],
     },
 
-    Pisces: {
+    pisces: {
       label_ja: "魚座",
       element: "water",
       modality: "mutable",
@@ -154,10 +158,10 @@ const SIGNS_V1 = {
     },
   },
 
-  // UI順（黄道順）
+  // UI順（黄道順）: canonical ids
   order: [
-    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
-    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+    "aries","taurus","gemini","cancer","leo","virgo",
+    "libra","scorpio","sagittarius","capricorn","aquarius","pisces"
   ],
 };
 

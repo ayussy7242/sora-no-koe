@@ -1,3 +1,4 @@
+// routes/stories.js — Unified STABLE (v2026-01-04)
 "use strict";
 
 const express = require("express");
@@ -60,15 +61,41 @@ function createStoriesRouter(deps = {}) {
     const renderers = deps.renderers;
 
     if (!db) throw new Error("deps.db is required for stories router");
-    if (!storyService?.buildStoryForUser)
-        throw new Error("deps.storyService.buildStoryForUser is missing");
-    if (!renderers?.renderLine || !renderers?.renderX || !renderers?.renderIG) {
-        throw new Error("deps.renderers (renderLine/renderX/renderIG) is missing");
+    if (!storyService?.buildStoryForUser) throw new Error("deps.storyService.buildStoryForUser is missing");
+    if (!renderers?.renderLine || !renderers?.renderSoraLine || !renderers?.renderX || !renderers?.renderIG) {
+        throw new Error("deps.renderers (renderLine/renderSoraLine/renderX/renderIG) is missing");
     }
 
     router.get("/", async (req, res) => {
         try {
-            const appUserId = pickAppUserId(req);
+            // ① format/channel
+            const format = String(req.query.format || "json").toLowerCase();
+            const reqChannel = String(req.query.channel || "").toLowerCase();
+
+            const isSocial =
+                format === "x" || format === "ig" ||
+                reqChannel === "x" || reqChannel === "ig";
+
+            const isSora = reqChannel === "line_sora" || reqChannel === "sora";
+            const isSoraAll = reqChannel === "line_sora_all";
+
+            // ② appUserId/mode
+            let appUserId = pickAppUserId(req);
+            let mode = normMode(req.query.mode, appUserId);
+
+            // ③ save 先に初期化
+            let save = boolish(req.query.save);
+
+            // ④ public固定＆保存禁止ルール
+            if (isSocial || isSora || isSoraAll) {
+                appUserId = "public";
+                mode = "public";
+                save = false;
+            }
+
+            // saved/doc_id を先に宣言（←これ必須）
+            let saved = false;
+            let doc_id = null;
 
             const dateLocalRaw = req.query.date_local;
             const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
@@ -78,11 +105,6 @@ function createStoriesRouter(deps = {}) {
 
             const orbMaxDeg = clamp(toNumberSafe(req.query.orb, 6), 0.1, 12);
             const precisionDeg = clamp(toNumberSafe(req.query.precision, 0.01), 0.001, 1);
-
-            const mode = normMode(req.query.mode, appUserId);
-
-            const format = String(req.query.format || "json").toLowerCase();
-            const save = boolish(req.query.save);
 
             // final: 今日の確定版ロック / force: ロック無視で上書き
             const final = boolish(req.query.final);
@@ -108,6 +130,8 @@ function createStoriesRouter(deps = {}) {
             // outputs は「レスポンス用テキスト」なので常に生成
             const outputs = {
                 line: renderers.renderLine(story),
+                sora: renderers.renderSoraLine(story),
+                sora_all: renderers.renderSoraAllLine(story),
                 x: renderers.renderX(story),
                 ig: renderers.renderIG(story),
             };
@@ -118,9 +142,6 @@ function createStoriesRouter(deps = {}) {
                 delete story.outputs;
             }
 
-            // save（Firestoreには outputs を入れない）
-            let saved = false;
-            let doc_id = null;
 
             if (save) {
                 doc_id = `${appUserId}-${dateLocal}`;
@@ -129,16 +150,14 @@ function createStoriesRouter(deps = {}) {
                 const txResult = await db.runTransaction(async (tx) => {
                     const snap = await tx.get(ref);
                     const existing = snap.exists ? snap.data() : null;
-
                     const isFinalized = !!existing?.meta?.finalized;
 
-                    // すでにfinal済みの扱い
-                    // - final=true で、final済み、forceなし → 何もしない（冪等）= saved:false
+                    // final=true で、final済み、forceなし → 何もしない（冪等）
                     if (final && isFinalized && !force) {
-                        return { didWrite: false, blocked: false, alreadyFinal: true };
+                        return { didWrite: false, alreadyFinal: true };
                     }
 
-                    // - final=false で、final済み、forceなし → 弾く（409）
+                    // final=false で、final済み、forceなし → 弾く（409）
                     if (!final && isFinalized && !force) {
                         const err = new Error("already_finalized");
                         err.statusCode = 409;
@@ -149,7 +168,6 @@ function createStoriesRouter(deps = {}) {
                     const toSave = JSON.parse(JSON.stringify(story));
                     delete toSave.outputs;
 
-                    // meta：final=true のときだけ確定を刻む
                     toSave.meta = toSave.meta || {};
 
                     if (final) {
@@ -164,7 +182,7 @@ function createStoriesRouter(deps = {}) {
                     }
 
                     tx.set(ref, toSave, { merge: true });
-                    return { didWrite: true, blocked: false, alreadyFinal: isFinalized };
+                    return { didWrite: true, alreadyFinal: isFinalized };
                 });
 
                 saved = !!txResult?.didWrite;
@@ -175,13 +193,19 @@ function createStoriesRouter(deps = {}) {
             if (format === "line") return res.json({ ok: true, saved, doc_id, text: outputs.line });
             if (format === "x") return res.json({ ok: true, saved, doc_id, text: outputs.x });
             if (format === "ig") return res.json({ ok: true, saved, doc_id, text: outputs.ig });
-
             if (format === "all") return res.json({ ok: true, saved, doc_id, story });
 
             // text/plain
             if (format === "text") {
-                const channel = String(req.query.channel || "line").toLowerCase();
-                const text = channel === "x" ? outputs.x : channel === "ig" ? outputs.ig : outputs.line;
+                const ch = reqChannel || "line";
+
+                const text =
+                    ch === "x" ? outputs.x :
+                        ch === "ig" ? outputs.ig :
+                            (ch === "line_sora_all") ? outputs.sora_all :
+                                (ch === "line_sora" || ch === "sora") ? outputs.sora :
+                                    outputs.line;
+
                 res.setHeader("content-type", "text/plain; charset=utf-8");
                 return res.status(200).send(text);
             }

@@ -1,3 +1,4 @@
+// app.js — Unified STABLE (v2026.01)
 "use strict";
 
 const express = require("express");
@@ -12,9 +13,7 @@ const { createCronRouter } = require("./routes/cron");
 const { createDebugRouter } = require("./routes/debug");
 const { createJobsRouter } = require("./routes/jobs");
 
-// --------------------
-// helpers
-// --------------------
+// -------------------- helpers --------------------
 function createReqId() {
   return crypto.randomBytes(8).toString("hex");
 }
@@ -27,7 +26,7 @@ function isLineWebhookPath(req) {
 /**
  * ✅ LINE webhook を “完全に” 除外する body parser
  * - json も urlencoded も webhook では絶対に走らせない
- * - rawBody は routes/line.js 側で読む（正解）
+ * - rawBody は routes/line.js 側で読む
  */
 function safeBodyParsers() {
   const json = express.json({ limit: "2mb" });
@@ -36,7 +35,6 @@ function safeBodyParsers() {
   return (req, res, next) => {
     if (isLineWebhookPath(req)) return next();
 
-    // JSON → urlencoded の順で当てる
     json(req, res, (err) => {
       if (err) return next(err);
       urlencoded(req, res, next);
@@ -67,9 +65,7 @@ function buildMeta(deps) {
   };
 }
 
-// --------------------
-// createApp
-// --------------------
+// -------------------- createApp --------------------
 function createApp(deps = {}) {
   const app = express();
   const env = deps.env || {};
@@ -91,23 +87,17 @@ function createApp(deps = {}) {
     const start = Date.now();
     res.on("finish", () => {
       const ms = Date.now() - start;
-
-      // health はノイズなので抑制（/line/health も含めたいなら startsWith("/health") はそのまま）
       if (!req.originalUrl.startsWith("/health")) {
-        console.log(
-          `[${req.id}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`
-        );
+        console.log(`[${req.id}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
       }
     });
     next();
   });
 
-  // ✅ body parsers（ここが肝）
+  // ✅ body parsers（LINE webhook除外）
   app.use(safeBodyParsers());
 
-  // --------------------
-  // root / meta
-  // --------------------
+  // -------------------- root / meta --------------------
   app.get("/", (_req, res) => {
     res.status(200).json({
       ...buildMeta(deps),
@@ -130,11 +120,8 @@ function createApp(deps = {}) {
     });
   });
 
-  // --------------------
-  // feature routers
-  // --------------------
+  // -------------------- feature routers --------------------
   app.use("/health", createHealthRouter(deps));
-
   app.use("/transit", createTransitRouter(deps));
   app.use("/stories", createStoriesRouter(deps));
   app.use("/line", createLineRouter(deps));

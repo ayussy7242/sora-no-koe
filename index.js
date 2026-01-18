@@ -1,15 +1,14 @@
+// index.js — BOOTSTRAP ONLY (Unified STABLE v2026.01)
+"use strict";
+
 /**
- * 🌌 sora-no-koe — index.js (BOOTSTRAP ONLY)
- *
  * Role:
  * - Cloud Run / Functions Framework entrypoint
  * - Dependency Injection
  * - No Express logic here
  */
-"use strict";
 
-
-const path = require("path");          // ← これが抜けてた！
+const path = require("path");
 require("dotenv").config({
   path: path.join(__dirname, ".env"),
 });
@@ -17,9 +16,7 @@ require("dotenv").config({
 const functions = require("@google-cloud/functions-framework");
 const { createApp } = require("./app");
 
-// --------------------
-// Config
-// --------------------
+// -------------------- Config --------------------
 const env = require("./config/env");
 const { swisseph, swisseph_setup } = require("./config/swisseph");
 
@@ -27,9 +24,7 @@ const { swisseph, swisseph_setup } = require("./config/swisseph");
 const fb = require("./config/firebase"); // { admin, getDb }
 const db = fb.getDb();
 
-// --------------------
-// Geo (✅ ADD)
-// --------------------
+// -------------------- Geo --------------------
 const { createGeocoder } = require("./engine/geocode");
 const geocoder = createGeocoder({
   apiKey: env.GOOGLE_MAPS_API_KEY,
@@ -42,17 +37,12 @@ const geocoder = createGeocoder({
   strict: false,
 });
 
-
-// --------------------
-// Engine
-// --------------------
+// -------------------- Engine --------------------
 const { createStoryService } = require("./engine/story");
 const { createRenderers } = require("./engine/render");
 const { buildResonanceBullets } = require("./engine/resonance");
 
-// --------------------
-// Dict (single entry)
-// --------------------
+// -------------------- Dict (single entry) --------------------
 const {
   ASPECTS_V1,
   PLANETS_V1,
@@ -68,9 +58,7 @@ const {
   RESONANCE_V1,
 } = require("./dict");
 
-// --------------------
-// Helpers (stable, minimal, compatibility only)
-// --------------------
+// -------------------- Helpers (compat only) --------------------
 
 // aspects list (major)
 const ASPECTS = ASPECTS_V1?.major_list || [
@@ -81,7 +69,7 @@ const ASPECTS = ASPECTS_V1?.major_list || [
   { type: "opposition", deg: 180 },
 ];
 
-// ✅ deep aspects（方式A：見つかった日だけ出る）
+// deep aspects（見つかった日だけ出る）
 const deep = ASPECTS_V1?.deep_space || {};
 const ASPECTS_DEEP = [
   deep?.quincunx_150,
@@ -94,13 +82,11 @@ const ASPECTS_DEEP = [
   .filter(Boolean)
   .map((a) => ({ type: a.key, deg: a.deg }));
 
-// ✅ legacy label maps (renderer互換用 / 旧参照が残っても落ちないため)
-// ※ 最新 render は dictの V1 を直接参照するので、ここは “保険”
+// legacy label maps（renderer互換用 / “保険”）
 const bodies = PLANETS_V1?.bodies || {};
 const points = POINTS_V1?.points || {};
 const major = ASPECTS_V1?.major || {};
 
-// points優先衝突回避
 const POINT_KEYS = new Set(Object.keys(points));
 
 const BODY_JA = Object.fromEntries(
@@ -109,26 +95,18 @@ const BODY_JA = Object.fromEntries(
     .map(([k, v]) => [k, v?.label_ja || k])
 );
 
-const POINT_JA = Object.fromEntries(
-  Object.entries(points).map(([k, v]) => [k, v?.label_ja || k])
-);
+const POINT_JA = Object.fromEntries(Object.entries(points).map(([k, v]) => [k, v?.label_ja || k]));
+const ASPECT_JA = Object.fromEntries(Object.entries(major).map(([k, v]) => [k, v?.label_ja || k]));
 
-const ASPECT_JA = Object.fromEntries(
-  Object.entries(major).map(([k, v]) => [k, v?.label_ja || k])
-);
-
-// --------------------
-// storyService
-// --------------------
+// -------------------- storyService --------------------
 const storyService = createStoryService({
   db,
   admin: fb.admin,
   swisseph,
 
-  // ✅ story 側は SIGNS_V1 を使う（moon sign_key/sign_ja）
   SIGNS_V1,
   ASPECTS,
-  ASPECTS_DEEP, // ✅ 追加
+  ASPECTS_DEEP,
 
   DEFAULT_TZ: env.DEFAULT_TZ,
   PROJECT: env.PROJECT,
@@ -137,23 +115,18 @@ const storyService = createStoryService({
   buildResonanceBullets,
 });
 
-// --------------------
-// renderers
-// --------------------
+// -------------------- renderers --------------------
 const renderers = createRenderers({
-  // 互換マップ（保険）
   BODY_JA,
   POINT_JA,
   ASPECT_JA,
 
-  // ✅ render最新版は V1原本を直接参照する（最強に安定）
   dict: {
     ASPECTS_V1,
     PLANETS_V1,
     POINTS_V1,
     SIGNS_V1,
 
-    // optional（今すぐ使わなくてもOK：将来拡張用）
     ORB_RULES_V1,
     HOUSES_V1,
     ELEMENTS_V1,
@@ -163,9 +136,7 @@ const renderers = createRenderers({
   },
 });
 
-// --------------------
-// create app with deps
-// --------------------
+// -------------------- create app with deps --------------------
 const deps = {
   env,
   db,
@@ -180,7 +151,5 @@ const deps = {
 const app = createApp(deps);
 app.locals.deps = deps;
 
-// --------------------
-// Functions Framework
-// --------------------
+// -------------------- Functions Framework --------------------
 functions.http("app", app);
