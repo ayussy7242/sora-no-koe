@@ -1,8 +1,7 @@
+// routes/line.js — Unified STABLE (v2026.01 FINAL)
 "use strict";
 
 /**
- * routes/line.js — Unified STABLE (v2026.01 FINAL)
- *
  * ✅ Goals
  * - 返信が「空」で握りつぶされない
  * - intent判定は normalize 済み(cmd) を必ず使う
@@ -100,7 +99,6 @@ function createLineRouter(deps = {}) {
       ok: true,
       text,
       normalized,
-      // ✅ intent判定は normalize済み(cmd) を渡す
       intent: intent.intentFromCommand(normalized),
     });
   });
@@ -157,9 +155,9 @@ function createLineRouter(deps = {}) {
       if (!createLineStory) throw new Error("[line] createLineStory export not found (line/story.js)");
       if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser required");
 
-      function getRawBodyBuffer(req) {
-        if (Buffer.isBuffer(req.rawBody)) return req.rawBody;
-        if (typeof req.rawBody === "string") return Buffer.from(req.rawBody, "utf8");
+      function getRawBodyBuffer(req0) {
+        if (Buffer.isBuffer(req0.rawBody)) return req0.rawBody;
+        if (typeof req0.rawBody === "string") return Buffer.from(req0.rawBody, "utf8");
         return null;
       }
 
@@ -173,7 +171,6 @@ function createLineRouter(deps = {}) {
           .update(rawBodyBuf)
           .digest("base64");
 
-        // どっちも base64文字列なので、ASCIIバイト比較でOK
         const a = Buffer.from(computed);
         const b = Buffer.from(String(signature));
 
@@ -252,7 +249,7 @@ function createLineRouter(deps = {}) {
             has_sig: !!sig,
           });
           if (LINE_WEBHOOK_STRICT) return res.status(401).json({ ok: false, reason: ver.reason, request_id: requestId });
-          return res.status(200).json({ ok: true }); // non-strictは握る
+          return res.status(200).json({ ok: true });
         }
       } else {
         console.log("[line:webhook] raw body missing (soft)", {
@@ -285,7 +282,6 @@ function createLineRouter(deps = {}) {
       const replied = new Set();
       const safeReply = async (replyToken, text, meta = {}) => {
         if (!replyToken) return;
-
         const safe = toSafeText(text, MAX_LINE_TEXT);
         if (!isNonEmptyText(safe)) {
           console.log("[line:reply] skipped(empty)", { request_id: requestId, ...meta });
@@ -374,7 +370,6 @@ function createLineRouter(deps = {}) {
             }
 
             // natal collect（登録中ならここで吸う）
-            // ✅ lineUserId/appUserId が無いときは安全にスキップ（将来拡張事故防止）
             if (lineUserId) {
               const collected = await natal.handleCollect({ lineUserId, appUserId, rawText });
               if (collected?.text != null) {
@@ -400,7 +395,6 @@ function createLineRouter(deps = {}) {
               await safeReply(replyToken, r?.text || story.renderFallback() || "（返す文が空だった🙏）", {
                 stage: "public_sky",
                 cmd,
-                app_user_id: appUserId,
               });
               continue;
             }

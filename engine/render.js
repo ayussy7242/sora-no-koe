@@ -1,22 +1,29 @@
-// src/render/render.js
+// engine/render.js
 "use strict";
 
 /**
- * render.js (STABLE / V1-source-of-truth) — Unified v3.3.4 (v2026.01+)
+ * render.js (STABLE / V1-source-of-truth) — Unified v3.3.4
  * - dict の V1原本(ASPECTS_V1/PLANETS_V1/POINTS_V1/SIGNS_V1) を直接参照して描画
  * - 互換マップ(BODY_JA/POINT_JA/ASPECT_JA)は保険として残す
  * - 占い化しない（no prediction / no should / no good-bad）
  *
  * ✅ v3.3.x
- * - buildYoinGlobal(): sky_all / personal layers から「地層の余韻（短文）」を生成（非予言）
+ * - buildYoinGlobal(): sky_all / personal layers から「空層（短文）」を生成（非予言）
  * - buildYoinLine(): 余韻（global短文 + center短文）を GLUE で合成
  *
- * ✅ v3.3.4 (FIX + Simplify)
- * - _formatSkyLineX / _formatYoinForX の重複定義を根絶（1つだけ）
- * - X の closeLines は close_picker.js に一本化（カテゴリ→安定抽選）
- * - X_FORMAT.BLOCK_ROLE は使わない（copy側に未定義キーがあり得るため）
- * - footer は renderX が最後に 1 回だけ付ける（重複禁止 / 混入検知）
+ * ✅ v3.3.4
+ * - public専用：renderSoraLine() 追加（RENDER_COPY.TPL.LINE.buildSora を使用）
+ * - 分布（HEAD_DIST / DIST）と 空層（HEAD_KUSOU / YOIN_GLOBAL）を public で出力
+ *
+ * ✅ 安定化
+ * - LINEは RENDER_COPY.TPL.LINE.build() で組み立て（空行ルールをcopyへ集約）
+ * - X closeLines は close_picker.js に一本化
+ * - footer は renderX の最後に 1 回だけ付ける（重複禁止）
  */
+
+const { pickStable, getUserId } = require("./render_parts/seed");
+const makeSignHelpers = require("./render_parts/signs");
+const fmt = require("./render_parts/format");
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
   // --------------------
@@ -35,8 +42,10 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // COPY (source of truth for fixed wording)
   const { RENDER_COPY } = require("../copy/render");
 
-  // close picker (カテゴリ選択ルール表)
-  const { pickCloseLines } = require("../engine/close_picker");
+  // close picker (カテゴリ→安定抽選)
+  const { pickCloseLines } = require("./close_picker");
+
+  const { signMeta, signJaFromIndex, publicSignJa, publicSignKey } = makeSignHelpers(SIGNS_V1);
 
   // --------------------
   // internal safe JA maps (in case dict is missing)
@@ -77,7 +86,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       };
     }
 
-    // deep も追加（ただし “非アスペクト”混入を防ぐ）
     for (const [k, v] of Object.entries(deep)) {
       if (!v || typeof v !== "object") continue;
       if (!("label_ja" in v) && !("core" in v)) continue;
@@ -178,120 +186,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const x = Number(n);
     if (!Number.isFinite(x)) return String(n);
     return Number.isInteger(x) ? String(x) : x.toFixed(1);
-  }
-
-  // --------------------
-  // sign helpers
-  // --------------------
-  function signMeta(signKey) {
-    const raw = String(signKey || "");
-    const lower = raw.toLowerCase();
-
-    const byLower = SIGNS_V1?.signs?.[lower];
-    if (byLower) return byLower;
-
-    const byRaw = SIGNS_V1?.signs?.[raw];
-    if (byRaw) return byRaw;
-
-    const signs = SIGNS_V1?.signs;
-    if (signs && typeof signs === "object") {
-      const hitKey = Object.keys(signs).find((k) => String(k).toLowerCase() === lower);
-      if (hitKey) return signs[hitKey];
-    }
-    return null;
-  }
-
-  function signJaFromIndex(signIndex) {
-    const FALLBACK_SIGNS_JA = [
-      "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
-      "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"
-    ];
-    if (!Number.isFinite(signIndex) || signIndex < 0 || signIndex > 11) return null;
-
-    if (SIGNS_V1?.signs) {
-      const orderKeys = [
-        "aries", "taurus", "gemini", "cancer", "leo", "virgo",
-        "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"
-      ];
-      const key = orderKeys[signIndex];
-      const s = SIGNS_V1.signs?.[key];
-      if (s?.label_ja) return s.label_ja;
-    }
-    return FALLBACK_SIGNS_JA[signIndex];
-  }
-
-  function signKeyFromIndex(signIndex) {
-    const orderKeys = [
-      "aries", "taurus", "gemini", "cancer", "leo", "virgo",
-      "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"
-    ];
-    if (!Number.isFinite(signIndex) || signIndex < 0 || signIndex > 11) return null;
-    return orderKeys[signIndex];
-  }
-
-  function mod360(x) {
-    const n = Number(x);
-    if (!Number.isFinite(n)) return null;
-    return ((n % 360) + 360) % 360;
-  }
-
-  function getTransitLonFromStory(story, bodyKey) {
-    return (
-      story?.public?.transit?.bodies?.[bodyKey] ??
-      story?.public?.transit?.bodies_deg?.[bodyKey] ??
-      story?.public?.transit_longitudes?.[bodyKey] ??
-      story?.public?.bodies?.[bodyKey] ??
-      story?.public?.transit_bodies?.[bodyKey] ??
-      null
-    );
-  }
-
-  function publicSignJa(story, bodyKey) {
-    const direct = story?.public?.transit_signs?.[bodyKey]?.sign_ja;
-    if (direct) return direct;
-
-    const lonRaw = getTransitLonFromStory(story, bodyKey);
-    const lon = mod360(lonRaw);
-    if (!Number.isFinite(lon)) return null;
-
-    const signIndex = Math.floor(lon / 30);
-    return signJaFromIndex(signIndex);
-  }
-
-  function publicSignKey(story, bodyKey) {
-    const direct =
-      story?.public?.transit_signs?.[bodyKey]?.sign_key ||
-      story?.public?.transit_signs?.[bodyKey]?.sign_en ||
-      story?.public?.transit_signs?.[bodyKey]?.sign ||
-      null;
-
-    if (direct) return String(direct).toLowerCase();
-
-    const lonRaw = getTransitLonFromStory(story, bodyKey);
-    const lon = mod360(lonRaw);
-    if (!Number.isFinite(lon)) return null;
-
-    const signIndex = Math.floor(lon / 30);
-    return signKeyFromIndex(signIndex);
-  }
-
-  // --------------------
-  // seeded randomness (stable by date/user)
-  // --------------------
-  function hash32(str) {
-    let h = 0x811c9dc5;
-    const s = String(str || "");
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    return h >>> 0;
-  }
-
-  function pickStable(arr, seedStr) {
-    if (!Array.isArray(arr) || !arr.length) return "";
-    const idx = hash32(seedStr) % arr.length;
-    return arr[idx];
   }
 
   // --------------------
@@ -417,11 +311,33 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return `${title}\n${mean}`;
   }
 
+  // public “そら” 用：意味は足さず「配置だけ」1行（占い化を更に避ける）
+  function formatSoraSkyLine(story, s, labelPrefix = "・") {
+    if (!s) return "";
+    const aKey = s.a;
+    const bKey = s.b;
+
+    const aJa = fmtAnyJa(aKey);
+    const bJa = fmtAnyJa(bKey);
+
+    const aSignJa = s.a_sign_ja || publicSignJa(story, aKey);
+    const bSignJa = s.b_sign_ja || publicSignJa(story, bKey);
+
+    const aSign = aSignJa ? `（${aSignJa}）` : "";
+    const bSign = bSignJa ? `（${bSignJa}）` : "";
+
+    const aspJa = fmtAspectJa(s.type);
+    const orb = fmtDeg(s.orb_deg);
+
+    // degは省略して、読める密度にする
+    return `${labelPrefix}${aJa}${aSign} × ${bJa}${bSign}｜${aspJa}（orb ${orb}°）`.trim();
+  }
+
   // --------------------
   // seeded "no contact" line
   // --------------------
   function buildNoContactLine(story) {
-    const moonKey = story?.public?.moon?.sign_key || null;
+    const moonKey = (story?.public?.moon?.sign_key || "").toLowerCase() || null;
     const s = moonKey ? signMeta(moonKey) : null;
 
     const element = s?.element || null;
@@ -429,7 +345,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const signJa = s?.label_ja || story?.public?.moon?.sign_ja || null;
 
     const dateLocal = story?.meta?.date_local || "";
-    const userId = story?.personal?.user_id || "public";
+    const userId = getUserId(story);
     const seedBase = `${dateLocal}|${userId}|no_contact`;
 
     const pools = RENDER_COPY.NO_CONTACT;
@@ -515,18 +431,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       minWeight = 0.12,
       includeDeep = true,
       compact = true,
+      statsScope = "all", // "all" | "top"
     } = opts || {};
 
-    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
-    const userSeed =
-      story?.personal?.user_id ||
-      story?.meta?.app_user_id ||
-      story?.meta?.appUserId ||
-      "public";
-
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
+    const userSeed = getUserId(story);
     const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}|yoin_global`;
 
-    // 1) contacts（personal優先 / なければ public sky_all）
     const layers = getSkyLayers(story);
     let contacts = [];
 
@@ -574,7 +485,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     if (!contacts.length) return "";
 
-    // 2) score
     const OM = orbMaxFromStory(story, 6);
 
     const scored = contacts
@@ -585,7 +495,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const top = scored.slice(0, maxContacts);
     if (!top.length) return "";
 
-    // 3) element / modality distribution（重み和）
     const E = { fire: 0, earth: 0, air: 0, water: 0, mixed: 0, unknown: 0 };
     const M = { cardinal: 0, fixed: 0, mutable: 0, mixed: 0, unknown: 0 };
 
@@ -597,7 +506,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       if (!(m in M)) M.unknown += w; else M[m] += w;
     }
 
-    for (const c of top) {
+    const scope = statsScope === "top" ? top : scored;
+    for (const c of scope) {
       if (c.aSignKey) addSignKey(c.aSignKey, c.w);
       if (c.bSignKey) addSignKey(c.bSignKey, c.w);
     }
@@ -612,7 +522,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const topElement = topKey(E) || "mixed";
     const topModality = topKey(M) || "mixed";
 
-    // 4) aspect core（重みが強い順で2つまで）
     const coreCandidates = [];
     for (const c of top) {
       const meta = ASPECTS_META?.[c.type] || null;
@@ -628,7 +537,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const core1 = coreCandidates[0]?.core || null;
     const core2 = coreCandidates[1]?.core || null;
 
-    // 5) output（短文）
     if (typeof RENDER_COPY?.YOIN_GLOBAL?.BUILD_SHORT === "function") {
       return RENDER_COPY.YOIN_GLOBAL.BUILD_SHORT({
         topElement,
@@ -640,11 +548,19 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       });
     }
 
+    if (typeof RENDER_COPY?.YOIN?.BUILD === "function") {
+      return RENDER_COPY.YOIN.BUILD({
+        topElement,
+        topModality,
+        aspectLabel: core1 || null,
+      });
+    }
+
     return "";
   }
 
   // --------------------
-  // yoin line (v3.3) — GLOBAL(short) + CENTER(short)
+  // yoin line — GLOBAL(short) + CENTER(short)
   // --------------------
   function buildYoinLine(story) {
     const global = buildYoinGlobal(story, {
@@ -678,217 +594,57 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // --------------------
-  // natal list (LINE command: わたしのほし) — ASC/MC 必須
+  // public “そら” 用：分布（件数）を作る
   // --------------------
-  function lonToSignDegMin(lonDeg) {
-    const x = Number(lonDeg);
-    if (!Number.isFinite(x)) return null;
-
-    const lon = ((x % 360) + 360) % 360;
-    const signIndex = Math.floor(lon / 30);
-    const within = lon - signIndex * 30;
-
-    const deg = Math.floor(within);
-    const min = Math.floor((within - deg) * 60 + 1e-9);
-
-    const signJa = signJaFromIndex(signIndex) || "（不明）";
-    const mm = String(min).padStart(2, "0");
-    return `${signJa} ${deg}°${mm}’`;
-  }
-
-  function pickAnglesFromNatalCache(d) {
-    const angles =
-      d?.houses?.angles ||
-      d?.min?.angles ||
-      d?.angles ||
-      d?.ascmc ||
-      d?.natal_angles ||
-      d?.min?.ascmc ||
-      null;
-
-    let asc =
-      angles?.ASC ?? angles?.asc ?? angles?.asc_deg ??
-      d?.min?.ASC ?? d?.min?.asc ??
-      d?.ASC ?? d?.asc ??
-      null;
-
-    let mc =
-      angles?.MC ?? angles?.mc ?? angles?.mc_deg ??
-      d?.min?.MC ?? d?.min?.mc ??
-      d?.MC ?? d?.mc ??
-      null;
-
-    if (!Number.isFinite(Number(asc))) asc = d?.["1"] ?? d?.[1] ?? asc;
-    if (!Number.isFinite(Number(mc))) mc = d?.["10"] ?? d?.[10] ?? mc;
-
-    return { asc, mc };
-  }
-
-  function renderNatalListFromCache(natalCacheDoc) {
-    const d = natalCacheDoc || {};
-
-    const bodies =
-      d?.min?.bodies ||
-      d?.min?.natal_positions ||
-      d?.natal_positions ||
-      d?.positions ||
-      null;
-
-    if (!bodies || typeof bodies !== "object") return RENDER_COPY.NATAL_LIST.NOT_READY();
-
-    const { asc, mc } = pickAnglesFromNatalCache(d);
-    if (!Number.isFinite(Number(asc)) || !Number.isFinite(Number(mc))) return RENDER_COPY.NATAL_LIST.MISSING_ANGLES();
-
-    const order = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
-    const glyph = {
-      Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
-      Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
-      ASC: "ASC", MC: "MC",
-    };
-
-    const lines = [];
-    lines.push(`${glyph.ASC} ${fmtPointJa("ASC")}：${lonToSignDegMin(asc)}`);
-    lines.push(`${glyph.MC}  ${fmtPointJa("MC")}：${lonToSignDegMin(mc)}`);
-    lines.push("");
-
-    for (const k of order) {
-      const v = bodies[k];
-      const str = lonToSignDegMin(v);
-      if (!str) continue;
-      const label = fmtBodyJa(k);
-      lines.push(`${glyph[k]} ${label}：${str}`);
-    }
-
-    const note = RENDER_COPY.NATAL_LIST.NOTE();
-    return [RENDER_COPY.HEAD_NATAL_LIST, "", ...lines, note].join("\n");
-  }
-
-  // --------------------
-  // helpers for yoin blocks
-  // --------------------
-  function _stripQualityPhrase(s) {
-    let out = String(s || "");
-
-    out = out.replace(/[,、]?\s*質感は\s*「[^」]+」\s*寄り。?/g, "");
-    out = out.replace(/[,、]?\s*質感は\s*[^。]+?\s*寄り。?/g, "");
-
-    out = out.replace(/[,、]\s*。/g, "。");
-    out = out.replace(/[,、]\s*$/g, "");
-    out = out.replace(/。\s+/g, "。\n");
-    out = out.replace(/\s{2,}/g, " ").trim();
-
-    if (out && !out.endsWith("。")) out += "。";
-    return out;
-  }
-
-  function _splitYoinForLine(yoinSummaryRaw) {
-    const s = String(yoinSummaryRaw || "").trim();
-    if (!s) return { globalLine: "", centerLine: "" };
-
-    const isLayer = s.startsWith("地層：");
-    if (!isLayer) return { globalLine: "", centerLine: _stripQualityPhrase(s) };
-
-    const idx = s.indexOf("。");
-    if (idx < 0) return { globalLine: s, centerLine: "" };
-
-    const globalLine = s.slice(0, idx + 1).trim(); // "。"を含める
-    const rest = s.slice(idx + 1).trim();
-    const centerLine = _stripQualityPhrase(rest).replace(/｜/g, "\n");
-
-    return { globalLine, centerLine };
-  }
-
-  function _buildYoinBlocks(story, { channel, seedBase } = {}) {
-    const yoinSummaryRaw = buildYoinLine(story);
-
-    const poolA = Array.isArray(RENDER_COPY?.YOIN?.TAIL_POOL_1) ? RENDER_COPY.YOIN.TAIL_POOL_1 : [];
-    const poolB = Array.isArray(RENDER_COPY?.YOIN?.TAIL_POOL_2) ? RENDER_COPY.YOIN.TAIL_POOL_2 : [];
-
-    const tail1 = poolA.length ? pickStable(poolA, seedBase + "|a") : "";
-    const tail2 = poolB.length ? pickStable(poolB, seedBase + "|b") : "";
-
-    if (channel === "x") {
-      const layerLine = String(buildYoinGlobal(story, {
-        maxContacts: 10,
-        minWeight: 0.12,
-        includeDeep: true,
-        compact: true,
-      }) || "").trim();
-
+  function buildPublicDistributionCounts(story, maxUse = 24) {
+    const all = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    if (!all.length) {
       return {
-        xYoinLine: layerLine || RENDER_COPY?.YOIN?.FALLBACK || "",
-        lineGlobal: "",
-        lineCenter: "",
-        lineTail1: tail1,
-        lineTail2: tail2,
+        element: { fire: 0, earth: 0, air: 0, water: 0 },
+        modality: { cardinal: 0, fixed: 0, mutable: 0 },
       };
     }
 
-    const { globalLine, centerLine } = _splitYoinForLine(yoinSummaryRaw);
+    const list = all
+      .filter((r) => Number.isFinite(Number(r?.orb_deg)))
+      .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg))
+      .slice(0, Math.max(3, Math.min(maxUse, all.length)));
 
-    return {
-      xYoinLine: "",
-      lineGlobal: globalLine,
-      lineCenter: centerLine,
-      lineTail1: tail1,
-      lineTail2: tail2,
-    };
-  }
+    const element = { fire: 0, earth: 0, air: 0, water: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0 };
 
-  function _filterKeepBlanks(arr) {
-    return arr.filter((v) => v !== null && v !== undefined);
-  }
-
-  // --------------------
-  // X helpers (minimal format)
-  // --------------------
-  function _formatSkyLineX(story, s, emoji) {
-    if (!s) return "";
-    const aKey = s.a;
-    const bKey = s.b;
-
-    const aLabel = fmtAnyJa(aKey);
-    const bLabel = fmtAnyJa(bKey);
-
-    const aSignJa = s.a_sign_ja || publicSignJa(story, aKey);
-    const bSignJa = s.b_sign_ja || publicSignJa(story, bKey);
-
-    const aspectJa = fmtAspectJa(s.type);
-    const orb = fmtDeg(s.orb_deg);
-
-    return `${emoji}${aLabel} ${aSignJa} × ${bLabel} ${bSignJa}｜${aspectJa} ${orb}°`;
-  }
-
-  function _formatYoinForX(yoinLineRaw) {
-    const s0 = String(yoinLineRaw || "").trim();
-    if (!s0) return "";
-
-    const parts = s0
-      .split("｜")
-      .map((x) => String(x || "").trim())
-      .filter(Boolean);
-
-    if (parts.length && parts[0].startsWith("地層：")) {
-      parts[0] = parts[0].replace("。", "。\n");
+    function addBySignKey(signKey) {
+      const s = signMeta(signKey);
+      const e = s?.element || null;
+      const m = s?.modality || null;
+      if (e && e in element) element[e] += 1;
+      if (m && m in modality) modality[m] += 1;
     }
 
-    return parts.join("\n");
+    for (const r of list) {
+      const aKey = publicSignKey(story, r.a);
+      const bKey = publicSignKey(story, r.b);
+      if (aKey) addBySignKey(aKey);
+      if (bKey) addBySignKey(bKey);
+    }
+
+    return { element, modality };
   }
 
   // --------------------
-  // LINE v3.3.4 (structure fixed)
+  // LINE v3.3.4 (structure fixed / copy-driven template)
   // --------------------
   function renderLine(story) {
-    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
     const layers = getSkyLayers(story);
     const hasPersonal = !!layers;
 
-    const head = hasPersonal ? RENDER_COPY.HEAD_TODAY : RENDER_COPY.HEAD_SKY;
     const { HEAD_LAYERS, CIRCLES } = RENDER_COPY;
 
     const parts = [];
     const used = new Set();
 
+    // ①②③（personal）
     if (hasPersonal) {
       const theme0 = layers.theme?.[0] || null;
       const touch = Array.isArray(layers.touch) ? layers.touch : [];
@@ -915,6 +671,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
       if (!parts.length) parts.push(buildNoContactLine(story));
     } else {
+      // public fallback（mainは基本personalだけど、念のため動く）
       const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
 
       const center = skyTop?.[0] || pickCenterPublicContact(story);
@@ -931,100 +688,134 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       if (!parts.length) parts.push(buildNoContactLine(story));
     }
 
-    const moonLine = buildMoonLine(story);
+    // ✅ 配信①：空層/余韻は personal寄りで短く（2行まで）
+    const yoin = clampLines(buildYoinLine(story), 2);
 
-    const userSeed =
-      story?.personal?.user_id ||
-      story?.meta?.app_user_id ||
-      story?.meta?.appUserId ||
-      "public";
-
-    const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}|yoin`;
-
-    const yoinPack = _buildYoinBlocks(story, {
-      channel: "line",
-      seedBase,
+    // ✅ copyテンプレで確定組み立て（moonは出さない）
+    return RENDER_COPY.TPL.LINE.buildMain({
+      dateLabel,
+      parts: parts.join("\n\n"),
+      kusouYoin: yoin,
+      footerLines: RENDER_COPY.FOOTER_LINE,
+      cta: RENDER_COPY.LINE_MAIN_CTA,
     });
+  }
 
-    const headYoin = RENDER_COPY?.HEAD_YOIN || "【今日の余韻】";
 
-    const yoinLines = [];
-    if (yoinPack.lineGlobal) yoinLines.push(yoinPack.lineGlobal);
-    if (yoinPack.lineCenter) yoinLines.push(yoinPack.lineCenter);
+  // --------------------
+  // ✅ public “そら” LINE（new）
+  // - 配置だけ（意味を足さない）
+  // - 分布（件数） + 空層（短文）を出す
+  // - renderSoraLine: 上位15件
+  // - renderSoraAllLine: 全部
+  // --------------------
+  function renderSoraLine(story) {
+    return renderSoraBase(story, { limit: 15, titleSuffix: "そら" });
+  }
 
-    const yoinBlock = [
-      ...yoinLines,
-    ].filter((v) => typeof v === "string" && v.trim()).join("\n");
+  function renderSoraAllLine(story) {
+    return renderSoraBase(story, { limit: Infinity, titleSuffix: "そら_all" });
+  }
 
-    const globalHead = RENDER_COPY?.HEAD_YOIN_GLOBAL || "";
-    const globalDetail =
-      globalHead && typeof RENDER_COPY?.YOIN_GLOBAL?.BUILD_DETAIL === "function"
-        ? `${globalHead}\n${RENDER_COPY.YOIN_GLOBAL.BUILD_DETAIL({
-          story,
-          seedBase: seedBase + "|global_detail",
-          pickStable,
-          buildYoinGlobal,
-        })}`
+  function renderSoraBase(story, opts = {}) {
+    const limit = (opts.limit === Infinity) ? Infinity
+      : (Number.isFinite(Number(opts.limit)) ? Number(opts.limit) : 15);
+
+
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
+
+    // 月（🌙だけ）
+    const moonLine = (() => {
+      const moonJa = story?.public?.moon?.sign_ja || null;
+      return moonJa ? `🌙月：${moonJa}` : "";
+    })();
+
+    // ✅ 全主要アスペクト列挙（観測ログ）
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+
+    const sorted = skyAll
+      .filter((r) => Number.isFinite(Number(r?.orb_deg)))
+      .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    const list = (limit === Infinity) ? sorted : sorted.slice(0, Math.max(1, limit));
+
+    const mainLines = list.length
+      ? list.map((s) => formatSoraSkyLine(story, s, "・")).join("\n")
+      : "";
+
+    // 分布（件数）※分布は「上位N」ではなく「上位24件」固定のまま（読みやすさ優先）
+    const dist = buildPublicDistributionCounts(story, 24);
+
+    // 文字版（読みやすさ優先）or 絵文字版（好み）
+    const distLines =
+      (RENDER_COPY?.DIST?.ELEMENT_LINE && RENDER_COPY?.DIST?.MODALITY_LINE)
+        ? [
+          // ← ここを EMOJI に切り替えたければ ELEMENT_LINE_EMOJI / MODALITY_LINE_EMOJI に
+          RENDER_COPY.DIST.ELEMENT_LINE(dist.element),
+          RENDER_COPY.DIST.MODALITY_LINE(dist.modality),
+        ].join("\n")
         : "";
 
-    return _filterKeepBlanks([
-      RENDER_COPY.LINE_TITLE(dateLabel),
-      "",
-      head,
-      "",
-      parts.join("\n\n"),
-      "",
+    // ✅ 空層（global短文）
+    const kusouText = String(
+      buildYoinGlobal(story, {
+        maxContacts: 10,
+        minWeight: 0.12,
+        includeDeep: true,
+        compact: true,
+        statsScope: "all",
+      })
+    ).trim();
+
+    return RENDER_COPY.TPL.LINE.buildSora({
+      dateLabel,
+      mainLines,
       moonLine,
-      "",
-      headYoin,
-      yoinBlock,
-      globalDetail ? "" : null,
-      globalDetail || null,
-      "",
-      ...RENDER_COPY.FOOTER_LINE,
-    ]).join("\n");
+      distLines,
+      kusouYoin: kusouText,
+      footerLines: RENDER_COPY.FOOTER_SORA_LINE,
+    });
   }
+
 
   // --------------------
   // X v3.3.4 (minimal / no roles)
   // --------------------
   function renderX(story) {
-    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
     const moonSignJa = story?.public?.moon?.sign_ja || "";
 
-    const userSeed =
-      story?.personal?.user_id ||
-      story?.meta?.app_user_id ||
-      story?.meta?.appUserId ||
-      "public";
-
+    const userSeed = getUserId(story);
     const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}`;
 
-    const yoinPack = _buildYoinBlocks(story, {
-      channel: "x",
-      seedBase: `${seedBase}|yoin`,
-    });
+    const yoinPack = typeof fmt?.buildYoinBlocks === "function"
+      ? fmt.buildYoinBlocks(
+        story,
+        { channel: "x", seedBase: `${seedBase}|yoin` },
+        { buildYoinLine, buildYoinGlobal, RENDER_COPY, pickStable }
+      )
+      : { xYoinLine: buildYoinLine(story) };
 
     const center = pickCenterPublicContact(story);
     const secret = pickSecretPublicContact(story);
 
-    const main1 = center ? _formatSkyLineX(story, center, "☄️") : "";
-    const main2 = secret ? _formatSkyLineX(story, secret, "🪐") : "";
+    const main1 = center
+      ? fmt.formatSkyLineX(story, center, "☄️", { fmtAnyJa, publicSignJa, fmtAspectJa, fmtDeg })
+      : "";
 
-    const yoin = _formatYoinForX(yoinPack?.xYoinLine);
+    const main2 = secret
+      ? fmt.formatSkyLineX(story, secret, "🪐", { fmtAnyJa, publicSignJa, fmtAspectJa, fmtDeg })
+      : "";
 
-    // close lines: close_picker.js からカテゴリ→安定抽選
-    const closeLines = pickCloseLines(RENDER_COPY, story, {
-      seedBase,
-      pickStable,
-    });
+    const yoin = fmt.formatYoinForX(yoinPack?.xYoinLine);
 
-    // footer strict guard
+    const closeLines = pickCloseLines(RENDER_COPY, story, { seedBase, pickStable });
+
     const footer = String(RENDER_COPY?.FOOTER_X || "星は語る。🌎🛸").trim();
     const closeArr = (Array.isArray(closeLines) ? closeLines : [String(closeLines || "")])
       .map((l) => String(l || "").trim())
       .filter(Boolean)
-      .filter((l) => l !== footer); // 念のため混入除去
+      .filter((l) => l !== footer);
 
     const MAX = 270;
 
@@ -1039,7 +830,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
       if (main1) lines.push(main1);
       if (keepSecond && main2) {
-        lines.push("");      // ← これを1行追加
+        lines.push("");
         lines.push(main2);
       }
 
@@ -1081,7 +872,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // IG (copy-driven)
   // --------------------
   function renderIG(story) {
-    const dateLabel = String(story?.meta?.date_local || "").replaceAll("-", ".");
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
     const moonSign = story?.public?.moon?.sign_ja || null;
 
     const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
@@ -1177,8 +968,105 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return lines.join("\n");
   }
 
+  // --------------------
+  // natal list (LINE command: わたしのほし) — ASC/MC 必須
+  // --------------------
+  function lonToSignDegMin(lonDeg) {
+    const x = Number(lonDeg);
+    if (!Number.isFinite(x)) return null;
+
+    const lon = ((x % 360) + 360) % 360;
+    const signIndex = Math.floor(lon / 30);
+    const within = lon - signIndex * 30;
+
+    const deg = Math.floor(within);
+    const min = Math.floor((within - deg) * 60 + 1e-9);
+
+    const signJa = signJaFromIndex(signIndex) || "（不明）";
+    const mm = String(min).padStart(2, "0");
+    return `${signJa} ${deg}°${mm}’`;
+  }
+
+  function pickAnglesFromNatalCache(d) {
+    const angles =
+      d?.houses?.angles ||
+      d?.min?.angles ||
+      d?.angles ||
+      d?.ascmc ||
+      d?.natal_angles ||
+      d?.min?.ascmc ||
+      null;
+
+    let asc =
+      angles?.ASC ?? angles?.asc ?? angles?.asc_deg ??
+      d?.min?.ASC ?? d?.min?.asc ??
+      d?.ASC ?? d?.asc ??
+      null;
+
+    let mc =
+      angles?.MC ?? angles?.mc ?? angles?.mc_deg ??
+      d?.min?.MC ?? d?.min?.mc ??
+      d?.MC ?? d?.mc ??
+      null;
+
+    if (!Number.isFinite(Number(asc))) asc = d?.["1"] ?? d?.[1] ?? asc;
+    if (!Number.isFinite(Number(mc))) mc = d?.["10"] ?? d?.[10] ?? mc;
+
+    return { asc, mc };
+  }
+
+  function renderNatalListFromCache(natalCacheDoc) {
+    const d = natalCacheDoc || {};
+
+    const bodies =
+      d?.min?.bodies ||
+      d?.min?.natal_positions ||
+      d?.natal_positions ||
+      d?.positions ||
+      null;
+
+    if (!bodies || typeof bodies !== "object") return RENDER_COPY.NATAL_LIST.NOT_READY();
+
+    const { asc, mc } = pickAnglesFromNatalCache(d);
+    if (!Number.isFinite(Number(asc)) || !Number.isFinite(Number(mc))) return RENDER_COPY.NATAL_LIST.MISSING_ANGLES();
+
+    const order = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+    const glyph = {
+      Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
+      Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+      ASC: "ASC", MC: "MC",
+    };
+
+    const lines = [];
+    lines.push(`${glyph.ASC} ${fmtPointJa("ASC")}：${lonToSignDegMin(asc)}`);
+    lines.push(`${glyph.MC}  ${fmtPointJa("MC")}：${lonToSignDegMin(mc)}`);
+    lines.push("");
+
+    for (const k of order) {
+      const v = bodies[k];
+      const str = lonToSignDegMin(v);
+      if (!str) continue;
+      const label = fmtBodyJa(k);
+      lines.push(`${glyph[k]} ${label}：${str}`);
+    }
+
+    const note = RENDER_COPY.NATAL_LIST.NOTE();
+    return [RENDER_COPY.HEAD_NATAL_LIST, "", ...lines, note].join("\n");
+  }
+
+  function clampLines(s, maxLines = 2) {
+    const lines = String(s || "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return lines.slice(0, Math.max(1, maxLines)).join("\n");
+  }
+
   return {
+    // outputs
     renderLine,
+    renderSoraLine,
+    renderSoraAllLine, // ✅ これを追加（忘れると今のエラー）
     renderX,
     renderIG,
 

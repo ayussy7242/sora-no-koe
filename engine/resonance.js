@@ -14,6 +14,7 @@
 
 const path = require("path");
 const { RESONANCE_V1 } = require(path.join(__dirname, "..", "dict", "resonance.v1"));
+const { getUserId } = require("./render_parts/seed"); 
 
 // --------------------
 // stable random (seeded)
@@ -144,7 +145,7 @@ function buildResonanceBullets(story, opts = {}) {
       .filter(Boolean);
 
     const dateLocal = story?.meta?.date_local || story?.public?.date_local || "unknown-date";
-    const userId = story?.personal?.user_id || "public";
+    const userId = getUserId(story);
     const seedStr =
       seed || `${dateLocal}:${userId}:${themeKey}:${topAspectType || "none"}:${moonKeyForDict || "none"}`;
 
