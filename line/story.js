@@ -1,10 +1,14 @@
 "use strict";
 
 /**
- * line/story.js — Unified STABLE (v2026.01 unified)
- * - "今日" => mode:auto（natalがあればpersonal、なければpublic-only想定）
- * - "そら" => appUserId="public", mode:public
- * - utilities (help/start/reset/cancel/test/ping) もここ
+ * line/story.js — Unified STABLE (v2026.01 cleaned)
+ *
+ * 役割：
+ * - LINE向け story の入口
+ * - 「操作系（help/start/reset等）」のみ utilities で処理
+ * - 「きょう / そら / わたしのほし」は intent → routes に完全委譲
+ *
+ * ❌ ここではコマンド意味判定しない
  */
 
 const { LINE_COPY } = require("../copy");
@@ -13,14 +17,21 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   if (!db) throw new Error("db is required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser is required");
   if (!renderers?.renderLine) throw new Error("renderers.renderLine is required");
+  // public用（なければ renderLine にフォールバックしてもいい）
+  const renderSky =
+    typeof renderers?.renderSoraLine === "function"
+      ? renderers.renderSoraLine
+      : renderers.renderLine;
 
   const DEFAULT_TZ = config.DEFAULT_TZ || "Asia/Tokyo";
   const ORB_MAX_DEG = Number(config.ORB_MAX_DEG ?? 6);
   const PRECISION_DEG = Number(config.PRECISION_DEG ?? 0.01);
   const MAX_LINE_TEXT = Number(config.MAX_LINE_TEXT ?? 4800);
 
-  const BOT_NAME = config.LINE_ACCOUNT_NAME || config.BOT_NAME || "ソラのこえ。｜今日の星を置く🌌";
-
+  const BOT_NAME =
+    config.LINE_ACCOUNT_NAME ||
+    config.BOT_NAME ||
+    "ソラのこえ。｜今日の星を置く🌌";
 
   function safeText(s) {
     const x = s == null ? "" : String(s);
@@ -28,7 +39,12 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   function ymdInTimeZone(date, timeZone) {
-    const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
     return fmt.format(date);
   }
 
@@ -44,8 +60,9 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return { dateLocal, asOfISO };
   }
 
-  async function buildStory({ appUserId, mode }) {
+  async function buildStory({ appUserId, mode, renderer }) {
     const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
+
     const story = await storyService.buildStoryForUser({
       appUserId,
       mode, // "public" | "auto"
@@ -54,16 +71,20 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       orbMaxDeg: ORB_MAX_DEG,
       precisionDeg: PRECISION_DEG,
     });
-    const text = safeText(renderers.renderLine(story));
+
+    const fn = typeof renderer === "function" ? renderer : renderers.renderLine;
+    const text = safeText(fn(story));
     return { story, text };
   }
 
+  // ---- public sky only
   async function buildSky() {
-    return buildStory({ appUserId: "public", mode: "public" });
+    return buildStory({ appUserId: "public", mode: "public", renderer: renderSky });
   }
 
+  // ---- today (auto)
   async function buildToday({ appUserId }) {
-    return buildStory({ appUserId, mode: "auto" });
+    return buildStory({ appUserId, mode: "auto", renderer: renderers.renderLine });
   }
 
   async function buildSkyWithGuide() {
@@ -86,7 +107,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     });
   }
 
-  // utilities handler
+  // ---- utilities（操作系だけ）
   async function handleUtilities({ cmd, appUserId, lineUserId }) {
     const c = String(cmd || "").trim();
 
@@ -95,17 +116,26 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     if (/^(help|使い方|へるぷ)$/i.test(c)) return { text: LINE_COPY.HELP };
 
     if (/^(やめる|中止|cancel|stop)$/i.test(c)) {
-      if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.READY);
+      if (lineUserId && natal?.setLineState) {
+        await natal.setLineState(lineUserId, natal.FLOW_STATE.READY);
+      }
       return { text: LINE_COPY.CANCELLED };
     }
 
-    if (/^(リセット|reset|最初から|はじめから|最初からやり直す|はじめからやり直す)$/i.test(c)) {
-      if (natal?.resetNatal) await natal.resetNatal(appUserId, lineUserId);
+    if (/^(リセット|reset|最初から|はじめから)/.test(c)) {
+      if (natal?.resetNatal) {
+        await natal.resetNatal(appUserId, lineUserId);
+      }
       return { text: LINE_COPY.RESET_DONE };
     }
 
     if (/^(はじめる|始める|start|begin)$/i.test(c)) {
-      if (lineUserId && natal?.setLineState) await natal.setLineState(lineUserId, natal.FLOW_STATE.PENDING_BIRTH_DATE);
+      if (lineUserId && natal?.setLineState) {
+        await natal.setLineState(
+          lineUserId,
+          natal.FLOW_STATE.PENDING_BIRTH_DATE
+        );
+      }
       return { text: LINE_COPY.START_NATAL };
     }
 
