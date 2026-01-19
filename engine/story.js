@@ -40,7 +40,7 @@ function createStoryService({
   // optional
   buildResonanceBullets,
 
-  // ✅ 追加：空層用の伝統重み（外天体0.3）
+  // ✅ 追加：地層用の伝統重み（外天体0.3）
   PLANET_WEIGHT = {
     Sun: 1.0,
     Moon: 1.0,
@@ -220,7 +220,7 @@ function createStoryService({
   }
 
   //
-  // 空層計算
+  // 地層計算
   //
 
   function getSignMetaByKey(signKeyRaw) {
@@ -623,7 +623,7 @@ function createStoryService({
     appUserId,
     dateLocal,
     asOfISO,
-    mode = "auto", // "public" | "auto"
+    mode = "auto", // "public" | "auto" のみ
     orbMaxDeg = 6,
     precisionDeg = 0.01,
   }) {
@@ -632,18 +632,27 @@ function createStoryService({
     if (!asOfISO) throw new Error("asOfISO required");
 
     const m = String(mode || "auto").trim().toLowerCase();
+
+    // 🔒 hard guard
+    if (m !== "public" && m !== "auto") {
+      throw new Error(`invalid mode: ${mode} (allowed: public | auto)`);
+    }
+
     const orb = clamp(Number(orbMaxDeg ?? 6), 0.1, 12);
     const prec = clamp(Number(precisionDeg ?? 0.01), 0.001, 1);
 
-    // displayName (best-effort)
     let displayName = null;
     try {
       const u = await db.collection("users").doc(appUserId).get();
       if (u.exists) {
         const ud = u.data() || {};
-        displayName = ud.display_name ?? ud?.profile?.display_name ?? ud?.channels?.line?.profile?.display_name ?? null;
+        displayName =
+          ud.display_name ??
+          ud?.profile?.display_name ??
+          ud?.channels?.line?.profile?.display_name ??
+          null;
       }
-    } catch (_e) { }
+    } catch (_) { }
 
     const transitInfo = computeTransitsSwiss(asOfISO, prec);
 
@@ -654,20 +663,44 @@ function createStoryService({
       sort: "orb_asc",
     };
 
-    // public forced
+    // --- public only
     if (m === "public") {
-      return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg: prec });
+      return buildPublicOnlyStory({
+        appUserId,
+        displayName,
+        dateLocal,
+        asOfISO,
+        transitInfo,
+        rules,
+        precisionDeg: prec,
+      });
     }
 
-    // auto: natal exists -> personal, else public-only
+    // --- auto
     const natalCache = await loadNatalFromCache(appUserId);
     if (!natalCache) {
-      return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg: prec });
+      return buildPublicOnlyStory({
+        appUserId,
+        displayName,
+        dateLocal,
+        asOfISO,
+        transitInfo,
+        rules,
+        precisionDeg: prec,
+      });
     }
 
     const extracted = extractNatalLongitudes(natalCache);
     if (!extracted.ok) {
-      return buildPublicOnlyStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg: prec });
+      return buildPublicOnlyStory({
+        appUserId,
+        displayName,
+        dateLocal,
+        asOfISO,
+        transitInfo,
+        rules,
+        precisionDeg: prec,
+      });
     }
 
     const touchAll = buildTouchPoints({
