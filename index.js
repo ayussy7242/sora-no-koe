@@ -49,6 +49,7 @@ const {
   POINTS_V1,
   SIGNS_V1,
   ORB_RULES_V1,
+  BLEND_V1,
 
   // optional (future use)
   HOUSES_V1,
@@ -126,6 +127,7 @@ const renderers = createRenderers({
     PLANETS_V1,
     POINTS_V1,
     SIGNS_V1,
+    BLEND_V1,
 
     ORB_RULES_V1,
     HOUSES_V1,

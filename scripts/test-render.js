@@ -45,7 +45,7 @@ function main() {
   // ✅ dict は常にプロジェクトから
   const dict = require("../dict");
 
-  // renderer
+  // ✅ renderer（←これが抜けてた/壊れてた）
   const { createRenderers } = require("../engine/render");
 
   const r = createRenderers({

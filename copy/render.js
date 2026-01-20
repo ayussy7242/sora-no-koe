@@ -11,6 +11,9 @@
 // --------------------
 // Base constants（自己参照禁止のため先に定数化）
 // --------------------
+
+const { TP_ITEM_V1 } = require("../dict/tp_item.v1");
+
 const BRAND = "ソラのこえ。";
 
 // --- personal（今日）側 ---
@@ -24,8 +27,8 @@ const HEAD_NATAL_LIST = "🌌 わたしのほし（あなたの星の一覧）";
 // --- public（そら）側 ---
 const HEAD_SORA = "【今日のソラ｜そら】";
 const HEAD_SORA_SKY = "【今日のソラの配置】";
-const HEAD_SORA_SKY_TOP15 = "【今日のソラの配置 上位15共鳴】";
-const HEAD_SORA_SKY_ALL = "【今日のソラの配置 全部】";
+const HEAD_SORA_SKY_TOP15 = "【今日のソラの配置 上位15共鳴（orb≤6°）】";
+const HEAD_SORA_SKY_ALL = "【今日のソラの配置 全部（orb≤6°）】";
 const HEAD_DIST = "【分布（エレメント／三区分）】";
 const HEAD_KUSOU = "【空層】";
 const HEAD_KUSOU_YOIN = "【空層／余韻】";
@@ -45,9 +48,11 @@ const LINE_SORA_TITLE = (dateLabel) => `🌌 今日のソラ｜そら｜${dateLa
 // ✅ 配信① CTA（末尾導線）
 const LINE_MAIN_CTA = [
   "──",
+  " ",
   "必要な人は、次に",
   "「そら」",
-  "と送ってみてね。",
+  "と送ってみてね。 ",
+  "今日のソラの配置一覧が出るよ🌌",
 ].join("\n");
 
 // --------------------
@@ -127,10 +132,7 @@ const RENDER_COPY = Object.freeze({
   // ⚠️ ここに「解釈は、あなたのもの。」を入れると、
   // buildSora() 側で kusouYoin セクションにも入れる場合、重複する。
   // → “重複回避”のため、基本は footer には入れない版をデフォにする。
-  FOOTER_SORA_LINE: [
-    "星は語る。決めるのは、人。",
-    "そらとして、眺めてみてね。🌌",
-  ],
+  FOOTER_SORA_LINE: ["星は語る。決めるのは、人。", "そらとして、眺めてみてね。🌌"],
 
   // --------------------
   // Generic small bits
@@ -145,8 +147,7 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   MEANING_WITH_ASPECT_CORE: (left, right, aspectCore) =>
     `${left} と \n${right} が\n「${aspectCore}」の質感で触れやすい配置。`,
-  MEANING_NO_ASPECT_CORE: (left, right) =>
-    `${left} と \n${right} の\n噛み合い方が動きやすい配置。`,
+  MEANING_NO_ASPECT_CORE: (left, right) => `${left} と \n${right} の\n噛み合い方が動きやすい配置。`,
 
   // --------------------
   // Moon line
@@ -162,31 +163,11 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   NO_CONTACT: {
     byElement: {
-      fire: [
-        "火はあるけど、点火は急がなくていい。",
-        "熱を一点に集める前に、余白を残すと綺麗。",
-        "勢いより、芯の温度を確かめると落ち着く。",
-      ],
-      earth: [
-        "情報を増やすより、形を整えるほど楽になる。",
-        "小さく整えるだけで、輪郭が戻りやすい。",
-        "やることを減らすほど、手触りが良くなる。",
-      ],
-      air: [
-        "考えを増やすより、言葉を軽く並べ直すと通る。",
-        "整理すると、会話や情報の流れが戻りやすい。",
-        "結論を急がず、視点を入れ替えるだけで十分。",
-      ],
-      water: [
-        "反応を説明しなくていい。余韻だけ残してOK。",
-        "気持ちはそのまま置くと、自然に沈んでいく。",
-        "境界を薄くしすぎず、距離感を整えると楽。",
-      ],
-      default: [
-        "強い接触が少ない分、余白が扱いやすい。",
-        "今日は静かな配置。増やさず整えると軽い。",
-        "外より内のノイズが減りやすい。",
-      ],
+      fire: ["火はあるけど、点火は急がなくていい。", "熱を一点に集める前に、余白を残すと綺麗。", "勢いより、芯の温度を確かめると落ち着く。"],
+      earth: ["情報を増やすより、形を整えるほど楽になる。", "小さく整えるだけで、輪郭が戻りやすい。", "やることを減らすほど、手触りが良くなる。"],
+      air: ["考えを増やすより、言葉を軽く並べ直すと通る。", "整理すると、会話や情報の流れが戻りやすい。", "結論を急がず、視点を入れ替えるだけで十分。"],
+      water: ["反応を説明しなくていい。余韻だけ残してOK。", "気持ちはそのまま置くと、自然に沈んでいく。", "境界を薄くしすぎず、距離感を整えると楽。"],
+      default: ["強い接触が少ない分、余白が扱いやすい。", "今日は静かな配置。増やさず整えると軽い。", "外より内のノイズが減りやすい。"],
     },
 
     byModality: {
@@ -215,17 +196,18 @@ const RENDER_COPY = Object.freeze({
 
   // --------------------
   // Distribution（public-only：分布行テンプレ）
+  // ✅ 方針B：表示Nなら「両端カウント」で計=2N に統一
   // --------------------
   DIST: {
-    ELEMENT_LINE: (e) =>
-      `エレメント：火${e.fire || 0} 地${e.earth || 0} 風${e.air || 0} 水${e.water || 0}`,
-    MODALITY_LINE: (m) =>
-      `三区分：活動${m.cardinal || 0} 不動${m.fixed || 0} 柔軟${m.mutable || 0}`,
+    ELEMENT_LINE_ENDPOINTS: (e) =>
+      `惑星の出方：火${e.fire || 0} 地${e.earth || 0} 風${e.air || 0} 水${e.water || 0}（計${e.total || 0}）`,
+    MODALITY_LINE_ENDPOINTS: (m) =>
+      `三区分：活動${m.cardinal || 0} 不動${m.fixed || 0} 柔軟${m.mutable || 0}（計${m.total || 0}）`,
 
-    ELEMENT_LINE_EMOJI: (e) =>
-      `エレメント：🔥火${e.fire || 0} 🌍地${e.earth || 0} 🌬️風${e.air || 0} 🌊水${e.water || 0}`,
-    MODALITY_LINE_EMOJI: (m) =>
-      `三区分：🏃活動${m.cardinal || 0} 🧱不動${m.fixed || 0} 🌿柔軟${m.mutable || 0}`,
+    // 互換（残す）
+    ELEMENT_LINE: (e) => `惑星属性：火${e.fire || 0} 地${e.earth || 0} 風${e.air || 0} 水${e.water || 0}`,
+    MODALITY_LINE: (m) => `三区分：活動${m.cardinal || 0} 不動${m.fixed || 0} 柔軟${m.mutable || 0}`,
+    MODALITY_LINE_EMOJI: (m) => `三区分：🏃活動${m.cardinal || 0} 🧱不動${m.fixed || 0} 🌿柔軟${m.mutable || 0}`,
   },
 
   // --------------------
@@ -241,12 +223,7 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   NATAL_LIST: {
     NOT_READY: () =>
-      [
-        HEAD_NATAL_LIST,
-        "",
-        "（まだ準備中みたい）",
-        "LINEで「はじめる」から登録してね🕊️",
-      ].join("\n"),
+      [HEAD_NATAL_LIST, "", "（まだ準備中みたい）", "LINEで「はじめる」から登録してね🕊️"].join("\n"),
 
     MISSING_ANGLES: () =>
       [
@@ -259,14 +236,7 @@ const RENDER_COPY = Object.freeze({
       ].join("\n"),
 
     NOTE: () =>
-      [
-        "",
-        "※ これは「星の配置」の一覧です。",
-        "※ 意味や解釈は置いていません。",
-        "",
-        "星は語る。",
-        "決めるのは、人。🌎️🛸✨️",
-      ].join("\n"),
+      ["", "※ これは「星の配置」の一覧です。", "※ 意味や解釈は置いていません。", "", "星は語る。", "決めるのは、人。🌎️🛸✨️"].join("\n"),
   },
 
   // --------------------
@@ -299,17 +269,10 @@ const RENDER_COPY = Object.freeze({
       "意味づけは、あなたのタイミングで。",
     ],
 
-    TAIL_POOL_2: [
-      "先に身体、あとで言葉。",
-      "焦点を変えるだけで、景色が変わる日。",
-      "余白を残して、次に渡す。",
-      "今日は“結論”じゃなくて“残響”で十分。",
-      "これでいい、を急がない。",
-    ],
+    TAIL_POOL_2: ["先に身体、あとで言葉。", "焦点を変えるだけで、景色が変わる日。", "余白を残して、次に渡す。", "今日は“結論”じゃなくて“残響”で十分。", "これでいい、を急がない。"],
 
     BUILD: ({ topElement, topModality, aspectLabel } = {}) => {
-      const head =
-        (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) || RENDER_COPY.YOIN.FALLBACK;
+      const head = (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) || RENDER_COPY.YOIN.FALLBACK;
 
       const tailBits = [];
       if (topModality && RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]) {
@@ -335,45 +298,43 @@ const RENDER_COPY = Object.freeze({
   },
 
   // --------------------
-  // Yoin Global（空層） public向け
+  // Yoin Global（空層） public/personal共通で使える「空層1行」を生成
+  // ✅「空層：」「中心は：」を抜く（ラベル重複＆重さ回避）
   // --------------------
   YOIN_GLOBAL: {
-    TAIL_POOL: [
-      "空は“結論”より“配置”を残す。",
-      "強さは、派手さじゃなく配分で決まる。",
-      "今日は層が厚い。言葉はあとで追いつく。",
-      "同じ現象でも、受け取り方は何層もある。",
-      "静かに、編み直せる日。",
-    ],
+    TAIL_POOL: ["空は“結論”より“配置”を残す。", "強さは、派手さじゃなく配分で決まる。", "今日は層が厚い。言葉はあとで追いつく。", "同じ現象でも、受け取り方は何層もある。", "静かに、編み直せる日。"],
 
-    BUILD_SHORT: ({ topElement, topModality, core1, core2, seedBase, pickStable } = {}) => {
+    BUILD_SHORT: ({ topElement, topModality, seedBase, pickStable } = {}) => {
       const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合", unknown: "未判定" };
       const modalityJa = { cardinal: "活動", fixed: "不動", mutable: "柔軟", mixed: "混合", unknown: "未判定" };
 
       const layer = `${elementJa[topElement] || "混合"}×${modalityJa[topModality] || "混合"}`;
-      const theme = core1 ? `中心は「${core1}」` : "中心は「言葉より手触り」";
-      const sub = core2 ? `／副旋律「${core2}」` : "";
-
-      let out = `空層：${layer}。${theme}${sub}`.trim();
 
       const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
-      const tail = (typeof pickStable === "function" && seedBase && pool.length)
-        ? pickStable(pool, seedBase + "|tail")
-        : "";
+      const tail =
+        typeof pickStable === "function" && seedBase && pool.length
+          ? pickStable(pool, seedBase + "|tail")
+          : "";
 
-      if (tail) out = `${out}｜${tail}`;
-      return out.length > 90 ? `空層：${layer}。${theme}` : out;
+      // ✅ 例）「地×不動。静かに、編み直せる日。」
+      // tailが空なら「地×不動。」で止まるのが嫌なので、最低でも一言は出す
+      const safeTail = tail || "静かに、編み直せる日。";
+
+      // “空層：”は付けない（HEAD_KUSOU_YOIN が役割を持つ）
+      return `${layer}。${safeTail}`.trim();
     },
 
     BUILD_DETAIL: ({ story, seedBase, pickStable, buildYoinGlobal }) => {
-      const short = typeof buildYoinGlobal === "function"
-        ? buildYoinGlobal(story, { compact: false, maxContacts: 12, minWeight: 0.10 })
-        : "";
+      const short =
+        typeof buildYoinGlobal === "function"
+          ? buildYoinGlobal(story, { compact: false, maxContacts: 12, minWeight: 0.10 })
+          : "";
 
       const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
-      const tail = (typeof pickStable === "function" && seedBase && pool.length)
-        ? pickStable(pool, seedBase + "|detail_tail")
-        : "";
+      const tail =
+        typeof pickStable === "function" && seedBase && pool.length
+          ? pickStable(pool, seedBase + "|detail_tail")
+          : "";
 
       return [short, tail].filter(Boolean).join("\n");
     },
@@ -415,15 +376,23 @@ const RENDER_COPY = Object.freeze({
 
     MEANING_BLOCK: ({ aLabel, aCore, bLabel, bCore, tone, aspectCoreText }) => {
       const t = tone ? `「${tone}」空気の中で、` : "";
-      return (
-        `${aLabel}（${aCore || "—"}）と、\n` +
-        `${bLabel}（${bCore || "—"}）が、\n\n` +
-        (t ? `${t}\n` : "") +
-        `${aspectCoreText || "—"}。`
-      ).replaceAll("\n\n\n", "\n\n");
+      return (`${aLabel}（${aCore || "—"}）と、\n` + `${bLabel}（${bCore || "—"}）が、\n\n` + (t ? `${t}\n` : "") + `${aspectCoreText || "—"}。`).replaceAll("\n\n\n", "\n\n");
     },
 
     SECRET_HEAD: "ひそかな配置",
+  },
+
+  TP: {
+    COPY_SIGN_FIELD: TP_ITEM_V1.COPY_SIGN_FIELD,
+    COPY_PLANET_ACTION: TP_ITEM_V1.COPY_PLANET_ACTION,
+    SUMMARY_BY_ASPECT: TP_ITEM_V1.SUMMARY_BY_ASPECT,
+
+    HEADER: ({ i, aLabel, aSignJa, bLabel, bSignJa, aspectJa, deg, orb }) =>
+      `${i} ネイタル：${aLabel}${aSignJa ? `（${aSignJa}）` : ""} × トランジット：${bLabel}${bSignJa ? `（${bSignJa}）` : ""} ｜ ${aspectJa}（${deg}°｜orb ${orb}°）`,
+
+    BODY_LINE: ({ signJa, bodyJa, field, action }) => `${signJa}の${bodyJa}：${field}の領域で、${action}`,
+
+    BUILD_ITEM: ({ header, aLine, bLine, summary }) => [header, aLine, bLine, summary].filter(Boolean).join("\n"),
   },
 
   // --------------------
@@ -468,10 +437,7 @@ const RENDER_COPY = Object.freeze({
         pushBlank(lines, 1);
 
         // 配置見出し（上位15 or 全部）
-        const headSky = listTitle
-          ? String(listTitle)
-          : RENDER_COPY.HEAD_SORA_SKY; // デフォ
-
+        const headSky = listTitle ? String(listTitle) : RENDER_COPY.HEAD_SORA_SKY; // デフォ
         pushLine(lines, headSky);
         if (mainLines) pushLine(lines, mainLines);
         pushBlank(lines, 1);
@@ -482,10 +448,8 @@ const RENDER_COPY = Object.freeze({
           pushBlank(lines, 1);
         }
 
-        // 分布（見出しは “任意” だけど、読みやすさ上げるなら出す）
+        // 分布（ここは “見出しなし” でもOK。必要なら HEAD_DIST を復活）
         if (distLines) {
-          // 見出しを付けたいならON（好み）
-          // pushLine(lines, RENDER_COPY.HEAD_DIST);
           pushLine(lines, distLines);
           pushBlank(lines, 1);
         }

@@ -86,15 +86,22 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   async function buildToday({ appUserId }) {
     return buildStory({ appUserId, mode: "auto", renderer: renderers.renderLine });
   }
+  
+  async function buildSkyWithGuide({ withGuide = false } = {}) {
+    const { story, text } = await buildStory({
+      appUserId: "public",
+      mode: "public",
+      renderer: renderers.renderLine,
+    });
 
-  async function buildSkyWithGuide() {
-    const { story, text } = await buildSky();
+    if (!withGuide) return { story, text };
+
     const guide =
       "\n\n（「今日」は登録があると personal が立ち上がりやすい🌌\n" +
       "登録は「はじめる」）";
+
     return { story, text: safeText(text + guide) };
   }
-
   function renderFallback() {
     return LINE_COPY.FALLBACK;
   }
