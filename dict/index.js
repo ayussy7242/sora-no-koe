@@ -12,6 +12,8 @@ const { MODALITIES_V1 } = require("./modalities.v1");
 const { ORB_RULES_V1 } = require("./orb_rules.v1");
 const { TONE_VARIANTS_V1 } = require("./tone_variants.v1");
 
+const { BLEND_V1 } = require("./blend.v1");
+
 module.exports = {
   ASPECTS_V1,
   PLANETS_V1,
@@ -23,4 +25,5 @@ module.exports = {
   MODALITIES_V1,
   ORB_RULES_V1,
   TONE_VARIANTS_V1,
+  BLEND_V1,
 };

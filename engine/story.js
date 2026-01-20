@@ -92,6 +92,27 @@ function createStoryService({
     return Math.min(max, Math.max(min, n));
   }
 
+  function attachSignsToSkyList(list, transitSigns) {
+    const ts = transitSigns || {};
+    const arr = Array.isArray(list) ? list : [];
+
+    for (const r of arr) {
+      const aHit = ts?.[r?.a];
+      const bHit = ts?.[r?.b];
+
+      if (aHit) {
+        r.a_sign_key = String(aHit.sign_key || "").toLowerCase();
+        r.a_sign_ja = aHit.sign_ja || null;
+      }
+      if (bHit) {
+        r.b_sign_key = String(bHit.sign_key || "").toLowerCase();
+        r.b_sign_ja = bHit.sign_ja || null;
+      }
+    }
+  }
+
+
+
   // ------------------------
   // aspects lists
   // ------------------------
@@ -114,12 +135,26 @@ function createStoryService({
   }
 
 
-  function signJaFromKey(signKey) {
-    return SIGNS_V1?.signs?.[signKey]?.label_ja ?? null;
+  function signJaFromKey(signKeyRaw) {
+    const key = String(signKeyRaw || "");
+    if (!key) return null;
+
+    // exact
+    if (SIGNS_V1?.signs?.[key]?.label_ja) return SIGNS_V1.signs[key].label_ja;
+
+    // lowercase
+    const low = key.toLowerCase();
+    if (SIGNS_V1?.signs?.[low]?.label_ja) return SIGNS_V1.signs[low].label_ja;
+
+    // case-insensitive fallback
+    const signs = SIGNS_V1?.signs || {};
+    const hit = Object.keys(signs).find(k => k.toLowerCase() === low);
+    return hit ? (signs[hit]?.label_ja ?? null) : null;
   }
 
   function signFromLon(lonDeg) {
-    const sign_key = signKeyFromLon(lonDeg);
+    const raw = signKeyFromLon(lonDeg);
+    const sign_key = String(raw || "").toLowerCase(); // ✅正規化
     return { sign_key, sign_ja: signJaFromKey(sign_key) };
   }
 
@@ -479,6 +514,39 @@ function createStoryService({
   // story builders
   // ------------------------
   function baseStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg }) {
+
+    // ✅ まず public を組み立てて変数に持つ
+    const publicObj = {
+      date_local: dateLocal,
+      moon: {
+        lon_deg: transitInfo?.moon?.lon_deg ?? null,
+        sign_key: transitInfo?.moon?.sign_key ?? null,
+        sign_ja: transitInfo?.moon?.sign_ja ?? null,
+      },
+      transit_signs: transitInfo?.bodies_signs || {},
+      sky_strata: computeSkyStrataFromTransits(transitInfo?.bodies_signs, PLANET_WEIGHT),
+
+      sky_all: buildPublicSkyAll(
+        transitInfo?.bodies,
+        ASPECTS_ALL,
+        { orbMaxDeg: rules?.orb_max_deg ?? 6 }
+      ),
+
+      // 互換維持：従来どおりメジャーだけで top3
+      sky_top: buildPublicSkyTopAll(
+        transitInfo?.bodies,
+        ASPECTS_MAJOR,
+        { orbMaxDeg: rules?.orb_max_deg ?? 6, max: 3 }
+      ),
+
+      tone_hints: { resonance_bullets: [] },
+    };
+
+    // ✅ sky_all / sky_top の各行に a/b のサイン情報を埋める
+    attachSignsToSkyList(publicObj.sky_all, publicObj.transit_signs);
+    attachSignsToSkyList(publicObj.sky_top, publicObj.transit_signs);
+
+    // ✅ 最後に story を返す
     return {
       meta: {
         schema_version: SCHEMA_VERSION,
@@ -492,29 +560,8 @@ function createStoryService({
         engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
         rules,
       },
-      public: {
-        date_local: dateLocal,
-        moon: {
-          lon_deg: transitInfo?.moon?.lon_deg ?? null,
-          sign_key: transitInfo?.moon?.sign_key ?? null,
-          sign_ja: transitInfo?.moon?.sign_ja ?? null,
-        },
-        transit_signs: transitInfo?.bodies_signs || {},
-        sky_strata: computeSkyStrataFromTransits(transitInfo?.bodies_signs, PLANET_WEIGHT),
-        sky_all: buildPublicSkyAll(
-          transitInfo?.bodies,
-          ASPECTS_ALL,
-          { orbMaxDeg: rules?.orb_max_deg ?? 6 }
-        ),
 
-        // 互換維持：従来どおりメジャーだけで top3
-        sky_top: buildPublicSkyTopAll(
-          transitInfo?.bodies,
-          ASPECTS_MAJOR,
-          { orbMaxDeg: rules?.orb_max_deg ?? 6, max: 3 }
-        ),
-        tone_hints: { resonance_bullets: [] },
-      },
+      public: publicObj,
 
       guardrails: {
         no_prediction: true,
@@ -527,6 +574,7 @@ function createStoryService({
       // personal is optional (only for personal story)
     };
   }
+
 
   function attachResonanceBullets(story, { allowPersonal }) {
     if (typeof buildResonanceBullets !== "function") return;
