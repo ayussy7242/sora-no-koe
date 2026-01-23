@@ -275,44 +275,49 @@ function createStoryService({
     return hit ? signs[hit] : null;
   }
 
-  function computeSkyStrataFromTransits(transitSigns, weights) {
-    const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
-    const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
+function computeSkyStrataFromTransits(transitSigns) {
+  const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
+  const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
 
-    for (const [body, info] of Object.entries(transitSigns || {})) {
-      const signKey = String(info?.sign_key || "");
-      if (!signKey) continue;
+  // ✅ 現代：Sun〜Pluto 全部入れる（TRANSIT_TARGETS と一致）
+  const BODIES = new Set([
+    "Sun","Moon","Mercury","Venus","Mars",
+    "Jupiter","Saturn","Uranus","Neptune","Pluto",
+  ]);
 
-      const w = Number(weights?.[body] ?? 1.0);
-      if (!Number.isFinite(w) || w <= 0) continue;
+  for (const [body, info] of Object.entries(transitSigns || {})) {
+    if (!BODIES.has(body)) continue;
 
-      const meta = getSignMetaByKey(signKey);
-      const e = meta?.element || "unknown";
-      const m = meta?.modality || "unknown";
+    const signKey = String(info?.sign_key || "");
+    if (!signKey) continue;
 
-      if (E[e] === undefined) E.unknown += w;
-      else E[e] += w;
+    const meta = getSignMetaByKey(signKey);
+    const e = meta?.element || "unknown";
+    const m = meta?.modality || "unknown";
 
-      if (M[m] === undefined) M.unknown += w;
-      else M[m] += w;
-    }
+    if (E[e] === undefined) E.unknown += 1;
+    else E[e] += 1;
 
-    const topKey = (obj) => {
-      const entries = Object.entries(obj).filter(([k, v]) => k !== "unknown" && v > 0);
-      if (!entries.length) return "mixed";
-      entries.sort((a, b) => b[1] - a[1]);
-      // 同点なら mixed にしたいならここ入れる
-      // if (entries[1] && entries[0][1] === entries[1][1]) return "mixed";
-      return entries[0][0];
-    };
-
-    return {
-      element_weighted: E,
-      modality_weighted: M,
-      top_element: topKey(E),
-      top_modality: topKey(M),
-    };
+    if (M[m] === undefined) M.unknown += 1;
+    else M[m] += 1;
   }
+
+  const topKey = (obj) => {
+    const entries = Object.entries(obj).filter(([k, v]) => k !== "unknown" && v > 0);
+    if (!entries.length) return "mixed";
+    entries.sort((a, b) => b[1] - a[1]);
+    return entries[0][0];
+  };
+
+  return {
+    method: "equal_count_modern",   // ✅ 方式を明記（真実）
+    bodies_counted: 10,             // ✅ Sun〜Pluto
+    element_count: E,
+    modality_count: M,
+    top_element: topKey(E),
+    top_modality: topKey(M),
+  };
+}
 
 
   // ------------------------
