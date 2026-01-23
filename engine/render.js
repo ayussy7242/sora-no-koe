@@ -2,7 +2,7 @@
 "use strict";
 
 /**
- * render.js (STABLE / V1-source-of-truth) — Unified v3.3.5 (v2026.01+)
+ * render.js (STABLE / V1-source-of-truth) — Unified v3.3.6 (v2026.01+)
  *
  * ゴール：
  * - V1 dict (ASPECTS_V1 / PLANETS_V1 / POINTS_V1 / SIGNS_V1 / BLEND_V1) を最優先で参照
@@ -10,17 +10,37 @@
  * - 占い化しない（no prediction / no should / no good-bad）
  * - 互換を壊さない：renderLine/renderX/renderIG/renderSoraLine/renderSoraAllLine/buildYoinGlobal/buildYoinLine 等は維持
  *
- * v3.3.5 変更点（設計/最適化/将来性）：
- * - meta / sign の参照を内部でメモ化（頻出 lookup を高速化）
- * - buildYoinGlobal / renderSoraBase の「表示と一致」をデフォで担保しやすい導線を強化
- * - BLENDブロック生成の分岐を整理（個人TPの新旧を安全に切替）
- * - public分布カウント（B案：両端カウント）を一つの実装に集約し、互換関数は薄いラッパーに
+ * v3.3.6 変更点（今回の要件）
+ * - 分布（要素×区分）の母集団をチャンネル別に完全分離：
+ *   - LINE「きょう」: 表示した personal TP の natal/transit 両端サインをカウント
+ *   - LINE「そら」「そらぜんぶ」: 取得時点の “なうの全惑星（Sun..Pluto）” をカウント
+ *   - X / IG: 同じく “なうの全惑星” をカウント（Xは文字数都合で自動削除）
+ * - distLines のフォーマットは copy の DIST があればそれを優先、無ければ安全フォールバックを生成
  * - 例外に強いガード（欠損 story/dict でも落ちない）
  */
 
 const { pickStable, getUserId } = require("./render_parts/seed");
 const makeSignHelpers = require("./render_parts/signs");
 const fmt = require("./render_parts/format");
+
+const OUTPUT_SPECS = {
+  line_today: {
+    dist: (story, ctx) => ctx.hasPersonal ? ctx.tpsShownEndpoints : "now_planets",
+    yoin: (story, ctx) => ctx.hasPersonal ? { kind:"personal", statsScope:"all" } : { kind:"public", statsScope:"top" },
+  },
+  line_sora_top: {
+    dist: "now_planets",
+    yoin: "contactsOverride_from_list",
+  },
+  line_sora_all: {
+    dist: "now_planets",
+    yoin: "contactsOverride_from_all",
+  },
+  x: { dist: "now_planets_short", yoin: { kind:"public" } },
+  ig:{ dist: "now_planets", yoin: { kind:"public" } },
+  threads:{ dist:"now_planets_short", yoin:{ kind:"public" } },
+};
+
 
 function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = null } = {}) {
   // --------------------
@@ -69,6 +89,28 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     MC: "MC（天頂）",
     Vertex: "バーテックス",
   };
+
+  // deep_space alias（短キー→V1の長キー）
+  const ASPECT_TYPE_ALIAS = Object.freeze({
+    semi_sextile: "semi_sextile_30",
+    semi_square: "semi_square_45",
+    sesquisquare: "sesqui_square_135",
+    sesqui_square: "sesqui_square_135",
+    inconjunct: "quincunx_150",
+    quincunx: "quincunx_150",
+    quintile: "quintile_72",
+    biquintile: "biquintile_144",
+    // septile系（もし type が来るならここで family に寄せる）
+    septile: "septile_family",
+    biseptile: "septile_family",
+    triseptile: "septile_family",
+  });
+
+  function normalizeAspectType(type) {
+    const k = String(type || "").trim();
+    if (!k) return "";
+    return ASPECT_TYPE_ALIAS[k] || k;
+  }
 
   // ============================================================
   // Meta builders (from V1) — one-time build
@@ -162,11 +204,38 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return v;
   }
 
+  function normElement(e) {
+    const x = String(e || "").toLowerCase().trim();
+
+    // 万が一、日本語や別表記が来た時の保険（必要なら増やせる）
+    if (x === "火" || x === "fire") return "fire";
+    if (x === "地" || x === "earth") return "earth";
+    if (x === "風" || x === "air") return "air";
+    if (x === "水" || x === "water") return "water";
+
+    // 最終防衛ライン
+    return ["fire", "earth", "air", "water"].includes(x) ? x : "unknown";
+  }
+
+  function normModality(m) {
+    const x = String(m || "").toLowerCase().trim();
+
+    // 万が一、日本語や別表記が来た時の保険（必要なら増やせる）
+    if (x === "活動" || x === "cardinal") return "cardinal";
+    if (x === "不動" || x === "fixed") return "fixed";
+    if (x === "柔軟" || x === "mutable") return "mutable";
+
+    // 最終防衛ライン
+    return ["cardinal", "fixed", "mutable"].includes(x) ? x : "unknown";
+  }
+
+
   // ============================================================
   // formatters
   // ============================================================
   function fmtAspectJa(aspectType) {
-    const k = String(aspectType || "");
+    const raw = String(aspectType || "");
+    const k = normalizeAspectType(raw);   // ★ここ
     if (_memo.aspectJa.has(k)) return _memo.aspectJa.get(k);
 
     const v =
@@ -227,9 +296,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   function aspectCore(type) {
-    const k = String(type || "");
+    const k = normalizeAspectType(type);
     if (_memo.aspectCore.has(k)) return _memo.aspectCore.get(k);
-
     const v = ASPECTS_META?.[k]?.core || null;
     _memo.aspectCore.set(k, v);
     return v;
@@ -323,18 +391,21 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     }).trim();
   }
 
-  function aspectSentenceByLabel(aspectLabelJa) {
+  function aspectSentenceByLabel(aspectLabelJa, aspectTypeRaw = "") {
     const TP_ITEM_V1 = dict?.TP_ITEM_V1 || null;
 
-    const s1 = TP_ITEM_V1?.aspect_sentence?.by_label_ja?.[aspectLabelJa] || null;
-    if (s1) return String(s1).trim();
+    // typeから先に拾う（確実）
+    const t = normalizeAspectType(aspectTypeRaw);
+    const sType = TP_ITEM_V1?.SUMMARY_BY_ASPECT?.[t] || null;
+    if (sType) return String(sType).trim();
 
-    const s2 = BLEND_V1?.aspect_sentence?.by_label_ja?.[aspectLabelJa] || null;
-    if (s2) return String(s2).trim();
+    // label_jaから拾う（互換）
+    const sLabel = TP_ITEM_V1?.SUMMARY_BY_ASPECT?.[aspectLabelJa] || null;
+    if (sLabel) return String(sLabel).trim();
 
-    // ASPECTS_META の sora を label_ja で拾う（互換）
+    // fallback: ASPECTS_META の sora を label_ja で拾う
     const hit = Object.values(ASPECTS_META || {}).find((v) => v?.label_ja === aspectLabelJa);
-    if (hit?.sora) return String(hit.sora).trim();
+    if (hit?.sora) return `→ ${String(hit.sora).trim()}`;
 
     return "配置として現れやすい。";
   }
@@ -393,7 +464,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
       const natalBlend = buildPlanetInSignBlend("natal", aKey, aSignKey, aSignJa) || natalTitle;
       const transitBlend = buildPlanetInSignBlend("transit", bKey, bSignKey, bSignJa) || transitTitle;
-      const aspectSentence = aspectSentenceByLabel(aspJa);
+      const aspectSentence = aspectSentenceByLabel(aspJa, aspType);
 
       const lines = [header, natalBlend, transitBlend, `${arrow} ${aspectSentence}`].filter(Boolean);
       return lines.join(br).trim();
@@ -539,14 +610,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // ============================================================
-  // YOIN v3.3.5 — public-first global + override
+  // YOIN v3.3.6 — public-first global + override
   // ============================================================
 
-  // center-driven summary (short)
-  // - kind: "public" | "personal" | "auto"
-  //   public: public centerのみ参照（theme0は見ない）
-  //   personal: theme0優先（なければpublic centerへフォールバック）
-  //   auto: layersがあればpersonal、なければpublic
   function buildYoinCenter(story, opts = {}) {
     const { kind = "public" } = opts || {};
 
@@ -592,10 +658,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const topElement = eA && eB ? (eA === eB ? eA : "mixed") : (eA || eB) || "mixed";
     const topModality = mA && mB ? (mA === mB ? mA : "mixed") : (mA || mB) || "mixed";
 
+    const aspectTypeNorm = normalizeAspectType(aspectType);
+
     const aspectCoreText =
-      ASPECTS_V1?.major?.[aspectType]?.core ||
-      ASPECTS_V1?.deep_space?.[aspectType]?.core ||
-      aspectCore(aspectType) ||
+      ASPECTS_V1?.major?.[aspectTypeNorm]?.core ||
+      ASPECTS_V1?.deep_space?.[aspectTypeNorm]?.core ||
+      aspectCore(aspectTypeNorm) ||
       null;
 
     return RENDER_COPY.YOIN.BUILD({
@@ -605,12 +673,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     });
   }
 
-  /**
-   * buildYoinGlobal(story, opts)
-   * - contactsOverride を渡すと「表示と完全一致」する（ズレ根絶）
-   * - kind: "public" | "personal" | "auto"
-   * - statsScope: "top" | "all"（top は topContacts の重み / all は scored 全体の重み）
-   */
   function buildYoinGlobal(story, opts = {}) {
     const {
       contactsOverride = null,
@@ -629,11 +691,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const layers = getSkyLayers(story);
     let contacts = [];
 
-    // 1) 外から渡された contacts を最優先（表示一致）
     if (Array.isArray(contactsOverride) && contactsOverride.length) {
       contacts = contactsOverride;
 
-      // 2) public（sky_all）
     } else if (kind === "public") {
       const all = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
       contacts = all.map((r) => {
@@ -649,7 +709,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         };
       });
 
-      // 3) personal（layers）
     } else if (kind === "personal") {
       const allTp = []
         .concat(Array.isArray(layers?.theme) ? layers.theme : [])
@@ -677,7 +736,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
         };
       });
 
-      // 4) auto（互換）
     } else {
       if (layers) return buildYoinGlobal(story, { ...opts, kind: "personal", contactsOverride: null });
       return buildYoinGlobal(story, { ...opts, kind: "public", contactsOverride: null });
@@ -730,11 +788,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     // aspect core candidates (top contacts)
     const coreCandidates = [];
     for (const c of top) {
-      const meta = ASPECTS_META?.[c.type] || null;
+      const t = normalizeAspectType(c.type);
+      const meta = ASPECTS_META?.[t] || null;
       const core = meta?.core || null;
 
-      const isDeep = !!(ASPECTS_V1?.deep_space && ASPECTS_V1.deep_space[c.type]);
-      if (isDeep && !includeDeep) continue;
+      const isDeep = !!(ASPECTS_V1?.deep_space && ASPECTS_V1.deep_space[t]);
+      if (!includeDeep && isDeep) continue;
 
       if (core) coreCandidates.push({ core, w: c.w, type: c.type });
     }
@@ -767,7 +826,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return "";
   }
 
-  // GLOBAL(short) + CENTER(short)
   function buildYoinLine(story, opts = {}) {
     const {
       kind = "public",
@@ -813,7 +871,96 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // ============================================================
-  // public “そら” 用：分布（B案：両端カウント）
+  // Distribution / Counts (v3.3.6)
+  // ============================================================
+
+  // “なうの全惑星” 分布（Sun..Pluto を各1カウント）
+  function buildNowModernPlanetCounts(story) {
+    const element = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
+
+    const BODIES = [
+      "Sun", "Moon", "Mercury", "Venus", "Mars",
+      "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+    ];
+
+    for (const bodyKey of BODIES) {
+      const signKey = publicSignKey(story, bodyKey);
+      const s = memoSignMeta(signKey);
+
+      const e = normElement(s?.element);
+      const m = normModality(s?.modality);
+
+      element[e] += 1;
+      modality[m] += 1;
+    }
+
+    return { element, modality, total: BODIES.length, scope: "now_planets" };
+  }
+
+
+  // personal TP 分布：表示したTPの natal/transit 両端サインをカウント
+  function buildPersonalTPCounts(tps = []) {
+    const element = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
+
+    function addSignKey(signKey) {
+      const s = memoSignMeta(signKey);
+
+      const e = normElement(s?.element);
+      const m = normModality(s?.modality);
+
+      element[e] += 1;
+      modality[m] += 1;
+    }
+
+    const list = Array.isArray(tps) ? tps : [];
+    for (const tp of list) {
+      const aKey = String(tp?.natal_sign_key || tp?.natal_sign_en || "").toLowerCase() || null;
+      const bKey = String(tp?.transit_sign_key || tp?.transit_sign_en || "").toLowerCase() || null;
+      if (aKey) addSignKey(aKey);
+      if (bKey) addSignKey(bKey);
+    }
+
+    return { element, modality, total: list.length * 2, scope: "personal_tp_endpoints" };
+  }
+
+
+  // distLines 生成（copy優先→無ければ安全フォールバック）
+  function buildDistLinesFromCounts(counts, { forX = false } = {}) {
+    const c = counts || {};
+    const element = c.element || {};
+    const modality = c.modality || {};
+
+    // copy があるなら最優先
+    if (!forX && RENDER_COPY?.DIST?.ELEMENT_LINE && RENDER_COPY?.DIST?.MODALITY_LINE) {
+      return [RENDER_COPY.DIST.ELEMENT_LINE(element), RENDER_COPY.DIST.MODALITY_LINE(modality)]
+        .filter(Boolean)
+        .join("\n")
+        .trim();
+    }
+
+    // X用 or copyが無い時のフォールバック（短い）
+    const f = Number(element.fire || 0);
+    const e = Number(element.earth || 0);
+    const a = Number(element.air || 0);
+    const w = Number(element.water || 0);
+    const uE = Number(element.unknown || 0);
+
+    const ca = Number(modality.cardinal || 0);
+    const fi = Number(modality.fixed || 0);
+    const mu = Number(modality.mutable || 0);
+    const uM = Number(modality.unknown || 0);
+
+    const el = `要素: 火${f} 地${e} 風${a} 水${w}${uE ? ` ?${uE}` : ""}`;
+    const mo = `区分: 活${ca} 不${fi} 柔${mu}${uM ? ` ?${uM}` : ""}`;
+
+    return forX ? `${el}｜${mo}` : `${el}\n${mo}`;
+  }
+
+  // ============================================================
+  // public “そら” 用：旧分布（B案：両端カウント）互換を残す
+  // （renderSoraBase では v3.3.6 から “なう惑星” を使う）
   // ============================================================
   function buildPublicEndpointElementCounts(story, list = []) {
     const element = { fire: 0, earth: 0, air: 0, water: 0 };
@@ -837,7 +984,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     return { element, modality, total };
   }
 
-  // 互換ラッパー：他コードが呼んでも壊れない
   function buildPublicPlanetElementCounts(story, list = []) {
     const ep = buildPublicEndpointElementCounts(story, list);
     return {
@@ -850,7 +996,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     };
   }
 
-  // 互換：旧関数（ただし renderSoraBase では使わない）
   function buildPublicDistributionCounts(story, maxUse = 24) {
     const all = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     if (!all.length) {
@@ -870,7 +1015,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // ============================================================
-  // LINE main (v3.3.5) — copy-driven template
+  // LINE main (v3.3.6) — copy-driven template
   // ============================================================
   function clampLines(s, maxLines = 2) {
     const lines = String(s || "")
@@ -878,6 +1023,19 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       .map((l) => l.trim())
       .filter(Boolean);
     return lines.slice(0, Math.max(1, maxLines)).join("\n");
+  }
+
+  function clampYoin2(s) {
+    const lines = String(s || "").split("\n").map(l => l.trim()).filter(Boolean);
+    const l1 = lines[0] || "";
+    let l2 = lines[1] || "";
+
+    // 2行目だけ短文化（最初の句点まで）
+    if (l2.length > 34) {
+      const m = l2.match(/^(.{1,60}?。)/);
+      if (m) l2 = m[1];
+    }
+    return [l1, l2].filter(Boolean).slice(0, 2).join("\n");
   }
 
   function renderLine(story) {
@@ -889,6 +1047,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const parts = [];
     const used = new Set();
 
+    // この「きょう」に実際に表示したTP（=母集団）
+    const tpsShown = [];
+
     // personal
     if (hasPersonal) {
       const theme0 = layers.theme?.[0] || null;
@@ -897,20 +1058,26 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
       if (theme0) {
         used.add(tpKey(theme0));
+        tpsShown.push(theme0);
         parts.push(`${HEAD_LAYERS.THEME}\n${formatPersonalTPLine(story, theme0, `${CIRCLES[0]} `)}`);
       }
 
       if (touch[0]) {
         used.add(tpKey(touch[0]));
+        tpsShown.push(touch[0]);
         parts.push(`${HEAD_LAYERS.TOUCH}\n${formatPersonalTPLine(story, touch[0], `${CIRCLES[1]} `)}`);
       }
       if (touch[1]) {
         used.add(tpKey(touch[1]));
+        tpsShown.push(touch[1]);
         parts.push(`${formatPersonalTPLine(story, touch[1], `${CIRCLES[2]} `)}`);
       }
 
       const hidden = hidden0 && !used.has(tpKey(hidden0)) ? hidden0 : null;
-      if (hidden) parts.push(`${HEAD_LAYERS.HIDDEN}\n${formatPersonalTPLine(story, hidden, "・")}`);
+      if (hidden) {
+        tpsShown.push(hidden);
+        parts.push(`${HEAD_LAYERS.HIDDEN}\n${formatPersonalTPLine(story, hidden, "・")}`);
+      }
 
       if (!parts.length) parts.push(buildNoContactLine(story));
     } else {
@@ -937,26 +1104,20 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const yoin = clampYoin2(yoinRaw);
 
+    // ★ 分布（LINE「きょう」）
+    // - personal: 表示したTPの両端サイン（natal+transit）を母集団にしてカウント
+    // - public fallback: “なうの全惑星” を母集団にしてカウント
+    const distCounts = hasPersonal ? buildPersonalTPCounts(tpsShown) : buildNowModernPlanetCounts(story);
+    const distLines = buildDistLinesFromCounts(distCounts, { forX: false });
+
     return RENDER_COPY.TPL.LINE.buildMain({
       dateLabel,
       parts: parts.join("\n\n"),
+      distLines, // ★追加（copy側が未実装でも壊れない）
       kusouYoin: yoin,
       footerLines: RENDER_COPY.FOOTER_LINE,
       cta: RENDER_COPY.LINE_MAIN_CTA,
     });
-  }
-
-  function clampYoin2(s) {
-    const lines = String(s || "").split("\n").map(l => l.trim()).filter(Boolean);
-    const l1 = lines[0] || "";
-    let l2 = lines[1] || "";
-
-    // 2行目だけ短文化（最初の句点まで）
-    if (l2.length > 34) {
-      const m = l2.match(/^(.{1,60}?。)/);
-      if (m) l2 = m[1];
-    }
-    return [l1, l2].filter(Boolean).slice(0, 2).join("\n");
   }
 
   // ============================================================
@@ -994,14 +1155,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       ? list.map((s) => formatSoraSkyLine(story, s, "・")).join("\n\n")
       : "";
 
-    // 分布（B案）：表示してる list を両端カウント
-    const ep = buildPublicEndpointElementCounts(story, list);
-    const distLines =
-      (RENDER_COPY?.DIST?.ELEMENT_LINE && RENDER_COPY?.DIST?.MODALITY_LINE)
-        ? [RENDER_COPY.DIST.ELEMENT_LINE(ep.element), RENDER_COPY.DIST.MODALITY_LINE(ep.modality)].join("\n")
-        : "";
+    // ★ 分布（LINE「そら」「そらぜんぶ」）
+    // 取得時点の “なうの全惑星” を母集団にする
+    const nowCounts = buildNowModernPlanetCounts(story);
+    const distLines = buildDistLinesFromCounts(nowCounts, { forX: false });
 
-    // 空層：表示と一致させるため、contactsOverride を必ず使う
+    // 空層：表示と一致させるため、contactsOverride を必ず使う（ここは今まで通り）
     const isAll = (limit === Infinity);
     const contactsForGlobal = (isAll ? sorted : list).map((r) => ({
       kind: "public",
@@ -1037,7 +1196,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // ============================================================
-  // X v3.3.5 (minimal / no roles)
+  // X v3.3.6 (minimal / no roles) — + dist(なう惑星)
   // ============================================================
   function renderX(story) {
     const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
@@ -1068,6 +1227,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const yoin = fmt.formatYoinForX(yoinPack?.xYoinLine);
 
+    // ★ X 分布：なう全惑星（短文）。文字数で落ちる可能性あり
+    const distShort = buildDistLinesFromCounts(buildNowModernPlanetCounts(story), { forX: true });
+
     const closeLines = pickCloseLines(RENDER_COPY, story, { seedBase, pickStable });
 
     const footer = String(RENDER_COPY?.FOOTER_X || "星は語る。🌎🛸").trim();
@@ -1078,7 +1240,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     const MAX = 270;
 
-    function build({ keepSecond, keepYoin, keepClose }) {
+    function build({ keepSecond, keepYoin, keepClose, keepDist }) {
       const lines = [];
       lines.push(`🌌 ${dateLabel}｜空の配置`);
       lines.push("");
@@ -1087,9 +1249,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       lines.push("");
 
       if (main1) lines.push(main1);
-      if (keepSecond && main2) {
+      if (keepSecond && main2) { lines.push(""); lines.push(main2); }
+
+      // ここに分布を移動（配置の後）
+      if (keepDist && distShort) {
         lines.push("");
-        lines.push(main2);
+        lines.push(distShort);
       }
 
       if (keepYoin && yoin) {
@@ -1109,11 +1274,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     }
 
     const variants = [
-      { keepSecond: true, keepYoin: true, keepClose: true },
-      { keepSecond: false, keepYoin: true, keepClose: true },
-      { keepSecond: false, keepYoin: true, keepClose: false },
-      { keepSecond: false, keepYoin: false, keepClose: true },
-      { keepSecond: false, keepYoin: false, keepClose: false },
+      { keepSecond: true, keepYoin: true, keepClose: true, keepDist: true },
+      { keepSecond: false, keepYoin: true, keepClose: true, keepDist: true },
+      { keepSecond: false, keepYoin: true, keepClose: false, keepDist: true },
+      { keepSecond: false, keepYoin: true, keepClose: false, keepDist: false },
+      { keepSecond: false, keepYoin: false, keepClose: true, keepDist: false },
+      { keepSecond: false, keepYoin: false, keepClose: false, keepDist: false },
     ];
 
     let text = "";
@@ -1127,7 +1293,132 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   }
 
   // ============================================================
-  // IG (copy-driven)
+  // Threads v1 (minimal / no roles) — + dist(なう惑星) + up to 5 aspects
+  // ============================================================
+  function renderThreads(story) {
+    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
+    const moonSignJa = story?.public?.moon?.sign_ja || "";
+
+    // public sky_all orb順
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const sorted = skyAll
+      .filter((r) => Number.isFinite(Number(r?.orb_deg)))
+      .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    function isFastBody(k) {
+      return ["moon", "mercury", "venus", "mars"].includes(String(k || "").toLowerCase());
+    }
+    function contactHasFast(c) {
+      return isFastBody(c?.a) || isFastBody(c?.b);
+    }
+
+    // ✅ 速い天体を含むものを最低2本確保 → 残りは orb順で埋める（最大5）
+    const picked = [];
+    for (const c of sorted) {
+      if (picked.length >= 2) break;
+      if (contactHasFast(c)) picked.push(c);
+    }
+    for (const c of sorted) {
+      if (picked.length >= 5) break;
+      if (picked.includes(c)) continue;
+      picked.push(c);
+    }
+
+    const top5 = picked
+      .slice()
+      .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg));
+
+    // 既存の X 用フォーマッタを流用（fmt.formatSkyLineX がある前提）
+    const aspectLines = top5
+      .map((c, i) => {
+        const icon = ["☄️", "🪐", "✨", "🌓", "🧭"][i] || "・";
+        return fmt.formatSkyLineX(story, c, icon, { fmtAnyJa, publicSignJa, fmtAspectJa, fmtDeg });
+      })
+      .filter(Boolean);
+
+    // 余韻（既存）
+    const userSeed = getUserId(story);
+    const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}`;
+
+    const yoinPack =
+      typeof fmt?.buildYoinBlocks === "function"
+        ? fmt.buildYoinBlocks(
+          story,
+          { channel: "threads", seedBase: `${seedBase}|yoin` },
+          { buildYoinLine, buildYoinGlobal, RENDER_COPY, pickStable }
+        )
+        : { xYoinLine: buildYoinLine(story) };
+
+    const yoin = fmt.formatYoinForX(yoinPack?.xYoinLine);
+
+    // 分布（ThreadsはshortじゃなくてもOKだが、一旦X短文で統一）
+    const distShort = buildDistLinesFromCounts(buildNowModernPlanetCounts(story), { forX: true });
+
+    const closeLines = pickCloseLines(RENDER_COPY, story, { seedBase, pickStable });
+    const footer = String(RENDER_COPY?.FOOTER_X || "星は語る。🌎🛸").trim();
+    const closeArr = (Array.isArray(closeLines) ? closeLines : [String(closeLines || "")])
+      .map((l) => String(l || "").trim())
+      .filter(Boolean)
+      .filter((l) => l !== footer);
+
+    const MAX = 10000;
+
+    function build({ keepYoin, keepClose, keepDist, keepMoon, keepAspects }) {
+      const lines = [];
+      lines.push(`🌌 ${dateLabel}｜空の配置`);
+      lines.push("");
+
+      if (keepMoon && moonSignJa) lines.push(`🌙月：${moonSignJa}`);
+
+      if (keepAspects && aspectLines.length) {
+        lines.push("");
+        aspectLines.forEach((l, idx) => {
+          if (idx) lines.push("");
+          lines.push(l);
+        });
+      }
+
+      lines.push("");
+      if (keepDist && distShort) lines.push(distShort);
+
+      if (keepYoin && yoin) {
+        lines.push("");
+        yoin.split("\n").forEach((l) => lines.push(l));
+      }
+
+      if (keepClose && closeArr.length) {
+        lines.push("");
+        lines.push(...closeArr);
+      }
+
+      lines.push("");
+      lines.push(footer);
+
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    }
+
+    // 落とし順：まずは全部 → 余韻だけ落とす → close落とす → 分布落とす → 月落とす…（ほぼ起きない）
+    const variants = [
+      { keepYoin: true, keepClose: true, keepDist: true, keepMoon: true, keepAspects: true },
+      { keepYoin: true, keepClose: false, keepDist: true, keepMoon: true, keepAspects: true },
+      { keepYoin: true, keepClose: false, keepDist: false, keepMoon: true, keepAspects: true },
+      { keepYoin: false, keepClose: true, keepDist: true, keepMoon: true, keepAspects: true },
+      { keepYoin: false, keepClose: false, keepDist: false, keepMoon: true, keepAspects: true },
+      { keepYoin: false, keepClose: false, keepDist: false, keepMoon: false, keepAspects: true },
+    ];
+
+    let text = "";
+    for (const v of variants) {
+      text = build(v);
+      if (text.length <= MAX) break;
+    }
+    if (text.length > MAX) text = text.slice(0, MAX - 1) + "…";
+    return text;
+  }
+
+
+  // ============================================================
+  // IG (copy-driven) — + dist(なう惑星)
   // ============================================================
   function renderIG(story) {
     const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
@@ -1136,11 +1427,20 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
 
+    // ★ IG 分布：なう全惑星（2行）
+    const distLines = buildDistLinesFromCounts(buildNowModernPlanetCounts(story), { forX: false });
+
     if (!skyTop.length && !skyAll.length) {
       const lines = [];
       lines.push(RENDER_COPY.BRAND_IG ? `🌌 ${RENDER_COPY.BRAND_IG}` : "🌌 ソラのこえ。");
       lines.push(`[${dateLabel}｜今日のソラ]`);
       if (moonSign) lines.push(`月は ${moonSign} を通過中。`);
+
+      if (distLines) {
+        lines.push("");
+        lines.push(distLines);
+      }
+
       lines.push("");
       lines.push(buildNoContactLine(story));
       lines.push("");
@@ -1152,6 +1452,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     lines.push(RENDER_COPY.BRAND_IG ? `🌌 ${RENDER_COPY.BRAND_IG}` : "🌌 ソラのこえ。");
     lines.push(`[${dateLabel}｜今日のソラ]`);
     if (moonSign) lines.push(`月は ${moonSign} を通過中。`);
+
+    if (distLines) {
+      lines.push("");
+      lines.push(distLines);
+    }
+
     lines.push("");
 
     const list = skyTop.length ? skyTop.slice(0, 3) : [pickCenterPublicContact(story)].filter(Boolean);
@@ -1324,6 +1630,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     renderSoraAllLine,
     renderX,
     renderIG,
+    renderThreads,
 
     // formatters
     fmtAspectJa,
