@@ -162,6 +162,18 @@ function signInfoFromJa(signJa) {
 
 // story から「その日の天体サイン（JA）」を拾う（構造差を吸収）
 function pickSkySignList(story) {
+  const ts = story?.public?.transit_signs;
+  if (ts && typeof ts === "object") {
+    const planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+    const out = [];
+    for (const p of planets) {
+      const hit = ts[p];
+      const signJa = hit?.sign_ja || null;
+      if (signJa) out.push({ planet: p, sign_ja: String(signJa) });
+    }
+    if (out.length) return out;
+  }
+
   const candidates = [
     story?.public?.sky_positions,
     story?.public?.skyPositions,
@@ -272,14 +284,14 @@ function elementModalityFromSky(story, opts = {}) {
 
     const dbg = debug
       ? {
-          date_local: dateLocal,
-          user_id: userId,
-          total: enriched.length,
-          moon_sign: moon?.sign_ja || null,
-          moon_element: tieEl,
-          moon_modality: tieMo,
-          sample: enriched.slice(0, 6),
-        }
+        date_local: dateLocal,
+        user_id: userId,
+        total: enriched.length,
+        moon_sign: moon?.sign_ja || null,
+        moon_element: tieEl,
+        moon_modality: tieMo,
+        sample: enriched.slice(0, 6),
+      }
       : undefined;
 
     return { element, modality, debug: dbg };
@@ -348,17 +360,17 @@ function buildResonanceBullets(story, opts = {}) {
     const topAspectType = skyTop?.[0]?.type || null;
     const aspectFlavor = topAspectType
       ? firstNonEmptyArray(
-          dict?.aspect_flavor?.[topAspectType]?.lines,
-          dict?.aspect_flavor?.[topAspectType]
-        )
+        dict?.aspect_flavor?.[topAspectType]?.lines,
+        dict?.aspect_flavor?.[topAspectType]
+      )
       : [];
 
     // moon sign flavor（JA優先、ダメならEN）
     const moonFlavor = moonKeyForDict
       ? firstNonEmptyArray(
-          dict?.moon_sign_flavor?.[moonSignJa],
-          dict?.moon_sign_flavor?.[moonSignKey]
-        )
+        dict?.moon_sign_flavor?.[moonSignJa],
+        dict?.moon_sign_flavor?.[moonSignKey]
+      )
       : [];
 
     const pool = [...baseSet, ...aspectFlavor, ...moonFlavor]

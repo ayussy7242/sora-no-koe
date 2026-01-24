@@ -22,11 +22,12 @@
 const { pickStable, getUserId } = require("./render_parts/seed");
 const makeSignHelpers = require("./render_parts/signs");
 const fmt = require("./render_parts/format");
+const { buildFusionSentence } = require("./blend_fusion");
 
 const OUTPUT_SPECS = {
   line_today: {
     dist: (story, ctx) => ctx.hasPersonal ? ctx.tpsShownEndpoints : "now_planets",
-    yoin: (story, ctx) => ctx.hasPersonal ? { kind:"personal", statsScope:"all" } : { kind:"public", statsScope:"top" },
+    yoin: (story, ctx) => ctx.hasPersonal ? { kind: "personal", statsScope: "all" } : { kind: "public", statsScope: "top" },
   },
   line_sora_top: {
     dist: "now_planets",
@@ -36,9 +37,9 @@ const OUTPUT_SPECS = {
     dist: "now_planets",
     yoin: "contactsOverride_from_all",
   },
-  x: { dist: "now_planets_short", yoin: { kind:"public" } },
-  ig:{ dist: "now_planets", yoin: { kind:"public" } },
-  threads:{ dist:"now_planets_short", yoin:{ kind:"public" } },
+  x: { dist: "now_planets_short", yoin: { kind: "public" } },
+  ig: { dist: "now_planets", yoin: { kind: "public" } },
+  threads: { dist: "now_planets_short", yoin: { kind: "public" } },
 };
 
 
@@ -405,7 +406,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
     // fallback: ASPECTS_META の sora を label_ja で拾う
     const hit = Object.values(ASPECTS_META || {}).find((v) => v?.label_ja === aspectLabelJa);
-    if (hit?.sora) return `→ ${String(hit.sora).trim()}`;
+    if (hit?.sora) return String(hit.sora).trim();
 
     return "配置として現れやすい。";
   }
@@ -413,7 +414,15 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // ============================================================
   // Personal TP line
   // ============================================================
-  function formatPersonalTPLine(story, tp, labelPrefix = "") {
+  function hasFusionBlendV1(blend) {
+    return !!(blend && blend.fusion && (blend.fusion.template_ja || blend.fusion.template_mini_ja || blend.fusion.template_micro_ja));
+  }
+
+  function hasPersonalAspectBlendV1(blend) {
+    return !!(blend && blend.planet_in_sign && blend.blocks && blend.blocks.personal_aspect_block);
+  }
+
+  function formatPersonalTPLine(story, tp, labelPrefix = "", opts = {}) {
     if (!tp) return "";
 
     const aKey = tp.natal_body_or_point;
@@ -433,31 +442,74 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     const deg = fmtDeg(tp.aspect_deg);
     const orb = fmtDeg(tp.orb_deg);
 
-    // --- BLENDがあれば：新しいブロック生成
-    if (BLEND_V1?.planet_in_sign && BLEND_V1?.blocks?.personal_aspect_block) {
-      const st = BLEND_V1.style || {};
-      const dash = st.dash || "｜";
-      const x = st.x || "×";
-      const arrow = st.arrow || "→";
-      const br = st.line_break || "\n";
+    // ============================================================
+    // ★ NEW: FUSION（優先）
+    // ============================================================
+    if (hasFusionBlendV1(BLEND_V1)) {
+      // まずヘッダー（いまの表示形式は維持）
+      const idx = String(labelPrefix ?? "").trim();
+      const header =
+        `${idx ? `${idx} ` : ""}` +
+        `ネイタル：${aJa}${aSignJa ? `（${aSignJa}）` : ""} × ` +
+        `トランジット：${bJa}${bSignJa ? `（${bSignJa}）` : ""}` +
+        `｜${aspJa}（${deg}°｜orb ${orb}°）`;
 
-      const idx = String(labelPrefix || "").trim();
+      // fusion文を生成（辞書が無ければ空になる＝落ちない）
+      const fusion = buildFusionSentence(
+        {
+          BLEND_V1,
+          SIGNS_V1,
+          PLANETS_META,
+          POINTS_META,
+        },
+        {
+          natal: { body: aKey, sign: aSignKey },
+          transit: { body: bKey, sign: bSignKey },
+          aspect: { label_ja: aspJa },
+          orb: Number(tp?.orb_deg),
+        },
+        { template: (opts?.fusionTemplate || "mini") } // "default" | "mini" | "micro"
+      );
+
+      // 併記するならここ（おすすめ）
+      // legacyの「質感」も残すなら oneLineMeaning を付ける
+      const legacy = oneLineMeaning({ aKey, bKey, aspectType: aspType });
+
+      // fusionが空なら legacy にフォールバック
+      const desc = (fusion && String(fusion).trim())
+        ? String(fusion).trim()
+        : legacy;
+
+      // “質感ラベル”も残したいなら ↓ を使う（まずはこれが安全）
+      // const desc = (fusion && String(fusion).trim())
+      //   ? `${String(fusion).trim()}\n「${legacy}」`
+      //   : legacy;
+
+      return [header, desc].filter(Boolean).join("\n").trim();
+    }
+
+    // ============================================================
+    // 旧BLEND（従来ブロック）
+    // ============================================================
+    if (hasPersonalAspectBlendV1(BLEND_V1)) {
+      const {
+        style: st = {},
+        blocks: { personal_aspect_block: block } = {},
+      } = BLEND_V1;
+
+      const dash = st.dash ?? "｜";
+      const x = st.x ?? "×";
+      const arrow = st.arrow ?? "→";
+      const br = st.line_break ?? "\n";
+
+      const idx = String(labelPrefix ?? "").trim();
 
       const natalTitle = `${aJa}${aSignJa ? `（${aSignJa}）` : ""}`;
       const transitTitle = `${bJa}${bSignJa ? `（${bSignJa}）` : ""}`;
 
-      const headerTpl = BLEND_V1.blocks.personal_aspect_block.header_ja;
+      const headerTpl = block?.header_ja;
       const header = headerTpl
-        ? tplFill(headerTpl, {
-          idx,
-          natal: natalTitle,
-          transit: transitTitle,
-          aspect: aspJa,
-          angle: deg,
-          orb: orb,
-          dash,
-          x,
-        })
+        ? tplFill(headerTpl, { idx, natal: natalTitle, transit: transitTitle, aspect: aspJa, angle: deg, orb, dash, x })
           .replace(/\s+/g, " ")
           .trim()
         : `${idx ? `${idx} ` : ""}ネイタル：${natalTitle} ${x} トランジット：${transitTitle} ${dash} ${aspJa}（${deg}°${dash}orb ${orb}°）`;
@@ -466,11 +518,12 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
       const transitBlend = buildPlanetInSignBlend("transit", bKey, bSignKey, bSignJa) || transitTitle;
       const aspectSentence = aspectSentenceByLabel(aspJa, aspType);
 
-      const lines = [header, natalBlend, transitBlend, `${arrow} ${aspectSentence}`].filter(Boolean);
-      return lines.join(br).trim();
+      return [header, natalBlend, transitBlend, `${arrow} ${aspectSentence}`].filter(Boolean).join(br).trim();
     }
 
-    // --- fallback（旧）
+    // ============================================================
+    // fallback（旧）
+    // ============================================================
     const { LABELS } = RENDER_COPY;
     const title =
       `${labelPrefix}` +
@@ -1075,6 +1128,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
 
       const hidden = hidden0 && !used.has(tpKey(hidden0)) ? hidden0 : null;
       if (hidden) {
+        used.add(tpKey(hidden));
         tpsShown.push(hidden);
         parts.push(`${HEAD_LAYERS.HIDDEN}\n${formatPersonalTPLine(story, hidden, "・")}`);
       }
