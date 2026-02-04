@@ -647,9 +647,24 @@ function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa) {
     return _jaToken(_stripRelationPrefixFromDynamics(fallbackDynamicsByAspectJa(keyNorm || key)));
 }
 
-function resolvePlanetActionJa(planetKey) {
-    const m = BLEND_V2?.fusion?.planet_action_ja || {};
-    return m[String(planetKey || "")] || "";
+function resolvePlanetActionJa(dict, planetKey, { seed = "" } = {}) {
+    const key = String(planetKey || "").trim();
+    if (!key) return "";
+
+    // ✅ planets.v2 優先
+    const p2 = dict?.planets?.bodies?.[key];
+    const pool =
+        (Array.isArray(p2?.action_noun_ja) && p2.action_noun_ja) ||
+        (Array.isArray(p2?.action_ja) && p2.action_ja) ||
+        null;
+
+    if (pool && pool.length) {
+        return _pick(pool, `${seed}|planet_action|${key}`, pool[0]);
+    }
+
+    // ✅ fallback（既存互換）
+    const legacy = dict?.blend?.planet_action_ja?.[key];
+    return typeof legacy === "string" ? legacy : "";
 }
 
 function resolveAspectSentenceJa(params = {}) {
@@ -878,8 +893,8 @@ function buildAlineSkyFusionJa(params = {}) {
     const A_field = resolveFusionFieldLabel(dict, aSignKey);
     const B_field = resolveFusionFieldLabel(dict, bSignKey);
 
-    const aAct = resolvePlanetActionJa(aPlanetKey) || "";
-    const bAct = resolvePlanetActionJa(bPlanetKey) || "";
+    const aAct = resolvePlanetActionJa(dict, aPlanetKey, { seed }) || "";
+    const bAct = resolvePlanetActionJa(dict, bPlanetKey, { seed }) || "";
 
     // ✅ SKY = dynamics only（relation は捨てる）
     const dynamicsRaw =
@@ -910,11 +925,17 @@ function buildAlineSkyFusionJa(params = {}) {
     const tail = hasEasy ? "。" : `${tendency}。`;
 
     const sameField = A_field && B_field && A_field === B_field;
+    const isConjunction = normalizeAspectType(aspectType) === "conjunction";
 
-    // ✅ "…が{dynamics}" をやめて "…は、{dynamics}" に固定（「がが」事故を構造で根絶）
-    const head = sameField
-        ? `${A_field}の中で、${aAct}と${bAct}は、`
-        : `${A_field}の${aAct}と${B_field}の${bAct}は、`;
+    let head;
+
+    if (sameField && isConjunction) {
+        head = `${A_field}の中で、${aAct}と${bAct}が重なり、`;
+    } else if (sameField) {
+        head = `${A_field}の中で、${aAct}と${bAct}は、`;
+    } else {
+        head = `${A_field}の${aAct}と${B_field}の${bAct}は、`;
+    }
 
     return _finalizeAlineJa(`${head}${dyn}${tail}`);
 }
