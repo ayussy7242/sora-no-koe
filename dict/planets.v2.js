@@ -29,6 +29,9 @@ const PLANETS_V2 = {
             verbs: ["決める", "照らす", "選ぶ", "掲げる", "軸を立てる"],
             texture: ["中心", "明確", "熱", "方向性", "主体"],
             tendency_key: "mid",
+
+            action_noun_ja: ["中心", "意志", "選択", "火", "軸"],
+            action_verb_ja: ["照らす", "決める", "選ぶ", "掲げる", "軸を立てる"],
         },
 
         moon: {
@@ -46,6 +49,9 @@ const PLANETS_V2 = {
             verbs: ["感じる", "守る", "落ち着く", "馴染む", "抱える"],
             texture: ["内側", "習慣", "体感", "安心", "波"],
             tendency_key: "mid",
+
+            action_noun_ja: ["反応", "安心", "体感", "波", "習慣"],
+            action_verb_ja: ["感じる", "守る", "馴染む", "抱える", "落ち着く"],
         },
 
         mercury: {
@@ -63,6 +69,9 @@ const PLANETS_V2 = {
             verbs: ["考える", "まとめる", "つなぐ", "伝える", "翻訳する"],
             texture: ["情報", "対話", "テンポ", "理解", "接続"],
             tendency_key: "light",
+
+            action_noun_ja: ["言葉", "理解", "接続", "テンポ", "思考"],
+            action_verb_ja: ["考える", "まとめる", "つなぐ", "伝える", "翻訳する"],
         },
 
         venus: {
@@ -80,6 +89,9 @@ const PLANETS_V2 = {
             verbs: ["惹かれる", "選ぶ", "味わう", "整える", "関係をつくる"],
             texture: ["心地よさ", "美意識", "満足", "惹力", "やさしさ"],
             tendency_key: "light",
+
+              action_noun_ja: ["価値", "好み", "惹力", "美", "満足"],
+  action_verb_ja: ["惹かれる", "選ぶ", "味わう", "整える", "和らげる"],
         },
 
         mars: {
@@ -97,6 +109,9 @@ const PLANETS_V2 = {
             verbs: ["動く", "踏み込む", "切る", "守る", "決断する"],
             texture: ["熱", "直進", "即応", "境界", "衝突点"],
             tendency_key: "mid",
+
+  action_noun_ja: ["境界", "推進", "衝動", "決断", "火"],
+  action_verb_ja: ["動く", "踏み込む", "切る", "守る", "突き進む"],
         },
 
         jupiter: {
@@ -114,6 +129,10 @@ const PLANETS_V2 = {
             verbs: ["広げる", "信じる", "学ぶ", "励ます", "伸ばす"],
             texture: ["可能性", "追い風", "寛容", "視野", "増幅"],
             tendency_key: "light",
+
+  action_noun_ja: ["拡大", "追い風", "可能性", "寛容", "増幅"],
+  action_verb_ja: ["広げる", "伸ばす", "励ます", "学ぶ", "信じる"],
+
         },
 
         saturn: {
@@ -131,6 +150,9 @@ const PLANETS_V2 = {
             verbs: ["積む", "耐える", "整える", "責任を持つ", "形にする"],
             texture: ["重み", "構造", "制限", "成熟", "継続"],
             tendency_key: "mid",
+
+              action_noun_ja: ["枠", "構造", "重み", "時間", "責任"],
+  action_verb_ja: ["積む", "整える", "耐える", "形にする", "担う"],
         },
 
         uranus: {
@@ -148,6 +170,10 @@ const PLANETS_V2 = {
             verbs: ["外す", "切り替える", "更新する", "解放する", "揺らす"],
             texture: ["非連続", "自由", "突然", "刷新", "再設計"],
             tendency_key: "mid",
+
+
+  action_noun_ja: ["更新", "解放", "ズレ", "刷新", "再設計"],
+  action_verb_ja: ["外す", "切り替える", "更新する", "揺らす", "解放する"],
         },
 
         neptune: {
@@ -165,6 +191,10 @@ const PLANETS_V2 = {
             verbs: ["溶かす", "にじませる", "感じ取る", "ゆだねる", "ぼかす"],
             texture: ["境界", "夢", "余韻", "直感", "イメージ"],
             tendency_key: "deep",
+
+
+   action_noun_ja: ["溶解", "夢", "余韻", "境界", "直感"],
+  action_verb_ja: ["溶かす", "にじませる", "感じ取る", "ゆだねる", "ぼかす"],
         },
 
         pluto: {
@@ -182,6 +212,9 @@ const PLANETS_V2 = {
             verbs: ["剥がす", "変える", "終える", "再編する", "露わにする"],
             texture: ["極点", "圧", "深層", "再生", "脱皮"],
             tendency_key: "mid",
+
+              action_noun_ja: ["圧", "変容", "深層", "脱皮", "再編"],
+  action_verb_ja: ["剥がす", "変える", "終える", "再編する", "露わにする"],
         },
 
         chiron: {
