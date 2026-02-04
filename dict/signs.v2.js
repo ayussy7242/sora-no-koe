@@ -1,17 +1,16 @@
 "use strict";
 
 /**
- * signs.v2
- * - サイン＝“空気の型”
- * - V1互換のキーは維持（label_ja / element / modality / core / tone / sora_short / sora / keywords / ai_tags）
- * - V2追加：flavor / texture / verbs / tendency_key
+ * signs.v2 (OPTIMIZED)
  *
  * 目的：
- * - render/fusion が「説明文」ではなく「差し込みパーツ」で自然合成できるようにする
- * - “占い化”しない（判断しない／予測しない／行動を促さない）
+ * - flavor を「空気の型」最小単位に統一（意味を増やさない）
+ * - verbs は process 専用（3つに圧縮）
+ * - texture は内部参照（出力しない前提）
+ * - tendency_key は GRAMMAR の重み付けヒントのみ
  *
- * tendency_key:
- * - GRAMMARS_V1.categories.tendency の light/mid/deep のどれを寄せやすいか（重み付け用のヒント）
+ * 互換キー維持：
+ * label_ja / element / modality / core / tone / sora_short / sora / keywords / ai_tags
  */
 const SIGNS_V2 = {
   version: "signs.v2",
@@ -27,9 +26,10 @@ const SIGNS_V2 = {
       keywords: ["始まり", "衝動", "直線", "スピード"],
       ai_tags: ["start", "bold"],
 
-      flavor: "はじまりが先に立つ空気。",
+      // V2
+      flavor: "始動が前に出る空気。",
       texture: ["速い", "直線的", "熱が先行", "迷いが薄い", "点火しやすい"],
-      verbs: ["始める", "突き進む", "切り込む", "点ける", "突破する"],
+      verbs: ["始める", "切り込む", "突破する"],
       tendency_key: "mid",
     },
 
@@ -44,9 +44,9 @@ const SIGNS_V2 = {
       keywords: ["身体", "感覚", "安定", "価値"],
       ai_tags: ["ground", "sensory"],
 
-      flavor: "感覚が現実をつかまえる空気。",
+      flavor: "感覚が輪郭を持つ空気。",
       texture: ["ゆっくり", "確か", "触感的", "粘り強い", "変えにくい"],
-      verbs: ["味わう", "保つ", "固める", "育てる", "定着させる"],
+      verbs: ["味わう", "保つ", "育てる"],
       tendency_key: "light",
     },
 
@@ -61,9 +61,9 @@ const SIGNS_V2 = {
       keywords: ["情報", "会話", "交換", "好奇心"],
       ai_tags: ["exchange", "curious"],
 
-      flavor: "言葉と情報が行き来する空気。",
+      flavor: "行き来が増える空気。",
       texture: ["軽い", "早い", "切り替わる", "散らばる", "接続的"],
-      verbs: ["つなぐ", "伝える", "聞く", "並べる", "切り替える"],
+      verbs: ["つなぐ", "伝える", "切り替える"],
       tendency_key: "light",
     },
 
@@ -78,9 +78,9 @@ const SIGNS_V2 = {
       keywords: ["居場所", "保護", "親密", "安心"],
       ai_tags: ["home", "nurture"],
 
-      flavor: "居場所の輪郭が触れやすい空気。",
+      flavor: "内側に寄る空気。",
       texture: ["やわらかい", "内向き", "包む", "敏感", "親密に寄る"],
-      verbs: ["守る", "包む", "寄せる", "温める", "育む"],
+      verbs: ["包む", "守る", "温める"],
       tendency_key: "mid",
     },
 
@@ -95,9 +95,9 @@ const SIGNS_V2 = {
       keywords: ["表現", "中心", "創造", "誇り"],
       ai_tags: ["shine", "creative"],
 
-      flavor: "自分の中心の温度を、外に置く空気。",
+      flavor: "中心が目に入る空気。",
       texture: ["明るい", "まっすぐ", "熱い", "目に入りやすい", "誇りが触れやすい"],
-      verbs: ["照らす", "示す", "前に出す", "創る", "掲げる"],
+      verbs: ["示す", "創る", "掲げる"],
       tendency_key: "mid",
     },
 
@@ -112,9 +112,9 @@ const SIGNS_V2 = {
       keywords: ["整える", "分析", "改善", "手入れ"],
       ai_tags: ["refine", "analyze"],
 
-      flavor: "微差が見えやすい空気。",
+      flavor: "微差が際立つ空気。",
       texture: ["細い", "正確", "実務的", "手入れ感", "整頓的"],
-      verbs: ["整える", "点検する", "仕分ける", "修正する", "磨く"],
+      verbs: ["整える", "仕分ける", "磨く"],
       tendency_key: "light",
     },
 
@@ -129,9 +129,9 @@ const SIGNS_V2 = {
       keywords: ["関係", "バランス", "美意識", "対話"],
       ai_tags: ["balance", "relate"],
 
-      flavor: "関係の釣り合いがテーマになりやすい空気。",
+      flavor: "釣り合いが立つ空気。",
       texture: ["整う", "対話的", "客観", "美的", "均衡に敏感"],
-      verbs: ["量る", "調整する", "並べる", "対話する", "整える"],
+      verbs: ["量る", "調整する", "対話する"],
       tendency_key: "light",
     },
 
@@ -146,9 +146,9 @@ const SIGNS_V2 = {
       keywords: ["深層", "境界", "共有", "変容"],
       ai_tags: ["depth", "transform"],
 
-      flavor: "見えない層が濃くなる空気。",
+      flavor: "深さが増す空気。",
       texture: ["深い", "濃密", "静か", "境界が鋭い", "共有に触れる"],
-      verbs: ["掘る", "結ぶ", "見抜く", "変える", "浄化する"],
+      verbs: ["掘る", "結ぶ", "浄化する"],
       tendency_key: "mid",
     },
 
@@ -163,9 +163,9 @@ const SIGNS_V2 = {
       keywords: ["探求", "拡張", "視野", "意味"],
       ai_tags: ["explore", "expand"],
 
-      flavor: "視野が遠くへ伸びやすい空気。",
+      flavor: "遠くが開く空気。",
       texture: ["広い", "軽快", "未来志向", "探索的", "意味が動く"],
-      verbs: ["探す", "広げる", "飛ぶ", "学ぶ", "射抜く"],
+      verbs: ["探す", "広げる", "学ぶ"],
       tendency_key: "mid",
     },
 
@@ -180,9 +180,9 @@ const SIGNS_V2 = {
       keywords: ["構造", "責任", "継続", "成果"],
       ai_tags: ["build", "discipline"],
 
-      flavor: "形と時間が前に出やすい空気。",
+      flavor: "骨格が見える空気。",
       texture: ["硬い", "現実的", "持続", "段取り", "骨格が見える"],
-      verbs: ["積む", "固める", "設計する", "背負う", "仕上げる"],
+      verbs: ["積む", "設計する", "仕上げる"],
       tendency_key: "light",
     },
 
@@ -197,9 +197,9 @@ const SIGNS_V2 = {
       keywords: ["刷新", "観測", "自由", "発明"],
       ai_tags: ["innovate", "observe"],
 
-      flavor: "距離を取って観測しやすい空気。",
+      flavor: "距離が生まれる空気。",
       texture: ["冷静", "俯瞰", "非連続", "自由", "更新的"],
-      verbs: ["観測する", "切り離す", "更新する", "組み替える", "解放する"],
+      verbs: ["観測する", "切り離す", "組み替える"],
       tendency_key: "light",
     },
 
@@ -214,14 +214,14 @@ const SIGNS_V2 = {
       keywords: ["共鳴", "余韻", "直感", "溶解"],
       ai_tags: ["resonate", "dreamy"],
 
-      flavor: "境界がゆるみ、余韻が残りやすい空気。",
+      flavor: "輪郭がにじむ空気。",
       texture: ["にじむ", "やわらかい", "溶ける", "遠い", "共鳴的"],
-      verbs: ["溶かす", "にじませる", "ゆだねる", "受け取る", "共鳴する"],
+      verbs: ["にじませる", "受け取る", "共鳴する"],
       tendency_key: "mid",
     },
   },
 
-  // UI順（黄道順）: canonical ids
+  // UI順（黄道順）
   order: [
     "aries", "taurus", "gemini", "cancer", "leo", "virgo",
     "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces",

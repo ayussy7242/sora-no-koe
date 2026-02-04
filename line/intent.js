@@ -7,7 +7,7 @@
  * Goals:
  * - normalizeは “ここだけ” が真実
  * - 日本語ゆれ / 英語 / 記号 / 絵文字 / スペース を吸収
- * - intentFromCommand は routes/line.js が信頼してよい単一判定点
+ * - intentFromcommand は routes/line.js が信頼してよい単一判定点
  */
 
 function normalizeText(text) {
@@ -120,13 +120,13 @@ const MAP = new Map([
   ["テスト", INTENT.TEST],
 ]);
 
-function intentFromCommand(rawText) {
+function intentFromcommand(rawText) {
   const key = normalizeForCommand(rawText);
   if (!key) return null;
   return MAP.get(key) || null;
 }
 
-function isUnknown(text) {
+function isunknown(text) {
   const t = normalizeForCommand(text);
   return /^(不明|unknown|dontknow|わからない|分からない|知らない)$/i.test(t);
 }
@@ -135,6 +135,6 @@ module.exports = {
   INTENT,
   normalizeText,
   normalizeForCommand,
-  intentFromCommand,
-  isUnknown,
+  intentFromcommand,
+  isunknown,
 };

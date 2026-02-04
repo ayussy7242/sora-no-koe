@@ -50,18 +50,18 @@ function pick(obj, keys) {
   console.log("\n[natal_positions summary] (lon_degだけ抜粋)");
   const np = d.natal_positions || {};
   const summary = {
-    Sun: np.sun?.lon_deg,
-    Moon: np.moon?.lon_deg,
-    Mercury: np.bodies?.Mercury?.lon_deg,
-    Venus: np.bodies?.Venus?.lon_deg,
-    Mars: np.bodies?.Mars?.lon_deg,
-    Jupiter: np.bodies?.Jupiter?.lon_deg,
-    Saturn: np.bodies?.Saturn?.lon_deg,
-    Uranus: np.bodies?.Uranus?.lon_deg,
-    Neptune: np.bodies?.Neptune?.lon_deg,
-    Pluto: np.bodies?.Pluto?.lon_deg,
-    ASC: np.asc?.lon_deg,
-    MC: np.mc?.lon_deg,
+    sun: np.sun?.lon_deg,
+    moon: np.moon?.lon_deg,
+    mercury: np.bodies?.mercury?.lon_deg,
+    venus: np.bodies?.venus?.lon_deg,
+    mars: np.bodies?.mars?.lon_deg,
+    jupiter: np.bodies?.jupiter?.lon_deg,
+    saturn: np.bodies?.saturn?.lon_deg,
+    uranus: np.bodies?.uranus?.lon_deg,
+    neptune: np.bodies?.neptune?.lon_deg,
+    pluto: np.bodies?.pluto?.lon_deg,
+    asc: np.asc?.lon_deg,
+    mc: np.mc?.lon_deg,
   };
   console.log(JSON.stringify(summary, null, 2));
 

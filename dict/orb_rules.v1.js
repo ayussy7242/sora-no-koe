@@ -64,37 +64,37 @@ const ORB_RULES_V1 = {
   // --------------------
   by_body: {
     // luminaries
-    Sun:  { orb_deg: 6.0 },
-    Moon: { orb_deg: 7.0 },
+    sun:  { orb_deg: 6.0 },
+    moon: { orb_deg: 7.0 },
 
     // personal planets
-    Mercury: { orb_deg: 5.0 },
-    Venus:   { orb_deg: 5.0 },
-    Mars:    { orb_deg: 5.0 },
+    mercury: { orb_deg: 5.0 },
+    venus:   { orb_deg: 5.0 },
+    mars:    { orb_deg: 5.0 },
 
     // social planets
-    Jupiter: { orb_deg: 4.5 },
-    Saturn:  { orb_deg: 4.5 },
+    jupiter: { orb_deg: 4.5 },
+    saturn:  { orb_deg: 4.5 },
 
     // outer planets（効くけど、検出は絞ると“主な配置”が締まる）
-    Uranus:  { orb_deg: 3.5 },
-    Neptune: { orb_deg: 3.5 },
-    Pluto:   { orb_deg: 3.5 },
+    uranus:  { orb_deg: 3.5 },
+    neptune: { orb_deg: 3.5 },
+    pluto:   { orb_deg: 3.5 },
 
     // others
-    Chiron: { orb_deg: 3.0 },
+    chiron: { orb_deg: 3.0 },
 
     // angles / points（反応が鋭い＝狭めで拾う）
-    ASC: { orb_deg: 2.0 },
-    MC:  { orb_deg: 2.0 },
-    Vertex:        { orb_deg: 1.2 },
-    PartOfFortune: { orb_deg: 1.2 },
+    asc: { orb_deg: 2.0 },
+    mc:  { orb_deg: 2.0 },
+    vertex:        { orb_deg: 1.2 },
+    part_of_fortune: { orb_deg: 1.2 },
 
     // nodes / lilith（感じるがブレやすい＝狭め）
-    NorthNode:   { orb_deg: 1.8 },
-    SouthNode:   { orb_deg: 1.8 },
-    Lilith_mean: { orb_deg: 1.6 },
-    Lilith_true: { orb_deg: 1.0 },
+    north_node:   { orb_deg: 1.8 },
+    south_node:   { orb_deg: 1.8 },
+    lilith_mean: { orb_deg: 1.6 },
+    lilith_true: { orb_deg: 1.0 },
   },
 
   // --------------------

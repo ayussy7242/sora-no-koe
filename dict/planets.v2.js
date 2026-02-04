@@ -9,11 +9,12 @@
  * - SIGN×PLANET 圧縮（planet_role + sign_flavor）を “設計で” 作れるようにする
  * - render/fusion が固定語（衝動/圧/交差…）を持たずに文章を組めるようにする
  * - 判断しない／予測しない／行動を促さない を維持
+ * aspects.v2 は「出力の質感（dynamics）辞書」。意味づけしない／予言しない。
  */
 const PLANETS_V2 = {
     version: "planets.v2",
     bodies: {
-        Sun: {
+        sun: {
             label_ja: "太陽",
             core: "中心・意志・生の火",
             field: "自己/表現/選択",
@@ -30,7 +31,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Moon: {
+        moon: {
             label_ja: "月",
             core: "感情・反応・安心",
             field: "体感/習慣/内側",
@@ -47,7 +48,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Mercury: {
+        mercury: {
             label_ja: "水星",
             core: "思考・言葉・接続",
             field: "情報/対話/理解",
@@ -64,7 +65,7 @@ const PLANETS_V2 = {
             tendency_key: "light",
         },
 
-        Venus: {
+        venus: {
             label_ja: "金星",
             core: "好み・関係・価値",
             field: "愛/美/満足",
@@ -81,7 +82,7 @@ const PLANETS_V2 = {
             tendency_key: "light",
         },
 
-        Mars: {
+        mars: {
             label_ja: "火星",
             core: "行動・衝動・境界",
             field: "推進/怒り/決断",
@@ -98,7 +99,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Jupiter: {
+        jupiter: {
             label_ja: "木星",
             core: "拡大・寛容・追い風",
             field: "成長/可能性/信念",
@@ -115,7 +116,7 @@ const PLANETS_V2 = {
             tendency_key: "light",
         },
 
-        Saturn: {
+        saturn: {
             label_ja: "土星",
             core: "枠組み・責任・鍛錬",
             field: "構造/制限/成熟",
@@ -132,7 +133,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Uranus: {
+        uranus: {
             label_ja: "天王星",
             core: "刷新・解放・突然性",
             field: "変化/自由/アップデート",
@@ -149,7 +150,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Neptune: {
+        neptune: {
             label_ja: "海王星",
             core: "溶解・夢・境界の薄さ",
             field: "感受性/祈り/幻想",
@@ -166,7 +167,7 @@ const PLANETS_V2 = {
             tendency_key: "deep",
         },
 
-        Pluto: {
+        pluto: {
             label_ja: "冥王星",
             core: "変容・極点・再生",
             field: "深層/支配/脱皮",
@@ -183,7 +184,7 @@ const PLANETS_V2 = {
             tendency_key: "mid",
         },
 
-        Chiron: {
+        chiron: {
             label_ja: "キロン",
             core: "傷と癒し・学びの入口",
             field: "癒し/気づき/統合",
@@ -220,9 +221,9 @@ const PLANETS_V2 = {
     },
 
     order: [
-        "Sun", "Moon", "Mercury", "Venus", "Mars",
-        "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
-        "Chiron", "Lilith", "ASC"
+        "sun", "moon", "mercury", "venus", "mars",
+        "jupiter", "saturn", "uranus", "neptune", "pluto",
+        "chiron", "Lilith", "asc"
     ],
 };
 

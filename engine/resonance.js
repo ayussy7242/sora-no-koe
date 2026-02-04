@@ -10,7 +10,7 @@
  *
  * ✅ FIX: 「地×不動が毎回」対策
  * - 空層は "アスペクト" ではなく "その日の天体サイン" を集計して決める
- * - 同点は 月(Moon) をタイブレークにする（最低でも日替わり）
+ * - 同点は 月(moon) をタイブレークにする（最低でも日替わり）
  * - それでも同点は date_local seed で決める（固定化しない）
  *
  * Design:
@@ -101,16 +101,16 @@ function pickStableManyUnique(pool, n, seedBase) {
 function detectThemeFromTouchPoints(touchTop3 = []) {
   const has = (cond) => touchTop3.some(cond);
 
-  if (has((t) => t?.natal_body_or_point === "ASC")) return "self_position";
+  if (has((t) => t?.natal_body_or_point === "asc")) return "self_position";
 
-  if (has((t) => t?.transit_body === "Moon" || t?.natal_body_or_point === "Moon"))
+  if (has((t) => t?.transit_body === "moon" || t?.natal_body_or_point === "moon"))
     return "emotion_inner";
 
-  if (has((t) => t?.transit_body === "Venus" || t?.natal_body_or_point === "Venus"))
+  if (has((t) => t?.transit_body === "venus" || t?.natal_body_or_point === "venus"))
     return "relational_soft";
-  if (has((t) => t?.transit_body === "Mars" || t?.natal_body_or_point === "Mars"))
+  if (has((t) => t?.transit_body === "mars" || t?.natal_body_or_point === "mars"))
     return "action_impulse";
-  if (has((t) => t?.transit_body === "Sun" || t?.natal_body_or_point === "Sun"))
+  if (has((t) => t?.transit_body === "sun" || t?.natal_body_or_point === "sun"))
     return "core_light";
 
   return "emotion_inner";
@@ -164,7 +164,7 @@ function signInfoFromJa(signJa) {
 function pickSkySignList(story) {
   const ts = story?.public?.transit_signs;
   if (ts && typeof ts === "object") {
-    const planets = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+    const planets = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
     const out = [];
     for (const p of planets) {
       const hit = ts[p];
@@ -195,8 +195,8 @@ function pickSkySignList(story) {
   if (!positions) return [];
 
   const planets = [
-    "Sun", "Moon", "Mercury", "Venus", "Mars",
-    "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+    "sun", "moon", "mercury", "venus", "mars",
+    "jupiter", "saturn", "uranus", "neptune", "pluto",
   ];
 
   const out = [];
@@ -212,16 +212,16 @@ function pickSkySignList(story) {
     if (signJa) out.push({ planet: p, sign_ja: String(signJa) });
   }
 
-  // 最低保障：Moon が取れなかったら story.public.moon から拾う
-  if (!out.some((x) => x.planet === "Moon")) {
+  // 最低保障：moon が取れなかったら story.public.moon から拾う
+  if (!out.some((x) => x.planet === "moon")) {
     const moonJa = story?.public?.moon?.sign_ja || null;
-    if (moonJa) out.push({ planet: "Moon", sign_ja: String(moonJa) });
+    if (moonJa) out.push({ planet: "moon", sign_ja: String(moonJa) });
   }
 
   return out;
 }
 
-// vote: 同点は Moon を優先、それでも同点は date seed で決める（固定化しない）
+// vote: 同点は moon を優先、それでも同点は date seed で決める（固定化しない）
 function voteDominant(items, getKey, tieBreakerKey, tieSeedStr) {
   const counts = new Map();
   for (const it of items) {
@@ -275,7 +275,7 @@ function elementModalityFromSky(story, opts = {}) {
       return { element: null, modality: null, debug: debug ? { reason: "no_enriched" } : undefined };
     }
 
-    const moon = enriched.find((x) => x.planet === "Moon") || null;
+    const moon = enriched.find((x) => x.planet === "moon") || null;
     const tieEl = moon?.element_ja || null;
     const tieMo = moon?.modality_ja || null;
 
@@ -309,7 +309,7 @@ function elementModalityFromSky(story, opts = {}) {
  * - centerFlavorLabelJa は「中心の質感」(ex: "チャンス・協力・選択肢") を渡す想定
  */
 function buildSkyLayerLine(story, centerFlavorLabelJa, opts = {}) {
-  const { includeMoonHint = true } = opts;
+  const { includemoonHint = true } = opts;
 
   const { element, modality } = elementModalityFromSky(story, { debug: false });
 
@@ -318,7 +318,7 @@ function buildSkyLayerLine(story, centerFlavorLabelJa, opts = {}) {
 
   // moon hint（無料でも日替わり差分が出る）
   let moonHint = "";
-  if (includeMoonHint) {
+  if (includemoonHint) {
     const moonSignJa = story?.public?.moon?.sign_ja || null;
     const moonLines =
       moonSignJa && RESONANCE_V1?.moon_sign_flavor?.[moonSignJa]

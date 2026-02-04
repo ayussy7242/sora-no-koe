@@ -11,13 +11,13 @@
  * - ジョブ: jobs_natal_calc/{appUserId}
  */
 
-const { isUnknown } = require("./intent");
+const { isunknown } = require("./intent");
 const { LINE_COPY } = require("../copy");
 
 function createLineNatal({ db, admin, geocoder = null, renderers, config = {} }) {
   if (!db) throw new Error("db is required");
   if (!admin) throw new Error("admin is required");
-  if (!renderers?.renderNatalListFromCache) throw new Error("renderers.renderNatalListFromCache is required");
+  if (!renderers?.renderNatalListFromcache) throw new Error("renderers.renderNatalListFromcache is required");
 
   const DEFAULT_TZ = config.DEFAULT_TZ || "Asia/Tokyo";
   const MAX_LINE_TEXT = Number(config.MAX_LINE_TEXT || 4800);
@@ -233,8 +233,8 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     const hasBodies = !!bodies && typeof bodies === "object" && Object.keys(bodies).length > 0;
 
     const a = cache?.houses?.angles;
-    let asc = Number(a?.ASC);
-    let mc = Number(a?.MC);
+    let asc = Number(a?.asc);
+    let mc = Number(a?.mc);
 
     if (!Number.isFinite(asc)) asc = Number(cache?.["1"] ?? cache?.[1]);
     if (!Number.isFinite(mc)) mc = Number(cache?.["10"] ?? cache?.[10]);
@@ -287,7 +287,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
     // pending_birth_date
     if (state === FLOW_STATE.PENDING_BIRTH_DATE) {
-      if (isUnknown(rawText)) {
+      if (isunknown(rawText)) {
         await saveBirthDate(appUserId, null);
         await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_TIME);
         return { text: LINE_COPY.ASK_BIRTH_TIME };
@@ -302,7 +302,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
     // pending_birth_time
     if (state === FLOW_STATE.PENDING_BIRTH_TIME) {
-      if (isUnknown(rawText)) {
+      if (isunknown(rawText)) {
         await saveBirthTime(appUserId, null);
         await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_PLACE);
         return { text: LINE_COPY.ASK_BIRTH_PLACE };
@@ -317,7 +317,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
     // pending_birth_place
     if (state === FLOW_STATE.PENDING_BIRTH_PLACE) {
-      if (isUnknown(rawText)) {
+      if (isunknown(rawText)) {
         await saveBirthPlace(appUserId, { placeText: null, geo: null });
         await enqueueNatalCalcJob(appUserId);
         await finalizeNatal(appUserId, lineUserId);
@@ -374,7 +374,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       return { text: LINE_COPY.NATAL_LIST_REPAIRING };
     }
 
-    const rendered = renderers.renderNatalListFromCache(cache) || "";
+    const rendered = renderers.renderNatalListFromcache(cache) || "";
     const text = rendered.length > MAX_LINE_TEXT ? rendered.slice(0, MAX_LINE_TEXT) : rendered;
     return { text };
   }

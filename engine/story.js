@@ -42,16 +42,16 @@ function createStoryService({
 
   // ✅ 追加：地層用の伝統重み（外天体0.3）
   PLANET_WEIGHT = {
-    Sun: 1.0,
-    Moon: 1.0,
-    Mercury: 1.0,
-    Venus: 1.0,
-    Mars: 1.0,
-    Jupiter: 0.8,
-    Saturn: 0.8,
-    Uranus: 0.3,
-    Neptune: 0.3,
-    Pluto: 0.3,
+    sun: 1.0,
+    moon: 1.0,
+    mercury: 1.0,
+    venus: 1.0,
+    mars: 1.0,
+    jupiter: 0.8,
+    saturn: 0.8,
+    uranus: 0.3,
+    neptune: 0.3,
+    pluto: 0.3,
   },
 }) {
   if (!db) throw new Error("createStoryService: db required");
@@ -177,18 +177,39 @@ function createStoryService({
     return swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
   }
 
-  const BODY_MAP = {
-    Sun: swisseph.SE_SUN,
-    Moon: swisseph.SE_MOON,
-    Mercury: swisseph.SE_MERCURY,
-    Venus: swisseph.SE_VENUS,
-    Mars: swisseph.SE_MARS,
-    Jupiter: swisseph.SE_JUPITER,
-    Saturn: swisseph.SE_SATURN,
-    Uranus: swisseph.SE_URANUS,
-    Neptune: swisseph.SE_NEPTUNE,
-    Pluto: swisseph.SE_PLUTO,
+  const sweConst = (name) => {
+    const up = String(name).toUpperCase();
+    const low = String(name).toLowerCase();
+
+    // よくあるパターン全部拾う
+    return (
+      swisseph[`SE_${up}`] ??
+      swisseph[`SE_${low}`] ??
+      swisseph[`SE_${name}`] ??
+      swisseph[`SE_${String(name)}`] ??
+      swisseph[`SE_${String(name).toUpperCase()}`] ??
+      swisseph[`SE_${String(name).toLowerCase()}`] ??
+      null
+    );
   };
+
+  const BODY_MAP = {
+    sun: sweConst("sun"),
+    moon: sweConst("moon"),
+    mercury: sweConst("mercury"),
+    venus: sweConst("venus"),
+    mars: sweConst("mars"),
+    jupiter: sweConst("jupiter"),
+    saturn: sweConst("saturn"),
+    uranus: sweConst("uranus"),
+    neptune: sweConst("neptune"),
+    pluto: sweConst("pluto"),
+  };
+
+  // 起動時に検査（ここ超大事）
+  for (const [k, v] of Object.entries(BODY_MAP)) {
+    if (v === null) throw new Error(`swisseph constant missing for: ${k}`);
+  }
 
   const TRANSIT_TARGETS = Object.keys(BODY_MAP);
 
@@ -221,7 +242,7 @@ function createStoryService({
       bodies_signs[body] = { ...s, lon_deg: lonFixed };
     }
 
-    const moonLon = bodies.Moon;
+    const moonLon = bodies.moon;
     const moonSign = typeof moonLon === "number" ? signFromLon(moonLon) : { sign_key: null, sign_ja: null };
 
     return {
@@ -275,55 +296,78 @@ function createStoryService({
     return hit ? signs[hit] : null;
   }
 
-function computeSkyStrataFromTransits(transitSigns) {
-  const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
-  const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
+  function computeSkyStrataFromTransits(transitSigns) {
+    const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
+    const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
 
-  // ✅ 現代：Sun〜Pluto 全部入れる（TRANSIT_TARGETS と一致）
-  const BODIES = new Set([
-    "Sun","Moon","Mercury","Venus","Mars",
-    "Jupiter","Saturn","Uranus","Neptune","Pluto",
-  ]);
+    // ✅ 現代：sun〜pluto 全部入れる（TRANSIT_TARGETS と一致）
+    const BODIES = new Set([
+      "sun", "moon", "mercury", "venus", "mars",
+      "jupiter", "saturn", "uranus", "neptune", "pluto",
+    ]);
 
-  for (const [body, info] of Object.entries(transitSigns || {})) {
-    if (!BODIES.has(body)) continue;
+    for (const [body, info] of Object.entries(transitSigns || {})) {
+      if (!BODIES.has(body)) continue;
 
-    const signKey = String(info?.sign_key || "");
-    if (!signKey) continue;
+      const signKey = String(info?.sign_key || "");
+      if (!signKey) continue;
 
-    const meta = getSignMetaByKey(signKey);
-    const e = meta?.element || "unknown";
-    const m = meta?.modality || "unknown";
+      const meta = getSignMetaByKey(signKey);
+      const e = meta?.element || "unknown";
+      const m = meta?.modality || "unknown";
 
-    if (E[e] === undefined) E.unknown += 1;
-    else E[e] += 1;
+      if (E[e] === undefined) E.unknown += 1;
+      else E[e] += 1;
 
-    if (M[m] === undefined) M.unknown += 1;
-    else M[m] += 1;
+      if (M[m] === undefined) M.unknown += 1;
+      else M[m] += 1;
+    }
+
+    const topKey = (obj) => {
+      const entries = Object.entries(obj).filter(([k, v]) => k !== "unknown" && v > 0);
+      if (!entries.length) return "mixed";
+      entries.sort((a, b) => b[1] - a[1]);
+      return entries[0][0];
+    };
+
+    return {
+      method: "equal_count_modern",   // ✅ 方式を明記（真実）
+      bodies_counted: 10,             // ✅ sun〜pluto
+      element_count: E,
+      modality_count: M,
+      top_element: topKey(E),
+      top_modality: topKey(M),
+    };
   }
 
-  const topKey = (obj) => {
-    const entries = Object.entries(obj).filter(([k, v]) => k !== "unknown" && v > 0);
-    if (!entries.length) return "mixed";
-    entries.sort((a, b) => b[1] - a[1]);
-    return entries[0][0];
-  };
 
-  return {
-    method: "equal_count_modern",   // ✅ 方式を明記（真実）
-    bodies_counted: 10,             // ✅ Sun〜Pluto
-    element_count: E,
-    modality_count: M,
-    top_element: topKey(E),
-    top_modality: topKey(M),
-  };
-}
+  function buildSkyStrataFromContacts(contacts = []) {
+    const E = { fire: 0, earth: 0, air: 0, water: 0 };
+    const M = { cardinal: 0, fixed: 0, mutable: 0 };
 
+    for (const c of contacts) {
+      if (c?.element && E[c.element] !== undefined) {
+        E[c.element]++;
+      }
+      if (c?.modality && M[c.modality] !== undefined) {
+        M[c.modality]++;
+      }
+    }
+
+    const topElement = Object.entries(E).sort((a, b) => b[1] - a[1])[0][0];
+    const topModality = Object.entries(M).sort((a, b) => b[1] - a[1])[0][0];
+
+    return {
+      top_element: topElement,
+      top_modality: topModality,
+      source: "contacts",
+    };
+  }
 
   // ------------------------
   // natal cache loader + extractor
   // ------------------------
-  async function loadNatalFromCache(appUserId) {
+  async function loadNatalFromcache(appUserId) {
     const snap = await db.collection("natal_cache").doc(appUserId).get();
     return snap.exists ? snap.data() : null;
   }
@@ -333,25 +377,25 @@ function computeSkyStrataFromTransits(transitSigns) {
     const out = {};
 
     const ALIASES = {
-      asc: "ASC",
-      Asc: "ASC",
-      ASC: "ASC",
-      mc: "MC",
-      Mc: "MC",
-      MC: "MC",
-      vertex: "Vertex",
-      Vertex: "Vertex",
+      asc: "asc",
+      asc: "asc",
+      asc: "asc",
+      mc: "mc",
+      mc: "mc",
+      mc: "mc",
+      vertex: "vertex",
+      vertex: "vertex",
 
-      sun: "Sun",
-      moon: "Moon",
-      mercury: "Mercury",
-      venus: "Venus",
-      mars: "Mars",
-      jupiter: "Jupiter",
-      saturn: "Saturn",
-      uranus: "Uranus",
-      neptune: "Neptune",
-      pluto: "Pluto",
+      sun: "sun",
+      moon: "moon",
+      mercury: "mercury",
+      venus: "venus",
+      mars: "mars",
+      jupiter: "jupiter",
+      saturn: "saturn",
+      uranus: "uranus",
+      neptune: "neptune",
+      pluto: "pluto",
     };
 
     const normalizeKey = (k) => ALIASES[k] || k;
@@ -372,7 +416,7 @@ function computeSkyStrataFromTransits(transitSigns) {
 
     // common shapes
     if (d.bodies && typeof d.bodies === "object") for (const [k, v] of Object.entries(d.bodies)) putFromObj(k, v);
-    if (d.points && typeof d.points === "object") for (const p of ["ASC", "MC", "Vertex", "asc", "mc", "vertex"]) if (p in d.points) putFromObj(p, d.points[p]);
+    if (d.points && typeof d.points === "object") for (const p of ["asc", "mc", "vertex", "asc", "mc", "vertex"]) if (p in d.points) putFromObj(p, d.points[p]);
 
     // your current min route
     const bodiesMap =
@@ -384,13 +428,13 @@ function computeSkyStrataFromTransits(transitSigns) {
     if (bodiesMap && typeof bodiesMap === "object") for (const [k, v] of Object.entries(bodiesMap)) putFromObj(k, v);
 
     // angles
-    put("ASC", d?.engine?.houses?.asc_deg);
-    put("MC", d?.engine?.houses?.mc_deg);
-    put("ASC", d?.houses?.angles?.ASC);
-    put("MC", d?.houses?.angles?.MC);
-    put("Vertex", d?.houses?.angles?.Vertex);
-    put("ASC", d?.min?.angles?.asc_deg ?? d?.min?.angles?.ASC ?? d?.min?.asc_deg);
-    put("MC", d?.min?.angles?.mc_deg ?? d?.min?.angles?.MC ?? d?.min?.mc_deg);
+    put("asc", d?.engine?.houses?.asc_deg);
+    put("mc", d?.engine?.houses?.mc_deg);
+    put("asc", d?.houses?.angles?.asc);
+    put("mc", d?.houses?.angles?.mc);
+    put("vertex", d?.houses?.angles?.vertex);
+    put("asc", d?.min?.angles?.asc_deg ?? d?.min?.angles?.asc ?? d?.min?.asc_deg);
+    put("mc", d?.min?.angles?.mc_deg ?? d?.min?.angles?.mc ?? d?.min?.mc_deg);
 
     // legacy fallback
     const legacySrc = (d.min && d.min.bodies) || d.bodies_min || d.natal_bodies || null;
@@ -564,6 +608,7 @@ function computeSkyStrataFromTransits(transitSigns) {
         app_user_id: appUserId, // ✅ 互換（renderのseed用）
         engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
         rules,
+        sky_strata: publicObj.sky_strata,
       },
 
       public: publicObj,
@@ -606,8 +651,8 @@ function computeSkyStrataFromTransits(transitSigns) {
   function buildSkyLayersFromTouchPoints(tps = []) {
     const sorted = [...tps].sort((a, b) => (a.orb_deg ?? 99) - (b.orb_deg ?? 99));
 
-    const slow = new Set(["Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]);
-    const lum = new Set(["Sun", "Moon"]);
+    const slow = new Set(["jupiter", "saturn", "uranus", "neptune", "pluto"]);
+    const lum = new Set(["sun", "moon"]);
 
     // theme：遅い天体が絡む & orb小 を最優先。なければ最小orb
     const themeOne =
@@ -616,8 +661,8 @@ function computeSkyStrataFromTransits(transitSigns) {
       null;
 
     // touch：今日ひっかかりやすい＝orb小 +（個人座標に触れやすい点を少し優遇）
-    // 例：ASC/MC/太陽/月あたりを優遇（好みで調整）
-    const importantNatal = new Set(["ASC", "MC", "Sun", "Moon", "Mercury", "Venus", "Mars"]);
+    // 例：asc/mc/太陽/月あたりを優遇（好みで調整）
+    const importantNatal = new Set(["asc", "mc", "sun", "moon", "mercury", "venus", "mars"]);
     const touchPool = sorted
       .filter(x => x !== themeOne)
       .sort((a, b) => {
@@ -730,7 +775,7 @@ function computeSkyStrataFromTransits(transitSigns) {
     }
 
     // --- auto
-    const natalCache = await loadNatalFromCache(appUserId);
+    const natalCache = await loadNatalFromcache(appUserId);
     if (!natalCache) {
       return buildPublicOnlyStory({
         appUserId,

@@ -1,20 +1,17 @@
 "use strict";
 
 /**
- * aspects.v2
- * - V1互換のキーは維持（deg/key/label_ja/core/feel/sora/ai_tags など）
- * - V2追加：relation / adverbs / clause / tendency_key
+ * aspects.v2 (OPTIMIZED + prose_ja)
  *
- * 目的：
- * - render/fusion が「交差し、」みたいな説明語を持たずに
- *   aspect側の relation で “関係そのもの” を表現できるようにする
- * - 判断しない／予測しない／行動を促さない を維持したまま、文の呼吸を作る
- *
- * tendency_key:
- * - GRAMMARS_V1.categories.tendency の light/mid/deep のどれを寄せやすいか（重み付け用ヒント）
+ * 最適化方針：
+ * - relation / clause は「触れ方（距離・接点・交差・向かい・重なり）」のみ
+ * - adverbs は “結果語” を削り、呼吸・質感だけに
+ * - prose_ja.result は括弧なし、〜やすい連打を避ける
+ * - 「説明」や「意味増殖」になりやすい語を relation から撤去
  */
 const ASPECTS_V2 = {
   version: "aspects.v2",
+  locale: "ja",
 
   major: {
     conjunction: {
@@ -26,11 +23,17 @@ const ASPECTS_V2 = {
       sora: "同じ領域でエネルギーが重なり、性質が強く表れやすい配置。",
       ai_tags: ["dense", "merge"],
 
-      // ---- V2 add
-      relation: "同じ領域で重なりやすく",
-      adverbs: ["濃く", "一気に", "同じ場所で", "まとめて", "無自覚に"],
-      clause: "同じ領域で重なりやすく、",
+      // V2 fragments
+      relation: "同じ領域で重なり",
+      clause: "同じ領域で重なり",
+      adverbs: ["同じ場所で", "濃く", "一気に", "まとめて", "無自覚に"],
       tendency_key: "light",
+
+      prose_ja: {
+        layers: [],
+        result: "同じ領域で重なり、性質が濃く出やすい配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     sextile: {
@@ -42,11 +45,16 @@ const ASPECTS_V2 = {
       sora: "噛み合うポイントが生まれやすく、選択肢や協力の回路が開きやすい配置。",
       ai_tags: ["option", "bridge"],
 
-      // ---- V2 add
-      relation: "接点としてつながりやすく",
-      adverbs: ["通路として", "橋がかかる形で", "選べる幅として", "協力の回路として"],
-      clause: "接点としてつながりやすく、",
+      relation: "接点としてつながり",
+      clause: "接点としてつながり",
+      adverbs: ["通路として", "橋のように", "噛み合う点として", "選べる幅として"],
       tendency_key: "light",
+
+      prose_ja: {
+        layers: [],
+        result: "接点としてつながり、噛み合う点が生まれる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     square: {
@@ -58,11 +66,16 @@ const ASPECTS_V2 = {
       sora: "進行方向の異なる力が交差し、摩擦や調整ポイントが表に出やすい配置。",
       ai_tags: ["friction", "adjust"],
 
-      // ---- V2 add
-      relation: "摩擦として表に出やすく",
-      adverbs: ["引っかかりながら", "試行錯誤しつつ", "止まりやすい形で", "調整を挟みながら"],
-      clause: "摩擦として表に出やすく、",
+      relation: "交差点として触れ",
+      clause: "交差点として触れ",
+      adverbs: ["引っかかりとして", "試行錯誤の中で", "ズレとして", "調整点として"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "進行方向の異なる力が交差し、摩擦や調整点が浮かぶ配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     trine: {
@@ -75,11 +88,16 @@ const ASPECTS_V2 = {
       sora: "エネルギーが自然に循環し、無理なく機能しやすい配置。",
       ai_tags: ["flow", "ease"],
 
-      // ---- V2 add
-      relation: "流れとして循環しやすく",
-      adverbs: ["自然に", "無理なく", "当たり前のように", "滑らかに", "気づかれにくいまま"],
-      clause: "流れとして循環しやすく、",
+      relation: "流れとして通り",
+      clause: "流れとして通り",
+      adverbs: ["自然に", "無理なく", "滑らかに", "当たり前のように", "気づかれにくいまま"],
       tendency_key: "light",
+
+      prose_ja: {
+        layers: [],
+        result: "流れとして通り、無理なく機能する配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     opposition: {
@@ -88,14 +106,19 @@ const ASPECTS_V2 = {
       label_ja: "オポジション",
       core: "対立・鏡・関係性",
       feel: ["引き合う", "外側に映る", "二極が立つ"],
-      sora: "向かい合う位置関係により、テーマが『外側』に映りやすい配置。",
+      sora: "向かい合う位置関係により、テーマが外側に映りやすい配置。",
       ai_tags: ["mirror", "polarity"],
 
-      // ---- V2 add
-      relation: "関係性として外側に映りやすく",
-      adverbs: ["対比で", "鏡として", "引き合いながら", "二極が立つ形で", "外側に投影されて"],
-      clause: "関係性として外側に映りやすく、",
+      relation: "向かい合い、外側に映り",
+      clause: "向かい合い、外側に映り",
+      adverbs: ["対比として", "鏡のように", "引き合いながら", "二極が立つ形で", "外側に投影されて"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "向かい合う形で外側に映り、鏡として見えやすい配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
   },
 
@@ -111,10 +134,16 @@ const ASPECTS_V2 = {
       sora: "意識の外側で、かすかな接点が生まれやすい配置。",
       ai_tags: ["subtle", "hint"],
 
-      relation: "気配として触れやすく",
-      adverbs: ["かすかに", "無意識の外側で", "気配のまま", "音にならないまま"],
-      clause: "気配として触れやすく、",
+      relation: "気配として触れ",
+      clause: "気配として触れ",
+      adverbs: ["かすかに", "音にならないまま", "無意識の外側で", "気配のまま"],
       tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "意識の外側で、かすかな接点として現れる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     semi_square_45: {
@@ -126,10 +155,16 @@ const ASPECTS_V2 = {
       sora: "小さな引っかかりが出やすく、微調整のサインとして現れやすい配置。",
       ai_tags: ["micro_friction", "irritation"],
 
-      relation: "微細な引っかかりとして出やすく",
-      adverbs: ["地味に", "小さく", "繰り返し", "些細なところで", "言葉にならないまま"],
-      clause: "微細な引っかかりとして出やすく、",
+      relation: "微細な引っかかりとして触れ",
+      clause: "微細な引っかかりとして触れ",
+      adverbs: ["地味に", "小さく", "繰り返し", "些細なところで", "言葉になる前に"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "小さな引っかかりとして触れ、微調整点が浮かぶ配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     sesqui_square_135: {
@@ -141,10 +176,16 @@ const ASPECTS_V2 = {
       sora: "積み重なった摩擦が表に出やすく、転換点として現れやすい配置。",
       ai_tags: ["pressure", "threshold"],
 
-      relation: "蓄積が表面化しやすく",
-      adverbs: ["溜まった分だけ", "限界に触れる形で", "圧のかたちで", "転換点として"],
-      clause: "蓄積が表面化しやすく、",
+      relation: "蓄積の縁で触れ",
+      clause: "蓄積の縁で触れ",
+      adverbs: ["溜まった分だけ", "圧として", "限界の手前で", "転換点の気配として"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "積み重なった摩擦が輪郭を持ち、転換点として現れやすい配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     quincunx_150: {
@@ -156,10 +197,16 @@ const ASPECTS_V2 = {
       sora: "性質が異なり、自然に噛み合わせにくい配置（調整点が浮かびやすい）。",
       ai_tags: ["mismatch", "recalibration"],
 
-      relation: "噛み合わなさとして浮かびやすく",
-      adverbs: ["違和感として", "説明より先に", "共通言語の外で", "調整点として"],
-      clause: "噛み合わなさとして浮かびやすく、",
+      relation: "噛み合わなさとして触れ",
+      clause: "噛み合わなさとして触れ",
+      adverbs: ["違和感として", "説明より先に", "共通言語の外で", "ズレとして"],
       tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "性質が異なり、自然に噛み合わせにくい配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     quintile_72: {
@@ -171,10 +218,16 @@ const ASPECTS_V2 = {
       sora: "独自の工夫や創造の回路が現れやすい配置。",
       ai_tags: ["craft", "creative_edge"],
 
-      relation: "工夫として現れやすく",
-      adverbs: ["ピンポイントに", "独自の回路で", "職人的に", "ひらめきとして"],
-      clause: "工夫として現れやすく、",
+      relation: "工夫の接点として触れ",
+      clause: "工夫の接点として触れ",
+      adverbs: ["ピンポイントに", "職人的に", "独自の回路で", "ひらめきとして"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "独自の工夫や創造の回路として現れる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     biquintile_144: {
@@ -186,10 +239,17 @@ const ASPECTS_V2 = {
       sora: "反復と試行錯誤を通じて、表現が熟成しやすい配置。",
       ai_tags: ["refine", "iteration"],
 
-      relation: "反復の中で整いやすく",
-      adverbs: ["繰り返しながら", "熟成する形で", "調整の連続として", "試行錯誤の末に"],
-      clause: "反復の中で整いやすく、",
+      // ✅ 重複回避：relation は触れ方だけ、結果語は prose 側へ
+      relation: "反復の接点として触れ",
+      clause: "反復の接点として触れ",
+      adverbs: ["繰り返しながら", "調整の連続として", "試行錯誤の中で"],
       tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "反復と試行錯誤を通じて、表現が熟成する配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
 
     septile_family: {
@@ -200,13 +260,20 @@ const ASPECTS_V2 = {
       sora: "理屈の外側で結びつきが生まれやすい配置（深宇宙専用）。",
       ai_tags: ["fate", "mystic"],
 
-      relation: "理屈の外側で結びつきやすく",
-      adverbs: ["説明不能なまま", "意味が後から追いつく形で", "言語化の外で", "引力として"],
-      clause: "理屈の外側で結びつきやすく、",
+      relation: "理屈の外側で触れ",
+      clause: "理屈の外側で触れ",
+      adverbs: ["言語化の外で", "引力として", "説明不能なまま", "意味が後から追いつく形で"],
       tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "理屈の外側で結びつきが生まれる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
     },
   },
 
+  // 互換の既定順
   major_list: [
     { type: "conjunction", deg: 0 },
     { type: "sextile", deg: 60 },
