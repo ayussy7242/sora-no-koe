@@ -12,7 +12,7 @@
  * ✅ 設計思想（ソラのこえに沿う）
  * - “計算”は裏方（worker）に閉じる
  * - キャッシュは birth_hash が一致したときだけ再利用（揺れ防止）
- * - ASC/MC/Vertex は最重要。壊れてたら必ず修復する
+ * - asc/mc/vertex は最重要。壊れてたら必ず修復する
  *
  * ✅ Export
  * - handleJobsWorker(req,res,deps): cron/worker 用
@@ -23,7 +23,7 @@
 const crypto = require("crypto");
 const { createRenderers } = require("../engine/render");
 const dict = require("../dict");
-const { renderNatalListFromCache } = createRenderers({ dict });
+const { renderNatalListFromcache } = createRenderers({ dict });
 
 // --------------------
 // small utils
@@ -140,13 +140,13 @@ async function linePush(accessToken, to, text) {
 /**
  * swe_houses の返り値吸収
  * - cusps: hs.house / hs.cusps / hs.cusp
- * - ascmc: hs.ascmc / hs.ascMc / hs.asc_mc
+ * - ascmc: hs.ascmc / hs.ascmc / hs.asc_mc
  */
 function normalizeHousesResult(hs) {
   if (!hs || typeof hs !== "object") return { cusps: null, ascmc: null };
 
   const cusps = hs.house || hs.cusps || hs.cusp || null;
-  let ascmc = hs.ascmc || hs.ascMc || hs.asc_mc || null;
+  let ascmc = hs.ascmc || hs.ascmc || hs.asc_mc || null;
 
   // ascmc が無い場合は ascendant/mc/vertex から作る
   if (!ascmc) {
@@ -162,7 +162,7 @@ function normalizeHousesResult(hs) {
   return { cusps, ascmc };
 }
 
-function pickAscMcVertex(ascmc) {
+function pickascmcvertex(ascmc) {
   // TypedArray(Float64Array等) を配列に変換
   if (ascmc && typeof ascmc === "object" && ArrayBuffer.isView(ascmc)) {
     ascmc = Array.from(ascmc);
@@ -182,9 +182,9 @@ function pickAscMcVertex(ascmc) {
 
   // 2) オブジェクト形式
   if (ascmc && typeof ascmc === "object") {
-    const asc = Number(ascmc.asc ?? ascmc.ASC ?? ascmc.asc_deg ?? ascmc[0]);
-    const mc = Number(ascmc.mc ?? ascmc.MC ?? ascmc.mc_deg ?? ascmc[1]);
-    const vertex = Number(ascmc.vertex ?? ascmc.Vertex ?? ascmc.vertex_deg ?? ascmc[3]);
+    const asc = Number(ascmc.asc ?? ascmc.asc ?? ascmc.asc_deg ?? ascmc[0]);
+    const mc = Number(ascmc.mc ?? ascmc.mc ?? ascmc.mc_deg ?? ascmc[1]);
+    const vertex = Number(ascmc.vertex ?? ascmc.vertex ?? ascmc.vertex_deg ?? ascmc[3]);
     return {
       asc: Number.isFinite(asc) ? asc : null,
       mc: Number.isFinite(mc) ? mc : null,
@@ -229,16 +229,16 @@ function computeNatalCache({
   const flags = swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED;
 
   const MAP = {
-    Sun: swisseph.SE_SUN,
-    Moon: swisseph.SE_MOON,
-    Mercury: swisseph.SE_MERCURY,
-    Venus: swisseph.SE_VENUS,
-    Mars: swisseph.SE_MARS,
-    Jupiter: swisseph.SE_JUPITER,
-    Saturn: swisseph.SE_SATURN,
-    Uranus: swisseph.SE_URANUS,
-    Neptune: swisseph.SE_NEPTUNE,
-    Pluto: swisseph.SE_PLUTO,
+    sun: swisseph.SE_sun,
+    moon: swisseph.SE_moon,
+    mercury: swisseph.SE_mercury,
+    venus: swisseph.SE_venus,
+    mars: swisseph.SE_mars,
+    jupiter: swisseph.SE_jupiter,
+    saturn: swisseph.SE_saturn,
+    uranus: swisseph.SE_uranus,
+    neptune: swisseph.SE_neptune,
+    pluto: swisseph.SE_pluto,
   };
 
   const bodies = {};
@@ -259,7 +259,7 @@ function computeNatalCache({
   if (isFiniteNumber(lat) && isFiniteNumber(lon)) {
     hsRaw = swisseph.swe_houses(jdUt, lat, lon, houseSystem);
     const { cusps, ascmc } = normalizeHousesResult(hsRaw);
-    const { asc, mc, vertex } = pickAscMcVertex(ascmc);
+    const { asc, mc, vertex } = pickascmcvertex(ascmc);
 
     houses = {
       system: houseSystem,
@@ -267,9 +267,9 @@ function computeNatalCache({
         ? cusps.map((v) => (typeof v === "number" ? toFixedPrecision(norm360(v), precisionDeg) : v))
         : null,
       angles: {
-        ASC: Number.isFinite(asc) ? toFixedPrecision(norm360(asc), precisionDeg) : null,
-        MC: Number.isFinite(mc) ? toFixedPrecision(norm360(mc), precisionDeg) : null,
-        Vertex: Number.isFinite(vertex) ? toFixedPrecision(norm360(vertex), precisionDeg) : null,
+        asc: Number.isFinite(asc) ? toFixedPrecision(norm360(asc), precisionDeg) : null,
+        mc: Number.isFinite(mc) ? toFixedPrecision(norm360(mc), precisionDeg) : null,
+        vertex: Number.isFinite(vertex) ? toFixedPrecision(norm360(vertex), precisionDeg) : null,
       },
     };
 
@@ -321,8 +321,8 @@ function housesStructLooksValid(h) {
   const a = h.angles;
   if (!a || typeof a !== "object") return false;
 
-  const asc = Number(a.ASC);
-  const mc = Number(a.MC);
+  const asc = Number(a.asc);
+  const mc = Number(a.mc);
 
   if (!Number.isFinite(asc) || !Number.isFinite(mc)) return false;
   if (asc < 0 || asc >= 360) return false;
@@ -346,8 +346,8 @@ function minBodiesLooksValid(bodies) {
 function minAnglesLooksValid(a) {
   if (!a || typeof a !== "object") return false;
 
-  const asc = Number(a.asc_deg ?? a.ASC ?? a.asc);
-  const mc = Number(a.mc_deg ?? a.MC ?? a.mc);
+  const asc = Number(a.asc_deg ?? a.asc ?? a.asc);
+  const mc = Number(a.mc_deg ?? a.mc ?? a.mc);
 
   if (!Number.isFinite(asc) || !Number.isFinite(mc)) return false;
   if (asc < 0 || asc >= 360) return false;
@@ -575,17 +575,17 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     minAnglesLooksValid(existing?.min?.angles);
 
   const ascDeg =
-    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.ASC)) ? calc.houses.angles.ASC :
+    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.asc)) ? calc.houses.angles.asc :
       (calc?.engineHouses && isFiniteNumber(calc.engineHouses.asc_deg)) ? calc.engineHouses.asc_deg :
         null;
 
   const mcDeg =
-    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.MC)) ? calc.houses.angles.MC :
+    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.mc)) ? calc.houses.angles.mc :
       (calc?.engineHouses && isFiniteNumber(calc.engineHouses.mc_deg)) ? calc.engineHouses.mc_deg :
         null;
 
   const vertexDeg =
-    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.Vertex)) ? calc.houses.angles.Vertex :
+    (calc?.houses?.angles && isFiniteNumber(calc.houses.angles.vertex)) ? calc.houses.angles.vertex :
       (calc?.engineHouses && isFiniteNumber(calc.engineHouses.vertex_deg)) ? calc.engineHouses.vertex_deg :
         null;
 
@@ -593,9 +593,9 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   const mcDegN = isFiniteNumber(mcDeg) ? norm360(mcDeg) : null;
   const vertexDegN = isFiniteNumber(vertexDeg) ? norm360(vertexDeg) : null;
 
-  // lat/lonあるのにASC/MC取れないのは異常 → job失敗にする
+  // lat/lonあるのにasc/mc取れないのは異常 → job失敗にする
   if ((isFiniteNumber(lat) && isFiniteNumber(lon)) && (!isFiniteNumber(ascDegN) || !isFiniteNumber(mcDegN))) {
-    throw new Error(`houses calc failed (ASC/MC missing). lat=${lat} lon=${lon}`);
+    throw new Error(`houses calc failed (asc/mc missing). lat=${lat} lon=${lon}`);
   }
 
   // --------------------
@@ -609,21 +609,21 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     existingHousesOk &&
     existingEngineHousesOk;
 
-  const finalAsc = shouldUseExistingAngles
-    ? (existing?.min?.angles?.asc_deg ?? existing?.engine?.houses?.asc_deg ?? existing?.houses?.angles?.ASC ?? null)
+  const finalasc = shouldUseExistingAngles
+    ? (existing?.min?.angles?.asc_deg ?? existing?.engine?.houses?.asc_deg ?? existing?.houses?.angles?.asc ?? null)
     : ascDegN;
 
-  const finalMc = shouldUseExistingAngles
-    ? (existing?.min?.angles?.mc_deg ?? existing?.engine?.houses?.mc_deg ?? existing?.houses?.angles?.MC ?? null)
+  const finalmc = shouldUseExistingAngles
+    ? (existing?.min?.angles?.mc_deg ?? existing?.engine?.houses?.mc_deg ?? existing?.houses?.angles?.mc ?? null)
     : mcDegN;
 
-  const finalVertex = shouldUseExistingAngles
-    ? (existing?.min?.angles?.vertex_deg ?? existing?.engine?.houses?.vertex_deg ?? existing?.houses?.angles?.Vertex ?? null)
+  const finalvertex = shouldUseExistingAngles
+    ? (existing?.min?.angles?.vertex_deg ?? existing?.engine?.houses?.vertex_deg ?? existing?.houses?.angles?.vertex ?? null)
     : vertexDegN;
 
-  const finalAscP = isFiniteNumber(finalAsc) ? toFixedPrecision(norm360(finalAsc), PRECISION_DEG) : null;
-  const finalMcP = isFiniteNumber(finalMc) ? toFixedPrecision(norm360(finalMc), PRECISION_DEG) : null;
-  const finalVertexP = isFiniteNumber(finalVertex) ? toFixedPrecision(norm360(finalVertex), PRECISION_DEG) : null;
+  const finalascP = isFiniteNumber(finalasc) ? toFixedPrecision(norm360(finalasc), PRECISION_DEG) : null;
+  const finalmcP = isFiniteNumber(finalmc) ? toFixedPrecision(norm360(finalmc), PRECISION_DEG) : null;
+  const finalvertexP = isFiniteNumber(finalvertex) ? toFixedPrecision(norm360(finalvertex), PRECISION_DEG) : null;
 
   // --------------------
   // choose base houses objects then inject final angles
@@ -633,15 +633,15 @@ async function processOneNatalJob(deps = {}, opts = {}) {
 
   if (nextHouses && typeof nextHouses === "object") {
     if (!nextHouses.angles || typeof nextHouses.angles !== "object") nextHouses.angles = {};
-    nextHouses.angles.ASC = finalAscP;
-    nextHouses.angles.MC = finalMcP;
-    nextHouses.angles.Vertex = finalVertexP;
+    nextHouses.angles.asc = finalascP;
+    nextHouses.angles.mc = finalmcP;
+    nextHouses.angles.vertex = finalvertexP;
   }
 
   if (nextEngineHouses && typeof nextEngineHouses === "object") {
-    nextEngineHouses.asc_deg = finalAscP;
-    nextEngineHouses.mc_deg = finalMcP;
-    nextEngineHouses.vertex_deg = finalVertexP;
+    nextEngineHouses.asc_deg = finalascP;
+    nextEngineHouses.mc_deg = finalmcP;
+    nextEngineHouses.vertex_deg = finalvertexP;
   }
 
   const patch = {
@@ -679,9 +679,9 @@ async function processOneNatalJob(deps = {}, opts = {}) {
       ...(existing.min || {}),
       bodies: existingMinBodiesOk ? existing.min.bodies : calc.bodies,
       angles: {
-        asc_deg: finalAscP,
-        mc_deg: finalMcP,
-        vertex_deg: finalVertexP,
+        asc_deg: finalascP,
+        mc_deg: finalmcP,
+        vertex_deg: finalvertexP,
       },
     },
 
@@ -731,7 +731,7 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     const shouldSend = String(lastSentHash || "") !== String(birthHash);
     if (!shouldSend) return;
 
-    const text = renderNatalListFromCache(latest);
+    const text = renderNatalListFromcache(latest);
     await linePush(accessToken, lineUserId, text);
 
     await cacheRef.set(
@@ -761,7 +761,7 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     birth_hash: birthHash,
     has_latlon: isFiniteNumber(lat) && isFiniteNumber(lon),
     houses_calc_version: HOUSES_CALC_VERSION,
-    final_angles: { asc_deg: finalAscP, mc_deg: finalMcP, vertex_deg: finalVertexP },
+    final_angles: { asc_deg: finalascP, mc_deg: finalmcP, vertex_deg: finalvertexP },
   };
 }
 

@@ -1,4 +1,6 @@
 // index.js — BOOTSTRAP ONLY (Unified STABLE v2026.01)
+// ✅ Dict-First Renderer (no legacy label-map fallback)
+// ✅ Single DI entrypoint for Cloud Run / Functions Framework
 "use strict";
 
 /**
@@ -24,6 +26,9 @@ const { swisseph, swisseph_setup } = require("./config/swisseph");
 const fb = require("./config/firebase"); // { admin, getDb }
 const db = fb.getDb();
 
+// -------------------- Dict (single entry / source-of-truth) --------------------
+const dict = require("./dict");
+
 // -------------------- Geo --------------------
 const { createGeocoder } = require("./engine/geocode");
 const geocoder = createGeocoder({
@@ -42,33 +47,18 @@ const { createStoryService } = require("./engine/story");
 const { createRenderers } = require("./engine/render");
 const { buildResonanceBullets } = require("./engine/resonance");
 
-// -------------------- Dict (single entry) --------------------
-const {
-  ASPECTS_V1,
-  PLANETS_V1,
-  POINTS_V1,
-  SIGNS_V1,
-  ORB_RULES_V1,
-  BLEND_V1,
+// -------------------- Helpers (minimal / for storyService) --------------------
+// aspects list (major) — keep stable fallback for safety
+const ASPECTS_V1 = dict?.ASPECTS_V1 || null;
 
-  // optional (future use)
-  HOUSES_V1,
-  ELEMENTS_V1,
-  MODALITIES_V1,
-  TONE_VARIANTS_V1,
-  RESONANCE_V1,
-} = require("./dict");
-
-// -------------------- Helpers (compat only) --------------------
-
-// aspects list (major)
-const ASPECTS = ASPECTS_V1?.major_list || [
-  { type: "conjunction", deg: 0 },
-  { type: "sextile", deg: 60 },
-  { type: "square", deg: 90 },
-  { type: "trine", deg: 120 },
-  { type: "opposition", deg: 180 },
-];
+const ASPECTS =
+  ASPECTS_V1?.major_list || [
+    { type: "conjunction", deg: 0 },
+    { type: "sextile", deg: 60 },
+    { type: "square", deg: 90 },
+    { type: "trine", deg: 120 },
+    { type: "opposition", deg: 180 },
+  ];
 
 // deep aspects（見つかった日だけ出る）
 const deep = ASPECTS_V1?.deep_space || {};
@@ -83,29 +73,14 @@ const ASPECTS_DEEP = [
   .filter(Boolean)
   .map((a) => ({ type: a.key, deg: a.deg }));
 
-// legacy label maps（renderer互換用 / “保険”）
-const bodies = PLANETS_V1?.bodies || {};
-const points = POINTS_V1?.points || {};
-const major = ASPECTS_V1?.major || {};
-
-const POINT_KEYS = new Set(Object.keys(points));
-
-const BODY_JA = Object.fromEntries(
-  Object.entries(bodies)
-    .filter(([k]) => !POINT_KEYS.has(k))
-    .map(([k, v]) => [k, v?.label_ja || k])
-);
-
-const POINT_JA = Object.fromEntries(Object.entries(points).map(([k, v]) => [k, v?.label_ja || k]));
-const ASPECT_JA = Object.fromEntries(Object.entries(major).map(([k, v]) => [k, v?.label_ja || k]));
-
 // -------------------- storyService --------------------
 const storyService = createStoryService({
   db,
   admin: fb.admin,
   swisseph,
 
-  SIGNS_V1,
+  // story側が必要とする dict pieces
+  SIGNS_V1: dict?.SIGNS_V1,
   ASPECTS,
   ASPECTS_DEEP,
 
@@ -116,27 +91,18 @@ const storyService = createStoryService({
   buildResonanceBullets,
 });
 
-// -------------------- renderers --------------------
-const renderers = createRenderers({
-  BODY_JA,
-  POINT_JA,
-  ASPECT_JA,
+// -------------------- renderers (DICT FIRST / NO LEGACY FALLBACK) --------------------
+const renderers = createRenderers({ dict });
 
-  dict: {
-    ASPECTS_V1,
-    PLANETS_V1,
-    POINTS_V1,
-    SIGNS_V1,
-    BLEND_V1,
-
-    ORB_RULES_V1,
-    HOUSES_V1,
-    ELEMENTS_V1,
-    MODALITIES_V1,
-    TONE_VARIANTS_V1,
-    RESONANCE_V1,
-  },
-});
+// ---- tiny boot log (helps confirm “dict is actually used”) ----
+// ※うるさくしたくないので最小限。必要なら後で env でON/OFFできる。
+if (process.env.DEBUG_BOOT === "1") {
+  const keys = dict ? Object.keys(dict) : [];
+  console.log("[BOOT] dict keys:", keys);
+  console.log("[BOOT] has ASPECTS_V1:", !!dict?.ASPECTS_V1);
+  console.log("[BOOT] has PLANETS_V1:", !!dict?.PLANETS_V1);
+  console.log("[BOOT] has SIGNS_V1:", !!dict?.SIGNS_V1);
+}
 
 // -------------------- create app with deps --------------------
 const deps = {
@@ -148,6 +114,7 @@ const deps = {
   storyService,
   renderers,
   geocoder,
+  dict, // ←必要なら routes/debug で参照できる
 };
 
 const app = createApp(deps);

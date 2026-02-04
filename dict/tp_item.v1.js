@@ -58,16 +58,16 @@ const TP_ITEM_V1 = Object.freeze({
 
   // 天体＝「作用」（文章用）
   COPY_PLANET_ACTION: Object.freeze({
-    Sun: "中心／意志／生の火",
-    Moon: "感情／反応／安心",
-    Mercury: "思考／言葉／接続",
-    Venus: "好み／関係／価値",
-    Mars: "衝動／実行／熱",
-    Jupiter: "拡張／意味／可能性",
-    Saturn: "枠組み／責任／鍛錬",
-    Uranus: "刷新／解放／突然性",
-    Neptune: "溶解／夢／境界の薄さ",
-    Pluto: "変容／極点／再生",
+    sun: "中心／意志／生の火",
+    moon: "感情／反応／安心",
+    mercury: "思考／言葉／接続",
+    venus: "好み／関係／価値",
+    mars: "衝動／実行／熱",
+    jupiter: "拡張／意味／可能性",
+    saturn: "枠組み／責任／鍛錬",
+    uranus: "刷新／解放／突然性",
+    neptune: "溶解／夢／境界の薄さ",
+    pluto: "変容／極点／再生",
   }),
 
   // ✅ ここが肝：ASPECTS_V1 から生成した “→短文”

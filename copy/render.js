@@ -20,14 +20,14 @@ const BRAND = "ソラのこえ。";
 const HEAD_TODAY = "【今日の星（あなたの星×今日のソラ）】";
 const HEAD_SKY = "【今日のソラ（星の配置）】"; // 互換用（残す）
 const HEAD_SKY_MAIN = "【星の主な配置】";
-const HEAD_MOON = "【今日の月】";
+const HEAD_moon = "【今日の月】";
 const HEAD_YOIN = "【今日の余韻】";
 const HEAD_NATAL_LIST = "🌌 わたしのほし（あなたの星の一覧）";
 
 // --- public（そら）側 ---
 const HEAD_SORA = "【今日のソラ｜そら】";
 const HEAD_SORA_SKY = "【今日のソラの配置】";
-const HEAD_SORA_SKY_TOP15 = "【今日のソラの配置 上位15共鳴（orb≤6°）】";
+const HEAD_SORA_SKY_TOP5 = "【今日のソラの配置 上位5共鳴（orb≤6°）】";
 const HEAD_SORA_SKY_ALL = "【今日のソラの配置 全部（orb≤6°）】";
 const HEAD_DIST = "【分布（エレメント／三区分）】";
 const HEAD_KUSOU = "【空層】";
@@ -107,14 +107,14 @@ const RENDER_COPY = Object.freeze({
   HEAD_TODAY,
   HEAD_SKY,
   HEAD_SKY_MAIN,
-  HEAD_MOON,
+  HEAD_moon,
   HEAD_YOIN,
   HEAD_NATAL_LIST,
 
   // public heads
   HEAD_SORA,
   HEAD_SORA_SKY,
-  HEAD_SORA_SKY_TOP15,
+  HEAD_SORA_SKY_TOP5,
   HEAD_SORA_SKY_ALL,
   HEAD_DIST,
   HEAD_KUSOU,
@@ -150,13 +150,13 @@ const RENDER_COPY = Object.freeze({
   MEANING_NO_ASPECT_CORE: (left, right) => `${left} と \n${right} の\n噛み合い方が動きやすい配置。`,
 
   // --------------------
-  // Moon line
+  // moon line
   // --------------------
-  MOON_LINE_OK: (moonSignJa, hintOrNull) =>
+  moon_LINE_OK: (moonSignJa, hintOrNull) =>
     hintOrNull
-      ? `${HEAD_MOON}\n月は ${moonSignJa}（${hintOrNull}） を通過中。`
-      : `${HEAD_MOON}\n月は ${moonSignJa} を通過中。`,
-  MOON_LINE_LOADING: () => `${HEAD_MOON}\n月のサインは取得中。`,
+      ? `${HEAD_moon}\n月は ${moonSignJa}（${hintOrNull}） を通過中。`
+      : `${HEAD_moon}\n月は ${moonSignJa} を通過中。`,
+  moon_LINE_LOADING: () => `${HEAD_moon}\n月のサインは取得中。`,
 
   // --------------------
   // No-contact pools（接触少ない日の“余白”）
@@ -177,7 +177,7 @@ const RENDER_COPY = Object.freeze({
       default: [""],
     },
 
-    headMoonTaste: (moonSignJa) => (moonSignJa ? `（月は ${moonSignJa} の空気）` : ""),
+    headmoonTaste: (moonSignJa) => (moonSignJa ? `（月は ${moonSignJa} の空気）` : ""),
     glue: (head, a, b) => {
       const h = head ? `${head} ` : "";
       const bb = b ? ` ${b}` : "";
@@ -229,10 +229,10 @@ const RENDER_COPY = Object.freeze({
       [
         HEAD_NATAL_LIST,
         "",
-        "ASC/MC がまだ見つからなかった🙏",
-        "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
+        "asc/mc がまだ見つからなかった🙏",
+        "（ネイタル計算結果に asc/mc を保存する処理が必要）",
         "",
-        "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるのでここでは止めてる。",
+        "※ 天体は出せるけど、座標の要（asc/mc）が欠けるのでここでは止めてる。",
       ].join("\n"),
 
     NOTE: () =>
@@ -345,7 +345,7 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   X_FORMAT: {
     TITLE_LINE: (dateLabel) => `🌌 ${dateLabel}｜今日のソラ`,
-    MOON_LINE: (moonSignJa) => (moonSignJa ? `🌙月: ${moonSignJa}` : ""),
+    moon_LINE: (moonSignJa) => (moonSignJa ? `🌙月: ${moonSignJa}` : ""),
 
     SKY_LINE: ({ emoji = "☄️", aLabel, aSignJa, bLabel, bSignJa, aspectJa, orb }) => {
       const aSign = aSignJa ? ` ${aSignJa}` : "";
@@ -370,7 +370,7 @@ const RENDER_COPY = Object.freeze({
   // IG formatting（copy-driven）
   // --------------------
   IG_FORMAT: {
-    MOON_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
+    moon_LINE_OK: (moonSignJa) => (moonSignJa ? `月は ${moonSignJa} を通過中。` : "月のサインは取得中。"),
     SKY_LINE_NUM: (i, a, aSign, b, bSign) => `${i}) ${a}${aSign} × ${b}${bSign}`,
     SKY_LINE_ASPECT: (aspectJa, orb) => `${aspectJa}（orb ${orb}°）`,
 
@@ -427,7 +427,7 @@ const RENDER_COPY = Object.freeze({
       },
 
       // ✅ 配信②（sora）
-      // - listTitle で「上位15」「全部」を切り替え可能（render側から渡してOK）
+      // - listTitle で「上位5」「全部」を切り替え可能（render側から渡してOK）
       // - 解釈文言は kusou セクションで一回だけ入れる（重複回避）
       buildSora: ({ dateLabel, mainLines, moonLine, distLines, kusouYoin, footerLines, listTitle }) => {
         const lines = [];
@@ -436,7 +436,7 @@ const RENDER_COPY = Object.freeze({
         pushLine(lines, RENDER_COPY.LINE_SORA_TITLE(dateLabel));
         pushBlank(lines, 1);
 
-        // 配置見出し（上位15 or 全部）
+        // 配置見出し（上位5 or 全部）
         const headSky = listTitle ? String(listTitle) : RENDER_COPY.HEAD_SORA_SKY; // デフォ
         pushLine(lines, headSky);
         if (mainLines) pushLine(lines, mainLines);

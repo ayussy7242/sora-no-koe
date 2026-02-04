@@ -12,7 +12,7 @@
 const PLANETS_V1 = {
   version: "planets.v1",
   bodies: {
-    Sun: {
+    sun: {
       label_ja: "太陽",
       core: "中心・意志・生の火",
       field: "自己/表現/選択",
@@ -23,7 +23,7 @@ const PLANETS_V1 = {
       keywords: ["中心","意志","選択","自己","表現"],
       ai_tags: ["core","identity","will"],
     },
-    Moon: {
+    moon: {
       label_ja: "月",
       core: "感情・反応・安心",
       field: "体感/習慣/内側",
@@ -34,7 +34,7 @@ const PLANETS_V1 = {
       keywords: ["感情","反応","安心","習慣","無意識"],
       ai_tags: ["emotion","safety","habit"],
     },
-    Mercury: {
+    mercury: {
       label_ja: "水星",
       core: "思考・言葉・接続",
       field: "情報/対話/理解",
@@ -45,7 +45,7 @@ const PLANETS_V1 = {
       keywords: ["思考","言葉","情報","理解","対話"],
       ai_tags: ["mind","communication"],
     },
-    Venus: {
+    venus: {
       label_ja: "金星",
       core: "好み・関係・価値",
       field: "愛/美/満足",
@@ -56,7 +56,7 @@ const PLANETS_V1 = {
       keywords: ["好み","価値","美","満足","関係"],
       ai_tags: ["love","value","attraction"],
     },
-    Mars: {
+    mars: {
       label_ja: "火星",
       core: "行動・衝動・境界",
       field: "推進/怒り/決断",
@@ -68,7 +68,7 @@ const PLANETS_V1 = {
       ai_tags: ["drive","action","boundary"],
     },
 
-    Jupiter: {
+    jupiter: {
       label_ja: "木星",
       core: "拡大・寛容・追い風",
       field: "成長/可能性/信念",
@@ -80,7 +80,7 @@ const PLANETS_V1 = {
       ai_tags: ["growth","luck","belief"],
     },
 
-    Saturn: {
+    saturn: {
       label_ja: "土星",
       core: "枠組み・責任・鍛錬",
       field: "構造/制限/成熟",
@@ -92,7 +92,7 @@ const PLANETS_V1 = {
       ai_tags: ["structure","discipline","maturity"],
     },
 
-    Uranus: {
+    uranus: {
       label_ja: "天王星",
       core: "刷新・解放・突然性",
       field: "変化/自由/アップデート",
@@ -104,7 +104,7 @@ const PLANETS_V1 = {
       ai_tags: ["reform","breakthrough","liberation"],
     },
 
-    Neptune: {
+    neptune: {
       label_ja: "海王星",
       core: "溶解・夢・境界の薄さ",
       field: "感受性/祈り/幻想",
@@ -116,7 +116,7 @@ const PLANETS_V1 = {
       ai_tags: ["intuition","dream","dissolve"],
     },
 
-    Pluto: {
+    pluto: {
       label_ja: "冥王星",
       core: "変容・極点・再生",
       field: "深層/支配/脱皮",
@@ -128,7 +128,7 @@ const PLANETS_V1 = {
       ai_tags: ["transform","intensity","rebirth"],
     },
 
-    Chiron: {
+    chiron: {
       label_ja: "キロン",
       core: "傷と癒し・学びの入口",
       field: "癒し/気づき/統合",
@@ -142,9 +142,9 @@ const PLANETS_V1 = {
   },
 
   order: [
-    "Sun","Moon","Mercury","Venus","Mars",
-    "Jupiter","Saturn","Uranus","Neptune","Pluto",
-    "Chiron","ASC"
+    "sun","moon","mercury","venus","mars",
+    "jupiter","saturn","uranus","neptune","pluto",
+    "chiron","asc"
   ],
 };
 

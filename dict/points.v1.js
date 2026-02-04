@@ -8,8 +8,8 @@
 const POINTS_V1 = {
   version: "points.v1",
   points: {
-    ASC: {
-      label_ja: "ASC",
+    asc: {
+      label_ja: "asc",
       core: "入口・印象・身体感覚",
       field: "出会い方/立ち位置",
       sora_short: "世界との接点。最初の立ち姿。",
@@ -19,8 +19,8 @@ const POINTS_V1 = {
       ai_tags: ["persona", "stance"],
     },
 
-    MC: {
-      label_ja: "MC",
+    mc: {
+      label_ja: "mc",
       core: "頂点・社会的方向",
       field: "役割/見られ方/到達点",
       sora_short: "向かう先。社会での輪郭。",
@@ -30,8 +30,8 @@ const POINTS_V1 = {
       ai_tags: ["career", "public"],
     },
 
-    Vertex: {
-      label_ja: "Vertex",
+    vertex: {
+      label_ja: "vertex",
       core: "交差点・出会いの焦点",
       field: "縁/転機/接点",
       sora_short: "交差点。縁が動く。",
@@ -68,7 +68,7 @@ const POINTS_V1 = {
     },
   },
 
-  order: ["ASC", "MC", "Vertex", "Lilith_mean"],
+  order: ["asc", "mc", "vertex", "Lilith_mean"],
 
   // deep宇宙向け（必要な時だけ）
   deep_space_order: ["Lilith_true"],

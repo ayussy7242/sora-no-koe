@@ -1,252 +1,228 @@
-🌌 sora-no-koe（ソラのこえ）
+# 🌌 sora-no-koe（ソラのこえ）
 
-Astrology resonance API for sora-no-koe
+Astrology resonance API for **sora-no-koe** project  
 (Node.js / Cloud Run / Functions Framework)
 
-星の配置（構造）を、答えにしないまま置くシステム。
-解釈と選択の主権は、常に人にある。
+> 星の配置（構造）を「答えにしない」まま置くシステム。  
+> LINEは「個人と空がどこで触れているか」だけを届ける。
 
-占わない
+- 占いしない  
+- 当てない  
+- 行動指示しない  
+- 救わない  
 
-当てない
+-
+aspects.v2 は「出力の質感（dynamics）辞書」。意味づけしない／予言しない。
 
-行動指示しない
+**星は構造。解釈と選択の主権は、人へ。**
 
-救わない
+---
 
-星は構造。意味づけは、あなたのもの。
+## 0. できること（現状）
 
-0. できること（現状・確定）
-✅ 稼働中
+### ✅ 稼働中
+- LINE Webhook（raw body 署名検証）
+- 登録フロー  
+  生年月日 → 出生時刻 → 出生地 → 同意 → ready
+- Firestore 保存（multi DB 対応）
+- story.json 中心設計（唯一の真実）
 
-LINE Webhook（raw body 署名検証）
+### ✅ API
+- `GET /health`
+- `GET /meta`
+- `GET /transit`
+- `GET /stories/build`
+- `GET /posts/x`
+- `GET /line/daily`
+- `GET /push`
+- `POST /jobs/worker`
+- `GET /debug/resetRegistration`
 
-登録フロー
-生年月日 → 出生時刻 → 出生地 → 同意 → ready
+---
 
-Firestore 保存（user × date_local）
-
-story.json 中心設計（唯一の正本）
-
-LINE / X / IG 用テキスト生成
-
-1. Production URL（Cloud Run）
+## Production URL (Cloud Run)
 https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
 
+- This URL is stable across deployments
+- Use this for curl / LINE webhook / cron
+
+## 1. アーキテクチャ概要
 
-デプロイ後も URL は不変
+- **Cloud Run**
+  - Node.js
+  - Functions Framework
+- **Express**
+  - index.js は HTTP / DI / Bootstrapping のみ
+- **Firestore**
+  - databaseId: `sora-no-koe-db`
+- **LINE Messaging API**
+  - Webhook は raw body で署名検証（最重要）
 
-curl / LINE webhook / cron はすべてこの URL を使用
+### 設計思想
+- `stories` に  
+  **user × date_local の story.json（器）** を保存
+- render（LINE / X / IG）は story を読むだけ
+- 将来 AI を入れても story を汚さない
 
-2. アーキテクチャ概要
-技術スタック
+---
 
-Cloud Run
+## 2. 必須環境変数（Cloud Run）
 
-Node.js
+| key | required | note |
+|---|---:|---|
+| LINE_CHANNEL_SECRET | ✅ | Webhook署名検証 |
+| LINE_CHANNEL_ACCESS_TOKEN | ✅ | Reply / Push |
+| FIRESTORE_DATABASE_ID | optional | default: sora-no-koe-db |
+| LINE_WEBHOOK_STRICT | optional | 1 = 署名NGで401 |
+| OWNER_LINE_USER_ID | optional | /push テスト用 |
+| GOOGLE_MAPS_API_KEY | optional | 出生地→緯度経度 |
+| DEBUG_TOKEN | optional | debug API 保護 |
 
-Functions Framework
+---
 
-Express
+## 3. Firestore コレクション
 
-index.js は DI / bootstrapping のみ
+### `line_users/{lineUserId}`
 
-Firestore
+- status  
+  - pending_birth_date  
+  - pending_birth_time  
+  - pending_birth_place  
+  - pending_consent  
+  - ready  
 
-databaseId: sora-no-koe-db
+- profile  
+  - birth_date (YYYY-MM-DD)  
+  - birth_time (HH:MM or "unknown")  
+  - birth_place  
+  - lat / lon（任意）  
+  - timezone (default: Asia/Tokyo)
 
-LINE Messaging API
+---
 
-Webhook は raw body で署名検証（最重要）
+### `users/{app_user_id}`
+- display_name  
+- timezone  
+- timestamps  
 
-設計思想（超重要）
+---
 
-stories/{app_user_id}-{date_local} が 唯一の真実
+### `natal_cache/{app_user_id}`
+- ネイタル計算結果（暫定）
+- computed_at  
+- engine  
+- updated_at  
 
-story は「構造データ」
+---
 
-render（LINE / X / IG）は storyを読むだけ
+### `jobs_natal_calc/{jobId}`
+- type: natal_calc  
+- status: queued / running / done / failed  
+- attempts  
+- last_error  
 
-将来 AI を入れても story を汚さない
+---
 
-3. 必須環境変数（Cloud Run）
-key	required	note
-LINE_CHANNEL_SECRET	✅	Webhook署名検証
-LINE_CHANNEL_ACCESS_TOKEN	✅	Reply / Push
-FIRESTORE_DATABASE_ID	optional	default: sora-no-koe-db
-LINE_WEBHOOK_STRICT	optional	1 = 署名NGで401
-OWNER_LINE_USER_ID	optional	/push テスト用
-GOOGLE_MAPS_API_KEY	optional	出生地 → 緯度経度
-DEBUG_TOKEN	optional	debug API 保護
-4. Firestore コレクション
-line_users/{lineUserId}
+### `stories/{userId-dateLocal}`
+- user_id  
+- date_local  
+- story（JSON本体）  
+- timestamps  
 
-LINE 登録フロー管理
+---
 
-status
+## 4. エンドポイント詳細
 
-pending_birth_date
+### `GET /health`
+ヘルスチェック（依存状態を返す）
 
-pending_birth_time
+### `GET /meta`
+現在のサービス状態・依存有無を返す  
+（ローカル / Cloud Run 両対応）
 
-pending_birth_place
+### `POST /line/webhook`
+LINE Webhook  
+**必ず raw body で受けること**
 
-pending_consent
+### `GET /transit?date_local=YYYY-MM-DD`
+近似トランジット計算
 
-ready
+### `GET /stories/build`
+指定 user × date_local の story を生成・保存
 
-profile
+### `GET /posts/x`
+story から X 投稿文を生成
 
-birth_date (YYYY-MM-DD)
+### `GET /line/daily`
+story から LINE 日次文を生成
 
-birth_time (HH:MM or "unknown")
+### `GET /push`
+OWNER_LINE_USER_ID に Push（テスト用）
 
-birth_place
+### `POST /jobs/worker`
+queued な natal_calc を 1 件処理
 
-lat / lon（任意）
+### `GET /debug/resetRegistration`
+登録フローを最初に戻す  
+DEBUG_TOKEN 必須
 
-timezone (default: Asia/Tokyo)
+---
 
-users/{app_user_id}
+## 5. ローカル起動（開発）
 
-display_name
-
-timezone
-
-timestamps
-
-natal_cache/{app_user_id}
-
-ネイタル計算結果（キャッシュ）
-
-computed_at
-
-engine
-
-jobs_natal_calc/{jobId}
-
-type: natal_calc
-
-status: queued / running / done / failed
-
-attempts
-
-last_error
-
-stories/{app_user_id}-{date_local}
-
-このドキュメントが中核
-
-meta
-
-date_local
-
-as_of
-
-generated_at_utc
-
-finalized（true/false）
-
-finalized_at_utc（確定時のみ）
-
-public / personal
-
-星の配置データ
-
-guardrails
-
-no_prediction / no_should / sovereignty_returned など
-
-※ outputs（LINE/X/IGテキスト）は保存しない
-
-5. エンドポイント一覧（現在の正）
-GET /health
-
-ヘルスチェック
-
-GET /meta
-
-サービス状態・依存関係を返す
-
-POST /line/webhook
-
-LINE Webhook
-必ず raw body で受けること
-
-🌌 GET /stories（中核API）
-
-story を 生成・取得・保存する唯一のエンドポイント。
-
-主なクエリ
-param	note
-app_user_id	default: public
-date_local	YYYY-MM-DD（省略時は JST 今日）
-mode	public / auto
-save	true / false
-final	true = 今日の確定版としてロック
-force	true = ロック無視（救済用）
-format	json / line / x / ig / text
-channel	text時: line / x / ig
-運用ルール（重要）
-
-開発中：save=true → 何回でも更新OK
-
-今日を確定：save=true&final=true
-
-確定後に直したい：
-save=true&final=true&force=true
-
-確定後に save=true のみで呼ぶと 409 already_finalized を返す。
-
-その他
-
-GET /transit
-
-GET /line/daily
-
-GET /push
-
-POST /jobs/worker
-
-GET /debug/resetRegistration（DEBUG_TOKEN必須）
-
-6. ローカル起動（開発）
+### 依存インストール
+```bash
 npm install
+
+開発モード（推奨）
 npm run dev
 
 
-nodemon により自動再起動。
+nodemon により自動再起動
 
+ファイル保存で即反映
+
+動作確認
 curl http://localhost:8080/health
 curl http://localhost:8080/meta
-curl "http://localhost:8080/stories?app_user_id=public"
+curl "http://localhost:8080/transit?date_local=2025-12-27"
 
-7. 運用メモ（超重要）
-LINE Webhook
+## 6. デプロイ（Cloud Run）
 
-200を返すのが正義
+### コンテナは PORT=8080 を listen する
 
-再送ループ回避を最優先
+Functions Framework を使用
 
-厳密に弾く場合のみ
-LINE_WEBHOOK_STRICT=1
+エントリーポイント
+functions.http("app", app);
 
-8. 次の TODO（余裕あるときでOK）
+## 7. 運用メモ（超重要）
 
-story.json schema_v1 の凍結
+### LINE Webhook
 
-renderLine / renderX / renderIG の文言完全統一
+「200 を返す」が正義
 
-cron による「今日のpublic自動確定」
+JSON 破損・署名 NG の場合でも
+再送ループ回避のため基本は 200 を返す設計
 
-個人版（natal × transit）の公開導線整理
+厳密に弾きたい場合のみ
+LINE_WEBHOOK_STRICT=1 を設定
 
-9. ライセンス / スタンス
+## 8. 次の TODO（直近）
+
+story.json schema_v1 を確定
+
+renderLine / renderX / renderIG を story 中心で整理
+
+/line/daily を as_of 対応に変更
+
+now 起点での生成・保存対応
+
+## 9. ライセンス / 注意
 
 このプロジェクトは「占い」ではない。
 
 予測・断定・指示を避け、
 構造だけを置く。
 
-解釈と選択の主権は、
-常に人にある。
+解釈と選択の主権は、常に人にある。

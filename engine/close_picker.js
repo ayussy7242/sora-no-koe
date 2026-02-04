@@ -21,7 +21,7 @@ function safeNum(v) {
  */
 function getMoodMeta(story) {
   const meta = story?.meta || {};
-  const y = meta?.yoin || meta?.mood || meta?.yoin_meta || {};
+  if (format === "json") return res.json({ ok: true, saved, doc_id, meta, story, channel: ch, mode });
 
   // 直接入ってるのを最優先
   const topElement = safeStr(y.topElement);

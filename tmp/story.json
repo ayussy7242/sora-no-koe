@@ -45,52 +45,52 @@
       "sign_ja": "山羊座"
     },
     "transit_signs": {
-      "Sun": {
+      "sun": {
         "sign_key": "Capricorn",
         "sign_ja": "山羊座",
         "lon_deg": 297
       },
-      "Moon": {
+      "moon": {
         "sign_key": "Capricorn",
         "sign_ja": "山羊座",
         "lon_deg": 277.7
       },
-      "Mercury": {
+      "mercury": {
         "sign_key": "Capricorn",
         "sign_ja": "山羊座",
         "lon_deg": 294.09
       },
-      "Venus": {
+      "venus": {
         "sign_key": "Capricorn",
         "sign_ja": "山羊座",
         "lon_deg": 299.49
       },
-      "Mars": {
+      "mars": {
         "sign_key": "Capricorn",
         "sign_ja": "山羊座",
         "lon_deg": 295.13
       },
-      "Jupiter": {
+      "jupiter": {
         "sign_key": "Cancer",
         "sign_ja": "蟹座",
         "lon_deg": 109.2
       },
-      "Saturn": {
+      "saturn": {
         "sign_key": "Pisces",
         "sign_ja": "魚座",
         "lon_deg": 357.3
       },
-      "Uranus": {
+      "uranus": {
         "sign_key": "Taurus",
         "sign_ja": "牡牛座",
         "lon_deg": 57.6
       },
-      "Neptune": {
+      "neptune": {
         "sign_key": "Pisces",
         "sign_ja": "魚座",
         "lon_deg": 359.78
       },
-      "Pluto": {
+      "pluto": {
         "sign_key": "Aquarius",
         "sign_ja": "水瓶座",
         "lon_deg": 303.22
@@ -98,204 +98,204 @@
     },
     "sky_all": [
       {
-        "a": "Venus",
-        "b": "Neptune",
+        "a": "venus",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.29
       },
       {
-        "a": "Saturn",
-        "b": "Uranus",
+        "a": "saturn",
+        "b": "uranus",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.3
       },
       {
-        "a": "Sun",
-        "b": "Saturn",
+        "a": "sun",
+        "b": "saturn",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.3
       },
       {
-        "a": "Sun",
-        "b": "Uranus",
+        "a": "sun",
+        "b": "uranus",
         "type": "trine",
         "aspect_deg": 120,
         "orb_deg": 0.6
       },
       {
-        "a": "Mercury",
-        "b": "Mars",
+        "a": "mercury",
+        "b": "mars",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 1.04
       },
       {
-        "a": "Sun",
-        "b": "Mars",
+        "a": "sun",
+        "b": "mars",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 1.87
       },
       {
-        "a": "Venus",
-        "b": "Uranus",
+        "a": "venus",
+        "b": "uranus",
         "type": "trine",
         "aspect_deg": 120,
         "orb_deg": 1.89
       },
       {
-        "a": "Mars",
-        "b": "Saturn",
+        "a": "mars",
+        "b": "saturn",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 2.17
       },
       {
-        "a": "Uranus",
-        "b": "Neptune",
+        "a": "uranus",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 2.18
       },
       {
-        "a": "Venus",
-        "b": "Saturn",
+        "a": "venus",
+        "b": "saturn",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 2.19
       },
       {
-        "a": "Mars",
-        "b": "Uranus",
+        "a": "mars",
+        "b": "uranus",
         "type": "trine",
         "aspect_deg": 120,
         "orb_deg": 2.47
       },
       {
-        "a": "Saturn",
-        "b": "Neptune",
+        "a": "saturn",
+        "b": "neptune",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 2.48
       },
       {
-        "a": "Sun",
-        "b": "Venus",
+        "a": "sun",
+        "b": "venus",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 2.49
       },
       {
-        "a": "Sun",
-        "b": "Neptune",
+        "a": "sun",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 2.78
       },
       {
-        "a": "Sun",
-        "b": "Mercury",
+        "a": "sun",
+        "b": "mercury",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 2.91
       },
       {
-        "a": "Mercury",
-        "b": "Saturn",
+        "a": "mercury",
+        "b": "saturn",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 3.21
       },
       {
-        "a": "Neptune",
-        "b": "Pluto",
+        "a": "neptune",
+        "b": "pluto",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 3.44
       },
       {
-        "a": "Mercury",
-        "b": "Uranus",
+        "a": "mercury",
+        "b": "uranus",
         "type": "trine",
         "aspect_deg": 120,
         "orb_deg": 3.51
       },
       {
-        "a": "Venus",
-        "b": "Pluto",
+        "a": "venus",
+        "b": "pluto",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 3.73
       },
       {
-        "a": "Moon",
-        "b": "Uranus",
+        "a": "moon",
+        "b": "uranus",
         "type": "biquintile_144",
         "aspect_deg": 144,
         "orb_deg": 4.1
       },
       {
-        "a": "Venus",
-        "b": "Mars",
+        "a": "venus",
+        "b": "mars",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 4.36
       },
       {
-        "a": "Moon",
-        "b": "Pluto",
+        "a": "moon",
+        "b": "pluto",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
         "orb_deg": 4.48
       },
       {
-        "a": "Mars",
-        "b": "Neptune",
+        "a": "mars",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 4.65
       },
       {
-        "a": "Mercury",
-        "b": "Jupiter",
+        "a": "mercury",
+        "b": "jupiter",
         "type": "opposition",
         "aspect_deg": 180,
         "orb_deg": 4.89
       },
       {
-        "a": "Mercury",
-        "b": "Venus",
+        "a": "mercury",
+        "b": "venus",
         "type": "conjunction",
         "aspect_deg": 0,
         "orb_deg": 5.4
       },
       {
-        "a": "Uranus",
-        "b": "Pluto",
+        "a": "uranus",
+        "b": "pluto",
         "type": "trine",
         "aspect_deg": 120,
         "orb_deg": 5.62
       },
       {
-        "a": "Mercury",
-        "b": "Neptune",
+        "a": "mercury",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 5.69
       },
       {
-        "a": "Saturn",
-        "b": "Pluto",
+        "a": "saturn",
+        "b": "pluto",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 5.92
       },
       {
-        "a": "Mars",
-        "b": "Jupiter",
+        "a": "mars",
+        "b": "jupiter",
         "type": "opposition",
         "aspect_deg": 180,
         "orb_deg": 5.93
@@ -303,22 +303,22 @@
     ],
     "sky_top": [
       {
-        "a": "Venus",
-        "b": "Neptune",
+        "a": "venus",
+        "b": "neptune",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.29
       },
       {
-        "a": "Saturn",
-        "b": "Uranus",
+        "a": "saturn",
+        "b": "uranus",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.3
       },
       {
-        "a": "Sun",
-        "b": "Saturn",
+        "a": "sun",
+        "b": "saturn",
         "type": "sextile",
         "aspect_deg": 60,
         "orb_deg": 0.3
@@ -342,8 +342,8 @@
     "sovereignty_returned": true
   },
   "outputs": {
-    "line": "🌌 今日のソラのこえ。｜2026.01.17\n\n【今日のソラ（星の配置）】\n\n【今日の中心（触れやすい場所）】\n① 金星（山羊座） × 海王星（魚座）｜セクスタイル（60°｜orb 0.3°）\n金星（好み・関係・価値） と \n海王星（溶解・夢・境界の薄さ） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n【引っかかりやすい接点】\n② 土星（魚座） × 天王星（牡牛座）｜セクスタイル（60°｜orb 0.3°）\n土星（枠組み・責任・鍛錬） と \n天王星（刷新・解放・突然性） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n③ 太陽（山羊座） × 土星（魚座）｜セクスタイル（60°｜orb 0.3°）\n太陽（中心・意志・生の火） と \n土星（枠組み・責任・鍛錬） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n【ひそやかな接点】\n・太陽（山羊座） × 天王星（牡牛座）｜トライン（120°｜orb 0.6°）\n太陽（中心・意志・生の火） と \n天王星（刷新・解放・突然性） が\n「調和・才能・自然さ」の質感で触れやすい配置。\n\n【今日の月】\n月は 山羊座（構造・責任・積み上げ） を通過中。\n\n【今日の余韻】\n空層：地×活動\n中心は「チャンス・協力・選択肢」｜空は“結論”より“配置”を残す。 要素が混ざって、決めすぎなくていい空。ペース配分で形が変わりやすい。\n\n\n解釈は、あなたのもの。\n星は語る。決めるのは、人。🌎️🛸✨️",
-    "x": "🌌 2026.01.17｜空の配置\n月：山羊座\n\n主役: \n☄️金星 山羊座 ×海王星 魚座｜セクスタイル 0.3°\n\n影: \n🪐太陽 山羊座 ×天王星 牡牛座｜トライン 0.6°\n\n空層：地×活動。中心は「チャンス・協力・選択肢」｜空は“結論”より“配置”を残す。\n\n動いてもいい。\n動かなくても、進んでいる。\n\n星は語る。🌎🛸",
+    "line": "🌌 今日のソラのこえ。｜2026.01.17\n\n【今日のソラ（星の配置）】\n\n【今日の中心（触れやすい場所）】\n① 金星（山羊座） × 海王星（魚座）｜セクスタイル（60°｜orb 0.3°）\n金星（好み・関係・価値） と \n海王星（溶解・夢・境界の薄さ） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n【引っかかりやすい接点】\n② 土星（魚座） × 天王星（牡牛座）｜セクスタイル（60°｜orb 0.3°）\n土星（枠組み・責任・鍛錬） と \n天王星（刷新・解放・突然性） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n③ 太陽（山羊座） × 土星（魚座）｜セクスタイル（60°｜orb 0.3°）\n太陽（中心・意志・生の火） と \n土星（枠組み・責任・鍛錬） が\n「チャンス・協力・選択肢」の質感で触れやすい配置。\n\n【ひそやかな接点】\n・太陽（山羊座） × 天王星（牡牛座）｜トライン（120°｜orb 0.6°）\n太陽（中心・意志・生の火） と \n天王星（刷新・解放・突然性） が\n「調和・才能・自然さ」の質感で触れやすい配置。\n\n【今日の月】\n月は 山羊座（構造・責任・積み上げ） を通過中。\n\n【今日の余韻】\n地層：地×活動\n中心は「チャンス・協力・選択肢」｜空は“結論”より“配置”を残す。 要素が混ざって、決めすぎなくていい空。ペース配分で形が変わりやすい。\n\n\n解釈は、あなたのもの。\n星は語る。決めるのは、人。🌎️🛸✨️",
+    "x": "🌌 2026.01.17｜空の配置\n月：山羊座\n\n主役: \n☄️金星 山羊座 ×海王星 魚座｜セクスタイル 0.3°\n\n影: \n🪐太陽 山羊座 ×天王星 牡牛座｜トライン 0.6°\n\n地層：地×活動。中心は「チャンス・協力・選択肢」｜空は“結論”より“配置”を残す。\n\n動いてもいい。\n動かなくても、進んでいる。\n\n星は語る。🌎🛸",
     "ig": "🌌 ソラのこえ。\n[2026.01.17｜今日のソラ]\n月は 山羊座 を通過中。\n\n1) 金星（山羊座） × 海王星（魚座）\nセクスタイル（orb 0.3°）\n\n金星（好み・関係・価値）と、\n海王星（溶解・夢・境界の薄さ）が、\n\n「現実的に形にする」空気の中で、\nチャンス・協力・選択肢。\n\n2) 土星（魚座） × 天王星（牡牛座）\nセクスタイル（orb 0.3°）\n\n土星（枠組み・責任・鍛錬）と、\n天王星（刷新・解放・突然性）が、\n\n「境界を溶かして共鳴させる」空気の中で、\nチャンス・協力・選択肢。\n\n3) 太陽（山羊座） × 土星（魚座）\nセクスタイル（orb 0.3°）\n\n太陽（中心・意志・生の火）と、\n土星（枠組み・責任・鍛錬）が、\n\n「現実的に形にする」空気の中で、\nチャンス・協力・選択肢。\n\nひそかな配置\n太陽（山羊座） × 天王星（牡牛座）\nトライン（orb 0.6°）\n\n\n解釈は、あなたのもの。\n星は語る。決めるのは、人。🌎️🛸✨️"
   }
 }

@@ -30,17 +30,17 @@ function mustNum(v, name) {
   console.log("✅ ok");
   console.log("jd_ut:", out.jd_ut);
   console.log("bodies keys:", Object.keys(out.bodies || {}));
-  console.log("Sun:", out.bodies?.Sun);
-  console.log("Moon:", out.bodies?.Moon);
-  console.log("ASC:", out.houses?.angles?.ASC);
-  console.log("MC:", out.houses?.angles?.MC);
-  console.log("Vertex:", out.houses?.angles?.Vertex);
+  console.log("sun:", out.bodies?.sun);
+  console.log("moon:", out.bodies?.moon);
+  console.log("asc:", out.houses?.angles?.asc);
+  console.log("mc:", out.houses?.angles?.mc);
+  console.log("vertex:", out.houses?.angles?.vertex);
 
   // 最低ライン判定
-  mustNum(out.bodies?.Sun, "Sun");
-  mustNum(out.bodies?.Moon, "Moon");
-  mustNum(out.houses?.angles?.ASC, "ASC");
-  mustNum(out.houses?.angles?.MC, "MC");
+  mustNum(out.bodies?.sun, "sun");
+  mustNum(out.bodies?.moon, "moon");
+  mustNum(out.houses?.angles?.asc, "asc");
+  mustNum(out.houses?.angles?.mc, "mc");
 
   console.log("✅ PASS: bodies + houses angles");
 })().catch((e) => {

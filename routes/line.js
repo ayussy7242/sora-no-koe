@@ -97,7 +97,7 @@ function requireDeps(d) {
   if (!r.renderLine) throw new Error("renderers.renderLine required");
   if (!r.renderSoraLine) throw new Error("renderers.renderSoraLine required");
   if (!r.renderSoraAllLine) throw new Error("renderers.renderSoraAllLine required");
-  if (!r.renderNatalListFromCache) throw new Error("renderers.renderNatalListFromCache required");
+  if (!r.renderNatalListFromcache) throw new Error("renderers.renderNatalListFromcache required");
 
   if (!createLineUser) throw new Error("[line] createLineUser export not found (line/user.js)");
   if (!createLineNatal) throw new Error("[line] createLineNatal export not found (line/natal.js)");
@@ -141,7 +141,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   // 3) intent（唯一の判定）
-  const intentKey = intent.intentFromCommand(cmd);
+  const intentKey = intent.intentFromcommand(cmd);
 
   if (intentKey === intent.INTENT.NATAL) {
     const r = await natal.handleNatalList({ appUserId });
@@ -198,7 +198,7 @@ function createLineRouter(deps = {}) {
       ok: true,
       text,
       normalized,
-      intent: intent.intentFromCommand(normalized),
+      intent: intent.intentFromcommand(normalized),
     });
   });
 
@@ -260,7 +260,7 @@ function createLineRouter(deps = {}) {
         ok: true,
         text,
         normalized: cmd,
-        intent: intent.intentFromCommand(cmd),
+        intent: intent.intentFromcommand(cmd),
         app_user_id: appUserId,
         stage: result?.stage || null,
         result: result?.text ?? "",
