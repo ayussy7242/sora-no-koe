@@ -39,6 +39,13 @@ const HEAD_YOIN_GLOBAL = "";
 // footer
 const FOOTER_LINE = ["解釈は、あなたのもの。", "星は語る。決めるのは、人。🌎️🛸✨️"];
 const FOOTER_X = "星は語る。🌎🛸";
+const FOOTER_X_POOL = [
+  "星は語る。🌎🛸",
+  "星は語る。🌌",
+  "星は語る。🪐",
+  "星は語る。🌎",
+  "星は語る。✨",
+];
 const FOOTER_IG = FOOTER_LINE.join("\n");
 
 // titles
@@ -126,6 +133,7 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   FOOTER_LINE,
   FOOTER_X,
+  FOOTER_X_POOL,
   FOOTER_IG,
 
   // public footer（そら用）
@@ -337,19 +345,70 @@ const RENDER_COPY = Object.freeze({
   // ✅「空層：」「中心は：」を抜く（ラベル重複＆重さ回避）
   // --------------------
   YOIN_GLOBAL: {
-    TAIL_POOL: ["空は“結論”より“配置”を残す。", "強さは、派手さじゃなく配分で決まる。", "今日は層が厚い。言葉はあとで追いつく。", "同じ現象でも、受け取り方は何層もある。", "静かに、編み直せる日。"],
+    TAIL_POOL: [
+      "空は“結論”より“配置”を残す。",
+      "強さは、派手さじゃなく配分で決まる。",
+      "今日は層が厚い。言葉はあとで追いつく。",
+      "同じ現象でも、受け取り方は何層もある。",
+      "静かに、編み直せる日。",
+      "輪郭が動きやすい日。結論は急がなくていい。",
+      "配置が先に来る日。意味はあとで揃う。",
+      "空は一本じゃない。層を選んで読める。",
+      "過不足より配分。静かに整う方向へ。",
+      "言葉より配置が先に立つ日。",
+      "波より層。見え方が変わりやすい。",
+      "静かな調律が入りやすい日。",
+    ],
+    TAIL_POOL_BY_ELEMENT: {
+      fire: ["熱は点くが、配分が鍵。", "火は走るが、形はあとで整う。"],
+      earth: ["現実は重いが、土台は崩れにくい。", "形が先に出やすい日。"],
+      air: ["言葉は動くが、輪郭はまだ揺れる。", "情報が先に回る日。"],
+      water: ["余韻が先に広がる日。", "境目はゆるみやすい。"],
+    },
+    TAIL_POOL_BY_MODALITY: {
+      cardinal: ["動かす方向へ傾きやすい。", "流れは切り替わりやすい。"],
+      fixed: ["輪郭は固まりやすい。", "維持が強まりやすい。"],
+      mutable: ["切り替えが入りやすい。", "配分で形が変わりやすい。"],
+    },
+    TAIL_POOL_BY_TONE: {
+      tense: ["張りが出やすい日。", "ぶつかりが目立ちやすい。"],
+      adjust: ["調整点が浮かびやすい日。", "小さな引っかかりが出やすい。"],
+      smooth: ["流れが通りやすい日。", "無理なく続きやすい。"],
+      blend: ["重なりが強まりやすい日。", "一体化しやすい。"],
+      craft: ["工夫が出やすい日。", "試しが増えやすい。"],
+      inward: ["余韻が残りやすい日。", "静かに馴染みやすい。"],
+    },
 
-    BUILD_SHORT: ({ topElement, topModality, seedBase, pickStable } = {}) => {
+    BUILD_SHORT: ({ topElement, topModality, toneKey, seedBase, pickStable } = {}) => {
       const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合", unknown: "未判定" };
       const modalityJa = { cardinal: "活動", fixed: "不動", mutable: "柔軟", mixed: "混合", unknown: "未判定" };
 
       const layer = `${elementJa[topElement] || "混合"}×${modalityJa[topModality] || "混合"}`;
 
-      const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
+      const poolBase = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
+      const poolElem = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL_BY_ELEMENT?.[topElement])
+        ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL_BY_ELEMENT[topElement]
+        : [];
+      const poolMod = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL_BY_MODALITY?.[topModality])
+        ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL_BY_MODALITY[topModality]
+        : [];
+      const poolTone = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL_BY_TONE?.[toneKey])
+        ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL_BY_TONE[toneKey]
+        : [];
+
+      const pickFrom = (pool, key) => {
+        if (!pool || !pool.length) return "";
+        return typeof pickStable === "function" && seedBase
+          ? pickStable(pool, `${seedBase}|${key}`)
+          : pool[0];
+      };
+
       const tail =
-        typeof pickStable === "function" && seedBase && pool.length
-          ? pickStable(pool, seedBase + "|tail")
-          : "";
+        pickFrom(poolTone, "tone") ||
+        pickFrom(poolElem, "element") ||
+        pickFrom(poolMod, "modality") ||
+        pickFrom(poolBase, "base") ||
+        "";
 
       // ✅ 例）「地×不動。静かに、編み直せる日。」
       // tailが空なら「地×不動。」で止まるのが嫌なので、最低でも一言は出す
