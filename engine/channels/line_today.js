@@ -185,15 +185,24 @@ function _subjectFromStyle(style, planetKey, seed, avoidTokens = []) {
 function _avoidTokensFromModifier(modifier) {
   const s = String(modifier || "");
   const tokens = [];
-  if (s.includes("価値")) tokens.push("価値観", "価値");
-  if (s.includes("基準")) tokens.push("基準", "起点");
-  if (s.includes("安心")) tokens.push("安心");
-  if (s.includes("印象")) tokens.push("印象");
-  if (s.includes("距離")) tokens.push("距離感", "距離");
-  if (s.includes("反応")) tokens.push("反応");
-  if (s.includes("感覚")) tokens.push("感覚");
-  if (s.includes("意志")) tokens.push("意志");
-  return Array.from(new Set(tokens));
+  const roots = [
+    ["価値", ["価値観", "価値"]],
+    ["基準", ["基準", "起点"]],
+    ["安心", ["安心", "安心の置きどころ"]],
+    ["印象", ["印象", "第一印象"]],
+    ["距離", ["距離感", "距離"]],
+    ["反応", ["反応"]],
+    ["感覚", ["感覚", "体感"]],
+    ["意志", ["意志", "意識"]],
+    ["言葉", ["言葉", "伝え方"]],
+    ["思考", ["思考", "考え"]],
+    ["境界", ["境界", "輪郭"]],
+    ["中心", ["中心", "核", "起点"]],
+  ];
+  roots.forEach(([k, list]) => {
+    if (s.includes(k)) list.forEach((t) => tokens.push(t));
+  });
+  return Array.from(new Set(tokens.filter(Boolean)));
 }
 
 function _modeFromStyle(style, planetKey, seed, avoidTokens = []) {
@@ -341,11 +350,11 @@ function _uniq(arr) {
 
 function _aspectToneCategory(aspectKey) {
   const k = _normAspectKey(aspectKey);
-  if (["square", "opposition"].includes(k)) return "tense";
-  if (["quincunx_150", "semi_square_45", "sesqui_square_135", "semi_sextile_30"].includes(k)) return "adjust";
-  if (["trine", "sextile"].includes(k)) return "smooth";
-  if (["conjunction"].includes(k)) return "blend";
-  if (["quintile_72", "biquintile_144"].includes(k)) return "craft";
+  if (k.includes("quincunx") || k.includes("semi_square") || k.includes("sesqui_square") || k.includes("semi_sextile")) return "adjust";
+  if (k.includes("square") || k.includes("opposition")) return "tense";
+  if (k.includes("trine") || k.includes("sextile")) return "smooth";
+  if (k.includes("conjunction")) return "blend";
+  if (k.includes("quintile") || k.includes("biquintile")) return "craft";
   return "adjust";
 }
 
@@ -385,6 +394,9 @@ function _normalizeKw(word) {
   if (!w) return "";
   // 動詞ぽい語尾は名詞化して違和感を減らす
   if (/[くぐすむぶぬるつう]$/.test(w) && !/こと$/.test(w)) return `${w}こと`;
+  // 形容詞は名詞化（例: 熱い→熱さ）
+  if (w === "いい") return "良さ";
+  if (/[い]$/.test(w) && !/さ$/.test(w)) return `${w.slice(0, -1)}さ`;
   return w;
 }
 
@@ -394,10 +406,22 @@ function _smoothTension(text) {
   t = t.replace(/への(衝動|迷い|ためらい|反発|引き|勢い|揺らぎ|決めきれなさ)/g, "");
   t = t.replace(/への気持ち/g, "");
   t = t.replace(/の(差|ズレ|間|余白|行き来|境目|切り替わり|揺れ幅|摩擦感|張り|圧|衝突点|引っかかり|尖り|流れ|和らぎ|馴染み|広がり|整い|滑らかさ|重なり|濃度|一体化|混ざり|結合|強調|調整|微差|補正|試行|磨き|工夫|探り|再設計|組み替え)/g, "のあいだ");
+  t = t.replace(/と([^。]+)で/g, "のあいだで");
+  t = t.replace(/で(詰まり|滞り)/g, "のあいだで$1");
   if (t.includes("や") && !/あいだ/.test(t)) {
     t = t.replace(/(.+?)や(.+?)$/g, "$1と$2のあいだ");
   }
   t = t.replace(/と、/g, "と");
+  t = t.replace(/熱いさや/g, "熱さや");
+  t = t.replace(/熱いや/g, "熱さや");
+  t = t.replace(/熱いさ/g, "熱さ");
+  t = t.replace(/熱い/g, "熱さ");
+  // 「熱さや張りに揺れやすい」→「熱さと張りのあいだで揺れやすい」
+  t = t.replace(/熱さや張りに揺れやすい/g, "熱さと張りのあいだで揺れやすい");
+  t = t.replace(/引っかかりで/g, "引っかかりのあいだで");
+  t = t.replace(/硬い/g, "硬さ");
+  t = t.replace(/鋭い/g, "鋭さ");
+  t = t.replace(/重い/g, "重さ");
   t = t.replace(/\s+/g, " ").trim();
   return t.trim();
 }
@@ -407,6 +431,14 @@ function _fixDupPhrases(s) {
   t = t.replace(/調整が微調整が/g, "調整が");
   t = t.replace(/微調整が調整が/g, "微調整が");
   t = t.replace(/折り合いで折り合いが/g, "折り合いが");
+  t = t.replace(/が小さな引っかかりが/g, "に小さな引っかかりが");
+  t = t.replace(/が調整点が/g, "に調整点が");
+  t = t.replace(/印象が印象/g, "印象");
+  t = t.replace(/価値観が価値観/g, "価値観");
+  t = t.replace(/距離感が距離感/g, "距離感");
+  t = t.replace(/反応が反応/g, "反応");
+  t = t.replace(/感覚が感覚/g, "感覚");
+  t = t.replace(/言葉が言葉/g, "言葉");
   t = t.replace(/揺れが出やすい。?揺れが出やすい。?/g, "揺れが出やすい。");
   return t;
 }
@@ -462,6 +494,29 @@ function _subjectify(core) {
 function _normAspectKey(raw) {
   const x = String(raw || "").toLowerCase().trim();
   if (!x) return "";
+  const numStr = x.replace(/[^\d.]/g, "");
+  if (numStr && /^\d+(\.\d+)?$/.test(numStr)) {
+    const deg = Math.round(Number(numStr));
+    const mapDeg = {
+      0: "conjunction",
+      30: "semi_sextile_30",
+      36: "decile_36",
+      40: "novile_40",
+      45: "semi_square_45",
+      60: "sextile",
+      72: "quintile_72",
+      80: "binovile_80",
+      90: "square",
+      108: "tridecile_108",
+      120: "trine",
+      135: "sesqui_square_135",
+      144: "biquintile_144",
+      150: "quincunx_150",
+      160: "quadranovile_160",
+      180: "opposition",
+    };
+    if (mapDeg[deg]) return mapDeg[deg];
+  }
   if (x.startsWith("opposition")) return "opposition";
   if (x.startsWith("square")) return "square";
   if (x.startsWith("trine")) return "trine";
@@ -583,6 +638,7 @@ function normalizePersonalForFlavor(item = {}) {
 
   const aspectLabelJa = pick(item.aspect?.label_ja, item.aspect_label_ja, item.aspectLabelJa, item.aspect?.ja);
   const aspectType = pick(item.aspect?.type, item.type, item.aspectType, item.aspect_key);
+  const aspectAngle = pick(item.aspect?.deg, item.aspect?.angle, item.aspect_deg, item.aspectDegree);
 
   return {
     a: safeStr(a).toLowerCase(),
@@ -591,6 +647,7 @@ function normalizePersonalForFlavor(item = {}) {
     b_sign_key: safeStr(bSign).toLowerCase(),
     aspectLabelJa: safeStr(aspectLabelJa),
     aspectType: safeStr(aspectType),
+    aspectAngle: safeStr(aspectAngle),
   };
 }
 
@@ -608,7 +665,7 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
   const seed = `${story?.meta?.date_local || ""}|${n.b}|${n.b_sign_key}|${n.aspectType || n.aspectLabelJa}`;
   const keywordsA = by?.fusion?.A || [];
   const keywordsB = by?.fusion?.B || [];
-  const aspectKey = _normAspectKey(n.aspectType || n.aspectLabelJa);
+  const aspectKey = _normAspectKey(n.aspectType || n.aspectLabelJa || n.aspectAngle);
   const profile = _aspectKeywordProfile(aspectKey);
 
   let A = _pickMany(keywordsA, `${seed}|A`, profile.a);
@@ -668,14 +725,14 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
     tensionFilled
       ? `${modePrefix}${_smoothTension(tensionFilled)}で${state2}。`
       : kwPhrase
-        ? `${modePrefix}${kwPhrase}が${state2}。`
+        ? `${modePrefix}${kwPhrase}に${state2}。`
         : `${modePrefix}${state2}。`
   );
 
   const s2Fixed = _fixDupPhrases(s2);
   const shortState = _shortStateFromTone(style, aspectKey, seed, [state1, state2, ...avoidState]) || state2;
   const s2Short = _fixDoubleGa(`${modePrefix}${shortState}。`);
-  const useShort = s2Fixed.length > 52 || /微調整が微調整|調整が微調整|折り合いで折り合い/.test(s2Fixed);
+  const useShort = s2Fixed.length > 44 || /微調整が微調整|調整が微調整|折り合いで折り合い|小さな引っかかりが出やすい|調整点が浮かびやすい/.test(s2Fixed);
   const s2Final = useShort ? s2Short : s2Fixed;
 
   const keywordLine = keywordAll.length ? `KeyWord: ${keywordAll.join(" / ")}` : "";
