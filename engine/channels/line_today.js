@@ -231,7 +231,19 @@ function _stateFromStyleDistinct(style, aspectKey, depth, seed, avoid = []) {
     const t = String(s || "");
     return !avoid.some((a) => a && t.includes(a));
   });
-  const pick = _pickOne(filtered.length ? filtered : basePool, `${seed}|state|${key}|${depth}`) || "揺れやすい";
+  let pool = filtered;
+  if (!pool.length && avoid.length) {
+    const altPool = [
+      ...(style?.state_by_tone?.[toneKey] || []),
+      ...(style?.states?.[depth] || []),
+      ...(style?.states?.light || []),
+    ].filter((s) => {
+      const t = String(s || "");
+      return !avoid.some((a) => a && t.includes(a));
+    });
+    pool = altPool;
+  }
+  const pick = _pickOne(pool.length ? pool : basePool, `${seed}|state|${key}|${depth}`) || "揺れやすい";
   return pick;
 }
 
@@ -239,10 +251,20 @@ function _stateAvoidFromTension(tensionText) {
   const t = String(tensionText || "");
   const avoid = [];
   if (!t) return avoid;
-  ["折り合い", "微調整", "調整", "揺れ", "張り", "引っかかり"].forEach((w) => {
+  ["折り合い", "微調整", "調整", "調整点", "揺れ", "張り", "引っかかり"].forEach((w) => {
     if (t.includes(w)) avoid.push(w);
   });
   return avoid;
+}
+
+function _shortStateFromTone(style, aspectKey, seed, avoid = []) {
+  const toneKey = _aspectToneCategory(aspectKey);
+  const pool = style?.state_short_by_tone?.[toneKey] || [];
+  const filtered = pool.filter((s) => {
+    const t = String(s || "");
+    return !avoid.some((a) => a && t.includes(a));
+  });
+  return _pickOne(filtered.length ? filtered : pool, `${seed}|short|${toneKey}`) || "";
 }
 
 function _dedupeModePrefix(mode, subject) {
@@ -372,15 +394,30 @@ function _smoothTension(text) {
   t = t.replace(/への(衝動|迷い|ためらい|反発|引き|勢い|揺らぎ|決めきれなさ)/g, "");
   t = t.replace(/への気持ち/g, "");
   t = t.replace(/の(差|ズレ|間|余白|行き来|境目|切り替わり|揺れ幅|摩擦感|張り|圧|衝突点|引っかかり|尖り|流れ|和らぎ|馴染み|広がり|整い|滑らかさ|重なり|濃度|一体化|混ざり|結合|強調|調整|微差|補正|試行|磨き|工夫|探り|再設計|組み替え)/g, "のあいだ");
+  if (t.includes("や") && !/あいだ/.test(t)) {
+    t = t.replace(/(.+?)や(.+?)$/g, "$1と$2のあいだ");
+  }
   t = t.replace(/と、/g, "と");
   t = t.replace(/\s+/g, " ").trim();
   return t.trim();
+}
+
+function _fixDupPhrases(s) {
+  let t = String(s || "");
+  t = t.replace(/調整が微調整が/g, "調整が");
+  t = t.replace(/微調整が調整が/g, "微調整が");
+  t = t.replace(/折り合いで折り合いが/g, "折り合いが");
+  t = t.replace(/揺れが出やすい。?揺れが出やすい。?/g, "揺れが出やすい。");
+  return t;
 }
 
 function _getRole(dict, signKey, planetKey) {
   const { by } = _getSignFlavor(dict, signKey, planetKey);
   const role = by?.role || by?.core || "";
   if (role) return role;
+  const pointKey = _lowerKey(planetKey);
+  const point = dict?.POINTS_V1?.points?.[pointKey] || null;
+  if (point?.core) return String(point.core).replace(/・/g, "と");
   const p = dict?.PLANETS_V2?.bodies?.[_lowerKey(planetKey)] || null;
   return p?.role || p?.core || "";
 }
@@ -425,6 +462,21 @@ function _subjectify(core) {
 function _normAspectKey(raw) {
   const x = String(raw || "").toLowerCase().trim();
   if (!x) return "";
+  if (x.startsWith("opposition")) return "opposition";
+  if (x.startsWith("square")) return "square";
+  if (x.startsWith("trine")) return "trine";
+  if (x.startsWith("sextile")) return "sextile";
+  if (x.startsWith("conjunction")) return "conjunction";
+  if (x.startsWith("quincunx")) return "quincunx_150";
+  if (x.startsWith("inconjunct")) return "quincunx_150";
+  if (x.startsWith("quintile")) return "quintile_72";
+  if (x.startsWith("biquintile")) return "biquintile_144";
+  if (x.startsWith("semi_square")) return "semi_square_45";
+  if (x.startsWith("semisquare")) return "semi_square_45";
+  if (x.startsWith("sesqui_square")) return "sesqui_square_135";
+  if (x.startsWith("sesquisquare")) return "sesqui_square_135";
+  if (x.startsWith("semi_sextile")) return "semi_sextile_30";
+  if (x.startsWith("semisextile")) return "semi_sextile_30";
   if (x.includes("スクエア")) return "square";
   if (x.includes("オポジション")) return "opposition";
   if (x.includes("トライン")) return "trine";
@@ -620,12 +672,18 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
         : `${modePrefix}${state2}。`
   );
 
+  const s2Fixed = _fixDupPhrases(s2);
+  const shortState = _shortStateFromTone(style, aspectKey, seed, [state1, state2, ...avoidState]) || state2;
+  const s2Short = _fixDoubleGa(`${modePrefix}${shortState}。`);
+  const useShort = s2Fixed.length > 52 || /微調整が微調整|調整が微調整|折り合いで折り合い/.test(s2Fixed);
+  const s2Final = useShort ? s2Short : s2Fixed;
+
   const keywordLine = keywordAll.length ? `KeyWord: ${keywordAll.join(" / ")}` : "";
 
   const lines = [];
   if (role) lines.push(`【${role}】`);
   if (s1) lines.push(`→ ${s1}`);
-  if (s2) lines.push(`→ ${s2}`);
+  if (s2Final) lines.push(`→ ${s2Final}`);
   if (keywordLine) lines.push(keywordLine);
 
   return lines.length ? lines.join("\n") : "";
