@@ -91,12 +91,13 @@ function renderX(story, deps = {}) {
   }
 
   function aspectTone(key) {
-    if (["square", "opposition"].includes(key)) return "tense";
-    if (["quincunx_150", "semi_square_45", "sesqui_square_135", "semi_sextile_30"].includes(key)) return "adjust";
-    if (["trine", "sextile"].includes(key)) return "smooth";
-    if (["conjunction"].includes(key)) return "blend";
-    if (["quintile_72", "biquintile_144", "decile_36", "tridecile_108"].includes(key)) return "craft";
-    if (["novile_40", "binovile_80", "quadranovile_160"].includes(key)) return "inward";
+    const k = String(key || "");
+    if (k.includes("square") || k.includes("opposition")) return "tense";
+    if (k.includes("quincunx") || k.includes("semi_square") || k.includes("sesqui_square") || k.includes("semi_sextile")) return "adjust";
+    if (k.includes("trine") || k.includes("sextile")) return "smooth";
+    if (k.includes("conjunction")) return "blend";
+    if (k.includes("quintile") || k.includes("biquintile") || k.includes("decile") || k.includes("tridecile")) return "craft";
+    if (k.includes("novile") || k.includes("binovile") || k.includes("quadranovile")) return "inward";
     return "adjust";
   }
 
