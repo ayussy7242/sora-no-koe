@@ -155,7 +155,19 @@ const GRAMmars_V1 = {
     force: ["圧", "張力", "作用", "引力", "熱", "推進力", "うねり", "ノイズ", "粘り", "負荷", "緊張"],
     // ※接続語は “意味語” を極力減らす（重なり/つながり/循環 をここで言わない）
     conjunctions: ["と", "および", "のあいだで", "の同時進行として", "が並び", "が共存し"],
-    expression: ["表現", "言葉", "外への出方", "示し方", "手触り", "出力", "見え方", "反射"],
+    expression: [
+      // 既存
+      "表現", "言葉", "外への出方", "示し方", "手触り", "出力", "見え方", "反射",
+      // sign_flavor.outputs（表現系）
+      "ふるまい", "置き方", "出し方", "見せ方",
+      // 逃げ道（主語弱いときに事故りにくい）
+      "立ち位置", "距離感", "伝え方", "まとめ方", "対話のテンポ"
+    ],
+    noun_expression_pool: [
+      "表現", "ふるまい", "置き方", "出し方", "見せ方",
+      "反応", "守り方", "揺れ方", "安心の取り方", "距離の取り方",
+      "言葉", "伝え方", "まとめ方", "説明の輪郭", "対話のテンポ"
+    ],
     process: ["調整", "行き来", "手探り", "間引き", "保留", "折り合い", "試し書き"],
     clarity: ["輪郭", "手応え", "まとまり", "焦点", "粒度", "境界", "密度", "温度差"],
     direction: ["立ち", "残り", "前に出てき", "薄くなり", "溶け", "詰まり", "ほどけ"],
@@ -218,7 +230,7 @@ const GRAMmars_V1 = {
     a_core: [
       "{p1_role}と{p2_role}{glue_pair}、{aspect_core}の{noun_force}として{glue_aspect}。{noun_expression}は{noun_process}の中で、{noun_clarity}を持つ{tendency_suffix}。",
       "{s1_tone}空気の中で、{p1_role}が{glue_aspect}。{aspect_core}が絡み、{noun_expression}の{noun_clarity}が立つ{tendency_suffix}。",
-      "{p1_role}が前に出て、{p2_role}は背景で動く配置。{noun_process}を通して、{noun_clarity}が整う{tendency_suffix}。", 
+      "{p1_role}が前に出て、{p2_role}は背景で動く配置。{noun_process}を通して、{noun_clarity}が整う{tendency_suffix}。",
       "{qualifier}、{aspect_sora}{tendency_suffix}。",
     ],
 
@@ -379,7 +391,7 @@ function buildVars({ rand, depth, channel, tokens }) {
     noun_force: pickOneFiltered(cat.force, rand, ban),
     noun_process: pickOneFiltered(cat.process, rand, ban),
     noun_clarity: pickOneFiltered(cat.clarity, rand, ban),
-    noun_expression: pickOneFiltered(cat.expression, rand, ban),
+    noun_expression: pickOneFiltered(cat.noun_expression_pool || cat.expression, rand, ban),
     noun_texture: pickOneFiltered(cat.texture, rand, ban),
     noun_locality: pickOneFiltered(cat.locality, rand, ban),
 

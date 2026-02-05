@@ -1,11 +1,16 @@
 "use strict";
 
 /**
- * engine/blend_fusion.js (SSOT / V2-ONLY + deps-safe) — 2026.01 (PATCHED)
+ * engine/blend_fusion.js (SSOT) — 2026.02.05 FIX
+ *
+ * ✅ FIX:
+ * - dict/blend.v2 の buildFusionSentence(dictOrDeps, item, opts) に
+ *   “モジュール自身(mod)” を渡していたバグを修正
+ * - 正しく “依存辞書(ctx)” を第1引数に渡す（PLANETS_V2/SIGNS_V2/ASPECTS_V2 参照が復活）
  *
  * ✅ SSOT:
- * - dict/blend.v2 の buildFusionSentence を “唯一入口” として呼ぶ
- * - render 側は template/mode だけ渡す
+ * - dict/blend.v2 の buildFusionSentence を唯一入口として呼ぶ
+ * - render 側は template/mode/seed だけ渡す
  */
 
 let BLEND_V2_MOD = null;
@@ -20,7 +25,7 @@ BLEND_V2_MOD =
   _safeRequire("./blend.v2") ||
   _safeRequire("./blend.v2.js") ||
   null;
-  
+
 // ----------------------------
 // utils
 // ----------------------------
@@ -28,44 +33,47 @@ function safeStr(v) { return v == null ? "" : String(v); }
 function trimStr(v) { return safeStr(v).trim(); }
 
 // ----------------------------
-// detect V2
+// detect V2 (module must have both)
 // ----------------------------
-function hasV2(ctx) {
-  const mod = ctx || BLEND_V2_MOD;
+function hasV2(mod) {
   return !!(mod?.BLEND_V2 && typeof mod?.buildFusionSentence === "function");
 }
 
 // ============================================================
 // fallback (never crash)
 // ============================================================
-function _v2FallbackSentence(ctx, item, opts = {}) {
+function _v2FallbackSentence(_ctx, item, opts = {}) {
   const template = safeStr(opts.template || "default");
   const mode = safeStr(opts.mode || item?.kind || "");
 
-  const isSky = mode === "sky" || template.startsWith("sky_") || item?.kind === "sky";
+  const isSky =
+    mode === "sky" ||
+    template.startsWith("sky_") ||
+    item?.kind === "sky";
 
   if (isSky) {
     const a = safeStr(item?.a || item?.aPlanetKey || "?");
     const b = safeStr(item?.b || item?.bPlanetKey || "?");
     return `${a}×${b}｜触れやすい配置。`;
   }
+
   const n = safeStr(item?.natal?.body || item?.natalPlanetKey || "?");
   const t = safeStr(item?.transit?.body || item?.transitPlanetKey || "?");
   return `${n}×${t}｜触れやすい配置。`;
 }
 
 // ============================================================
-// Public API (SSOT) — V2 ONLY
+// Public API (SSOT)
 // ============================================================
 function buildFusionSentence(ctx, item, opts = {}) {
-  const mod = (ctx && ctx.BLEND_V2) ? ctx.BLEND_V2 : (ctx || BLEND_V2_MOD);
-  if (!hasV2(mod)) return _v2FallbackSentence(mod, item, opts);
+  const mod = BLEND_V2_MOD;
+
+  if (!hasV2(mod)) return _v2FallbackSentence(ctx, item, opts);
 
   const template = safeStr(opts.template || "default");
   const mode = safeStr(opts.mode || item?.kind || "");
   const seed = safeStr(opts.seed || item?.seed || "");
 
-  // aspectType 正規化だけこちらで担保（V2側にも入れてあるなら不要だけど保険）
   const fixedOpts = {
     ...opts,
     template,
@@ -74,10 +82,11 @@ function buildFusionSentence(ctx, item, opts = {}) {
   };
 
   try {
-    const out = mod.buildFusionSentence(mod, item, fixedOpts);
-    return trimStr(out) ? String(out).trim() : _v2FallbackSentence(mod, item, opts);
+    // ✅ ここが修正点：第1引数は “依存辞書(ctx)” を渡す
+    const out = mod.buildFusionSentence(ctx || {}, item, fixedOpts);
+    return trimStr(out) ? String(out).trim() : _v2FallbackSentence(ctx, item, opts);
   } catch (_) {
-    return _v2FallbackSentence(mod, item, opts);
+    return _v2FallbackSentence(ctx, item, opts);
   }
 }
 

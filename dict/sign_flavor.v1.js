@@ -29,38 +29,79 @@ const SIGN_FLAVOR_V1 = Object.freeze({
     grammar: Object.freeze({
         // core と tension を “どう接続するか”
         connectors: Object.freeze({
-            both_rise: ["が同時に立ち上がり", "が並走し", "が重なって触れやすくなり", "が同じ場所で反応し"],
-            between: ["のあいだで", "の境目で", "の間で", "の往復で"],
+            both_rise: [
+                "が同時に立ち上がり",
+                "が並走し",
+                "が重なって触れやすくなり",
+                "が同じ場所で反応し",
+                "が同時に動き出し",
+                "が同じ方向で押し合い",
+                "が交差しやすくなり",
+                "が近い位置で響き合い",
+            ],
+            between: [
+                "のあいだで",
+                "の境目で",
+                "の間で",
+                "の往復で",
+                "のはざまで",
+                "の切り替わりで",
+                "の接点で",
+            ],
         }),
 
         // “core” をどう呼ぶか（サインで変える用）
         core_nouns: Object.freeze({
-            impulse: ["衝動", "熱", "起点", "動機", "点火"],
-            axis: ["軸", "基準", "中心", "輪郭", "核"],
-            flow: ["流れ", "通路", "テンポ", "回路", "循環"],
-            hold: ["守り", "抱え方", "居場所", "保護", "包み"],
-            craft: ["手元", "整え", "微調整", "仕上げ", "手入れ"],
-            mirror: ["鏡", "対比", "関係の像", "映り", "釣り合い"],
-            depth: ["深層", "境界", "濃度", "共有", "変容の圧"],
-            horizon: ["視野", "意味", "遠景", "探索", "拡張"],
-            structure: ["構造", "段取り", "積み上げ", "責任", "骨格"],
-            update: ["更新", "俯瞰", "ズレ", "観測", "自由の回路"],
-            dissolve: ["余韻", "溶解", "にじみ", "共鳴", "境界のゆるみ"],
+            impulse: ["衝動", "熱", "起点", "動機", "点火", "初速", "勢い"],
+            axis: ["軸", "基準", "中心", "輪郭", "核", "芯", "方向"],
+            flow: ["流れ", "通路", "テンポ", "回路", "循環", "運び", "やりとり"],
+            hold: ["守り", "抱え方", "居場所", "保護", "包み", "受け皿", "場"],
+            craft: ["手元", "整え", "微調整", "仕上げ", "手入れ", "扱い", "整序"],
+            mirror: ["鏡", "対比", "関係の像", "映り", "釣り合い", "バランス", "合わせ鏡"],
+            depth: ["深層", "境界", "濃度", "共有", "変容の圧", "奥行き", "密度"],
+            horizon: ["視野", "意味", "遠景", "探索", "拡張", "広がり", "射程"],
+            structure: ["構造", "段取り", "積み上げ", "責任", "骨格", "枠", "設計"],
+            update: ["更新", "俯瞰", "ズレ", "観測", "自由の回路", "切り替え", "再設計"],
+            dissolve: ["余韻", "溶解", "にじみ", "共鳴", "境界のゆるみ", "浸透", "混ざり"],
         }),
 
         // “表現/振る舞い/反応/言葉” の言い回し
         outputs: Object.freeze({
-            expression: ["表現", "ふるまい", "置き方", "出し方", "見せ方"],
-            reaction: ["反応", "守り方", "体感の動き", "揺れ方", "安心の取り方"],
-            language: ["言葉", "伝え方", "まとめ方", "説明の輪郭", "対話のテンポ"],
+            expression: ["表現", "ふるまい", "置き方", "出し方", "見せ方", "立ち方", "姿勢"],
+            reaction: ["反応", "守り方", "体感の動き", "揺れ方", "安心の取り方", "距離の取り方", "受け止め方"],
+            language: ["言葉", "伝え方", "まとめ方", "説明の輪郭", "対話のテンポ", "語り方", "置き言葉"],
+        }),
+
+        // tension 内の動的スロット（{drive}/{dyn} 用）
+        dynamics: Object.freeze({
+            drive: ["衝動", "迷い", "ためらい", "反発", "引き", "勢い", "揺らぎ", "決めきれなさ"],
+            dyn: ["差", "ズレ", "間", "余白", "行き来", "境目", "切り替わり", "揺れ幅"],
+        }),
+
+        // aspect別のdyn（最大変化：連携選択）
+        dynamics_by_aspect: Object.freeze({
+            tense: ["摩擦感", "張り", "圧", "衝突点", "引っかかり", "尖り"],
+            smooth: ["流れ", "和らぎ", "馴染み", "広がり", "整い", "滑らかさ"],
+            blend: ["重なり", "濃度", "一体化", "混ざり", "結合", "強調"],
+            adjust: ["ズレ", "微差", "調整", "折り合い", "揺れ", "補正"],
+            craft: ["試行", "磨き", "工夫", "探り", "再設計", "組み替え"],
+        }),
+
+        // アスペクトの質感語（KeyWord 合成用）
+        aspect_tone: Object.freeze({
+            tense: ["緊張", "ひっかかり", "摩擦感", "圧", "鋭さ", "張り"],
+            smooth: ["流れ", "和らぎ", "整い", "相性", "広がり", "穏やかさ"],
+            blend: ["混ざり", "重なり", "強調", "密度", "統合", "一本化"],
+            adjust: ["調整", "微差", "補正", "揺れ", "馴染み", "折り合い"],
+            craft: ["工夫", "磨き", "試作", "再設計", "探り", "組み替え"],
         }),
 
         // “試しながら” の言い回し
         tryings: Object.freeze({
-            try: ["試しながら", "試行錯誤しながら", "形を変えながら", "微調整しながら", "探りながら"],
-            settle: ["定着させながら", "保ちながら", "積み上げながら", "固めながら"],
-            observe: ["観測しながら", "距離を取りながら", "俯瞰しながら"],
-            dissolve: ["にじませながら", "ほどきながら", "ゆるめながら"],
+            try: ["試しながら", "試行錯誤しながら", "形を変えながら", "微調整しながら", "探りながら", "いったん置きながら"],
+            settle: ["定着させながら", "保ちながら", "積み上げながら", "固めながら", "形にしながら"],
+            observe: ["観測しながら", "距離を取りながら", "俯瞰しながら", "見届けながら"],
+            dissolve: ["にじませながら", "ほどきながら", "ゆるめながら", "溶かしながら"],
         }),
 
         // A文テンプレ（“衝動と…”固定ではなく、パーツ差し替え前提）
@@ -68,6 +109,8 @@ const SIGN_FLAVOR_V1 = Object.freeze({
             A1: "{core}と{tension}{connector}、{output}は{trying}形を持ちやすい。",
             A2: "{core}が前に出やすく、{between}{tension}が触れやすい。",
             A3: "{output}に{core}が乗りやすく、{between}{tension}で揺れやすい。",
+            A4: "{core}が動きやすく、{tension}{connector}{output}が整いやすい。",
+            A5: "{core}が先に立ち、{between}{tension}が反応の形になりやすい。",
         }),
     }),
 
@@ -79,7 +122,17 @@ const SIGN_FLAVOR_V1 = Object.freeze({
             if (!Array.isArray(arr) || !arr.length) return "";
             return String(arr[Math.max(0, Math.min(i, arr.length - 1))] || "");
         },
-        buildA({ templateKey = "A1", core, tension, outputKey = "expression", connectorKey = "both_rise", tryingKey = "try", i = 0 }) {
+        buildA({
+            templateKey = "A1",
+            core,
+            tension,
+            outputKey = "expression",
+            connectorKey = "both_rise",
+            tryingKey = "try",
+            i = 0,
+            drive,
+            dyn,
+        }) {
             const g = SIGN_FLAVOR_V1.grammar;
             const tpl = g.templates?.[templateKey] || g.templates.A1;
 
@@ -87,6 +140,8 @@ const SIGN_FLAVOR_V1 = Object.freeze({
             const between = SIGN_FLAVOR_V1.util._pick(g.connectors?.between, i) || "のあいだで";
             const output = SIGN_FLAVOR_V1.util._pick(g.outputs?.[outputKey], i) || "表現";
             const trying = SIGN_FLAVOR_V1.util._pick(g.tryings?.[tryingKey], i) || "探りながら";
+            const driveWord = String(drive || "");
+            const dynWord = String(dyn || "");
 
             return String(tpl)
                 .replace("{core}", String(core || "—"))
@@ -95,6 +150,8 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 .replace("{between}", between)
                 .replace("{output}", output)
                 .replace("{trying}", trying)
+                .replace("{drive}", driveWord)
+                .replace("{dyn}", dynWord)
                 .replace(/\s+/g, " ")
                 .trim();
         },
@@ -121,12 +178,12 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "自分で始めたい、という起点の意志",
-                    tension: "速さと確かさ（手応え）の間で、基準が揺れやすい",
+                    tension: "速さと確かさ（手応え）の{dyn}で、{drive}が揺れやすい",
                     fusion: Object.freeze({
-                        A: Object.freeze(["点火", "起点", "先手", "立ち上げ", "開始"]),
-                        B: Object.freeze(["確かさ", "手応え", "根拠", "回収", "継続"]),
+                        A: Object.freeze(["点火", "起点", "先手", "初動", "始まり"]),
+                        B: Object.freeze(["確かさ", "手応え", "根拠", "続けやすさ", "戻り先"]),
                         expression: Object.freeze(["表現", "立ち位置", "出し方", "決め方", "始め方"]),
                         process: Object.freeze(["押し出しながら", "先に動かしながら", "立ち上げながら", "走りながら", "切り開きながら"]),
                         clarity: Object.freeze(["基準を後追いで合わせつつ", "手応えを取りに戻りつつ", "速度を落とさず整えつつ", "回収点を置きつつ"]),
@@ -139,12 +196,12 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "感じた瞬間に動きたい、素直な反射",
-                    tension: "落ち着きたい気持ちと、すぐ切り替える反射のズレ",
+                    tension: "落ち着きたい{drive}と、すぐ切り替える反射の{dyn}",
                     fusion: Object.freeze({
-                        A: Object.freeze(["即反応", "第一反射", "瞬間のYES/NO", "直感スイッチ", "動く安心"]),
-                        B: Object.freeze(["落ち着き", "安心の土台", "間を置く", "鎮静", "温度調整"]),
+                        A: Object.freeze(["即反応", "第一反射", "直感", "切り替え", "先走り"]),
+                        B: Object.freeze(["落ち着き", "間", "深呼吸", "安心の場", "温度差"]),
                         expression: Object.freeze(["反応", "守り方", "揺れ方", "安心の取り方", "距離の取り方"]),
                         process: Object.freeze(["反射で動きながら", "先に切り替えながら", "走ってから整えながら", "跳ねてから戻しながら"]),
                         clarity: Object.freeze(["落ち着く場所を探しつつ", "安心の条件を後から作りつつ", "温度差を測りつつ", "反応の理由を拾いつつ"]),
@@ -157,12 +214,12 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "結論へ一直線に運びたい思考",
-                    tension: "早く言いたい衝動と、受け取られ方の摩擦",
+                    tension: "早く言いたい{drive}と、受け取られ方の{dyn}",
                     fusion: Object.freeze({
-                        A: Object.freeze(["結論", "直球", "端的", "即断", "要点"]),
-                        B: Object.freeze(["受け取り", "誤解", "ニュアンス", "余白", "相手の速度"]),
+                        A: Object.freeze(["要点", "直球", "結論", "速さ", "一言"]),
+                        B: Object.freeze(["受け取り", "余白", "言い直し", "ニュアンス", "相手の速度"]),
                         expression: Object.freeze(["言葉", "伝え方", "まとめ方", "説明の輪郭", "会話テンポ"]),
                         process: Object.freeze(["直球で置きながら", "先に言い切りながら", "短く切りながら", "要点から出しながら"]),
                         clarity: Object.freeze(["受け取り側の速度を見つつ", "余白を足しつつ", "言い直しで補いつつ", "角を丸めつつ"]),
@@ -177,10 +234,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "惹かれた瞬間に“好き”を動かしたい",
-                    tension: "熱で選びたい気持ちと、関係の温度差の摩擦",
+                    tension: "熱で選びたい{drive}と、関係の温度差の{dyn}",
                     fusion: Object.freeze({
-                        A: Object.freeze(["一目惚れ", "熱", "即決", "好きの点火", "直感の好み"]),
-                        B: Object.freeze(["温度差", "間合い", "相手ペース", "育てる時間", "落差"]),
+                        A: Object.freeze(["ひと目", "熱", "即決", "好きの火", "直感の好み"]),
+                        B: Object.freeze(["温度差", "間合い", "育てる時間", "相手ペース", "距離調整"]),
                         expression: Object.freeze(["惹かれ方", "距離感", "関係の置き方", "好みの出し方", "触れ方"]),
                         process: Object.freeze(["熱で選びながら", "直感で近づきながら", "先に出しながら", "勢いで触れながら"]),
                         clarity: Object.freeze(["温度差を測りつつ", "間合いを調整しつつ", "相手の反応を見つつ", "押し引きを整えつつ"]),
@@ -195,9 +252,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "踏み込む力が即時に点火する",
-                    tension: "進みたい衝動と、止める境界（ブレーキ）の硬さが同時に立ち上がりやすい",
+                    tension: "進みたい{drive}と、止める境界（ブレーキ）の硬さの{dyn}",
                     fusion: Object.freeze({
-                        A: Object.freeze(["突進", "踏み込み", "推進", "点火", "先制"]),
+                        A: Object.freeze(["突進", "踏み込み", "推進", "先制", "攻め"]),
                         B: Object.freeze(["境界", "ブレーキ", "制止", "限界線", "抑え"]),
                         expression: Object.freeze(["行動", "出方", "攻め方", "止め方", "境界の置き方"]),
                         process: Object.freeze(["踏み込みながら", "加速しながら", "押し切りながら", "先に動かしながら"]),
@@ -213,10 +270,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "まずやってみる方向に追い風が入る",
-                    tension: "広げたい気持ちと、回収不足になりやすい摩擦",
+                    tension: "広げたい{drive}と、回収不足になりやすい{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["追い風", "拡大", "挑戦", "先行", "可能性"]),
-                        B: Object.freeze(["回収", "検証", "継続", "現実化", "整合"]),
+                        B: Object.freeze(["回収", "検証", "継続", "整合", "現実化"]),
                         expression: Object.freeze(["広げ方", "選び方", "進め方", "見通し", "意味づけ"]),
                         process: Object.freeze(["広げながら", "先に試しながら", "走らせながら", "勢いで開きながら"]),
                         clarity: Object.freeze(["回収点を置きつつ", "検証を挟みつつ", "手応えを拾いつつ", "広げすぎを絞りつつ"]),
@@ -231,10 +288,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "衝動を枠に通して形にしたい",
-                    tension: "急ぎたい気持ちと、手順が要る現実の摩擦",
+                    tension: "急ぎたい{drive}と、手順が要る現実の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["枠", "制御", "段取り", "時間", "積み上げ"]),
-                        B: Object.freeze(["急ぎ", "衝動", "短距離", "即時性", "焦り"]),
+                        B: Object.freeze(["急ぎ", "衝動", "即時性", "焦り", "短距離"]),
                         expression: Object.freeze(["形にし方", "積み方", "手順", "やり方", "整え方"]),
                         process: Object.freeze(["枠に通しながら", "手順で積みながら", "時間を切りながら", "制御しながら"]),
                         clarity: Object.freeze(["速度を落とさず整えつつ", "手順を省略しすぎず", "急ぎを枠に収めつつ", "締切を味方にしつつ"]),
@@ -249,10 +306,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "急にスイッチが入り、やり方を変えたくなる",
-                    tension: "自由に切り替えたい気持ちと、継続の必要の摩擦",
+                    tension: "自由に切り替えたい{drive}と、継続の必要の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["更新", "切り替え", "ジャンプ", "逸脱", "刷新"]),
-                        B: Object.freeze(["継続", "安定", "同じ手順", "積み上げ", "維持"]),
+                        B: Object.freeze(["継続", "安定", "同じ手順", "維持", "積み上げ"]),
                         expression: Object.freeze(["変え方", "抜け方", "新しい手", "離脱", "戻し方"]),
                         process: Object.freeze(["スイッチを入れながら", "飛びながら", "抜け道を作りながら", "切り替えながら"]),
                         clarity: Object.freeze(["戻る導線を残しつつ", "継続点を確保しつつ", "共有タイミングを見つつ", "更新の影響範囲を測りつつ"]),
@@ -267,10 +324,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "衝動が“イメージ”に溶けて走りやすい",
-                    tension: "直進したい気持ちと、境界が薄まる揺れの摩擦",
+                    tension: "直進したい{drive}と、境界が薄まる揺れの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["イメージ", "余韻", "共鳴", "にじみ", "夢"]),
-                        B: Object.freeze(["直進", "輪郭", "境界", "現実線", "明確さ"]),
+                        B: Object.freeze(["輪郭", "境界", "現実線", "明確さ", "直進"]),
                         expression: Object.freeze(["にじませ方", "出し方", "雰囲気", "輪郭の置き方", "言外の伝達"]),
                         process: Object.freeze(["にじませながら", "溶かしながら", "余韻で走りながら", "感覚で進みながら"]),
                         clarity: Object.freeze(["輪郭を残しつつ", "境界を薄めすぎず", "現実線を引きつつ", "誤解ポイントを避けつつ"]),
@@ -285,10 +342,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "衝動が“圧”として濃く立ち上がりやすい",
-                    tension: "突破したい力と、引き返せない密度の摩擦",
+                    tension: "突破したい{drive}と、引き返せない密度の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["圧", "極点", "再編", "臨界", "変容"]),
-                        B: Object.freeze(["引き返せなさ", "密度", "支配/被支配", "執着", "極端"]),
+                        B: Object.freeze(["密度", "執着", "引き返せなさ", "極端", "支配"]),
                         expression: Object.freeze(["突破の仕方", "押し方", "切り方", "深部の触れ方", "再編の置き方"]),
                         process: Object.freeze(["極点へ寄せながら", "圧をかけながら", "再編しながら", "断ち切りながら"]),
                         clarity: Object.freeze(["臨界点を見極めつつ", "引き返し路を残しつつ", "圧の行き先を選びつつ", "極端化を抑えつつ"]),
@@ -303,9 +360,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "踏み込む瞬間に、痛点が入口として出やすい",
-                    tension: "進みたい気持ちと、触れたくない違和感の摩擦",
+                    tension: "進みたい{drive}と、触れたくない違和感の{dyn}",
                     fusion: Object.freeze({
-                        A: Object.freeze(["入口", "痛点", "引っかかり", "学び口", "弱点の反応"]),
+                        A: Object.freeze(["入口", "痛点", "引っかかり", "学び口", "傷の反応"]),
                         B: Object.freeze(["回避", "怖さ", "違和感", "ためらい", "防衛"]),
                         expression: Object.freeze(["反応", "避け方", "越え方", "距離の取り方", "触れ方"]),
                         process: Object.freeze(["踏み込みながら", "触れながら", "避けつつ進みながら", "反応を見つつ"]),
@@ -321,10 +378,10 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "“選ばない”が、強い拒否として瞬時に出やすい",
-                    tension: "自由でいたい気持ちと、関係に触れた瞬間の反射の摩擦",
+                    tension: "自由でいたい{drive}と、関係に触れた瞬間の反射の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["拒否", "NO", "主権", "非選択", "切断"]),
-                        B: Object.freeze(["関係圧", "侵入", "束縛気配", "干渉", "踏み込み"]),
+                        B: Object.freeze(["侵入", "干渉", "束縛気配", "踏み込み", "関係圧"]),
                         expression: Object.freeze(["反射", "距離", "境界", "言い方", "出方"]),
                         process: Object.freeze(["瞬時に切りながら", "拒否で守りながら", "距離を取ることで保ちながら", "跳ね返しながら"]),
                         clarity: Object.freeze(["拒否の理由を言語化しつつ", "境界線を先に置きつつ", "過剰に切りすぎず", "関係の温度を見つつ"]),
@@ -337,12 +394,12 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "第一反射が前に出て、入口が速く開く",
-                    tension: "前に出る勢いと、後から追いつく内側の温度差",
+                    tension: "前に出る{drive}と、後から追いつく内側の温度差の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["入口", "第一印象", "初速", "先手", "身体の出方"]),
-                        B: Object.freeze(["内側の温度", "後追い", "追いつき", "戸惑い", "熱の差"]),
+                        B: Object.freeze(["内側の温度", "後追い", "追いつき", "戸惑い", "温度差"]),
                         expression: Object.freeze(["振る舞い", "出方", "距離の詰め方", "場の入り方", "第一声"]),
                         process: Object.freeze(["先に出ながら", "入口を開きながら", "初速で入っていきながら", "勢いで始めながら"]),
                         clarity: Object.freeze(["内側の温度を追いつかせつつ", "勢いを落としつつ整えつつ", "距離を測りつつ", "場の反応を見つつ"]),
@@ -373,9 +430,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／基準",
+                    role: "存在の核と基準",
                     core: "自分の“価値基準”を保ちたい意志",
-                    tension: "変えたくない安定と、更新が必要な現実の摩擦",
+                    tension: "変えたくない{drive}と、更新が必要な現実の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["基準", "価値", "確かさ", "手応え", "保持"]),
                         B: Object.freeze(["更新", "変化", "現実要請", "修正", "入れ替え"]),
@@ -391,9 +448,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "身体が安心できる形に落ち着きたい反応",
-                    tension: "守りたい感覚と、変化の気配への抵抗",
+                    tension: "守りたい{drive}と、変化の気配への{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["身体", "安心", "落ち着き", "快/不快", "定位置"]),
                         B: Object.freeze(["変化気配", "不確かさ", "侵入", "揺れ", "乱れ"]),
@@ -409,9 +466,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "確かさを確認してから言葉にしたい思考",
-                    tension: "ゆっくり確かめたい気持ちと、急かされる状況の摩擦",
+                    tension: "ゆっくり確かめたい{drive}と、急かされる状況の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["確認", "実感", "具体", "検証", "手触り"]),
                         B: Object.freeze(["急かし", "締切", "外テンポ", "即答圧", "早口世界"]),
@@ -429,7 +486,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "触れた瞬間の“好き”を、じわっと確かにしたい",
-                    tension: "保ちたい安定と、惹かれ直す刺激（更新）の摩擦",
+                    tension: "保ちたい{drive}と、惹かれ直す刺激（更新）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["好き", "質感", "手触り", "心地よさ", "所有感"]),
                         B: Object.freeze(["刺激", "新しさ", "揺さぶり", "更新", "変化欲"]),
@@ -447,7 +504,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "一度踏むと、粘り強く押し続ける推進",
-                    tension: "止まりたくない継続と、動かしたくない保守の摩擦",
+                    tension: "止まりたくない{drive}と、動かしたくない保守の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["粘り", "継続", "押し", "持久", "やり抜き"]),
                         B: Object.freeze(["保守", "固定", "動かなさ", "抵抗", "変えない"]),
@@ -465,7 +522,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "確かな価値を増やすことで、豊かさを広げたい",
-                    tension: "増やしたい欲と、維持コスト（手間/管理）の摩擦",
+                    tension: "増やしたい{drive}と、維持コスト（手間/管理）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["増やす", "豊かさ", "蓄え", "価値拡大", "資源"]),
                         B: Object.freeze(["維持", "管理", "手間", "コスト", "守り"]),
@@ -483,7 +540,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "形と手順で安定を作りたい",
-                    tension: "守りたい安定と、修正が避けられない現実の摩擦",
+                    tension: "守りたい{drive}と、修正が避けられない現実の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["手順", "形", "枠", "安定", "規律"]),
                         B: Object.freeze(["修正", "現実圧", "変更", "再設計", "崩れ"]),
@@ -501,7 +558,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "突然、価値基準を入れ替えたくなる更新",
-                    tension: "守りたい手応えと、切り替えたい自由の摩擦",
+                    tension: "守りたい{drive}と、切り替えたい自由の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["入れ替え", "刷新", "価値転換", "断捨離スイッチ", "更新"]),
                         B: Object.freeze(["手応え", "保持", "慣れ", "安定", "愛着"]),
@@ -519,7 +576,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "感覚が“理想の心地よさ”に溶けやすい",
-                    tension: "現実の手触りと、理想の余韻の摩擦",
+                    tension: "現実の手触りへの{drive}と、理想の余韻の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["心地よさ", "余韻", "理想", "夢の手触り", "陶酔"]),
                         B: Object.freeze(["現実手触り", "具体", "制約", "地に足", "実務"]),
@@ -537,7 +594,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "所有・価値・身体に“圧”が濃くかかりやすい",
-                    tension: "守りたい執着と、壊してでも変える再編の摩擦",
+                    tension: "守りたい{drive}と、壊してでも変える再編の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["執着", "所有圧", "支配", "死守", "濃度"]),
                         B: Object.freeze(["再編", "破壊→再生", "入れ替え", "断ち切り", "刷新"]),
@@ -555,7 +612,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "身体感覚・価値・所有の痛点が入口として出やすい",
-                    tension: "守りたい気持ちと、触れられる怖さの摩擦",
+                    tension: "守りたい{drive}と、触れられる怖さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["痛点", "欠乏感", "価値の傷", "身体の違和感", "奪われ不安"]),
                         B: Object.freeze(["防衛", "拒否", "閉じる", "固まる", "触れさせない"]),
@@ -573,7 +630,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "価値や身体に触れられると“NO”が強く出やすい",
-                    tension: "守る主権と、関係・共有の圧の摩擦",
+                    tension: "守る{drive}と、関係・共有の圧の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["NO", "拒否", "領域", "不可侵", "守秘"]),
                         B: Object.freeze(["共有圧", "干渉", "侵入", "触れられ", "奪われ感"]),
@@ -589,9 +646,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "落ち着きと手応えを先に置く入口",
-                    tension: "ゆっくりしたいペースと、外の速さの摩擦",
+                    tension: "ゆっくりしたい{drive}と、外の速さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["落ち着き", "安定感", "手触り", "静かな圧", "マイペース"]),
                         B: Object.freeze(["外テンポ", "急かし", "即断圧", "スピード感", "変化圧"]),
@@ -619,9 +676,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
             }),
             by_body: Object.freeze({
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "知りたい・つなぎたい、という中心の動機",
-                    tension: "広げたい好奇心と、散らばる自分の輪郭の摩擦",
+                    tension: "広げたい{drive}と、散らばる自分の輪郭の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["接続の動機", "知りたい衝動", "回路を増やす中心"]),
                         B: Object.freeze(["散らばる輪郭", "焦点の不足", "中心の分散"]),
@@ -634,9 +691,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "軽く話せる状態に安心が向きやすい",
-                    tension: "深く触れたくない気持ちと、触れてしまう状況のズレ",
+                    tension: "深く触れたくない{drive}と、触れてしまう状況の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["軽さの安心", "話せる余白", "気楽な回路"]),
                         B: Object.freeze(["深度差", "触れてしまう接触", "避けたい濃度"]),
@@ -649,9 +706,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "言葉で回路を増やしたい思考",
-                    tension: "速く回したいテンポと、理解の深さの摩擦",
+                    tension: "速く回したい{drive}と、理解の深さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["言葉の回路", "接続する思考", "会話で増殖する理解"]),
                         B: Object.freeze(["理解の深さ", "沈む読み取り", "深度の要求"]),
@@ -683,9 +740,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／基準",
+                    role: "存在の核と基準",
                     core: "守りたいものを中心に据えたい意志",
-                    tension: "内側を守りたい気持ちと、外へ開く必要の摩擦",
+                    tension: "内側を守りたい{drive}と、外へ開く必要の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["居場所", "守る核", "内側の基準", "帰る場所", "身内の輪郭"]),
                         B: Object.freeze(["外圧", "公開", "開く必要", "他者都合", "露出"]),
@@ -701,9 +758,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "親密さの中で安心したい反応",
-                    tension: "守りたい気持ちと、侵入されたくない境界の鋭さ",
+                    tension: "守りたい{drive}と、侵入されたくない境界の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["安心", "親密", "ぬくもり", "帰属", "守られている感覚"]),
                         B: Object.freeze(["侵入", "踏み込み", "境界の痛点", "距離の乱れ", "見られすぎ"]),
@@ -719,9 +776,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "気持ちを含んだ言葉にしたい思考",
-                    tension: "守りとして伝えたい気持ちと、言葉にすると崩れる繊細さの摩擦",
+                    tension: "守りとして伝えたい{drive}と、言葉にすると崩れる繊細さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["温度の言葉", "気持ちの含み", "察しの伝達", "やわらかい説明", "気遣いの文脈"]),
                         B: Object.freeze(["言語化の崩れ", "言った瞬間の露出", "誤解", "硬い表現", "説明責任"]),
@@ -739,7 +796,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "安心できる関係と空間を“好き”として育てたい",
-                    tension: "包みたい気持ちと、近づきすぎることで重くなる摩擦",
+                    tension: "包みたい{drive}と、近づきすぎることで重くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["ぬくもり", "家庭感", "愛着", "育てる好き", "手料理みたいな好み"]),
                         B: Object.freeze(["重さ", "依存気配", "近すぎ", "境界の薄まり", "湿度過多"]),
@@ -757,7 +814,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "守るために動く推進（防衛の行動）",
-                    tension: "守りたい熱と、直接ぶつけたくない回避の摩擦",
+                    tension: "守りたい{drive}と、直接ぶつけたくない回避の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["防衛", "守りの行動", "身内の盾", "先回り", "保護の推進"]),
                         B: Object.freeze(["回避", "遠回し", "衝突回避", "言わない戦", "受け身の反撃"]),
@@ -775,7 +832,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "守れる範囲を広げて、安心を増やしたい",
-                    tension: "抱えたい気持ちと、抱えすぎて重くなる摩擦",
+                    tension: "抱えたい{drive}と、抱えすぎて重くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["養う", "育む拡大", "安心を増やす", "保護圏", "身内の豊かさ"]),
                         B: Object.freeze(["抱えすぎ", "過保護", "重さ", "手が回らない", "境界の曖昧"]),
@@ -793,7 +850,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "居場所のルールと境界を作って守りたい",
-                    tension: "守る枠と、情が動いて枠が崩れる摩擦",
+                    tension: "守る{drive}と、情が動いて枠が崩れる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["家庭の枠", "境界線", "守る手順", "内側の規律", "責任の囲い"]),
                         B: Object.freeze(["情", "ほだされ", "例外", "揺れ", "情に流れる"]),
@@ -811,7 +868,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "居場所の作り方を急に変えたくなる更新",
-                    tension: "安心を保ちたい気持ちと、突然の切り替え衝動の摩擦",
+                    tension: "安心を保ちたい{drive}と、突然の切り替え衝動の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["更新", "模様替えスイッチ", "関係の組み替え", "距離の再設定", "脱・慣れ"]),
                         B: Object.freeze(["安心維持", "慣れ", "定位置", "帰属", "保守"]),
@@ -829,7 +886,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "共鳴で包みたくなり、境界がゆるみやすい",
-                    tension: "寄り添いの溶解と、守る輪郭の摩擦",
+                    tension: "寄り添いの{drive}と、守る輪郭の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["共鳴", "包む霧", "情の波", "にじみ", "察しすぎ"]),
                         B: Object.freeze(["輪郭", "境界", "現実線", "距離", "区別"]),
@@ -847,7 +904,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "親密さ・身内・居場所に“圧”が濃くかかりやすい",
-                    tension: "守りたい結びつきと、支配/依存の影の摩擦",
+                    tension: "守りたい{drive}と、支配/依存の影の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["結束の圧", "身内の濃度", "根っこ", "帰属の極点", "守りの強度"]),
                         B: Object.freeze(["支配", "依存", "離れられなさ", "情の拘束", "黒白化"]),
@@ -865,7 +922,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "居場所・家族・安心の痛点が入口として出やすい",
-                    tension: "守りたい気持ちと、触れられる怖さ（不安）の摩擦",
+                    tension: "守りたい{drive}と、触れられる怖さ（不安）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["居場所の痛点", "見捨て不安", "帰属の傷", "保護の欠乏", "親密の引っかかり"]),
                         B: Object.freeze(["警戒", "防衛", "閉じる", "距離を取る", "疑い"]),
@@ -883,7 +940,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "親密圏に踏み込まれると“NO”が濃く出やすい",
-                    tension: "包みたい情と、不可侵を守る反射の摩擦",
+                    tension: "包みたい{drive}と、不可侵を守る反射の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["不可侵", "NO", "主権の殻", "拒否", "内側の秘密"]),
                         B: Object.freeze(["踏み込み", "過干渉", "情の圧", "侵入", "距離の破壊"]),
@@ -899,9 +956,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "やわらかく包む入口（安心の温度で入る）",
-                    tension: "近づきやすさと、内側を守る引きの摩擦",
+                    tension: "近づきやすさへの{drive}と、内側を守る引きの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["やわらかい入口", "包む印象", "親しみ", "受け止める温度", "安心の匂い"]),
                         B: Object.freeze(["引き", "内側の守り", "距離調整", "境界線", "急な閉じ"]),
@@ -933,9 +990,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向",
                     core: "光を出す・自分として立つ意志",
-                    tension: "堂々と出したい中心と、出しすぎが重くなる摩擦",
+                    tension: "堂々と出したい{drive}と、出しすぎが重くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["誇り", "輝き", "堂々", "創造", "中心"]),
                         B: Object.freeze(["過剰", "自己主張", "暑苦しさ", "プライド硬直", "独壇場"]),
@@ -951,9 +1008,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "認められる・尊重されると安心が増える反応",
-                    tension: "評価に触れやすい心と、無視される不安の摩擦",
+                    tension: "評価に触れやすい{drive}と、無視される不安の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["承認", "尊重", "あたたかさ", "誇り", "ハート"]),
                         B: Object.freeze(["無視", "軽視", "冷え", "恥", "拗ね"]),
@@ -969,9 +1026,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "語ることで光を通す思考",
-                    tension: "堂々と語りたい気持ちと、聞かれない痛みの摩擦",
+                    tension: "堂々と語りたい{drive}と、聞かれない痛みの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["宣言", "物語", "名乗り", "堂々", "表現語彙"]),
                         B: Object.freeze(["空回り", "独演", "過剰演出", "聞き手不在", "言い切り過ぎ"]),
@@ -989,7 +1046,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "華やかさ・あたたかさ・誇りある美に惹かれやすい",
-                    tension: "輝きたい欲と、見栄に見えるリスクの摩擦",
+                    tension: "輝きたい{drive}と、見栄に見えるリスクの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["華", "あたたかさ", "誇り", "堂々", "存在感"]),
                         B: Object.freeze(["見栄", "派手すぎ", "自己中心", "過剰消費", "嫉妬"]),
@@ -1007,7 +1064,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "熱で進む推進力。堂々と前に出る",
-                    tension: "前に出たい熱と、押しの強さになる摩擦",
+                    tension: "前に出たい{drive}と、押しの強さになる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["推進", "情熱", "リード", "突破", "勇気"]),
                         B: Object.freeze(["押し", "強引", "競り合い", "短気", "勝ち負け"]),
@@ -1025,7 +1082,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "自分の光を広げていく拡大",
-                    tension: "広げたい気持ちと、過信や盛りすぎの摩擦",
+                    tension: "広げたい{drive}と、過信や盛りすぎの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["拡大", "自信", "祝福", "舞台", "広がり"]),
                         B: Object.freeze(["過信", "盛る", "誇張", "慢心", "燃え尽き"]),
@@ -1043,7 +1100,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "誇りを守るための枠を作る",
-                    tension: "堂々と出たい気持ちと、責任が重くなる摩擦",
+                    tension: "堂々と出たい{drive}と、責任が重くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["責任", "役割", "品格", "持続", "誇りの枠"]),
                         B: Object.freeze(["重圧", "固さ", "萎縮", "恥の回避", "頑固"]),
@@ -1061,7 +1118,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "型破りな表現で光を更新したくなる",
-                    tension: "目立つ更新と、浮いて見えるズレの摩擦",
+                    tension: "目立つ更新への{drive}と、浮いて見えるズレの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["刷新", "型破り", "新演出", "突発", "意外性"]),
                         B: Object.freeze(["浮き", "違和感", "孤立", "炎上", "制御不能"]),
@@ -1079,7 +1136,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "光の理想がにじみ、雰囲気で魅せやすい",
-                    tension: "理想の輝きと、空虚さや幻っぽさの摩擦",
+                    tension: "理想の輝きへの{drive}と、空虚さや幻っぽさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["理想", "雰囲気", "夢", "憧れ", "余韻"]),
                         B: Object.freeze(["空虚", "幻", "盛りすぎ", "現実逃避", "誤解"]),
@@ -1097,7 +1154,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "中心の座を根から作り直す圧",
-                    tension: "支配になる力と、創造の芯になる力の摩擦",
+                    tension: "支配になる{drive}と、創造の芯になる{drive}の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["核", "圧", "再編", "支配力", "変容"]),
                         B: Object.freeze(["独裁", "威圧", "強制", "怖さ", "破壊"]),
@@ -1115,7 +1172,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "恥・評価・否定が痛点になりやすい",
-                    tension: "堂々と出たい気持ちと、傷つきたくない防衛の摩擦",
+                    tension: "堂々と出たい{drive}と、傷つきたくない防衛の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["恥", "否定", "評価", "傷", "心の引っ込み"]),
                         B: Object.freeze(["過剰防衛", "虚勢", "攻撃", "拗ね", "隠す"]),
@@ -1133,7 +1190,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "尊重されない場に対して“NO”が強く出る",
-                    tension: "誇りを守る拒否と、わがままと見られる摩擦",
+                    tension: "誇りを守る拒否への{drive}と、わがままと見られる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["尊厳", "NO", "拒否", "誇り", "主権"]),
                         B: Object.freeze(["軽視", "侮辱", "見下し", "支配", "恥を与える"]),
@@ -1149,9 +1206,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "あたたかい存在感。光で場に入る",
-                    tension: "目立つ入口と、期待を背負う摩擦",
+                    tension: "目立つ入口への{drive}と、期待を背負う{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["存在感", "あたたかさ", "堂々", "華", "ハートの入口"]),
                         B: Object.freeze(["注目圧", "期待", "見られ疲れ", "誤解", "圧迫感"]),
@@ -1183,9 +1240,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "役に立つ形へ整えたい中心の意志",
-                    tension: "整えたい精度と、整えすぎて硬くなる摩擦",
+                    tension: "整えたい精度への{drive}と、整えすぎて硬くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["精度", "整備", "調整", "改善", "最適化"]),
                         B: Object.freeze(["硬さ", "過剰", "神経質さ", "許容幅", "疲弊"]),
@@ -1201,9 +1258,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "整っている状態に安心が向きやすい反応",
-                    tension: "乱れへの敏感さと、受け流したい気持ちのズレ",
+                    tension: "乱れへの敏感さと、受け流したい{drive}の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["整い", "秩序", "手順", "安心の条件", "微差感覚"]),
                         B: Object.freeze(["乱れ", "雑さ", "想定外", "誤差", "汚れ"]),
@@ -1219,9 +1276,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "説明の精度を上げたい思考",
-                    tension: "正確にしたい気持ちと、言葉が増えすぎる摩擦",
+                    tension: "正確にしたい{drive}と、言葉が増えすぎる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["精密", "定義", "手順化", "検証", "言い分け"]),
                         B: Object.freeze(["過多", "冗長", "詰めすぎ", "読まれなさ", "息切れ"]),
@@ -1239,7 +1296,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "清潔さ・整い・丁寧さに惹かれやすい",
-                    tension: "整った美しさと、遊び／崩しの必要の摩擦",
+                    tension: "整った美しさへの{drive}と、遊びと崩しの必要の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["丁寧", "清潔", "品", "整った美", "手入れ"]),
                         B: Object.freeze(["崩し", "遊び", "雑味", "ゆるさ", "不完全"]),
@@ -1257,7 +1314,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "手順で進める実行力が出やすい",
-                    tension: "急ぐ必要と、丁寧に詰めたい精度の摩擦",
+                    tension: "急ぐ必要への{drive}と、丁寧に詰めたい精度の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["実行", "手順", "段取り", "改善の手", "作業力"]),
                         B: Object.freeze(["急ぎ", "雑な前進", "焦り", "省略", "締切圧"]),
@@ -1275,7 +1332,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "改善で成果を広げたい拡大",
-                    tension: "良くしたい欲と、手数が増えすぎる摩擦",
+                    tension: "良くしたい{drive}と、手数が増えすぎる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["改善拡大", "最適化", "成果", "効率", "品質向上"]),
                         B: Object.freeze(["手数", "過多", "管理負荷", "疲れ", "終わらなさ"]),
@@ -1293,7 +1350,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "ルールと手順で品質を保ちたい",
-                    tension: "守る枠と、例外対応の現実の摩擦",
+                    tension: "守る枠への{drive}と、例外対応の現実の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["手順", "規格", "ルール", "品質管理", "保守"]),
                         B: Object.freeze(["例外", "想定外", "乱れ", "臨機応変", "崩れ"]),
@@ -1311,7 +1368,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "手順や仕様を急に入れ替えたくなる更新",
-                    tension: "刷新したい気持ちと、運用安定の摩擦",
+                    tension: "刷新したい{drive}と、運用安定の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["刷新", "仕様変更", "自動化", "置き換え", "ショートカット"]),
                         B: Object.freeze(["運用", "安定", "慣れ", "手順維持", "検証不足"]),
@@ -1329,7 +1386,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "正しさが“にじみ”やすく、曖昧さが混ざりやすい",
-                    tension: "精度を上げたい気持ちと、境界が薄まる揺れの摩擦",
+                    tension: "精度を上げたい{drive}と、境界が薄まる揺れの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["にじみ", "余韻", "曖昧", "直感", "違和感センサー"]),
                         B: Object.freeze(["精度", "定義", "境界", "正誤", "輪郭"]),
@@ -1347,7 +1404,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "細部に“圧”が乗り、根から直したくなる",
-                    tension: "改善の徹底と、壊しすぎる再編の摩擦",
+                    tension: "改善の徹底への{drive}と、壊しすぎる再編の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["徹底", "根治", "深掘り修正", "再設計", "臨界の精査"]),
                         B: Object.freeze(["壊しすぎ", "極端", "追い込み", "支配/被支配", "息苦しさ"]),
@@ -1365,7 +1422,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "不備・ミス・不完全さが痛点として出やすい",
-                    tension: "直したい気持ちと、責めたくない気持ちの摩擦",
+                    tension: "直したい{drive}と、責めたくない{drive}の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["痛点", "ミス", "不備", "不完全", "恥の反射"]),
                         B: Object.freeze(["自己責め", "過剰修正", "萎縮", "防衛", "隠す"]),
@@ -1383,7 +1440,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "雑さやルール違反に対して“NO”が出やすい",
-                    tension: "守りたい基準と、合わせろと言われる圧の摩擦",
+                    tension: "守りたい基準への{drive}と、合わせろと言われる圧の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["NO", "基準", "拒否", "規律", "線引き"]),
                         B: Object.freeze(["強要", "雑さ", "無秩序", "押し付け", "侵入"]),
@@ -1399,9 +1456,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "整って見える入口。まず点検してから入る",
-                    tension: "丁寧さと、外のスピード感の摩擦",
+                    tension: "丁寧さへの{drive}と、外のスピード感の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["丁寧", "清潔感", "整い", "点検", "落ち着いた精度"]),
                         B: Object.freeze(["外テンポ", "急かし", "雑な圧", "即断", "スピード要求"]),
@@ -1433,9 +1490,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "関係の釣り合いを取ることで中心が定まる",
-                    tension: "調和を取りたい中心と、優柔不断に見える摩擦",
+                    tension: "調和を取りたい{drive}と、優柔不断に見える{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["調和", "釣り合い", "公平", "対話", "品"]),
                         B: Object.freeze(["迷い", "どっちつかず", "迎合", "決めない", "表面化"]),
@@ -1451,9 +1508,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "空気が荒れないと安心が増える反応",
-                    tension: "波風を避けたい心と、本音を飲み込む摩擦",
+                    tension: "波風を避けたい{drive}と、本音を飲み込む{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["安心", "平穏", "やさしさ", "配慮", "空気"]),
                         B: Object.freeze(["我慢", "本音欠如", "気疲れ", "不満蓄積", "愛想笑い"]),
@@ -1469,9 +1526,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "言葉で釣り合いを取る思考（対話・交渉）",
-                    tension: "角を立てない言い方と、曖昧になる摩擦",
+                    tension: "角を立てない言い方への{drive}と、曖昧になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["対話", "調整", "言い換え", "交渉", "合意"]),
                         B: Object.freeze(["曖昧", "回りくどい", "核心回避", "結論不足", "言い逃れ"]),
@@ -1489,7 +1546,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "美意識・品・調和に価値が集まる（天秤座の本丸）",
-                    tension: "美しく整えたい欲と、体裁優先の摩擦",
+                    tension: "美しく整えたい{drive}と、体裁優先の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["美", "品", "調和", "洗練", "センス"]),
                         B: Object.freeze(["体裁", "外面", "無難", "迎合", "優等生"]),
@@ -1507,7 +1564,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "衝突を避けつつ前進する“調整型の攻め”",
-                    tension: "戦わない推進と、決めきれない摩擦",
+                    tension: "戦わない推進への{drive}と、決めきれない{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["調整推進", "協力", "折衷", "段取り", "交渉力"]),
                         B: Object.freeze(["決断不足", "腰が重い", "先延ばし", "イライラ", "受け身"]),
@@ -1525,7 +1582,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "関係・ネットワークが広がることで拡大する",
-                    tension: "広げたい社交と、薄さになる摩擦",
+                    tension: "広げたい社交への{drive}と、薄さになる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["社交", "縁", "橋渡し", "協調", "広がり"]),
                         B: Object.freeze(["薄い", "八方美人", "表面", "優等生疲れ", "消耗"]),
@@ -1543,7 +1600,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "公平なルールで関係を安定させる",
-                    tension: "公平さの枠と、冷たさに見える摩擦",
+                    tension: "公平さの枠への{drive}と、冷たさに見える{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["公平", "ルール", "契約", "持続", "線引き"]),
                         B: Object.freeze(["冷たさ", "距離", "形式", "融通不足", "評価恐れ"]),
@@ -1561,7 +1618,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "関係の形を刷新したくなる（新しい距離・新しい合意）",
-                    tension: "更新したい気持ちと、関係が不安定になる摩擦",
+                    tension: "更新したい{drive}と、関係が不安定になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["刷新", "新ルール", "自由な距離", "再交渉", "アップデート"]),
                         B: Object.freeze(["不安定", "急変", "断絶", "気分変化", "ズレ拡大"]),
@@ -1579,7 +1636,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "空気で調和する（雰囲気で丸くなる）",
-                    tension: "丸めたい気持ちと、境界が溶ける摩擦",
+                    tension: "丸めたい{drive}と、境界が溶ける{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["雰囲気", "共鳴", "やわらげる", "包む", "余韻"]),
                         B: Object.freeze(["曖昧", "境界溶解", "依存", "誤解", "現実逃避"]),
@@ -1597,7 +1654,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "関係の力学を根から組み替える圧",
-                    tension: "公平にしたい再編と、支配/依存になる摩擦",
+                    tension: "公平にしたい再編への{drive}と、支配/依存になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["再編", "力学", "対等", "深い合意", "関係の核"]),
                         B: Object.freeze(["支配", "依存", "裏取引", "圧", "断絶"]),
@@ -1615,7 +1672,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "不公平・評価・比較が痛点になりやすい",
-                    tension: "公平でいたい気持ちと、比較で傷つく摩擦",
+                    tension: "公平でいたい{drive}と、比較で傷つく{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["不公平", "比較", "評価", "痛み", "関係の傷"]),
                         B: Object.freeze(["迎合", "我慢", "被害感", "自己否定", "決めない"]),
@@ -1633,7 +1690,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "不公平・無礼に対して“NO”が出る（品の主権）",
-                    tension: "品を守る拒否と、冷たい断絶に見える摩擦",
+                    tension: "品を守る拒否への{drive}と、冷たい断絶に見える{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["品", "尊重", "NO", "対等", "主権"]),
                         B: Object.freeze(["無礼", "不公平", "軽視", "マウント", "雑な扱い"]),
@@ -1649,9 +1706,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "感じがいい・整っている印象で場に入る",
-                    tension: "好印象を保つ入口と、無理して合わせる摩擦",
+                    tension: "好印象を保つ入口への{drive}と、無理して合わせる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["好印象", "品", "整い", "社交", "スマート"]),
                         B: Object.freeze(["無理", "合わせ疲れ", "本音欠如", "優等生感", "消耗"]),
@@ -1683,9 +1740,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "核まで届く関与で中心が定まる",
-                    tension: "深く関わりたい中心と、閉じる/疑う摩擦",
+                    tension: "深く関わりたい{drive}と、閉じる/疑う{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["核", "本質", "洞察", "集中", "誠実"]),
                         B: Object.freeze(["疑い", "閉鎖", "支配", "執着", "極端"]),
@@ -1701,9 +1758,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "信頼できる深さがあると安心が増える反応",
-                    tension: "安心したい心と、裏切りを恐れる摩擦",
+                    tension: "安心したい{drive}と、裏切りを恐れる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["安心", "信頼", "深い絆", "守秘", "静けさ"]),
                         B: Object.freeze(["不信", "疑念", "警戒", "嫉妬", "孤立"]),
@@ -1719,9 +1776,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "表面を越えて核心を突く思考（洞察・追跡）",
-                    tension: "核心に迫る言葉と、詰めすぎる摩擦",
+                    tension: "核心に迫る言葉への{drive}と、詰めすぎる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["洞察", "核心", "分析", "裏取り", "真相"]),
                         B: Object.freeze(["詰問", "疑い", "皮肉", "秘密主義", "言わない"]),
@@ -1739,7 +1796,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "浅さより深さ、広さより濃さに価値が集まる",
-                    tension: "濃い関係を求める価値と、重さになる摩擦",
+                    tension: "濃い関係を求める{drive}と、重さになる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["深い絆", "一途", "秘密", "濃度", "誠実"]),
                         B: Object.freeze(["重い", "束縛", "嫉妬", "独占", "疑い"]),
@@ -1757,7 +1814,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "一点突破の集中で進む（やると決めたら強い）",
-                    tension: "集中する推進と、執着に変わる摩擦",
+                    tension: "集中する推進への{drive}と、執着に変わる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["集中", "突破", "覚悟", "粘り", "深掘り"]),
                         B: Object.freeze(["執着", "報復心", "極端", "疑い", "消耗"]),
@@ -1775,7 +1832,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "深掘りと変容が広がりを生む（濃い学びが増える）",
-                    tension: "深めたい拡大と、沼る摩擦",
+                    tension: "深めたい{drive}と、沼る{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["探究", "変容", "心理", "本質", "濃い学び"]),
                         B: Object.freeze(["沼", "偏り", "疑い", "極端", "閉じる"]),
@@ -1793,7 +1850,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "信頼と守秘の枠で関係を安定させる",
-                    tension: "守りの枠と、硬さ/疑いになる摩擦",
+                    tension: "守りの枠への{drive}と、硬さ/疑いになる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["信頼", "守秘", "契約", "境界", "継続"]),
                         B: Object.freeze(["硬い", "不信", "閉鎖", "監視", "孤立"]),
@@ -1811,7 +1868,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "結び目を一気に切り替える更新（急な断捨離/急な再編）",
-                    tension: "切り替えの速さと、断絶になる摩擦",
+                    tension: "切り替えの速さへの{drive}と、断絶になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["再編", "断捨離", "更新", "急転", "解放"]),
                         B: Object.freeze(["断絶", "急すぎる", "冷却", "破壊", "孤立"]),
@@ -1829,7 +1886,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "境界が溶けやすく、深い共鳴が起きやすい",
-                    tension: "溶ける共鳴と、依存/幻想になる摩擦",
+                    tension: "溶ける共鳴への{drive}と、依存/幻想になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["共鳴", "溶解", "直感", "夢", "深い余韻"]),
                         B: Object.freeze(["依存", "幻想", "境界不明", "秘密", "逃避"]),
@@ -1847,7 +1904,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "変容の根本スイッチ（蠍座の支配星的な核）",
-                    tension: "再生させる圧と、支配/破壊になる摩擦",
+                    tension: "再生させる圧への{drive}と、支配/破壊になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["変容", "再生", "核", "圧", "真実"]),
                         B: Object.freeze(["支配", "破壊", "執着", "報復", "極端"]),
@@ -1865,7 +1922,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "信頼・裏切り・秘密が痛点になりやすい",
-                    tension: "信じたい気持ちと、疑いが残る摩擦",
+                    tension: "信じたい{drive}と、疑いが残る{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["裏切り", "秘密", "信頼", "傷", "深い痛み"]),
                         B: Object.freeze(["疑い", "閉鎖", "監視", "孤立", "支配"]),
@@ -1883,7 +1940,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "嘘・薄さ・裏切りに対して“NO”が出る（深さの主権）",
-                    tension: "切る主権と、断罪/破壊になる摩擦",
+                    tension: "切る主権への{drive}と、断罪/破壊になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["真実", "NO", "主権", "深さ", "守り"]),
                         B: Object.freeze(["嘘", "薄さ", "裏切り", "軽視", "二枚舌"]),
@@ -1899,9 +1956,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "静かな圧・深い目線で場に入る",
-                    tension: "近づきにくい印象と、守りが強くなる摩擦",
+                    tension: "近づきにくい印象への{drive}と、守りが強くなる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["静けさ", "深い目線", "圧", "落ち着き", "守秘"]),
                         B: Object.freeze(["近寄りがたい", "警戒", "重い", "閉じる", "誤解"]),
@@ -1933,9 +1990,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "広い視野と信念が中心を作る",
-                    tension: "自由に伸びたい中心と、雑さ/言い切りの摩擦",
+                    tension: "自由に伸びたい中心への{drive}と、雑さ/言い切りの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "探求", "希望", "視野", "信念"]),
                         B: Object.freeze(["雑", "言い切り", "逃げ", "飽き", "無責任"]),
@@ -1951,9 +2008,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "閉じない空気・余白があると安心が増える反応",
-                    tension: "自由でいたい心と、縛られる恐れの摩擦",
+                    tension: "自由でいたい心への{drive}と、縛られる恐れの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["安心", "余白", "自由", "希望", "風通し"]),
                         B: Object.freeze(["閉塞", "束縛", "退屈", "不信", "投げる"]),
@@ -1969,9 +2026,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "全体像を掴んで方向を示す思考（俯瞰・概念）",
-                    tension: "大づかみの言葉と、雑/飛躍の摩擦",
+                    tension: "大づかみの言葉への{drive}と、雑/飛躍の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["俯瞰", "概念", "哲学", "方向", "学び"]),
                         B: Object.freeze(["雑", "飛躍", "決めつけ", "説教", "置いてく"]),
@@ -1989,7 +2046,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "自由・成長・可能性に価値が集まる",
-                    tension: "伸びる関係を求める価値と、飽き/軽さの摩擦",
+                    tension: "伸びる関係を求める価値への{drive}と、飽き/軽さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "成長", "希望", "冒険", "余白"]),
                         B: Object.freeze(["飽き", "軽い", "逃げ", "無責任", "約束が薄い"]),
@@ -2007,7 +2064,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "遠くを狙って走る推進（挑戦・移動・拡張）",
-                    tension: "勢いの推進と、詰めの甘さ/暴走の摩擦",
+                    tension: "勢いの推進への{drive}と、詰めの甘さ/暴走の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["挑戦", "加速", "移動", "冒険", "突破"]),
                         B: Object.freeze(["暴走", "詰めが甘い", "雑", "置いてく", "逃げ"]),
@@ -2025,7 +2082,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "射手座の主領域：学びと拡張が自然に増える",
-                    tension: "拡大の勢いと、過信/言い切りの摩擦",
+                    tension: "拡大の勢いへの{drive}と、過信/言い切りの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["拡大", "学び", "幸運", "視野", "意味"]),
                         B: Object.freeze(["過信", "言い切り", "誇張", "散漫", "雑"]),
@@ -2043,7 +2100,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "自由を守るためのルールを作る（長距離走の設計）",
-                    tension: "自由の枠と、窮屈/説教の摩擦",
+                    tension: "自由の枠への{drive}と、窮屈/説教の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["設計", "継続", "規律", "学びの積み上げ", "長期"]),
                         B: Object.freeze(["窮屈", "説教", "硬い信念", "否定", "縛り"]),
@@ -2061,7 +2118,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "世界観が更新されやすい（急に視野が変わる）",
-                    tension: "更新の速さと、落ち着かない摩擦",
+                    tension: "更新の速さへの{drive}と、落ち着かない{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["更新", "自由", "新世界", "飛躍", "発見"]),
                         B: Object.freeze(["落ち着かない", "散漫", "飽き", "断絶", "突発"]),
@@ -2079,7 +2136,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "理想や物語で世界が広がる（遠くへ飛ぶ夢）",
-                    tension: "理想の拡張と、現実離れ/逃避の摩擦",
+                    tension: "理想の拡張への{drive}と、現実離れ/逃避の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["理想", "夢", "物語", "共鳴", "希望"]),
                         B: Object.freeze(["現実離れ", "逃避", "誇張", "曖昧", "散漫"]),
@@ -2097,7 +2154,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "信念が入れ替わる変容（世界観の再編）",
-                    tension: "変容の圧と、断定/排他の摩擦",
+                    tension: "変容の圧への{drive}と、断定/排他の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["変容", "信念", "再編", "真実", "覚悟"]),
                         B: Object.freeze(["断定", "排他", "極端", "支配", "燃え尽き"]),
@@ -2115,7 +2172,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "信念・正しさ・自由の領域が痛点になりやすい",
-                    tension: "信じたい心と、否定された痛みの摩擦",
+                    tension: "信じたい心への{drive}と、否定された痛みの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["信念", "正しさ", "自由", "学び", "理想"]),
                         B: Object.freeze(["否定", "説教", "恥", "硬い正義", "孤立"]),
@@ -2133,7 +2190,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "束縛・停滞・偽善に対して“NO”が出る（自由の主権）",
-                    tension: "自由の主権と、反発/断絶になる摩擦",
+                    tension: "自由の主権への{drive}と、反発/断絶になる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["NO", "自由", "主権", "本音", "突破"]),
                         B: Object.freeze(["束縛", "停滞", "偽善", "説教", "狭さ"]),
@@ -2149,9 +2206,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "明るい伸び・遠くを見る雰囲気で場に入る",
-                    tension: "軽さの印象と、無責任に見える摩擦",
+                    tension: "軽さの印象への{drive}と、無責任に見える{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["明るさ", "伸び", "風通し", "好奇心", "軽快"]),
                         B: Object.freeze(["軽い", "雑", "無責任", "落ち着かない", "飽き"]),
@@ -2183,9 +2240,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "形にして責任を引き受けることで中心を立てたい",
-                    tension: "背負う強さと、背負いすぎ（重さ）の摩擦",
+                    tension: "背負う強さへの{drive}と、背負いすぎ（重さ）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["責任", "骨格", "現実化", "到達", "積み上げ"]),
                         B: Object.freeze(["重さ", "背負いすぎ", "硬直", "怖さ", "遅れ"]),
@@ -2201,9 +2258,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "見通しと段取りがあると安心が増える反応",
-                    tension: "崩したくない安定と、想定外の摩擦",
+                    tension: "崩したくない安定への{drive}と、想定外の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["見通し", "段取り", "安定", "管理", "秩序"]),
                         B: Object.freeze(["想定外", "崩れ", "不確か", "遅延", "無力感"]),
@@ -2219,9 +2276,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "結論と手順で現実に落としたい思考",
-                    tension: "実務の言葉と、温度が削げる摩擦",
+                    tension: "実務の言葉への{drive}と、温度が削げる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["結論", "手順", "現実", "要点", "説明"]),
                         B: Object.freeze(["温度が削げる", "冷たく見える", "固い", "余白不足", "圧"]),
@@ -2239,7 +2296,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "信頼・継続・実績に価値が集まりやすい",
-                    tension: "誠実さの価値と、楽しさ/軽さが抜ける摩擦",
+                    tension: "誠実さの価値への{drive}と、楽しさ/軽さが抜ける{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["信頼", "誠実", "実績", "継続", "品格"]),
                         B: Object.freeze(["堅さ", "楽しさ不足", "軽さの欠如", "息苦しさ", "評価疲れ"]),
@@ -2257,7 +2314,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "目標に向けて粘り強く登る推進（耐久の火力）",
-                    tension: "到達の推進と、無理して折れる摩擦",
+                    tension: "到達の推進への{drive}と、無理して折れる{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["登る", "耐久", "達成", "押す", "継続"]),
                         B: Object.freeze(["無理", "折れる", "疲労", "固着", "焦り"]),
@@ -2275,7 +2332,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "成果・社会性・実装で拡大する（現実拡張）",
-                    tension: "拡大の野心と、管理負荷/責任過多の摩擦",
+                    tension: "拡大の野心への{drive}と、管理負荷/責任過多の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["成果", "社会性", "実装", "拡大", "到達"]),
                         B: Object.freeze(["管理負荷", "責任過多", "重い", "硬直", "燃え尽き"]),
@@ -2293,7 +2350,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計（主領域）",
                     core: "時間と枠で現実を作る（骨格を組む力）",
-                    tension: "規律の強さと、締め付け/自己否定の摩擦",
+                    tension: "規律の強さへの{drive}と、締め付け/自己否定の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["規律", "枠", "時間", "骨格", "責任"]),
                         B: Object.freeze(["締め付け", "自己否定", "硬直", "怖さ", "遅れ"]),
@@ -2311,7 +2368,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ",
                     core: "仕組みを更新して最適化したくなる",
-                    tension: "更新の衝動と、壊れない安定の摩擦",
+                    tension: "更新の衝動への{drive}と、壊れない安定の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["最適化", "更新", "改革", "切り替え", "再設計"]),
                         B: Object.freeze(["壊れない安定", "慣れ", "保守", "反発", "不安"]),
@@ -2329,7 +2386,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "理想を“形”にしたくなる（夢の実装）",
-                    tension: "理想の余韻と、現実の硬さの摩擦",
+                    tension: "理想の余韻への{drive}と、現実の硬さの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["理想", "夢", "余韻", "共鳴", "意味"]),
                         B: Object.freeze(["現実の硬さ", "制約", "無情", "削げる", "乾く"]),
@@ -2347,7 +2404,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "権限・責任・構造の深部が再編されやすい",
-                    tension: "支える圧と、支配/極端の摩擦",
+                    tension: "支える圧への{drive}と、支配/極端の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["再編", "権限", "責任圧", "統制", "深部"]),
                         B: Object.freeze(["支配", "極端", "白黒", "圧迫", "恐れ"]),
@@ -2365,7 +2422,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "評価・責任・成果の領域が痛点として出やすい",
-                    tension: "認められたい心と、足りない感覚（自己否定）の摩擦",
+                    tension: "認められたい心への{drive}と、足りない感覚（自己否定）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["評価", "成果", "責任", "到達", "役割"]),
                         B: Object.freeze(["足りない", "自己否定", "恥", "怖さ", "比較"]),
@@ -2383,7 +2440,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "軽さ・甘さ・曖昧さに対して“NO”が出やすい（厳しさの主権）",
-                    tension: "厳しさの主権と、孤立/断絶の摩擦",
+                    tension: "厳しさの主権への{drive}と、孤立/断絶の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["NO", "厳しさ", "線引き", "主権", "規律"]),
                         B: Object.freeze(["孤立", "断絶", "冷たさ", "圧", "許せない"]),
@@ -2399,9 +2456,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "落ち着きと責任感の雰囲気で場に入る",
-                    tension: "堅さの印象と、近寄りにくさの摩擦",
+                    tension: "堅さの印象への{drive}と、近寄りにくさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["落ち着き", "堅実", "責任感", "静かな圧", "信頼"]),
                         B: Object.freeze(["近寄りにくい", "堅い", "冷たい誤解", "緊張", "壁"]),
@@ -2433,9 +2490,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "自分の自由と全体の更新を両立させたい中心",
-                    tension: "自由の維持と、孤立/断絶の摩擦",
+                    tension: "自由の維持への{drive}と、孤立/断絶の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "未来", "更新", "独立", "全体最適"]),
                         B: Object.freeze(["孤立", "断絶", "冷え", "置いていく", "反発"]),
@@ -2451,9 +2508,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "距離が取れていると安心しやすい反応",
-                    tension: "干渉への反発と、寂しさの摩擦",
+                    tension: "干渉への反発への{drive}と、寂しさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["距離", "余白", "自律", "俯瞰", "落ち着き"]),
                         B: Object.freeze(["干渉", "縛り", "反発", "寂しさ", "冷え"]),
@@ -2469,9 +2526,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "概念化して仕組みに落とす思考（抽象→設計）",
-                    tension: "鋭さと、伝わらない/冷たい誤解の摩擦",
+                    tension: "鋭さへの{drive}と、伝わらない/冷たい誤解の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["概念", "再設計", "発想", "合理", "俯瞰"]),
                         B: Object.freeze(["伝わらない", "冷たい誤解", "飛躍", "切り捨て", "距離"]),
@@ -2489,7 +2546,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "対等・自由・フラットさに価値が集まる",
-                    tension: "自由の価値と、密着/所有の摩擦",
+                    tension: "自由の価値への{drive}と、密着/所有の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["対等", "自由", "フラット", "友情", "独立"]),
                         B: Object.freeze(["密着", "所有", "束縛", "重さ", "依存"]),
@@ -2507,7 +2564,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "既存を壊して更新する推進（改革の火力）",
-                    tension: "改革の勢いと、反発/摩擦の摩耗",
+                    tension: "改革の勢いへの{drive}と、反発/{dyn}の摩耗",
                     fusion: Object.freeze({
                         A: Object.freeze(["改革", "更新", "切り替え", "突破", "実験"]),
                         B: Object.freeze(["反発", "摩擦", "分断", "摩耗", "暴走"]),
@@ -2525,7 +2582,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "ネットワーク・未来像・思想で拡大する",
-                    tension: "拡大の理想と、現実とのズレの摩擦",
+                    tension: "拡大の理想への{drive}と、現実とのズレの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["ネットワーク", "未来像", "思想", "拡張", "共有"]),
                         B: Object.freeze(["現実とのズレ", "空回り", "机上", "反発", "孤立"]),
@@ -2543,7 +2600,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "自由を保つためのルールを組みたい（自律の枠）",
-                    tension: "自律の枠と、窮屈さ/疎外の摩擦",
+                    tension: "自律の枠への{drive}と、窮屈さ/疎外の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自律", "ルール", "枠", "独立", "持続"]),
                         B: Object.freeze(["窮屈", "疎外", "冷え", "硬直", "孤立"]),
@@ -2561,7 +2618,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ（主領域）",
                     core: "常識を更新して新しい秩序を作りたい",
-                    tension: "更新の衝動と、社会/関係の摩擦",
+                    tension: "更新の衝動への{drive}と、社会/関係の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["更新", "解放", "革新", "新秩序", "実験"]),
                         B: Object.freeze(["摩擦", "反発", "浮く", "断絶", "不理解"]),
@@ -2579,7 +2636,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "境界を薄めて“みんな”に繋げたくなる",
-                    tension: "普遍性と、具体が抜ける摩擦",
+                    tension: "普遍性への{drive}と、具体が抜ける{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["普遍性", "共鳴", "理想", "開放", "つながり"]),
                         B: Object.freeze(["具体不足", "現実が抜ける", "空洞", "逃避", "散る"]),
@@ -2597,7 +2654,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "集団・制度・権限の深部が再編されやすい",
-                    tension: "改革の圧と、極端/排除の摩擦",
+                    tension: "改革の圧への{drive}と、極端/排除の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["制度再編", "集団", "刷新圧", "権限", "転換"]),
                         B: Object.freeze(["極端", "排除", "分断", "圧迫", "過激"]),
@@ -2615,7 +2672,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "『理解されない/浮く』が痛点になりやすい",
-                    tension: "独自性と、孤立（わかってもらえなさ）の摩擦",
+                    tension: "独自性への{drive}と、孤立（わかってもらえなさ）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["独自性", "発想", "自由", "視点", "違い"]),
                         B: Object.freeze(["理解されない", "孤立", "浮く", "疎外", "諦め"]),
@@ -2633,7 +2690,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "『縛られない』が強い主権として立つ（自由の野性）",
-                    tension: "自由の主権と、切断/拒絶の摩擦",
+                    tension: "自由の主権への{drive}と、切断/拒絶の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "拒否", "自律", "反骨", "独立"]),
                         B: Object.freeze(["切断", "拒絶", "冷え", "断絶", "孤立"]),
@@ -2649,9 +2706,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "フラットで風通しよく、少し距離のある印象で入る",
-                    tension: "軽さ/クールさの印象と、近寄りにくさの摩擦",
+                    tension: "軽さ/クールさの印象への{drive}と、近寄りにくさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["フラット", "風通し", "知性", "自由", "軽やかさ"]),
                         B: Object.freeze(["近寄りにくい", "冷たい誤解", "距離", "浮く", "断絶"]),
@@ -2683,9 +2740,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // sun
                 // --------------------------
                 sun: Object.freeze({
-                    role: "存在の核／方向づけ",
+                    role: "存在の核と方向づけ",
                     core: "自分の自由と全体の更新を両立させたい中心",
-                    tension: "自由の維持と、孤立/断絶の摩擦",
+                    tension: "自由の維持への{drive}と、孤立/断絶の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "未来", "更新", "独立", "全体最適"]),
                         B: Object.freeze(["孤立", "断絶", "冷え", "置いていく", "反発"]),
@@ -2701,9 +2758,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // moon
                 // --------------------------
                 moon: Object.freeze({
-                    role: "反応／安心の回路",
+                    role: "反応と安心の回路",
                     core: "距離が取れていると安心しやすい反応",
-                    tension: "干渉への反発と、寂しさの摩擦",
+                    tension: "干渉への反発への{drive}と、寂しさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["距離", "余白", "自律", "俯瞰", "落ち着き"]),
                         B: Object.freeze(["干渉", "縛り", "反発", "寂しさ", "冷え"]),
@@ -2719,9 +2776,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // mercury
                 // --------------------------
                 mercury: Object.freeze({
-                    role: "言葉／理解の通路",
+                    role: "言葉と理解の通路",
                     core: "概念化して仕組みに落とす思考（抽象→設計）",
-                    tension: "鋭さと、伝わらない/冷たい誤解の摩擦",
+                    tension: "鋭さへの{drive}と、伝わらない/冷たい誤解の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["概念", "再設計", "発想", "合理", "俯瞰"]),
                         B: Object.freeze(["伝わらない", "冷たい誤解", "飛躍", "切り捨て", "距離"]),
@@ -2739,7 +2796,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 venus: Object.freeze({
                     role: "価値と好みの基準",
                     core: "対等・自由・フラットさに価値が集まる",
-                    tension: "自由の価値と、密着/所有の摩擦",
+                    tension: "自由の価値への{drive}と、密着/所有の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["対等", "自由", "フラット", "友情", "独立"]),
                         B: Object.freeze(["密着", "所有", "束縛", "重さ", "依存"]),
@@ -2757,7 +2814,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 mars: Object.freeze({
                     role: "推進と境界のエンジン",
                     core: "既存を壊して更新する推進（改革の火力）",
-                    tension: "改革の勢いと、反発/摩擦の摩耗",
+                    tension: "改革の勢いへの{drive}と、反発/{dyn}の摩耗",
                     fusion: Object.freeze({
                         A: Object.freeze(["改革", "更新", "切り替え", "突破", "実験"]),
                         B: Object.freeze(["反発", "摩擦", "分断", "摩耗", "暴走"]),
@@ -2775,7 +2832,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 jupiter: Object.freeze({
                     role: "拡大と意味づけ",
                     core: "ネットワーク・未来像・思想で拡大する",
-                    tension: "拡大の理想と、現実とのズレの摩擦",
+                    tension: "拡大の理想への{drive}と、現実とのズレの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["ネットワーク", "未来像", "思想", "拡張", "共有"]),
                         B: Object.freeze(["現実とのズレ", "空回り", "机上", "反発", "孤立"]),
@@ -2793,7 +2850,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 saturn: Object.freeze({
                     role: "枠と時間の設計",
                     core: "自由を保つためのルールを組みたい（自律の枠）",
-                    tension: "自律の枠と、窮屈さ/疎外の摩擦",
+                    tension: "自律の枠への{drive}と、窮屈さ/疎外の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自律", "ルール", "枠", "独立", "持続"]),
                         B: Object.freeze(["窮屈", "疎外", "冷え", "硬直", "孤立"]),
@@ -2811,7 +2868,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 uranus: Object.freeze({
                     role: "更新とズレのスイッチ（主領域）",
                     core: "常識を更新して新しい秩序を作りたい",
-                    tension: "更新の衝動と、社会/関係の摩擦",
+                    tension: "更新の衝動への{drive}と、社会/関係の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["更新", "解放", "革新", "新秩序", "実験"]),
                         B: Object.freeze(["摩擦", "反発", "浮く", "断絶", "不理解"]),
@@ -2829,7 +2886,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 neptune: Object.freeze({
                     role: "溶解と共鳴の水脈",
                     core: "境界を薄めて“みんな”に繋げたくなる",
-                    tension: "普遍性と、具体が抜ける摩擦",
+                    tension: "普遍性への{drive}と、具体が抜ける{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["普遍性", "共鳴", "理想", "開放", "つながり"]),
                         B: Object.freeze(["具体不足", "現実が抜ける", "空洞", "逃避", "散る"]),
@@ -2847,14 +2904,14 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 pluto: Object.freeze({
                     role: "深層の圧と再編",
                     core: "集団・制度・権限の深部が再編されやすい",
-                    tension: "改革の圧と、極端/排除の摩擦",
+                    tension: "改革の圧への{drive}と、極端/排除の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["制度再編", "集団", "刷新圧", "権限", "転換"]),
                         B: Object.freeze(["極端", "排除", "分断", "圧迫", "過激"]),
                         expression: Object.freeze(["変える", "終わらせる", "再配置", "合流", "切断"]),
                         process: Object.freeze(["再編しながら", "刷新しながら", "転換しながら", "組み替えながら"]),
                         clarity: Object.freeze(["排除を目的にしないようにしつつ", "分断を条件提示に戻しつつ", "過激を速度調整に戻しつつ", "合流点を残しつつ"]),
-                        tendency: Object.freeze(["制度レベルで動かしたくなる", "極端になりやすい", "分断が出やすい", "合流があると大転換が進む"]),
+                        tendency: Object.freeze(["制度レベルで　動かしたくなる", "極端になりやすい", "分断が出やすい", "合流があると大転換が進む"]),
                     }),
                     defaults: Object.freeze({ outputKey: "expression", tryingKey: "observe" }),
                 }),
@@ -2865,7 +2922,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 chiron: Object.freeze({
                     role: "傷から学びへ向かう入口",
                     core: "『理解されない/浮く』が痛点になりやすい",
-                    tension: "独自性と、孤立（わかってもらえなさ）の摩擦",
+                    tension: "独自性への{drive}と、孤立（わかってもらえなさ）の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["独自性", "発想", "自由", "視点", "違い"]),
                         B: Object.freeze(["理解されない", "孤立", "浮く", "疎外", "諦め"]),
@@ -2883,7 +2940,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 Lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "『縛られない』が強い主権として立つ（自由の野性）",
-                    tension: "自由の主権と、切断/拒絶の摩擦",
+                    tension: "自由の主権への{drive}と、切断/拒絶の{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["自由", "拒否", "自律", "反骨", "独立"]),
                         B: Object.freeze(["切断", "拒絶", "冷え", "断絶", "孤立"]),
@@ -2899,9 +2956,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 // asc
                 // --------------------------
                 asc: Object.freeze({
-                    role: "入口／印象／身体感覚",
+                    role: "入口と印象と身体感覚",
                     core: "フラットで風通しよく、少し距離のある印象で入る",
-                    tension: "軽さ/クールさの印象と、近寄りにくさの摩擦",
+                    tension: "軽さ/クールさの印象への{drive}と、近寄りにくさの{dyn}",
                     fusion: Object.freeze({
                         A: Object.freeze(["フラット", "風通し", "知性", "自由", "軽やかさ"]),
                         B: Object.freeze(["近寄りにくい", "冷たい誤解", "距離", "浮く", "断絶"]),

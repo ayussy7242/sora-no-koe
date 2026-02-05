@@ -118,6 +118,11 @@ function createStoriesRouter(deps = {}) {
     !renderers?.renderLine ||
     !renderers?.renderSoraLine ||
     !renderers?.renderSoraAllLine ||
+    !renderers?.renderSoraUraLine ||
+    !renderers?.renderSoraUraSilentLine ||
+    !renderers?.renderSoraUraRareLine ||
+    !renderers?.renderSoraUraHarmonyLine ||
+    !renderers?.renderAnshinLine ||
     !renderers?.renderX ||
     !renderers?.renderIG ||
     !renderers?.renderThreads
@@ -140,6 +145,19 @@ function createStoriesRouter(deps = {}) {
         sora_all: "line_sora_all",
         line_sora_all: "line_sora_all",
 
+        sora_ura_line: "line_sora_ura",
+        sora_ura: "line_sora_ura",
+        line_sora_ura: "line_sora_ura",
+
+        sora_ura_silent: "line_sora_ura_silent",
+        line_sora_ura_silent: "line_sora_ura_silent",
+        sora_ura_rare: "line_sora_ura_rare",
+        line_sora_ura_rare: "line_sora_ura_rare",
+        sora_ura_harmony: "line_sora_ura_harmony",
+        line_sora_ura_harmony: "line_sora_ura_harmony",
+        anshin: "line_anshin",
+        line_anshin: "line_anshin",
+
         // optional aliases
         x: "x",
         ig: "ig",
@@ -155,6 +173,11 @@ function createStoriesRouter(deps = {}) {
 
       const isSora = ch === "line_sora";
       const isSoraAll = ch === "line_sora_all";
+      const isSoraUra = ch === "line_sora_ura";
+      const isSoraUraSilent = ch === "line_sora_ura_silent";
+      const isSoraUraRare = ch === "line_sora_ura_rare";
+      const isSoraUraHarmony = ch === "line_sora_ura_harmony";
+      const isAnshin = ch === "line_anshin";
 
       // ② appUserId/mode
       let appUserId = pickAppUserId(req);
@@ -164,7 +187,7 @@ function createStoriesRouter(deps = {}) {
       let save = boolish(req.query.save);
 
       // ④ public固定＆保存禁止ルール（SNS / sora系は public固定）
-      if (isSocial || isSora || isSoraAll) {
+      if (isSocial || isSora || isSoraAll || isSoraUra || isSoraUraSilent || isSoraUraRare || isSoraUraHarmony) {
         appUserId = "public";
         mode = "public";
         save = false;
@@ -198,6 +221,17 @@ function createStoriesRouter(deps = {}) {
         precisionDeg,
       });
 
+      // anshin 用に natal_cache を補足（publicは取得しない）
+      let anshinNatalCache = null;
+      if (isAnshin && appUserId && appUserId !== "public") {
+        try {
+          const snap = await db.collection("natal_cache").doc(appUserId).get();
+          anshinNatalCache = snap.exists ? snap.data() : null;
+        } catch (_) {
+          anshinNatalCache = null;
+        }
+      }
+
       // router印（デバッグ用）
       story.meta = story.meta || {};
       story.meta.router_build = "routes/stories.js v2026-01-27 safe-outputs + single-render";
@@ -212,6 +246,11 @@ function createStoriesRouter(deps = {}) {
         line: () => renderers.renderLine(story),
         sora: () => renderers.renderSoraLine(story),
         sora_all: () => renderers.renderSoraAllLine(story),
+        sora_ura: () => renderers.renderSoraUraLine(story),
+        sora_ura_silent: () => renderers.renderSoraUraSilentLine(story),
+        sora_ura_rare: () => renderers.renderSoraUraRareLine(story),
+        sora_ura_harmony: () => renderers.renderSoraUraHarmonyLine(story),
+        anshin: () => renderers.renderAnshinLine({ story, meta: story?.meta, natal_cache: anshinNatalCache || null }),
         x: () => renderers.renderX(story),
         ig: () => renderers.renderIG(story),
         threads: () => renderers.renderThreads(story),
@@ -227,7 +266,12 @@ function createStoriesRouter(deps = {}) {
                   (format === "text" && ch === "ig") ? "ig" :
                     (format === "text" && ch === "threads") ? "threads" :
                       (format === "text" && ch === "line_sora") ? "sora" :
-                        (format === "text" && ch === "line_sora_all") ? "sora_all" :
+                      (format === "text" && ch === "line_sora_all") ? "sora_all" :
+                      (format === "text" && ch === "line_sora_ura") ? "sora_ura" :
+                      (format === "text" && ch === "line_sora_ura_silent") ? "sora_ura_silent" :
+                      (format === "text" && ch === "line_sora_ura_rare") ? "sora_ura_rare" :
+                      (format === "text" && ch === "line_sora_ura_harmony") ? "sora_ura_harmony" :
+                      (format === "text" && ch === "line_anshin") ? "anshin" :
                           (format === "text" && (ch === "line" || !ch)) ? "line" :
                             // default
                             "line";
@@ -236,7 +280,7 @@ function createStoriesRouter(deps = {}) {
 
       // outputs: include only if requested (and never break main response)
       if (includeOutputs) {
-        const outputs = { line: "", sora: "", sora_all: "", x: "", ig: "", threads: "" };
+        const outputs = { line: "", sora: "", sora_all: "", sora_ura: "", sora_ura_silent: "", sora_ura_rare: "", sora_ura_harmony: "", anshin: "", x: "", ig: "", threads: "" };
         outputs[wantKey] = primaryText;
 
         const errors = {};

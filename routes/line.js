@@ -75,6 +75,11 @@ function normalizeCmdLoose(s) {
 function pickSoraMode(text) {
   const t = normalizeCmdLoose(text);
   if (t === "そらぜんぶ" || t === "そら全部" || t === "soraall" || t === "sora_all") return "sora_all";
+  if (t === "うらがわ") return "sora_all";
+  if (t === "そらのうら" || t === "ソラのうら" || t === "うらこまんど" || t === "うらコマンド" || t === "うら") return "sora_ura";
+  if (t === "沈黙のほし" || t === "沈黙") return "sora_ura_silent";
+  if (t === "裏共鳴" || t === "うら共鳴" || t === "裏きょうめい") return "sora_ura_rare";
+  if (t === "調和層" || t === "調和" || t === "ちょうわ層") return "sora_ura_harmony";
   if (t === "そら" || t === "sora") return "sora_top";
   return null;
 }
@@ -97,6 +102,12 @@ function requireDeps(d) {
   if (!r.renderLine) throw new Error("renderers.renderLine required");
   if (!r.renderSoraLine) throw new Error("renderers.renderSoraLine required");
   if (!r.renderSoraAllLine) throw new Error("renderers.renderSoraAllLine required");
+  if (!r.renderSoraUraLine) throw new Error("renderers.renderSoraUraLine required");
+  if (!r.renderSoraUraSilentLine) throw new Error("renderers.renderSoraUraSilentLine required");
+  if (!r.renderSoraUraSilentPersonalLine) throw new Error("renderers.renderSoraUraSilentPersonalLine required");
+  if (!r.renderSoraUraRareLine) throw new Error("renderers.renderSoraUraRareLine required");
+  if (!r.renderSoraUraHarmonyLine) throw new Error("renderers.renderSoraUraHarmonyLine required");
+  if (!r.renderAnshinLine) throw new Error("renderers.renderAnshinLine required");
   if (!r.renderNatalListFromcache) throw new Error("renderers.renderNatalListFromcache required");
 
   if (!createLineUser) throw new Error("[line] createLineUser export not found (line/user.js)");
@@ -123,9 +134,18 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 0) SORA (public固定)
   const soraMode = pickSoraMode(cmd);
   if (soraMode) {
-    const { story: storyJson } = await story.buildSky();
+    const usePersonalSilent = soraMode === "sora_ura_silent" && lineUserId && appUserId;
+    const { story: storyJson } = usePersonalSilent
+      ? await story.buildToday({ appUserId })
+      : await story.buildSky();
     const text = storyJson
-      ? (soraMode === "sora_all" ? renderers.renderSoraAllLine(storyJson) : renderers.renderSoraLine(storyJson))
+      ? (usePersonalSilent ? renderers.renderSoraUraSilentPersonalLine(storyJson)
+        : soraMode === "sora_all" ? renderers.renderSoraAllLine(storyJson)
+        : soraMode === "sora_ura" ? renderers.renderSoraUraLine(storyJson)
+        : soraMode === "sora_ura_silent" ? renderers.renderSoraUraSilentLine(storyJson)
+        : soraMode === "sora_ura_rare" ? renderers.renderSoraUraRareLine(storyJson)
+        : soraMode === "sora_ura_harmony" ? renderers.renderSoraUraHarmonyLine(storyJson)
+        : renderers.renderSoraLine(storyJson))
       : "（そらのデータがまだなかった🙏）";
     return { text, stage: "sora", mode: soraMode };
   }
@@ -161,6 +181,14 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
     const r = await story.buildToday({ appUserId });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today" };
+  }
+
+  if (intentKey === intent.INTENT.ANSHIN) {
+    if (!appUserId || appUserId === "public") {
+      return { text: "（ネイタルが未登録だった🙏「はじめる」で登録してね）", stage: "anshin_no_user" };
+    }
+    const r = await story.buildAnshin({ appUserId });
+    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "anshin" };
   }
 
   return { text: story.renderFallback() || "コマンドがわからなかった🌌", stage: "fallback" };

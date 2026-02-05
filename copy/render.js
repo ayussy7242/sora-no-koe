@@ -31,7 +31,7 @@ const HEAD_SORA_SKY_TOP5 = "【今日のソラの配置 上位5共鳴（orb≤6�
 const HEAD_SORA_SKY_ALL = "【今日のソラの配置 全部（orb≤6°）】";
 const HEAD_DIST = "【分布（エレメント／三区分）】";
 const HEAD_KUSOU = "【空層】";
-const HEAD_KUSOU_YOIN = "【空層／余韻】";
+const HEAD_KUSOU_YOIN = "";
 
 // v3.3: 詳細版「空層の余韻」を出したい時だけON（空文字なら render.js 側で出ない）
 const HEAD_YOIN_GLOBAL = "";
@@ -189,9 +189,9 @@ const RENDER_COPY = Object.freeze({
   // Today layers（personal-only：3層ラベル）
   // --------------------
   HEAD_LAYERS: {
-    THEME: "【今日の中心（触れやすい場所）】",
-    TOUCH: "【引っかかりやすい接点】",
-    HIDDEN: "【ひそやかな接点】",
+    THEME: "",
+    TOUCH: "",
+    HIDDEN: "",
   },
 
   // --------------------
@@ -206,6 +206,7 @@ const RENDER_COPY = Object.freeze({
 
     // 互換（残す）
     ELEMENT_LINE: (e) => `惑星属性：火${e.fire || 0} 地${e.earth || 0} 風${e.air || 0} 水${e.water || 0}`,
+    ELEMENT_LINE_EMOJI: (e) => `惑星属性：🔥火${e.fire || 0} 🪨地${e.earth || 0} 💨風${e.air || 0} 💧水${e.water || 0}`,
     MODALITY_LINE: (m) => `三区分：活動${m.cardinal || 0} 不動${m.fixed || 0} 柔軟${m.mutable || 0}`,
     MODALITY_LINE_EMOJI: (m) => `三区分：🏃活動${m.cardinal || 0} 🧱不動${m.fixed || 0} 🌿柔軟${m.mutable || 0}`,
   },
@@ -229,10 +230,10 @@ const RENDER_COPY = Object.freeze({
       [
         HEAD_NATAL_LIST,
         "",
-        "asc/mc がまだ見つからなかった🙏",
-        "（ネイタル計算結果に asc/mc を保存する処理が必要）",
+        "ASC/MC がまだ見つからなかった🙏",
+        "（ネイタル計算結果に ASC/MC を保存する処理が必要）",
         "",
-        "※ 天体は出せるけど、座標の要（asc/mc）が欠けるのでここでは止めてる。",
+        "※ 天体は出せるけど、座標の要（ASC/MC）が欠けるのでここでは止めてる。",
       ].join("\n"),
 
     NOTE: () =>
@@ -260,6 +261,21 @@ const RENDER_COPY = Object.freeze({
       mixed: "ペース配分で形が変わりやすい",
     },
 
+    ELEMENT_SHORT: {
+      fire: ["熱は立ち上がりやすい", "火が前に出やすい", "勢いが先に来やすい"],
+      earth: ["現実は落ちやすい", "手応えが先に残りやすい", "形が固まりやすい"],
+      air: ["言葉は動きやすい", "情報が回りやすい", "対話が生まれやすい"],
+      water: ["余韻は浸透しやすい", "感情がにじみやすい", "共鳴が残りやすい"],
+      mixed: ["層は混ざりやすい", "境目が曖昧になりやすい", "要素が行き来しやすい"],
+    },
+
+    MODALITY_SHORT: {
+      cardinal: ["動かす方向へ傾きやすい", "起点が前に出やすい", "切り出しが早まりやすい"],
+      fixed: ["輪郭は固まりやすい", "保つ方向へ寄りやすい", "維持が強まりやすい"],
+      mutable: ["切り替わりやすい", "揺らぎが出やすい", "流動が起きやすい"],
+      mixed: ["ペース配分で形が変わりやすい", "揺れ幅が調整されやすい", "行き来が起きやすい"],
+    },
+
     TAIL_POOL_1: [
       "今日の理解は、あとで追いつくかもしれない。",
       "言葉にしなくても、構造は残る。",
@@ -271,20 +287,39 @@ const RENDER_COPY = Object.freeze({
 
     TAIL_POOL_2: ["先に身体、あとで言葉。", "焦点を変えるだけで、景色が変わる日。", "余白を残して、次に渡す。", "今日は“結論”じゃなくて“残響”で十分。", "これでいい、を急がない。"],
 
-    BUILD: ({ topElement, topModality, aspectLabel } = {}) => {
-      const head = (topElement && RENDER_COPY.YOIN.ELEMENT_PHRASE[topElement]) || RENDER_COPY.YOIN.FALLBACK;
+    BUILD: ({ topElement, topModality, aspectLabel, seedBase, pickStable } = {}) => {
+      const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合", unknown: "未判定" };
+      const modalityJa = { cardinal: "活動", fixed: "不動", mutable: "柔軟", mixed: "混合", unknown: "未判定" };
 
-      const tailBits = [];
-      if (topModality && RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]) {
-        tailBits.push(RENDER_COPY.YOIN.MODALITY_PHRASE[topModality]);
-      }
-      if (aspectLabel) tailBits.push(`質感は ${aspectLabel} 寄り`);
+      const layer = `${elementJa[topElement] || "混合"}×${modalityJa[topModality] || "混合"}`;
 
-      const tail = tailBits.length ? `${tailBits.join("、")}。` : "";
-      const out = `${head}${tail ? ` ${tail}` : ""}`.trim();
+      const pool = Array.isArray(RENDER_COPY?.YOIN_GLOBAL?.TAIL_POOL) ? RENDER_COPY.YOIN_GLOBAL.TAIL_POOL : [];
+      const tail =
+        typeof pickStable === "function" && seedBase && pool.length
+          ? pickStable(pool, seedBase + "|tail")
+          : "結論より、配置。";
 
-      if (out.length > 90) return head;
-      return out.replace(/。\s+/g, "。").trim();
+      const ePool = RENDER_COPY.YOIN.ELEMENT_SHORT[topElement] || "層は混ざりやすい";
+      const mPool = RENDER_COPY.YOIN.MODALITY_SHORT[topModality] || "形が変わりやすい";
+
+      const pickFrom = (pool, key) => {
+        if (Array.isArray(pool) && typeof pickStable === "function" && seedBase) {
+          return pickStable(pool, `${seedBase}|${key}`);
+        }
+        return Array.isArray(pool) ? pool[0] : String(pool);
+      };
+
+      const e = pickFrom(ePool, "element");
+      const m = pickFrom(mPool, "modality");
+
+      const lines = [
+        `${HEAD_KUSOU}${layer}。`,
+        tail,
+        `${e}、${m}。`,
+        aspectLabel ? `${aspectLabel} 寄り。` : "",
+      ].filter(Boolean);
+
+      return lines.join("\n");
     },
 
     GLUE: (globalText, centerText) => {
@@ -414,7 +449,7 @@ const RENDER_COPY = Object.freeze({
         pushLine(out, parts);
         pushBlank(out, 1);
 
-        pushLine(out, RENDER_COPY.HEAD_KUSOU_YOIN);
+        if (RENDER_COPY.HEAD_KUSOU_YOIN) pushLine(out, RENDER_COPY.HEAD_KUSOU_YOIN);
         pushLine(out, kusouYoin);
         pushBlank(out, 1);
 
@@ -456,7 +491,7 @@ const RENDER_COPY = Object.freeze({
 
         // 空層/余韻
         if (kusouYoin) {
-          pushLine(lines, RENDER_COPY.HEAD_KUSOU_YOIN);
+          if (RENDER_COPY.HEAD_KUSOU_YOIN) pushLine(lines, RENDER_COPY.HEAD_KUSOU_YOIN);
           pushLine(lines, kusouYoin);
           pushLine(lines, "解釈は、あなたのもの。");
           pushBlank(lines, 1);

@@ -50,6 +50,297 @@ function joinLines(...xs) {
         .trim();
 }
 
+function _hash32(str) {
+    let h = 2166136261;
+    for (let i = 0; i < String(str || "").length; i++) {
+        h ^= String(str).charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+}
+
+function _pickMany(pool, seed, count = 1) {
+    const arr = (Array.isArray(pool) ? pool.filter(Boolean) : []).slice();
+    if (!arr.length || count <= 0) return [];
+    const out = [];
+    for (let i = 0; i < count; i++) {
+        if (!arr.length) break;
+        const idx = _hash32(`${seed}|${i}`) % arr.length;
+        out.push(arr.splice(idx, 1)[0]);
+    }
+    return out;
+}
+
+function _lowerKey(x) {
+    return safeStr(x).toLowerCase().trim();
+}
+
+function _avoidTokensFromModifier(modifier) {
+    const s = String(modifier || "");
+    const tokens = [];
+    if (s.includes("価値")) tokens.push("価値観", "価値");
+    if (s.includes("基準")) tokens.push("基準", "起点");
+    if (s.includes("安心")) tokens.push("安心");
+    if (s.includes("印象")) tokens.push("印象");
+    if (s.includes("距離")) tokens.push("距離感", "距離");
+    if (s.includes("反応")) tokens.push("反応");
+    if (s.includes("感覚")) tokens.push("感覚");
+    if (s.includes("意志")) tokens.push("意志");
+    return Array.from(new Set(tokens));
+}
+
+function _getSignFlavor(dict, signKey, planetKey) {
+    const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+    const sKey = _lowerKey(signKey);
+    const pKey = _lowerKey(planetKey);
+    const sign = sf?.signs?.[sKey] || null;
+    const by = sign?.by_body?.[pKey] || null;
+    return { sf, sign, by };
+}
+
+function _getSoarStyle(dict) {
+    return dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
+}
+
+function _uniq(arr) {
+    const seen = new Set();
+    const out = [];
+    (arr || []).forEach((v) => {
+        const s = String(v || "");
+        if (!s || seen.has(s)) return;
+        seen.add(s);
+        out.push(s);
+    });
+    return out;
+}
+
+function _pickOne(pool, seed) {
+    const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+    if (!arr.length) return "";
+    return _pickMany(arr, `${seed}|one`, 1)[0];
+}
+
+function _normAspectKey(raw) {
+    const x = String(raw || "").toLowerCase().trim();
+    if (!x) return "";
+    const map = {
+        semisquare: "semi_square_45",
+        semi_square: "semi_square_45",
+        sesquisquare: "sesqui_square_135",
+        sesqui_square: "sesqui_square_135",
+        semisextile: "semi_sextile_30",
+        semi_sextile: "semi_sextile_30",
+        quincunx: "quincunx_150",
+        inconjunct: "quincunx_150",
+        quintile: "quintile_72",
+        biquintile: "biquintile_144",
+    };
+    return map[x] || x;
+}
+
+function _aspectToneCategory(aspectKey) {
+    const k = _normAspectKey(aspectKey);
+    if (["square", "opposition"].includes(k)) return "tense";
+    if (["quincunx_150", "semi_square_45", "sesqui_square_135", "semi_sextile_30"].includes(k)) return "adjust";
+    if (["trine", "sextile"].includes(k)) return "smooth";
+    if (["conjunction"].includes(k)) return "blend";
+    if (["quintile_72", "biquintile_144"].includes(k)) return "craft";
+    return "adjust";
+}
+
+function _aspectKeywordProfile(aspectKey) {
+    const k = _normAspectKey(aspectKey);
+    if (["square", "opposition"].includes(k)) return { a: 2, b: 3, tone: 2 };
+    if (["trine", "sextile"].includes(k)) return { a: 3, b: 2, tone: 1 };
+    if (["conjunction"].includes(k)) return { a: 2, b: 2, tone: 2 };
+    if (["quintile_72", "biquintile_144"].includes(k)) return { a: 3, b: 1, tone: 2 };
+    if (["quincunx_150", "semi_square_45", "sesqui_square_135", "semi_sextile_30"].includes(k)) return { a: 2, b: 2, tone: 2 };
+    return { a: 2, b: 2, tone: 1 };
+}
+
+function _pickAspectToneWords(dict, aspectKey, seed, count = 1) {
+    const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+    const pool = sf?.grammar?.aspect_tone?.[_aspectToneCategory(aspectKey)] || [];
+    return _pickMany(pool, `${seed}|tone|${aspectKey}`, count);
+}
+
+function _getRole(dict, signKey, planetKey) {
+    const { by } = _getSignFlavor(dict, signKey, planetKey);
+    const role = by?.role || by?.core || "";
+    if (role) return role;
+    const p = dict?.PLANETS_V2?.bodies?.[_lowerKey(planetKey)] || null;
+    return p?.role || p?.core || "";
+}
+
+function _getFallbackKeywords(dict, signKey, planetKey) {
+    const sKey = _lowerKey(signKey);
+    const pKey = _lowerKey(planetKey);
+    const sign = dict?.SIGNS_V2?.signs?.[sKey] || null;
+    const planet = dict?.PLANETS_V2?.bodies?.[pKey] || null;
+    const pool = [
+        ...(Array.isArray(planet?.action_noun_ja) ? planet.action_noun_ja : []),
+        ...(Array.isArray(sign?.texture) ? sign.texture : []),
+        ...(Array.isArray(sign?.keywords) ? sign.keywords : []),
+    ].filter(Boolean);
+    return pool;
+}
+
+function _dedupeRelation(relation, dynamics) {
+    if (!relation || !dynamics) return relation || "";
+    const roots = ["噛み合", "重な", "交差", "摩擦", "循環", "映し", "向かい", "鏡"];
+    for (const r of roots) {
+        if (relation.includes(r) && dynamics.includes(r)) return "";
+    }
+    return relation;
+}
+
+function _cleanClause(s) {
+    return safeStr(s)
+        .replace(/^[、\s]+/g, "")
+        .replace(/^が\s*/g, "")
+        .replace(/[、\s]+$/g, "")
+        .replace(/。+$/g, "")
+        .trim();
+}
+
+function _subjectify(core) {
+    const c = _cleanClause(core);
+    if (!c) return "";
+    return c;
+}
+
+function _subjectNoun(dict, planetKey, seed, avoidTokens = []) {
+    const k = _lowerKey(planetKey);
+    if (k === "neptune") {
+        const pool = ["感覚", "体感", "余韻", "直感", "気配"];
+        const filtered = pool.filter((s) => {
+            const t = String(s || "");
+            return !avoidTokens.some((a) => a && t.includes(a));
+        });
+        return _pickOne(filtered.length ? filtered : pool, `${seed}|subj|${k}`) || "感覚";
+    }
+    const style = _getSoarStyle(dict);
+    const pool = style?.planets?.[k]?.subjects || [];
+    if (pool.length) {
+        const filtered = pool.filter((s) => {
+            const t = String(s || "");
+            return !avoidTokens.some((a) => a && t.includes(a));
+        });
+        return _pickOne(filtered.length ? filtered : pool, `${seed}|subj|${k}`);
+    }
+    const p = dict?.PLANETS_V2?.bodies?.[k] || null;
+    return p?.role || p?.core || "意志";
+}
+
+function _signModifier(dict, signKey, planetKey, seed) {
+    const k = _lowerKey(planetKey);
+    const style = _getSoarStyle(dict);
+    const template = style?.planets?.[k]?.modifier_template || "に寄りやすい";
+    const keywords = style?.signs?.[_lowerKey(signKey)]?.keywords || [];
+    const picked = _pickMany(keywords, `${seed}|kw|${k}|${signKey}`, 2);
+    const signLabel =
+        dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)]?.label_ja ||
+        dict?.SIGNS_V1?.signs?.[_lowerKey(signKey)]?.label_ja ||
+        signKey;
+    const keyPhrase = picked.length ? picked.join("・") : signLabel;
+    return template.includes("{sign}")
+        ? template.replace("{sign}", keyPhrase)
+        : `${keyPhrase}${template}`;
+}
+
+function _ensureGa(clause) {
+    const s = String(clause || "").trim();
+    if (!s) return s;
+    if (/(やすい|にくい)$/.test(s)) return s;
+    if (/が/.test(s)) return s;
+    if (/(し、|し\s|し$)/.test(s)) return s;
+    if (/(起き|出|残|現れ|生まれ|強調|熟成|整い|広がり|伸び|浮かび)/.test(s)) {
+        return s.replace(/^([^\s、]+)(\s*)/, "$1が$2");
+    }
+    return s;
+}
+
+function _simplifyDynamics(s) {
+    let t = String(s || "");
+    // 冗長パターンを圧縮
+    t = t.replace(/噛み合いにくさが調整として出やすい/g, "調整として出やすい");
+    t = t.replace(/噛み合いにくさが出やすい/g, "噛み合いにくい");
+    t = t.replace(/噛み合いにくさ/g, "噛み合いにくい");
+    t = t.replace(/重なって強調されやすい/g, "強調されやすい");
+    t = t.replace(/反復で熟成し、整い続けやすい/g, "整いやすい");
+    t = t.replace(/整い続けやすい/g, "整いやすい");
+    t = t.replace(/やすいが/g, "やすい");
+    t = t.replace(/調整として出やすい/g, "調整として出やすい"); // keep short form
+    t = t.replace(/微調整が起きやすい/g, "微調整が起きやすい"); // keep explicit
+    t = t.replace(/が$/g, "");
+    return t;
+}
+
+function _fixDoubleGa(s) {
+    const t = String(s || "");
+    return t.replace(/が、([^。]*?)が/g, "は、$1が");
+}
+
+function buildFlavorBlockSky({ story, item, normalized, deps }) {
+    const dict = deps?.dict || require("../../dict");
+    const blend = require("../../dict/blend.v2");
+
+    const aSignKey = normalized?.a_sign_key || normalized?.aSignKey || "";
+    const aPlanetKey = normalized?.a || normalized?.aPlanetKey || "";
+    const aspectLabelJa = normalized?.aspect?.label_ja || normalized?.aspect_label_ja || "";
+    const aspectType = normalized?.type || normalized?.aspectType || "";
+
+    const { by } = _getSignFlavor(dict, aSignKey, aPlanetKey);
+    const roleA = _getRole(dict, aSignKey, aPlanetKey);
+    const roleB = _getRole(dict, normalized?.b_sign_key || normalized?.bSignKey || "", normalized?.b || normalized?.bPlanetKey || "");
+    const role = roleA && roleB ? `${roleA} × ${roleB}` : (roleA || roleB || "");
+    const core = by?.core || "";
+
+    const seed = `${story?.meta?.date_local || ""}|${aPlanetKey}|${aSignKey}|${aspectType || aspectLabelJa}`;
+    const keywordsA = by?.fusion?.A || [];
+    const keywordsB = by?.fusion?.B || [];
+    const aspectKey = _normAspectKey(aspectType || aspectLabelJa);
+    const profile = _aspectKeywordProfile(aspectKey);
+
+    let A = _pickMany(keywordsA, `${seed}|A`, profile.a);
+    let B = _pickMany(keywordsB, `${seed}|B`, profile.b);
+    const fb = _getFallbackKeywords(dict, aSignKey, aPlanetKey);
+    if (!A.length && !B.length) {
+        // fallback only when A/B are missing
+        A = _pickMany(fb, `${seed}|FB`, 5);
+        B = [];
+    } else if (!A.length) {
+        A = _pickMany(keywordsB, `${seed}|AB`, profile.a);
+        B = _pickMany(keywordsB, `${seed}|AB2`, profile.b);
+    } else if (!B.length) {
+        B = _pickMany(keywordsA, `${seed}|BA`, Math.max(1, profile.b));
+    }
+
+    const relationRaw = blend.resolveAspectRelationJa(dict, aspectLabelJa, `${seed}|rel`, aspectType) || "";
+    const dynamicsRaw = blend.resolveAspectDynamicsJa(dict, aspectType || aspectLabelJa) || "触れやすい";
+    const relation = _dedupeRelation(relationRaw, dynamicsRaw);
+    const dyn = _cleanClause(dynamicsRaw);
+    const rel = _cleanClause(relation);
+    const clause = _ensureGa(_simplifyDynamics(dyn || rel || "触れやすい"));
+
+    const modifier = _signModifier(dict, aSignKey, aPlanetKey, seed);
+    const avoid = _avoidTokensFromModifier(modifier);
+    const subject = _subjectNoun(dict, aPlanetKey, seed, avoid);
+    const s1 = _fixDoubleGa(`${modifier}${subject}が、${clause}。`);
+
+    const tone = _pickAspectToneWords(dict, aspectKey, seed, profile.tone);
+    const kwBase = _uniq([...tone, ...A, ...B].filter(Boolean));
+    const keywordAll = kwBase.length > 5 ? _pickMany(kwBase, `${seed}|KW`, 5) : kwBase;
+    const keywordLine = keywordAll.length ? `KeyWord: ${keywordAll.join(" / ")}` : "";
+
+    const lines = [];
+    if (role) lines.push(`【${role}】`);
+    if (s1) lines.push(`→ ${s1}`);
+    if (keywordLine) lines.push(keywordLine);
+
+    return lines.length ? lines.join("\n") : "";
+}
+
 /* =========================
  * deps resolver (揺れ吸収)
  * ========================= */
@@ -314,7 +605,12 @@ function normalizeAspectType(raw) {
         x === "quincunx_150" ||
         x === "quintile_72" ||
         x === "biquintile_144" ||
-        x === "septile_family"
+        x === "septile_family" ||
+        x === "novile_40" ||
+        x === "binovile_80" ||
+        x === "quadranovile_160" ||
+        x === "decile_36" ||
+        x === "tridecile_108"
     ) {
         return x;
     }
@@ -335,6 +631,13 @@ function normalizeAspectType(raw) {
         // sesqui-square 系 → sesqui_square_135
         sesquisquare: "sesqui_square_135",
         sesqui_square: "sesqui_square_135",
+
+        // novile / decile families
+        novile: "novile_40",
+        binovile: "binovile_80",
+        quadranovile: "quadranovile_160",
+        decile: "decile_36",
+        tridecile: "tridecile_108",
     };
 
     return map[base] || base; // majorはここでそのまま帰る
@@ -445,28 +748,20 @@ function formatListWithOptionalFusion({
     if (!trimStr(line)) return "";
 
     const normalized = normalizeSkyForFusion(story, item, deps);
-    const fusion = trimStr(
-        callBuildFusionSentence(deps, normalized, {
-            template: fusionTemplate,
-            mode: "sky",
-            style: "sentence",
-        })
-    );
+    const flavor = trimStr(buildFlavorBlockSky({ story, item, normalized, deps }));
 
-    // --- DEBUG (TEMP) ---
-    const debug = [
-        `tpl=${fusionTemplate}`,
-        `a=${normalized.a}`,
-        `b=${normalized.b}`,
-        `aS=${normalized.a_sign_key}`,
-        `bS=${normalized.b_sign_key}`,
-        `aspT=${normalized.aspect?.type || ""}`,
-        `aspJa=${normalized.aspect?.label_ja || ""}`,
-    ].join(" ");
-    // --- DEBUG (TEMP) ---
+    const fusion = flavor
+        ? flavor
+        : trimStr(
+            callBuildFusionSentence(deps, normalized, {
+                template: fusionTemplate,
+                mode: "sky",
+                style: "sentence",
+            })
+        );
 
-    if (!fusion) return `${line}\n[${debug}]`;     // fusion空＝呼べてない/参照できない
-    return `${line}\n${fusion}\n[${debug}]`.trim(); // fusion同じ＝fallbackの可能性大
+    if (!fusion) return `${line}`;     // fusion空＝呼べてない/参照できない
+    return `${line}\n${fusion}`.trim();
 
 }
 
@@ -483,13 +778,14 @@ function formatEssayFromSameItem({
 } = {}) {
     const normalized = normalizeSkyForFusion(story, item, deps);
 
-    const fusion = trimStr(
-        callBuildFusionSentence(deps, normalized, {
-            template: fusionTemplate,
-            mode: "sky",
-            style: "sentence",
-        })
-    );
+    const fusion = trimStr(buildFlavorBlockSky({ story, item, normalized, deps })) ||
+        trimStr(
+            callBuildFusionSentence(deps, normalized, {
+                template: fusionTemplate,
+                mode: "sky",
+                style: "sentence",
+            })
+        );
 
     if (fusion) return `${prefix}${fusion}`;
 
@@ -570,9 +866,106 @@ function renderSoraBase(story, opts = {}, deps = {}) {
 
     // dist
     const nowCounts = isFn(buildNowModernPlanetCounts) ? buildNowModernPlanetCounts(story) : null;
-    const distLines = isFn(buildDistLinesFromcounts)
+    let distLines = isFn(buildDistLinesFromcounts)
         ? buildDistLinesFromcounts(nowCounts, { forX: false })
         : "";
+
+    const sumCounts = (c) =>
+        Number(c?.element?.fire || 0) +
+        Number(c?.element?.earth || 0) +
+        Number(c?.element?.air || 0) +
+        Number(c?.element?.water || 0);
+
+    if (!trimStr(distLines) || sumCounts(nowCounts) === 0) {
+        const dict = deps?.dict || require("../../dict");
+        const signs = dict?.SIGNS_V2?.signs || dict?.SIGNS_V1?.signs || {};
+        const publicSignKey = deps?.publicSignKey;
+
+        const element = { fire: 0, earth: 0, air: 0, water: 0 };
+        const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+
+        const BODIES = [
+            "sun",
+            "moon",
+            "mercury",
+            "venus",
+            "mars",
+            "jupiter",
+            "saturn",
+            "uranus",
+            "neptune",
+            "pluto",
+        ];
+
+        const addSignKey = (signKey) => {
+            const sKey = String(signKey || "").toLowerCase();
+            if (!sKey) return;
+            const s = signs?.[sKey] || null;
+            const e = String(s?.element || "").toLowerCase();
+            const m = String(s?.modality || "").toLowerCase();
+            if (element[e] !== undefined) element[e] += 1;
+            if (modality[m] !== undefined) modality[m] += 1;
+        };
+
+        if (typeof publicSignKey === "function") {
+            BODIES.forEach((bodyKey) => addSignKey(publicSignKey(story, bodyKey)));
+        }
+
+        const containers = [
+            story?.public?.bodies,
+            story?.public?.body_map,
+            story?.public?.bodies_map,
+            story?.public?.positions,
+            story?.public?.pos,
+            story?.public?.now,
+        ].filter(Boolean);
+
+        if (sumCounts({ element }) === 0) {
+            containers.forEach((c) => {
+                Object.entries(c || {}).forEach(([k, v]) => {
+                    const key = String(k || "").toLowerCase();
+                    if (!BODIES.includes(key)) return;
+                    if (typeof v === "string") return addSignKey(v);
+                    if (!v || typeof v !== "object") return;
+                    const sk =
+                        v.sign_key ||
+                        v.signKey ||
+                        v.sign?.key ||
+                        v.sign?.sign_key ||
+                        v.sign?.signKey ||
+                        v.sign;
+                    if (sk) addSignKey(sk);
+                });
+            });
+        }
+
+        if (sumCounts({ element }) === 0) {
+            const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+            const signMap = {};
+            for (const r of skyAll) {
+                const a = String(r?.a || "").toLowerCase();
+                const b = String(r?.b || "").toLowerCase();
+                if (a && !signMap[a]) signMap[a] = r?.a_sign_key || r?.aSignKey || r?.a_sign || "";
+                if (b && !signMap[b]) signMap[b] = r?.b_sign_key || r?.bSignKey || r?.b_sign || "";
+            }
+            BODIES.forEach((bodyKey) => addSignKey(signMap[bodyKey]));
+        }
+
+        const elementOut = element;
+        const modalityOut = modality;
+
+        const el = RENDER_COPY?.DIST?.ELEMENT_LINE_EMOJI
+            ? RENDER_COPY.DIST.ELEMENT_LINE_EMOJI(elementOut)
+            : RENDER_COPY?.DIST?.ELEMENT_LINE
+                ? RENDER_COPY.DIST.ELEMENT_LINE(elementOut)
+                : "";
+        const mo = RENDER_COPY?.DIST?.MODALITY_LINE_EMOJI
+            ? RENDER_COPY.DIST.MODALITY_LINE_EMOJI(modalityOut)
+            : RENDER_COPY?.DIST?.MODALITY_LINE
+                ? RENDER_COPY.DIST.MODALITY_LINE(modalityOut)
+                : "";
+        distLines = [el, mo].filter(Boolean).join("\n").trim();
+    }
 
     // yoin（空層余韻）
     const publicSignKey = deps?.publicSignKey;
@@ -657,10 +1050,186 @@ function renderSoraAllLineEssay(story, deps = {}) {
     return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "essay" }, deps);
 }
 
+function renderSoraUraLine(story, deps = {}) {
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const parts = [
+        `🌒 ソラのうら｜${dateLabel}`,
+        "・沈黙のほし",
+        "・裏共鳴",
+        "・調和層",
+        "",
+        "「沈黙のほし」「裏共鳴」「調和層」",
+        "送ってね🪐",
+    ];
+    return parts.join("\n").trim();
+}
+
+function renderSoraUraSilentLine(story, deps = {}) {
+    const { fmtSoraSkyLine } = resolveFormatters(deps);
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const sorted = skyAll
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    const list = sorted
+        .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
+        .filter((x) => {
+            const a = String(x.norm?.a || "").toLowerCase();
+            const b = String(x.norm?.b || "").toLowerCase();
+            return a === "chiron" || b === "chiron" || a === "lilith" || b === "lilith";
+        })
+        .slice(0, 5)
+        .map((x) => x.raw);
+
+    const lines = list.length
+        ? list
+            .map((s) =>
+                formatListWithOptionalFusion({
+                    story,
+                    item: s,
+                    prefix: "・",
+                    deps,
+                    baseFormatter: fmtSoraSkyLine,
+                    fusionTemplate: "sky_micro",
+                })
+            )
+            .filter(Boolean)
+            .join("\n\n")
+        : "……★*";
+
+    return [`🌒 沈黙のほし｜${dateLabel}`, lines].join("\n").trim();
+}
+
+function renderSoraUraRareLine(story, deps = {}) {
+    const { fmtSoraSkyLine } = resolveFormatters(deps);
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const sorted = skyAll
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    const rareAspects = new Set([
+        "quintile_72",
+        "biquintile_144",
+        "septile_family",
+        "semi_square_45",
+        "sesqui_square_135",
+        "semi_sextile_30",
+        "novile_40",
+        "binovile_80",
+        "quadranovile_160",
+        "decile_36",
+        "tridecile_108",
+    ]);
+
+    function skyKey(norm) {
+        const a = String(norm?.a || "").toLowerCase();
+        const b = String(norm?.b || "").toLowerCase();
+        const t = String(norm?.aspect?.type || norm?.type || "").toLowerCase();
+        const pair = [a, b].sort().join("|");
+        return `${pair}|${t}`;
+    }
+
+    const topKeySet = new Set(
+        sorted
+            .slice(0, 5)
+            .map((r) => normalizeSkyForFusion(story, r, deps))
+            .map((n) => skyKey(n))
+            .filter(Boolean)
+    );
+
+    const candidates = sorted
+        .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
+        .filter((x) => !topKeySet.has(skyKey(x.norm)));
+
+    const rareList = candidates.filter((x) =>
+        rareAspects.has(String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase())
+    );
+
+    const list = (rareList.length ? rareList : candidates)
+        .slice(0, 5)
+        .map((x) => x.raw);
+
+    const lines = list.length
+        ? list
+            .map((s) =>
+                formatListWithOptionalFusion({
+                    story,
+                    item: s,
+                    prefix: "・",
+                    deps,
+                    baseFormatter: fmtSoraSkyLine,
+                    fusionTemplate: "sky_micro",
+                })
+            )
+            .filter(Boolean)
+            .join("\n\n")
+        : "（該当なし）";
+
+    return [`🌒 裏共鳴｜${dateLabel}`, lines].join("\n").trim();
+}
+
+function renderSoraUraHarmonyLine(story, deps = {}) {
+    const { fmtSoraSkyLine } = resolveFormatters(deps);
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const sorted = skyAll
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    function skyKey(norm) {
+        const a = String(norm?.a || "").toLowerCase();
+        const b = String(norm?.b || "").toLowerCase();
+        const t = String(norm?.aspect?.type || norm?.type || "").toLowerCase();
+        const pair = [a, b].sort().join("|");
+        return `${pair}|${t}`;
+    }
+
+    const topKeySet = new Set(
+        sorted
+            .slice(0, 5)
+            .map((r) => normalizeSkyForFusion(story, r, deps))
+            .map((n) => skyKey(n))
+            .filter(Boolean)
+    );
+
+    const list = sorted
+        .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
+        .filter((x) => {
+            const t = String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase();
+            return t === "trine" || t === "sextile";
+        })
+        .filter((x) => !topKeySet.has(skyKey(x.norm)))
+        .map((x) => x.raw);
+
+    const lines = list.length
+        ? list
+            .map((s) =>
+                formatListWithOptionalFusion({
+                    story,
+                    item: s,
+                    prefix: "・",
+                    deps,
+                    baseFormatter: fmtSoraSkyLine,
+                    fusionTemplate: "sky_micro",
+                })
+            )
+            .filter(Boolean)
+            .join("\n\n")
+        : "（該当なし）";
+
+    return [`🌓 調和層｜${dateLabel}`, lines].join("\n").trim();
+}
+
 module.exports = {
     renderSoraLine,
     renderSoraAllLine,
     renderSoraBase,
     renderSoraLineEssay,
     renderSoraAllLineEssay,
+    renderSoraUraLine,
+    renderSoraUraSilentLine,
+    renderSoraUraRareLine,
+    renderSoraUraHarmonyLine,
 };

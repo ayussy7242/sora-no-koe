@@ -451,6 +451,10 @@ function createStoryService({
     const results = [];
     const transitKeys = Object.keys(transitBodies || {});
     const natalKeys = Object.keys(natalBodies || {});
+    const isChironLilith = (k) => {
+      const s = String(k || "").toLowerCase();
+      return s === "chiron" || s === "lilith";
+    };
 
     for (const t of transitKeys) {
       const tLon = transitBodies[t];
@@ -467,7 +471,9 @@ function createStoryService({
 
         const allow = rules?.aspects_used_all;
         if (Array.isArray(allow) && !allow.includes(best.type)) continue;
-        if (best.delta > (rules?.orb_max_deg ?? 6)) continue;
+        const baseOrb = (rules?.orb_max_deg ?? 6);
+        const orb = (isChironLilith(t) || isChironLilith(n)) ? 8 : baseOrb;
+        if (best.delta > orb) continue;
 
         const base = {
           transit_body: t,
@@ -502,6 +508,10 @@ function createStoryService({
     if (keys.length < 2) return [];
 
     const out = [];
+    const isChironLilith = (k) => {
+      const s = String(k || "").toLowerCase();
+      return s === "chiron" || s === "lilith";
+    };
     for (let i = 0; i < keys.length; i++) {
       for (let j = i + 1; j < keys.length; j++) {
         const a = keys[i];
@@ -511,7 +521,8 @@ function createStoryService({
         const best = bestAspectForDistance(dist, aspectsList);
         if (!best) continue;
 
-        if (best.delta <= orbMaxDeg) {
+        const orb = (isChironLilith(a) || isChironLilith(b)) ? 8 : orbMaxDeg;
+        if (best.delta <= orb) {
           out.push({
             a,
             b,
@@ -533,6 +544,10 @@ function createStoryService({
     if (keys.length < 2) return [];
 
     const out = [];
+    const isChironLilith = (k) => {
+      const s = String(k || "").toLowerCase();
+      return s === "chiron" || s === "lilith";
+    };
     for (let i = 0; i < keys.length; i++) {
       for (let j = i + 1; j < keys.length; j++) {
         const a = keys[i];
@@ -543,7 +558,8 @@ function createStoryService({
 
         if (!best) continue;
 
-        if (best.delta <= orbMaxDeg) {
+        const orb = (isChironLilith(a) || isChironLilith(b)) ? 8 : orbMaxDeg;
+        if (best.delta <= orb) {
           out.push({
             a,
             b,

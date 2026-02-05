@@ -14,6 +14,20 @@ const SAFE_POINT_JA = Object.freeze({
   dsc: "DSC",
 });
 
+const SAFE_PLANET_JA = Object.freeze({
+  sun: "太陽",
+  moon: "月",
+  mercury: "水星",
+  venus: "金星",
+  mars: "火星",
+  jupiter: "木星",
+  saturn: "土星",
+  uranus: "天王星",
+  neptune: "海王星",
+  pluto: "冥王星",
+  chiron: "キロン",
+});
+
 function createJaFormatters({
   BODY_JA = {},
   POINT_JA = {},
@@ -65,6 +79,9 @@ function createJaFormatters({
     const meta = PLANETS_META?.[low];
     if (meta?.label_ja) return meta.label_ja;
 
+    // SAFE 最終保険
+    if (SAFE_PLANET_JA[low]) return SAFE_PLANET_JA[low];
+
     // 互換MAP（raw/low 両対応）
     if (BODY_JA?.[raw]) return BODY_JA[raw];
     if (BODY_JA?.[low]) return BODY_JA[low];
@@ -105,7 +122,7 @@ function createJaFormatters({
 
     // point優先
     const p = fmtPointJa(raw);
-    if (p && p.toLowerCase() !== low) return p;
+    if (p && p !== raw) return p;
 
     return fmtBodyJa(raw);
   }

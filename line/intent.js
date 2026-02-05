@@ -49,6 +49,7 @@ const INTENT = Object.freeze({
   PUBLIC_SKY: "public_sky",
   PERSONAL_TODAY: "personal_today",
   NATAL: "natal_list",
+  ANSHIN: "anshin",
 
   HELP: "help",
   RESET: "reset",
@@ -90,6 +91,12 @@ const MAP = new Map([
   ["ネイタルチャート", INTENT.NATAL],
   ["出生図", INTENT.NATAL],
   ["natal", INTENT.NATAL],
+
+  // ANSHIN
+  ["あんしん", INTENT.ANSHIN],
+  ["安心", INTENT.ANSHIN],
+  ["あんしんねいたる", INTENT.ANSHIN],
+  ["安心ネイタル", INTENT.ANSHIN],
 
   // HELP
   ["help", INTENT.HELP],

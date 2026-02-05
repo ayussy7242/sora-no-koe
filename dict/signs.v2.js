@@ -228,4 +228,84 @@ const SIGNS_V2 = {
   ],
 };
 
+(function injectFlavorWordingIntoSignsV2() {
+  const COMMON_VERBS = [
+    "整える", "調整する", "試す", "観測する", "磨く",
+    "混ぜる", "ほどく", "固める", "切り替える", "合わせる",
+  ];
+
+  const COMMON_TEXTURE = [
+    "粒度", "温度差", "余白", "距離感", "密度",
+    "輪郭", "明度", "配分", "重なり", "境目",
+  ];
+
+  const PER_SIGN = {
+    aries: {
+      verbs: ["起動する", "走り出す", "押し出す", "直線化する"],
+      texture: ["勢い", "初速", "直進感", "即応"],
+    },
+    taurus: {
+      verbs: ["定着させる", "整備する", "保つ", "蓄える"],
+      texture: ["安定", "粘り", "厚み", "持続"],
+    },
+    gemini: {
+      verbs: ["行き来する", "言い換える", "切り替える", "並べる"],
+      texture: ["軽さ", "速度差", "対話感", "多層"],
+    },
+    cancer: {
+      verbs: ["守る", "包む", "養う", "馴染ませる"],
+      texture: ["保護", "内側", "湿度", "親密さ"],
+    },
+    leo: {
+      verbs: ["照らす", "示す", "引き上げる", "前に出す"],
+      texture: ["中心感", "明るさ", "誇り", "存在感"],
+    },
+    virgo: {
+      verbs: ["整える", "磨く", "仕分ける", "調律する"],
+      texture: ["精密", "手入れ感", "実務性", "細やかさ"],
+    },
+    libra: {
+      verbs: ["量る", "釣り合わせる", "調停する", "調律する"],
+      texture: ["均衡", "客観", "対話感", "美意識"],
+    },
+    scorpio: {
+      verbs: ["掘る", "深める", "集約する", "変える"],
+      texture: ["濃度", "深さ", "内圧", "集中"],
+    },
+    sagittarius: {
+      verbs: ["広げる", "伸ばす", "探る", "越える"],
+      texture: ["遠景", "拡張", "伸び", "開放感"],
+    },
+    capricorn: {
+      verbs: ["積み上げる", "固定する", "形にする", "支える"],
+      texture: ["骨格", "現実感", "重み", "持続性"],
+    },
+    aquarius: {
+      verbs: ["更新する", "切り離す", "再設計する", "俯瞰する"],
+      texture: ["距離", "非連続", "自由", "再編"],
+    },
+    pisces: {
+      verbs: ["にじませる", "溶かす", "受け取る", "共鳴する"],
+      texture: ["余韻", "霞", "やわらかさ", "境界の薄さ"],
+    },
+  };
+
+  function uniqPush(arr, items) {
+    if (!Array.isArray(arr)) return items ? Array.from(new Set(items)) : [];
+    const set = new Set(arr.map(String));
+    (items || []).forEach((x) => set.add(String(x)));
+    return Array.from(set);
+  }
+
+  const signs = SIGNS_V2?.signs || {};
+  Object.keys(signs).forEach((k) => {
+    const s = signs[k];
+    if (!s || typeof s !== "object") return;
+    const add = PER_SIGN[k] || {};
+
+    s.verbs = uniqPush(s.verbs || [], [...COMMON_VERBS, ...(add.verbs || [])]);
+    s.texture = uniqPush(s.texture || [], [...COMMON_TEXTURE, ...(add.texture || [])]);
+  });
+})();
+
 module.exports = { SIGNS_V2 };
