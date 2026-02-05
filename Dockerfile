@@ -6,20 +6,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
+
+# npm 安定化（取得壊れ・キャッシュ汚染耐性）
+ENV npm_config_registry=https://registry.npmjs.org/ \
+    npm_config_strict_ssl=true \
+    npm_config_fetch_retries=12 \
+    npm_config_fetch_retry_factor=2 \
+    npm_config_fetch_retry_mintimeout=20000 \
+    npm_config_fetch_retry_maxtimeout=180000 \
+    npm_config_prefer_online=true \
+    npm_config_cache=/tmp/npm-cache \
+    npm_config_audit=false \
+    npm_config_fund=false \
+    npm_config_update_notifier=false
+
 COPY package*.json ./
 
-# ✅ npm取得の揺れ対策（tarball corrupted ループ対策）
-ENV npm_config_cache=/tmp/.npm
-RUN npm config set registry https://registry.npmjs.org/ \
- && npm config set fetch-retries 6 \
- && npm config set fetch-retry-mintimeout 20000 \
- && npm config set fetch-retry-maxtimeout 120000 \
- && npm config set prefer-online true \
+# キャッシュを毎回捨てて、オンライン優先で ci
+RUN rm -rf /root/.npm /tmp/npm-cache \
  && npm cache clean --force \
- && npm ci --omit=dev --no-audit --no-fund
+ && npm ci --omit=dev --no-audit --no-fund --prefer-online --cache /tmp/npm-cache
 
 COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=8080
+
 CMD ["npm","start"]
