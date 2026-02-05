@@ -443,6 +443,14 @@ function _fixDupPhrases(s) {
   return t;
 }
 
+function _kwToBetween(kwPhrase) {
+  const s = String(kwPhrase || "").trim();
+  if (!s) return "";
+  const m = s.match(/^(.+?)や(.+)$/);
+  if (m) return `${m[1]}と${m[2]}のあいだで`;
+  return `${s}に`;
+}
+
 function _getRole(dict, signKey, planetKey) {
   const { by } = _getSignFlavor(dict, signKey, planetKey);
   const role = by?.role || by?.core || "";
@@ -725,7 +733,7 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
     tensionFilled
       ? `${modePrefix}${_smoothTension(tensionFilled)}で${state2}。`
       : kwPhrase
-        ? `${modePrefix}${kwPhrase}に${state2}。`
+        ? `${modePrefix}${_kwToBetween(kwPhrase)}${state2}。`
         : `${modePrefix}${state2}。`
   );
 
