@@ -70,7 +70,13 @@ function buildDistLinesFromcounts(counts, { forX = false } = {}) {
     const modality = c.modality || {};
 
     if (!forX && RENDER_COPY?.DIST?.ELEMENT_LINE && RENDER_COPY?.DIST?.MODALITY_LINE) {
-        return [RENDER_COPY.DIST.ELEMENT_LINE(element), RENDER_COPY.DIST.MODALITY_LINE(modality)]
+        const el = RENDER_COPY.DIST.ELEMENT_LINE_EMOJI
+            ? RENDER_COPY.DIST.ELEMENT_LINE_EMOJI(element)
+            : RENDER_COPY.DIST.ELEMENT_LINE(element);
+        const mo = RENDER_COPY.DIST.MODALITY_LINE_EMOJI
+            ? RENDER_COPY.DIST.MODALITY_LINE_EMOJI(modality)
+            : RENDER_COPY.DIST.MODALITY_LINE(modality);
+        return [el, mo]
             .filter(Boolean)
             .join("\n")
             .trim();

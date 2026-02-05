@@ -122,17 +122,83 @@ const BLEND_V2 = Object.freeze({
         }),
 
         aspect_dynamics_ja: Object.freeze({
-            コンジャンクション: "性質が重なって強調されやすい",
-            セクスタイル: "噛み合う余白が生まれやすい",
-            スクエア: "摩擦や調整点が表に出やすい",
-            トライン: "自然に循環しやすい",
-            オポジション: "外側に映りやすく、鏡として見えやすい",
-            セミセクスタイル: "気配レベルの接点として現れやすい",
-            セミスクエア: "微調整が起きやすい",
-            セスキスクエア: "積み重なった圧が摩擦として表に出やすい",
-            インコンジャンクト: "噛み合いにくさが調整として出やすい",
-            クインタイル: "工夫や創造の回路が立ち上がりやすい",
-            バイクインタイル: "反復で熟成し、整い続けやすい",
+            コンジャンクション: [
+                "性質が重なって強調されやすい",
+                "重なりが濃く出やすい",
+                "融合して一体化しやすい",
+            ],
+            セクスタイル: [
+                "噛み合う余白が生まれやすい",
+                "通路が開きやすい",
+                "橋がかかりやすい",
+                "協力点が見えやすい",
+            ],
+            スクエア: [
+                "摩擦や調整点が表に出やすい",
+                "交差のズレが浮かびやすい",
+                "試行錯誤が出やすい",
+            ],
+            トライン: [
+                "自然に循環しやすい",
+                "無理なく流れやすい",
+                "滑らかに通りやすい",
+                "当たり前に機能しやすい",
+            ],
+            オポジション: [
+                "外側に映りやすく、鏡として見えやすい",
+                "対立軸がはっきりしやすい",
+                "相互に映し合う形が出やすい",
+            ],
+            セミセクスタイル: [
+                "気配レベルの接点として現れやすい",
+                "無意識の外側で触れやすい",
+                "かすかな接点が出やすい",
+            ],
+            セミスクエア: [
+                "微調整が起きやすい",
+                "小さな引っかかりが出やすい",
+                "些細なズレが浮かびやすい",
+            ],
+            セスキスクエア: [
+                "積み重なった圧が摩擦として表に出やすい",
+                "溜まった分が露出しやすい",
+                "限界手前の摩擦が出やすい",
+            ],
+            インコンジャンクト: [
+                "噛み合いにくさが調整として出やすい",
+                "違和感の調整点が浮かびやすい",
+                "共通言語の外でズレが出やすい",
+            ],
+            クインタイル: [
+                "工夫や創造の回路が立ち上がりやすい",
+                "独自の工夫が出やすい",
+                "ピンポイントな創造が出やすい",
+            ],
+            バイクインタイル: [
+                "反復で熟成し、整い続けやすい",
+                "試行錯誤で磨かれやすい",
+                "反復の中で完成度が上がりやすい",
+            ],
+            ノヴィル: [
+                "内側で意味が落ち着きやすい",
+                "静かな統合が進みやすい",
+            ],
+            バイノヴィル: [
+                "内面の調律が進みやすい",
+                "静かな修復が出やすい",
+            ],
+            クアドラノヴィル: [
+                "静かな確定が出やすい",
+                "内的完成の輪郭が立ちやすい",
+            ],
+            デシル: [
+                "実装に落ちやすい",
+                "組み立てが進みやすい",
+            ],
+            トリデシル: [
+                "運用として回りやすい",
+                "仕組み化が進みやすい",
+            ],
         }),
 
         orb_hint_ja: Object.freeze([
@@ -235,6 +301,53 @@ function _normPlanetKey(k) {
 }
 function _normAspectLabelJa(k) {
     return String(k || "").trim();
+}
+
+// aspect type normalize (local, no external deps)
+function normalizeAspectTypeKey(raw) {
+    const x = String(raw || "").toLowerCase().trim();
+    if (!x) return "";
+
+    if (
+        x === "conjunction" ||
+        x === "sextile" ||
+        x === "square" ||
+        x === "trine" ||
+        x === "opposition" ||
+        x === "semi_sextile_30" ||
+        x === "semi_square_45" ||
+        x === "sesqui_square_135" ||
+        x === "quincunx_150" ||
+        x === "quintile_72" ||
+        x === "biquintile_144" ||
+        x === "novile_40" ||
+        x === "binovile_80" ||
+        x === "quadranovile_160" ||
+        x === "decile_36" ||
+        x === "tridecile_108"
+    ) {
+        return x;
+    }
+
+    const base = x.replace(/_\d+$/, "");
+    const map = {
+        inconjunct: "quincunx_150",
+        quincunx: "quincunx_150",
+        semisextile: "semi_sextile_30",
+        semi_sextile: "semi_sextile_30",
+        semisquare: "semi_square_45",
+        semi_square: "semi_square_45",
+        sesquisquare: "sesqui_square_135",
+        sesqui_square: "sesqui_square_135",
+        quintile: "quintile_72",
+        biquintile: "biquintile_144",
+        novile: "novile_40",
+        binovile: "binovile_80",
+        quadranovile: "quadranovile_160",
+        decile: "decile_36",
+        tridecile: "tridecile_108",
+    };
+    return map[base] || base;
 }
 
 function _hash32(str) {
@@ -410,9 +523,10 @@ function _planetSignMaterialV2(dict, planetKey, signKey) {
     const sTexture = Array.isArray(s?.texture) ? s.texture.filter(Boolean) : [];
 
     const pVerbs = Array.isArray(p?.verbs) ? p.verbs.filter(Boolean) : [];
+    const pActionVerbs = Array.isArray(p?.action_verb_ja) ? p.action_verb_ja.filter(Boolean) : [];
     const sVerbs = Array.isArray(s?.verbs) ? s.verbs.filter(Boolean) : [];
 
-    return { p, s, pRole, pCore, sFlavor, sCore, pTexture, sTexture, pVerbs, sVerbs };
+    return { p, s, pRole, pCore, sFlavor, sCore, pTexture, sTexture, pVerbs: [...pVerbs, ...pActionVerbs], sVerbs };
 }
 
 // ----------------------------
@@ -451,6 +565,34 @@ function _getSignFlavorPack(dict, signKey, planetKey) {
         baseFlavor: _trim(base?.flavor, ""),
         baseShort: _trim(base?.short, ""),
     };
+}
+
+function _buildAlineFromSignFlavor(dict, SF_A, B_tension, seedStr = "") {
+    const flavor = _getSignFlavor(dict);
+    const util = flavor?.util;
+    const grammar = flavor?.grammar;
+    if (!util || typeof util.buildA !== "function" || !grammar?.templates) return "";
+
+    const templateKeys = Object.keys(grammar.templates || {}).filter(Boolean);
+    const tpl = _pick(templateKeys, `${seedStr}|sf_tpl`, templateKeys[0] || "A1");
+
+    const core = _trim(SF_A?.coreText, "");
+    const tensionBase = _trim(SF_A?.tensionText, "");
+    const tension = [tensionBase, _trim(B_tension, "")].filter(Boolean).join("、");
+
+    const outputKey = _trim(SF_A?.defaults?.outputKey, "expression");
+    const tryingKey = _trim(SF_A?.defaults?.tryingKey, "try");
+
+    const idx = _hash32(`${seedStr}|sf_idx`) % 3;
+
+    return util.buildA({
+        templateKey: tpl,
+        core: core || "—",
+        tension: tension || "—",
+        outputKey,
+        tryingKey,
+        i: idx,
+    });
 }
 
 function resolveFusionFieldLabel(dict, signKey) {
@@ -561,7 +703,7 @@ function _findAspectEntryByLabelJa(dict, aspectLabelJa) {
     const A = _getAspectsV2(dict);
     if (!A) return null;
 
-    const pools = [A.major, A.deep_space].filter(Boolean);
+    const pools = [A.major, A.deep_space, A.craft_space].filter(Boolean);
     for (const pool of pools) {
         for (const k of Object.keys(pool || {})) {
             const ent = pool[k];
@@ -578,8 +720,9 @@ function _findAspectEntryByKeyOrLabel(dict, aspectTypeOrLabel) {
     const k = String(aspectTypeOrLabel || "").trim();
     if (A.major && A.major[k]) return A.major[k];
     if (A.deep_space && A.deep_space[k]) return A.deep_space[k];
+    if (A.craft_space && A.craft_space[k]) return A.craft_space[k];
 
-    for (const pool of [A.major, A.deep_space]) {
+    for (const pool of [A.major, A.deep_space, A.craft_space]) {
         for (const kk of Object.keys(pool || {})) {
             const ent = pool[kk];
             if (ent?.label_ja && String(ent.label_ja).trim() === k) return ent;
@@ -624,7 +767,7 @@ function resolveAspectRelationJa(dict, aspectLabelJa, seedStr, aspectType) {
     return picked || "触れ、";
 }
 
-function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa) {
+function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa, seedStr = "") {
     const key = String(aspectTypeOrLabelJa || "").trim();
     const keyNorm = _normalizeAspectTypeKey(key);
 
@@ -632,7 +775,12 @@ function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa) {
     const labelJa = _trim(ent?.label_ja, "");
 
     const m = BLEND_V2?.fusion?.aspect_dynamics_ja || {};
-    const hit = _trim(m[labelJa], "") || _trim(m[keyNorm], "") || _trim(m[key], "");
+    const raw = m[labelJa] ?? m[keyNorm] ?? m[key];
+    if (Array.isArray(raw)) {
+        const picked = _pick(raw, `${seedStr}|${keyNorm}|${labelJa}|dynamics`, raw[0]);
+        if (picked) return _jaToken(_stripRelationPrefixFromDynamics(picked));
+    }
+    const hit = _trim(raw, "");
     if (hit) return _jaToken(_stripRelationPrefixFromDynamics(hit));
 
     const prose = _trim(ent?.prose_ja?.result, "");
@@ -648,13 +796,26 @@ function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa) {
 }
 
 function resolvePlanetActionJa(dict, planetKey, { seed = "" } = {}) {
-    const key = String(planetKey || "").trim();
+    const key = _normPlanetKey(planetKey);
     if (!key) return "";
 
-    // ✅ planets.v2 優先
-    const p2 = dict?.planets?.bodies?.[key];
+    // ✅ planets.v2 を “どの置き方でも” 探す（互換）
+    const planets =
+        dict?.planets ||
+        dict?.PLANETS_V2 ||
+        dict?.PLANETS ||
+        null;
+
+    const bodies =
+        planets?.bodies ||
+        planets?.planets?.bodies ||
+        null;
+
+    const p2 = bodies?.[key];
+
     const pool =
         (Array.isArray(p2?.action_noun_ja) && p2.action_noun_ja) ||
+        (Array.isArray(p2?.nouns) && p2.nouns) ||
         (Array.isArray(p2?.action_ja) && p2.action_ja) ||
         null;
 
@@ -663,8 +824,44 @@ function resolvePlanetActionJa(dict, planetKey, { seed = "" } = {}) {
     }
 
     // ✅ fallback（既存互換）
-    const legacy = dict?.blend?.planet_action_ja?.[key];
-    return typeof legacy === "string" ? legacy : "";
+    const legacy =
+        dict?.blend?.planet_action_ja?.[key] ||
+        dict?.BLEND?.fusion?.planet_action_ja?.[key] ||
+        BLEND_V2?.fusion?.planet_action_ja?.[key];
+
+    if (typeof legacy === "string") return legacy;
+
+    // 最低限の差分を残す
+    return _trim(p2?.role, _trim(p2?.core, _trim(p2?.label_ja, key)));
+}
+
+function resolvePlanetVerbJa(dict, planetKey, { seed = "" } = {}) {
+    const key = _normPlanetKey(planetKey);
+    if (!key) return "";
+
+    const planets =
+        dict?.planets ||
+        dict?.PLANETS_V2 ||
+        dict?.PLANETS ||
+        null;
+
+    const bodies =
+        planets?.bodies ||
+        planets?.planets?.bodies ||
+        null;
+
+    const p2 = bodies?.[key];
+
+    const pool =
+        (Array.isArray(p2?.action_verb_ja) && p2.action_verb_ja) ||
+        (Array.isArray(p2?.verbs) && p2.verbs) ||
+        null;
+
+    if (pool && pool.length) {
+        return _pick(pool, `${seed}|planet_verb|${key}`, pool[0]);
+    }
+
+    return "";
 }
 
 function resolveAspectSentenceJa(params = {}) {
@@ -726,8 +923,9 @@ function buildFusionSentenceJa(params = {}) {
     const A_field = _jaToken(resolveFusionFieldLabel(dict, natalSignKey));
     const B_field = _jaToken(resolveFusionFieldLabel(dict, transitSignKey));
 
-    const A_act = _jaToken(resolvePlanetActionJa(natalPlanetKey) || "");
-    const B_act = _jaToken(resolvePlanetActionJa(transitPlanetKey) || "");
+    const A_act = _jaToken(resolvePlanetActionJa(dict, natalPlanetKey, { seed }) || "");
+    const B_act = _jaToken(resolvePlanetActionJa(dict, transitPlanetKey, { seed }) || "");
+
 
     const A_verb = _pickVerb(
         dict,
@@ -751,8 +949,13 @@ function buildFusionSentenceJa(params = {}) {
         `${seed}|rel|${aspectLabelJa}|${natalPlanetKey}|${natalSignKey}|${transitPlanetKey}|${transitSignKey}`,
         aspectType
     );
-
-    const dynamics = _jaToken(resolveAspectDynamicsJa(dict, aspectType || aspectLabelJa) || fallbackDynamicsByAspectJa(aspectType));
+    const dynamics = _jaToken(
+        resolveAspectDynamicsJa(
+            dict,
+            aspectType || aspectLabelJa,
+            `${seed}|dyn|${aspectType || aspectLabelJa}|${natalPlanetKey}|${natalSignKey}|${transitPlanetKey}|${transitSignKey}`
+        ) || fallbackDynamicsByAspectJa(aspectType)
+    );
 
     const mid = joinJa(
         [
@@ -797,7 +1000,8 @@ function buildAlineFusionJa(params = {}) {
         return _trim(a, _trim(b, _trim(c, fb)));
     }
 
-    const A_core = _trim3(A.pRole, SF_A.coreText, A_sign);
+    const A_core_raw = _trim3(SF_A.coreText, A.pRole, A.sFlavor, A_sign);
+    const A_core = _safeNoun(A_core_raw, _trim(SF_A.coreText, _trim(A.pRole, _trim(A.sFlavor, A_sign))));
 
     const B_side_pool = [
         ...B.pTexture,
@@ -805,13 +1009,32 @@ function buildAlineFusionJa(params = {}) {
         B.sFlavor,
         ...SF_B.B_words,
         SF_B.tensionText,
-    ].filter(Boolean);
+    ].filter(Boolean).filter((x) => !_isNoisyPhrase(x));
 
-    const B_tension = _pick(
+    const B_tension = _safeNoun(_pick(
         B_side_pool,
         `${seed}|bside|${transitPlanetKey}|${transitSignKey}|${aspectLabelJa}`,
         _trim(B.sFlavor, B_sign)
-    );
+    ), _trim(B.sFlavor, B_sign));
+
+    function _nounize(s) {
+        const t = _trim(s, "");
+        if (!t) return t;
+        if (/(ながら|つつ)$/.test(t)) return `${t}流れ`;
+        if (/(する|しやすい|しにくい|やすい|にくい|たい|がち|っぽい)$/.test(t)) {
+            return `${t}気配`;
+        }
+        return t;
+    }
+
+    function _isNoisyPhrase(s) {
+        return /(が|を|に|へ|で|から|まで|ながら|つつ|として|ために)/.test(String(s || ""));
+    }
+
+    function _safeNoun(s, fallback) {
+        const t = _nounize(s);
+        return _isNoisyPhrase(t) ? fallback : t;
+    }
 
     const outputKey =
         _trim(SF_A.defaults?.outputKey, "") ||
@@ -844,9 +1067,18 @@ function buildAlineFusionJa(params = {}) {
         ...SF_A.clar_words,
     ].filter(Boolean);
 
-    const expression = _pick(expressionPool, `${seed}|expr|${outputKey}|${A_core}|${B_tension}`, "表現");
-    const process = _pick(processPool, `${seed}|proc|${A_core}|${B_tension}`, "調整");
-    const clarity = _pick(clarityPool, `${seed}|clar|${A_core}|${B_tension}`, "輪郭");
+    const expression = _safeNoun(
+        _pick(expressionPool, `${seed}|expr|${outputKey}|${A_core}|${B_tension}`, "表現"),
+        "表現"
+    );
+    const process = _safeNoun(
+        _pick(processPool, `${seed}|proc|${A_core}|${B_tension}`, "調整"),
+        "調整"
+    );
+    const clarity = _safeNoun(
+        _pick(clarityPool, `${seed}|clar|${A_core}|${B_tension}`, "輪郭"),
+        "輪郭"
+    );
 
     const tPool =
         grammars?.categories?.tendency?.[tendencyDepth] ||
@@ -859,17 +1091,46 @@ function buildAlineFusionJa(params = {}) {
         { suffix: "しやすい" }
     );
 
-    const tendPhrase = _pick(
+    const tendPhraseRaw = _pick(
         SF_A.tend_words,
         `${seed}|tphrase|${tendencyDepth}|${A_core}|${B_tension}|${aspectLabelJa}`,
         ""
     );
+    const tendPhrase = /^(が|として|の気配|と)/.test(tendPhraseRaw || "") ? tendPhraseRaw : "";
 
     const tendency = (tPicked && typeof tPicked === "object" ? tPicked.suffix : null) || "しやすい";
 
-    const main = `${A_core}と${B_tension}${relation}${expression}は${process}の中で${clarity}を持つ`;
-    if (tendPhrase) return _finalizeAlineJa(`${main}${tendPhrase}。`);
-    return _finalizeAlineJa(`${main}${tendency}。`);
+    const rel = relation ? `が${relation}` : "が";
+    const base = `${A_core}と${B_tension}${rel}${expression}は${process}の中で${clarity}`;
+
+    const tail = (suffix) => {
+        if (!suffix) return `${base}を持つ。`;
+        if (/^として/.test(suffix)) return `${base}${suffix}。`;
+        if (/^の気配/.test(suffix)) return `${base}${suffix}。`;
+        if (/^が/.test(suffix)) return `${base}${suffix}。`;
+        if (/^と/.test(suffix)) return `${base}だ${suffix}。`;
+        // まとまった句なら別文に逃がす
+        if (/(やすい|にくい|なる|出る|残る|現れる)/.test(suffix)) {
+            return `${base}を持つ。${suffix}。`;
+        }
+        return `${base}を持つ${suffix}。`;
+    };
+
+    // If sign_flavor has strong by_body, prefer its grammar template + add aspect clause
+    const sfSentence = _buildAlineFromSignFlavor(
+        dict,
+        SF_A,
+        B_tension,
+        `${seed}|sf|${natalPlanetKey}|${natalSignKey}|${transitPlanetKey}|${transitSignKey}|${aspectLabelJa}`
+    );
+    if (sfSentence) {
+        const sf = String(sfSentence || "").replace(/。+$/g, "").trim();
+        const aspectClause = `${relation || ""}${dynamics}`.replace(/^[、\s]+/g, "").trim();
+        return _finalizeAlineJa(`${sf}。${aspectClause}。`);
+    }
+
+    if (tendPhrase) return _finalizeAlineJa(tail(tendPhrase));
+    return _finalizeAlineJa(tail(tendency));
 }
 
 // ============================================================
@@ -896,9 +1157,29 @@ function buildAlineSkyFusionJa(params = {}) {
     const aAct = resolvePlanetActionJa(dict, aPlanetKey, { seed }) || "";
     const bAct = resolvePlanetActionJa(dict, bPlanetKey, { seed }) || "";
 
+    const aVerb = _pickVerb(
+        dict,
+        aPlanetKey,
+        aSignKey,
+        `${seed}|verb|A|${aPlanetKey}|${aSignKey}|${aspectType || aspectLabelJa}`,
+        "動く"
+    );
+
+    const bVerb = _pickVerb(
+        dict,
+        bPlanetKey,
+        bSignKey,
+        `${seed}|verb|B|${bPlanetKey}|${bSignKey}|${aspectType || aspectLabelJa}`,
+        "動く"
+    );
+
     // ✅ SKY = dynamics only（relation は捨てる）
     const dynamicsRaw =
-        resolveAspectDynamicsJa(dict, aspectType || aspectLabelJa) || fallbackDynamicsByAspectJa(aspectType);
+        resolveAspectDynamicsJa(
+            dict,
+            aspectType || aspectLabelJa,
+            `${seed}|dyn|${aspectType || aspectLabelJa}|${aPlanetKey}|${aSignKey}|${bPlanetKey}|${bSignKey}`
+        ) || fallbackDynamicsByAspectJa(aspectType);
 
     // dynamics の前後句読点・不可視文字を殺す（先頭「。」事故の根絶）
     const dynamics = String(dynamicsRaw || "")
@@ -925,16 +1206,19 @@ function buildAlineSkyFusionJa(params = {}) {
     const tail = hasEasy ? "。" : `${tendency}。`;
 
     const sameField = A_field && B_field && A_field === B_field;
-    const isConjunction = normalizeAspectType(aspectType) === "conjunction";
+    const isConjunction = normalizeAspectTypeKey(aspectType) === "conjunction";
 
     let head;
 
+    const aPhrase = `${aAct}が${aVerb}`;
+    const bPhrase = `${bAct}が${bVerb}`;
+
     if (sameField && isConjunction) {
-        head = `${A_field}の中で、${aAct}と${bAct}が重なり、`;
+        head = `${A_field}の中で、${aPhrase}、${bPhrase}、`;
     } else if (sameField) {
-        head = `${A_field}の中で、${aAct}と${bAct}は、`;
+        head = `${A_field}の中で、${aPhrase}、${bPhrase}、`;
     } else {
-        head = `${A_field}の${aAct}と${B_field}の${bAct}は、`;
+        head = `${A_field}の${aPhrase}、${B_field}の${bPhrase}、`;
     }
 
     return _finalizeAlineJa(`${head}${dyn}${tail}`);
@@ -1044,11 +1328,16 @@ function buildFusionSentence(dictOrDeps, item, opts = {}) {
         if (String(out || "").trim()) return out;
 
         // fallback（最低1文）: ここも policy に合わせて relation を入れない
-        const dynamics = resolveAspectDynamicsJa(dict, aspectTypeSky || aspectLabelJaSky) || "触れやすい";
+        const dynamics =
+            resolveAspectDynamicsJa(
+                dict,
+                aspectTypeSky || aspectLabelJaSky,
+                `${seed}|dyn|${aspectTypeSky || aspectLabelJaSky}|${aPlanetKey}|${aSignKeySky}|${bPlanetKey}|${bSignKeySky}`
+            ) || "触れやすい";
         const A_field = resolveFusionFieldLabel(dict, aSignKeySky);
         const B_field = resolveFusionFieldLabel(dict, bSignKeySky);
-        const aAct = resolvePlanetActionJa(aPlanetKey) || "作用";
-        const bAct = resolvePlanetActionJa(bPlanetKey) || "作用";
+        const aAct = resolvePlanetActionJa(dict, aPlanetKey, { seed }) || "作用";
+        const bAct = resolvePlanetActionJa(dict, bPlanetKey, { seed }) || "作用";
 
         return _finalizeAlineJa(`${A_field}の${aAct}と${B_field}の${bAct}は、${dynamics}。`);
     }
@@ -1082,11 +1371,16 @@ function buildFusionSentence(dictOrDeps, item, opts = {}) {
         `${seed}|rel|${aspectLabelJa}|${natalPlanetKey}|${natalSignKey}|${transitPlanetKey}|${transitSignKey}`,
         aspectType
     );
-    const dynamics = resolveAspectDynamicsJa(dict, aspectType || aspectLabelJa) || "触れやすい";
+    const dynamics =
+        resolveAspectDynamicsJa(
+            dict,
+            aspectType || aspectLabelJa,
+            `${seed}|dyn|${aspectType || aspectLabelJa}|${natalPlanetKey}|${natalSignKey}|${transitPlanetKey}|${transitSignKey}`
+        ) || "触れやすい";
     const A_field = resolveFusionFieldLabel(dict, natalSignKey);
     const B_field = resolveFusionFieldLabel(dict, transitSignKey);
-    const aAct = resolvePlanetActionJa(natalPlanetKey) || "作用";
-    const bAct = resolvePlanetActionJa(transitPlanetKey) || "作用";
+    const aAct = resolvePlanetActionJa(dict, natalPlanetKey, { seed }) || "作用";
+    const bAct = resolvePlanetActionJa(dict, transitPlanetKey, { seed }) || "作用";
 
     return _finalizeAlineJa(`${A_field}の${aAct}と${B_field}の${bAct}が${relation}${dynamics}。`);
 }
@@ -1104,6 +1398,7 @@ module.exports = {
 
     resolveFusionFieldLabel,
     resolvePlanetActionJa,
+    resolvePlanetVerbJa,
     resolveAspectDynamicsJa,
     resolveAspectRelationJa,
 

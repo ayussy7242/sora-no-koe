@@ -224,10 +224,21 @@ function createYoin(deps = {}) {
       null;
 
     if (typeof RENDER_COPY?.YOIN?.BUILD === "function") {
+      const seedBase = [
+        typeof getUserId === "function" ? getUserId(story) : "",
+        story?.meta?.date_local || "",
+        "yoin_center",
+        aspectTypeNorm,
+      ]
+        .filter(Boolean)
+        .join("|");
+
       return RENDER_COPY.YOIN.BUILD({
         topElement,
         topModality,
         aspectLabel: aspectCoreText || null,
+        seedBase,
+        pickStable,
       });
     }
 
@@ -284,6 +295,9 @@ function createYoin(deps = {}) {
 
     // ✅ ここで必ず文字列にする
     const globalStr = formatGlobalStrataLine(globalObjOrStr, story);
+
+    // If center already includes the layer block, skip global line to avoid duplication.
+    if (String(centerStr || "").includes("【空層】")) return String(centerStr || "").trim();
 
     const glue = RENDER_COPY?.YOIN?.GLUE;
     if (typeof glue === "function") return glue(globalStr, centerStr);

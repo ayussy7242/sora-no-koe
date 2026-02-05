@@ -21,6 +21,11 @@ const ASPECT_TYPE_ALIAS = Object.freeze({
   septile: "septile_family",
   biseptile: "septile_family",
   triseptile: "septile_family",
+  novile: "novile_40",
+  binovile: "binovile_80",
+  quadranovile: "quadranovile_160",
+  decile: "decile_36",
+  tridecile: "tridecile_108",
 });
 
 function normalizeAspectType(type) {

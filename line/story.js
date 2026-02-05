@@ -86,6 +86,32 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   async function buildToday({ appUserId }) {
     return buildStory({ appUserId, mode: "auto", renderer: renderers.renderLine });
   }
+
+  // ---- anshin (natal-based)
+  async function buildAnshin({ appUserId }) {
+    const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
+    const story = await storyService.buildStoryForUser({
+      appUserId,
+      mode: "auto",
+      dateLocal,
+      asOfISO,
+      orbMaxDeg: ORB_MAX_DEG,
+      precisionDeg: PRECISION_DEG,
+    });
+    const snap = await db.collection("natal_cache").doc(appUserId).get();
+    const natalCache = snap.exists ? snap.data() : null;
+    const payload = {
+      story,
+      meta: {
+        date_local: dateLocal,
+        app_user_id: appUserId,
+        user_id: appUserId,
+      },
+      natal_cache: natalCache,
+    };
+    const text = safeText(renderers.renderAnshinLine(payload));
+    return { payload, text };
+  }
   
   async function buildSkyWithGuide({ withGuide = false } = {}) {
     const { story, text } = await buildStory({
@@ -153,6 +179,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     buildSky,
     buildSkyWithGuide,
     buildToday,
+    buildAnshin,
     renderFallback,
     renderWelcome,
     handleUtilities,

@@ -27,6 +27,7 @@ const { createYoin: createYoinFactory } = require("./render_parts/yoin");
 // channels
 const chLineToday = require("./channels/line_today");
 const chLineSora = require("./channels/line_sora");
+const chLineAnshin = require("./channels/line_anshin");
 const chIG = require("./channels/ig");
 const chX = require("./channels/x");
 const chThreads = require("./channels/threads");
@@ -267,7 +268,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // SIGN helpers
   // --------------------
-  const { signMeta, signJaFromIndex, publicSignJa, publicSignKey } = makeSignHelpers(SIGNS_PRIMARY);
+  const { signMeta, signJaFromIndex, signKeyFromIndex, publicSignJa, publicSignKey } = makeSignHelpers(SIGNS_PRIMARY);
 
   // --------------------
   // Memo / formatters
@@ -286,8 +287,14 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // Channel functions (export揺れ吸収)
   // --------------------
   const fnLineToday = resolveFn(chLineToday, ["renderLine"], "channels/line_today");
+  const fnSoraUraSilentPersonal = resolveFn(chLineToday, ["renderSoraUraSilentPersonalLine"], "channels/line_today");
   const fnSoraLine = resolveFn(chLineSora, ["renderSoraLine"], "channels/line_sora");
   const fnSoraAll = resolveFn(chLineSora, ["renderSoraAllLine"], "channels/line_sora");
+  const fnSoraUra = resolveFn(chLineSora, ["renderSoraUraLine"], "channels/line_sora");
+  const fnSoraUraSilent = resolveFn(chLineSora, ["renderSoraUraSilentLine"], "channels/line_sora");
+  const fnSoraUraRare = resolveFn(chLineSora, ["renderSoraUraRareLine"], "channels/line_sora");
+  const fnSoraUraHarmony = resolveFn(chLineSora, ["renderSoraUraHarmonyLine"], "channels/line_sora");
+  const fnAnshin = resolveFn(chLineAnshin, ["renderAnshinLine"], "channels/line_anshin");
   const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
   const fnX = resolveFn(chX, ["renderX"], "channels/x");
   const fnThreads = resolveFn(chThreads, ["renderThreads"], "channels/threads");
@@ -353,6 +360,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     // signs
     deps.signMeta = signMeta;
     deps.signJaFromIndex = signJaFromIndex;
+    deps.signKeyFromIndex = signKeyFromIndex;
     deps.publicSignJa = publicSignJa;
     deps.publicSignKey = publicSignKey;
 
@@ -544,11 +552,29 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderLine(story) {
     return fnLineToday(story, ctxFor(story));
   }
+  function renderSoraUraSilentPersonalLine(story) {
+    return fnSoraUraSilentPersonal ? fnSoraUraSilentPersonal(story, ctxFor(story)) : "";
+  }
   function renderSoraLine(story) {
     return fnSoraLine(story, ctxFor(story));
   }
   function renderSoraAllLine(story) {
     return fnSoraAll(story, ctxFor(story));
+  }
+  function renderSoraUraLine(story) {
+    return fnSoraUra ? fnSoraUra(story, ctxFor(story)) : "";
+  }
+  function renderSoraUraSilentLine(story) {
+    return fnSoraUraSilent ? fnSoraUraSilent(story, ctxFor(story)) : "";
+  }
+  function renderSoraUraRareLine(story) {
+    return fnSoraUraRare ? fnSoraUraRare(story, ctxFor(story)) : "";
+  }
+  function renderSoraUraHarmonyLine(story) {
+    return fnSoraUraHarmony ? fnSoraUraHarmony(story, ctxFor(story)) : "";
+  }
+  function renderAnshinLine(payload) {
+    return fnAnshin ? fnAnshin(payload, ctxFor(payload)) : "";
   }
   function renderX(story) {
     return fnX(story, ctxFor(story));
@@ -567,8 +593,14 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   return {
     // channels
     renderLine,
+    renderSoraUraSilentPersonalLine,
     renderSoraLine,
     renderSoraAllLine,
+    renderSoraUraLine,
+    renderSoraUraSilentLine,
+    renderSoraUraRareLine,
+    renderSoraUraHarmonyLine,
+    renderAnshinLine,
     renderX,
     renderIG,
     renderThreads,

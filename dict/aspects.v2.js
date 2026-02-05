@@ -252,6 +252,72 @@ const ASPECTS_V2 = {
       },
     },
 
+    // -------------------------------
+    // novile family (9分割) — inward / integration
+    // -------------------------------
+    novile_40: {
+      deg: 40,
+      key: "novile_40",
+      label_ja: "ノヴィル",
+      core: "内的完成・静かな統合",
+      feel: ["内側で落ち着く", "言葉にしない完成", "静かな成熟"],
+      sora: "内側で意味が落ち着き、静かな統合が起きやすい配置。",
+      ai_tags: ["inward", "integration"],
+
+      relation: "内側で静かに触れ",
+      clause: "内側で静かに触れ",
+      adverbs: ["静かに", "言葉になる前に", "内側で", "落ち着く形で"],
+      tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "内側で意味が落ち着き、静かな統合として現れる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
+    },
+
+    binovile_80: {
+      deg: 80,
+      key: "binovile_80",
+      label_ja: "バイノヴィル",
+      core: "内在化・静かな修復",
+      feel: ["深部で整う", "内面の調律", "ゆっくり馴染む"],
+      sora: "内面で整いが進み、静かな修復が起きやすい配置。",
+      ai_tags: ["inward", "settle"],
+
+      relation: "内面で馴染むように触れ",
+      clause: "内面で馴染むように触れ",
+      adverbs: ["ゆっくりと", "内側で", "馴染むように", "静かに"],
+      tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "内面で整いが進み、静かな修復として現れる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
+    },
+
+    quadranovile_160: {
+      deg: 160,
+      key: "quadranovile_160",
+      label_ja: "クアドラノヴィル",
+      core: "内的完成の輪郭",
+      feel: ["仕上がる", "言葉にならない確定", "静かな確かさ"],
+      sora: "内的な完成が輪郭を持ち、静かな確定として現れやすい配置。",
+      ai_tags: ["completion", "quiet_certainty"],
+
+      relation: "静かな確定として触れ",
+      clause: "静かな確定として触れ",
+      adverbs: ["落ち着いた形で", "言葉の外で", "静かに", "内側で"],
+      tendency_key: "deep",
+
+      prose_ja: {
+        layers: [],
+        result: "内的な完成が輪郭を持ち、静かな確定として現れる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
+    },
+
     septile_family: {
       key: "septile_family",
       label_ja: "セプタイル系",
@@ -268,6 +334,52 @@ const ASPECTS_V2 = {
       prose_ja: {
         layers: [],
         result: "理屈の外側で結びつきが生まれる配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
+    },
+  },
+
+  craft_space: {
+    enabled_by_default: false,
+
+    decile_36: {
+      deg: 36,
+      key: "decile_36",
+      label_ja: "デシル",
+      core: "実装・組み立て",
+      feel: ["組む", "手を動かす", "現実化する"],
+      sora: "構想を現実に落とし込みやすい配置。",
+      ai_tags: ["build", "implementation"],
+
+      relation: "実装の接点として触れ",
+      clause: "実装の接点として触れ",
+      adverbs: ["手を動かす形で", "組み立てとして", "現場感覚で", "実装寄りに"],
+      tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "構想を現実に落とし込みやすい配置。",
+        yasu: { deny_repeat: true, prefer: "名詞化" },
+      },
+    },
+
+    tridecile_108: {
+      deg: 108,
+      key: "tridecile_108",
+      label_ja: "トリデシル",
+      core: "組み替え・運用",
+      feel: ["運用が回る", "仕組み化", "使いこなす"],
+      sora: "工夫を運用に変え、仕組みとして回しやすい配置。",
+      ai_tags: ["operate", "systemize"],
+
+      relation: "運用の回路として触れ",
+      clause: "運用の回路として触れ",
+      adverbs: ["回しながら", "実務として", "仕組み化の中で", "運用感覚で"],
+      tendency_key: "mid",
+
+      prose_ja: {
+        layers: [],
+        result: "工夫を運用に変え、仕組みとして回しやすい配置。",
         yasu: { deny_repeat: true, prefer: "名詞化" },
       },
     },
