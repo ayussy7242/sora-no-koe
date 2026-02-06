@@ -256,6 +256,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const SIGNS_PRIMARY = SIGNS_V2 || SIGNS_V1;
 
   const ASPECTS_V1 = D?.ASPECTS_V1 || D?.aspects_v1 || null;
+  const ASPECTS_V2 = D?.ASPECTS_V2 || D?.aspects_v2 || null;
 
   // --------------------
   // ctx.js: META + FUSION_CTX（story依存なし）
@@ -279,6 +280,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     BODY_JA,
     POINT_JA,
     ASPECT_JA,
+    ASPECTS_V2,
     META,
     normalizeAspectType,
   });
@@ -549,8 +551,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // Public API (call channels)
   // --------------------
-  function renderLine(story) {
-    return fnLineToday(story, ctxFor(story));
+  async function renderLine(story) {
+    return await fnLineToday(story, ctxFor(story));
   }
   function renderSoraUraSilentPersonalLine(story) {
     return fnSoraUraSilentPersonal ? fnSoraUraSilentPersonal(story, ctxFor(story)) : "";

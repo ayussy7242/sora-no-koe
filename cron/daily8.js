@@ -198,7 +198,7 @@ async function runDaily8(deps, opts = {}) {
         orbMaxDeg,
         precisionDeg,
       });
-      return renderFn(story);
+      return await renderFn(story);
     }
 
     // mode === "today" => auto
@@ -210,7 +210,7 @@ async function runDaily8(deps, opts = {}) {
       orbMaxDeg,
       precisionDeg,
     });
-    return renderFn(story);
+    return await renderFn(story);
   }
 
   async function deliverOne({ appUserId, lineUserId }) {

@@ -51,6 +51,83 @@ function safeStr(x) {
   return String(x ?? "");
 }
 
+function boolishEnv(v) {
+  const s = String(v || "").trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
+}
+
+function _fmtDeg(deg) {
+  const n = Number(deg);
+  if (!Number.isFinite(n)) return "";
+  return `${Math.round(n)}°`;
+}
+
+function _extractJsonBlock(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (s.startsWith("{") && s.endsWith("}")) return s;
+  const m = s.match(/\{[\s\S]*\}/);
+  return m ? m[0] : "";
+}
+
+function _safeJsonParse(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+const LINE_AI_SYSTEM_PROMPT = [
+  "あなたは「ソラのこえ。」LINE配信用の生成エンジンです。",
+  "これは占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
+  "主語は「星・配置・接点」。読者を主語にしない。",
+  "日本語のみ。英語・ローマ字は禁止。",
+  "出力はJSONのみ。本文の装飾や余計な文は書かない。",
+  "文体は静かで簡潔。説明しすぎない。観測的に「置く」。",
+  "",
+  "【KeyWordルール】",
+  "- 必ず5語",
+  "- 固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー）禁止",
+  "- 近い意味の連打は禁止（多様性最優先）",
+  "- アスペクト由来1語＋惑星由来1語＋星座由来1語を必ず含める",
+  "- 残り2語は当日の配置全体から補助的に抽出",
+  "- 同語根/類語が連続したら必ず差し替える",
+].join("\n");
+
+const LINE_AI_USER_GUIDE = [
+  "以下の入力データを使って、JSONのみを返してください。",
+  "出力フォーマット（厳守）:",
+  "{",
+  '  "public": [',
+  '    { "s1": "本文1行（〜しやすい/残りやすい等）", "keywords": ["5語"] },',
+  "    ...",
+  "  ],",
+  '  "personal": {',
+  '    "inner": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"] },',
+  '    "outer": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"] },',
+  '    "flow": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"], "is_rare": false }',
+  "  },",
+  '  "sky_layer": { "line1": "空層1行目", "line2": "空層2行目" },',
+  '  "personal_layer": { "line1": "個人空層1行目", "line2": "個人空層2行目" }',
+  "}",
+  "",
+  "条件:",
+  "- s1/s2は2行以内。断定/指示/助言なし。",
+  "- 英語は禁止。日本語のみ。",
+  "- keywordsは5語。固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー）禁止。",
+  "- keywordsは意味の近い語の連打を避ける（多様性）。",
+  "- keywordsにはアスペクト/惑星/星座の意味を必ず含める。",
+  "- 空層は「状態を置く」2行（決めない）。空層は必ず2行を返す。",
+  "- personal_layer も必ず2行を返す。",
+  "- レア共鳴がある場合は flow.is_rare=true にする。",
+  "",
+  "personal出力のニュアンス指定:",
+  "- inner.s1/s2: 内側で起きやすい構造（「〜しやすい」「〜が残りやすい」）",
+  "- outer.s1/s2: 外に出やすい反応（刺激/動き/反応として描写）",
+  "- flow.s1/s2: 自然に流れるところ（「無理なく」「自然に」など）",
+].join("\n");
+
 
 function buildLineMainFallback({ dateLabel, parts, distLines, kusouYoin, footerLines, cta }) {
   const lines = [];
@@ -462,6 +539,28 @@ function _getRole(dict, signKey, planetKey) {
   return p?.role || p?.core || "";
 }
 
+function _planetJa(dict, planetKey) {
+  const k = _lowerKey(planetKey);
+  return dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.PLANETS_V1?.[k]?.label_ja || planetKey || "";
+}
+
+function _signJa(dict, signKey) {
+  const k = _lowerKey(signKey);
+  return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
+}
+
+function _aspectInfo(dict, rawType) {
+  const k = _normAspectKey(rawType);
+  const a = dict?.ASPECTS_V2?.aspects?.[k] || dict?.ASPECTS_V1?.aspects?.[k] || null;
+  return {
+    key: k,
+    label_ja: a?.label_ja || "",
+    deg: Number.isFinite(Number(a?.deg)) ? Number(a.deg) : null,
+    core: a?.core || "",
+    tone: a?.tendency_key || "",
+  };
+}
+
 function _getFallbackKeywords(dict, signKey, planetKey) {
   const sKey = _lowerKey(signKey);
   const pKey = _lowerKey(planetKey);
@@ -551,6 +650,11 @@ function _normAspectKey(raw) {
   if (x.includes("セスキスクエア")) return "sesqui_square_135";
   if (x.includes("セミスクエア")) return "semi_square_45";
   if (x.includes("セミセクスタイル")) return "semi_sextile_30";
+  if (x.includes("ノヴィル")) return "novile_40";
+  if (x.includes("バイノヴィル")) return "binovile_80";
+  if (x.includes("クアドラノヴィル")) return "quadranovile_160";
+  if (x.includes("デシル")) return "decile_36";
+  if (x.includes("トリデシル")) return "tridecile_108";
   const map = {
     "スクエア": "square",
     "オポジション": "opposition",
@@ -563,6 +667,11 @@ function _normAspectKey(raw) {
     "セミスクエア": "semi_square_45",
     "セスキスクエア": "sesqui_square_135",
     "セミセクスタイル": "semi_sextile_30",
+    "ノヴィル": "novile_40",
+    "バイノヴィル": "binovile_80",
+    "クアドラノヴィル": "quadranovile_160",
+    "デシル": "decile_36",
+    "トリデシル": "tridecile_108",
     semisquare: "semi_square_45",
     semi_square: "semi_square_45",
     sesquisquare: "sesqui_square_135",
@@ -573,6 +682,11 @@ function _normAspectKey(raw) {
     inconjunct: "quincunx_150",
     quintile: "quintile_72",
     biquintile: "biquintile_144",
+    novile: "novile_40",
+    binovile: "binovile_80",
+    quadranovile: "quadranovile_160",
+    decile: "decile_36",
+    tridecile: "tridecile_108",
   };
   return map[x] || x;
 }
@@ -717,7 +831,7 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
     new Set([subject, mode, ...avoid].filter(Boolean))
   );
   const tone = _pickAspectToneWords(dict, aspectKey, seed, profile.tone);
-  const rawKw = [...tone, ...A, ...B].filter(Boolean).filter((k) => {
+  const rawKw = [...tone, ...A, ...B, ...fb].filter(Boolean).filter((k) => {
     const t = String(k || "");
     return !avoidKw.some((a) => a && t.includes(a));
   });
@@ -743,7 +857,7 @@ function buildFlavorBlockPersonal({ story, item, deps }) {
   const useShort = s2Fixed.length > 44 || /微調整が微調整|調整が微調整|折り合いで折り合い|小さな引っかかりが出やすい|調整点が浮かびやすい/.test(s2Fixed);
   const s2Final = useShort ? s2Short : s2Fixed;
 
-  const keywordLine = keywordAll.length ? `KeyWord: ${keywordAll.join(" / ")}` : "";
+  const keywordLine = keywordAll.length ? `KeyWord\n${keywordAll.join(" / ")}` : "";
 
   const lines = [];
   if (role) lines.push(`【${role}】`);
@@ -799,9 +913,9 @@ function buildFlavorBlockSky({ story, item, deps }) {
   const s1 = `${modifier}${subject}が、${clause}。`;
 
   const tone = _pickAspectToneWords(dict, aspectKey, seed, profile.tone);
-  const kwBase = _uniq([...A, ...B, ...tone].filter(Boolean));
+  const kwBase = _uniq([...A, ...B, ...tone, ...fb].filter(Boolean));
   const keywordAll = kwBase.length > 5 ? _pickMany(kwBase, `${seed}|KW`, 5) : kwBase;
-  const keywordLine = keywordAll.length ? `KeyWord: ${keywordAll.join(" / ")}` : "";
+  const keywordLine = keywordAll.length ? `KeyWord\n${keywordAll.join(" / ")}` : "";
 
   const lines = [];
   if (role) lines.push(`【${role}】`);
@@ -899,9 +1013,519 @@ function formatWithFlavor({
 }
 
 /* =========================
+ * AI render (LINE)
+ * ========================= */
+const INNER_BODIES = ["moon", "ic", "neptune", "saturn", "pluto", "lilith", "chiron"];
+const OUTER_BODIES = ["sun", "asc", "mc", "mars", "uranus", "jupiter", "mercury", "venus"];
+const FLOW_BODIES = ["venus", "jupiter", "moon", "neptune"];
+const FLOW_ASPECTS = [
+  "trine",
+  "sextile",
+  "conjunction",
+  "quintile_72",
+  "biquintile_144",
+];
+const RARE_ASPECTS = [
+  "quintile_72",
+  "biquintile_144",
+  "septile",
+  "biseptile",
+  "triseptile",
+  "novile_40",
+  "binovile_80",
+  "quadranovile_160",
+  "decile_36",
+  "tridecile_108",
+];
+
+function _bodyMatch(item, keys) {
+  const a = _lowerKey(item?.a);
+  const b = _lowerKey(item?.b);
+  return keys.includes(a) || keys.includes(b);
+}
+
+function _aspectKey(item) {
+  return _normAspectKey(item?.type || item?.asp || item?.aspT || item?.aspect || "");
+}
+
+function _orb(item) {
+  const v = Number(item?.orb_deg);
+  return Number.isFinite(v) ? v : 999;
+}
+
+function _uniqueByTpKey(list, tpKeyFn) {
+  const out = [];
+  const seen = new Set();
+  for (const item of list) {
+    if (!item) continue;
+    const k = tpKeyFn(item);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+  }
+  return out;
+}
+
+function _pickPersonalBlocks(layers, tpKeyFn) {
+  const src = _uniqueByTpKey(
+    [
+      ...(Array.isArray(layers?.theme) ? layers.theme : []),
+      ...(Array.isArray(layers?.touch) ? layers.touch : []),
+      ...(Array.isArray(layers?.hidden) ? layers.hidden : []),
+    ],
+    tpKeyFn
+  );
+
+  const byOrb = (a, b) => _orb(a) - _orb(b);
+  const inner = src.filter((i) => _bodyMatch(i, INNER_BODIES)).sort(byOrb)[0] || null;
+  const outer = src.filter((i) => _bodyMatch(i, OUTER_BODIES)).sort(byOrb)[0] || null;
+
+  const used = new Set([inner, outer].filter(Boolean).map((i) => tpKeyFn(i)));
+  const remaining = src.filter((i) => !used.has(tpKeyFn(i)));
+
+  const flowPool = remaining.filter((i) => {
+    const k = _aspectKey(i);
+    return FLOW_ASPECTS.includes(k) || _bodyMatch(i, FLOW_BODIES);
+  });
+  let flow = flowPool.sort(byOrb)[0] || null;
+
+  let rare = null;
+  for (const i of remaining.sort(byOrb)) {
+    const k = _aspectKey(i);
+    const isRare = RARE_ASPECTS.includes(k) || _orb(i) <= 0.2;
+    if (isRare) {
+      rare = i;
+      break;
+    }
+  }
+
+  if (rare && (!flow || tpKeyFn(rare) !== tpKeyFn(flow))) {
+    flow = rare;
+    flow._is_rare = true;
+  }
+
+  return { inner, outer, flow };
+}
+
+function _aiKeywordList(arr, fallback = []) {
+  const xs = Array.isArray(arr) ? arr.map((s) => String(s || "").trim()).filter(Boolean) : [];
+  const fb = Array.isArray(fallback) ? fallback.map((s) => String(s || "").trim()).filter(Boolean) : [];
+  const merged = _uniq([...xs, ...fb]);
+  return merged.slice(0, 5);
+}
+
+const _KW_BANNED = [
+  "太陽", "月", "水星", "金星", "火星", "木星", "土星", "天王星", "海王星", "冥王星",
+  "ASC", "MC", "IC", "DSC", "キロン", "リリス", "ノード",
+  "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
+  "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座",
+  "コンジャンクション", "セミセクスタイル", "セミスクエア", "セクスタイル",
+  "スクエア", "トライン", "インコンジャンクト", "クインカンクス", "オポジション",
+  "セスキスクエア", "クインタイル", "バイクインタイル", "セプタイル",
+  "ノヴィル", "デシル",
+  "共鳴", "影響", "エネルギー", "運勢", "吉", "凶", "開運", "ラッキー",
+];
+
+const _KW_SAFE_POOL = [
+  "余白", "間", "輪郭", "密度", "距離", "手触り", "温度差", "配分", "境目",
+  "微差", "流れ", "層", "奥行", "摩擦", "調整", "揺れ", "滞り", "反射",
+  "保ち", "置き方", "明度", "暗度", "空気", "静けさ", "にじみ", "濃度",
+];
+
+function _isBannedKw(w) {
+  const s = String(w || "").trim();
+  if (!s) return true;
+  if (/[0-9°]/.test(s)) return true;
+  if (s.includes("座")) return true;
+  for (const t of _KW_BANNED) {
+    if (s.includes(t)) return true;
+  }
+  return false;
+}
+
+function _sanitizeKeywords(list, fallback) {
+  const out = [];
+  const add = (w) => {
+    const s = String(w || "").trim();
+    if (!s) return;
+    if (_isBannedKw(s)) return;
+    if (out.some((x) => _isSimilarKw(x, s))) return;
+    out.push(s);
+  };
+  (Array.isArray(list) ? list : []).forEach(add);
+  if (out.length < 5) {
+    (Array.isArray(fallback) ? fallback : []).forEach(add);
+  }
+  if (out.length < 5) {
+    _KW_SAFE_POOL.forEach(add);
+  }
+  return out.slice(0, 5);
+}
+
+function _formatKeywordsLine(list, fallback) {
+  const xs = _sanitizeKeywords(list, fallback);
+  return xs.length ? `KeyWord\n${xs.join(" / ")}` : "";
+}
+
+function _isSimilarKw(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  if (a.length >= 2 && b.length >= 2 && a.slice(0, 2) === b.slice(0, 2)) return true;
+  return false;
+}
+
+function _pickDistinct(pool, seed, want = 1, avoid = []) {
+  const picked = [];
+  const arr = _pickMany(pool, seed, Math.max(want * 3, 6));
+  for (const w of arr) {
+    if (!w) continue;
+    if (avoid.some((a) => _isSimilarKw(a, w))) continue;
+    picked.push(w);
+    avoid.push(w);
+    if (picked.length >= want) break;
+  }
+  return picked;
+}
+
+function _composeKeywords({ aspectPool, planetPool, signPool, extraPool, seed }) {
+  const avoid = [];
+  const out = [];
+  if (aspectPool?.length) out.push(..._pickDistinct(aspectPool, `${seed}|aspect`, 1, avoid));
+  if (planetPool?.length) out.push(..._pickDistinct(planetPool, `${seed}|planet`, 1, avoid));
+  if (signPool?.length) out.push(..._pickDistinct(signPool, `${seed}|sign`, 1, avoid));
+  const rest = _pickDistinct(extraPool || [], `${seed}|extra`, 5, avoid);
+  out.push(...rest);
+  return _uniq(out).slice(0, 5);
+}
+
+function _planetKwPool(dict, planetKey) {
+  const p = dict?.PLANETS_V2?.bodies?.[_lowerKey(planetKey)] || null;
+  const pool = [
+    ...(Array.isArray(p?.action_noun_ja) ? p.action_noun_ja : []),
+    ...(Array.isArray(p?.action_verb_ja) ? p.action_verb_ja.map((v) => _normalizeKw(v)) : []),
+  ].filter(Boolean);
+  return _uniq(pool);
+}
+
+function _signKwPool(dict, signKey) {
+  const s = dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)] || null;
+  const pool = [
+    ...(Array.isArray(s?.texture) ? s.texture : []),
+    ...(Array.isArray(s?.keywords) ? s.keywords : []),
+  ].filter(Boolean);
+  return _uniq(pool);
+}
+
+function _fallbackKwPublic(dict, item, seed = "") {
+  const a = _lowerKey(item?.a || item?.aPlanetKey);
+  const aSign = _lowerKey(item?.aS || item?.a_sign_key || item?.aSignKey);
+  const aspectKey = _normAspectKey(item?.type || item?.aspectType || item?.aspect?.type || item?.aspect_label_ja);
+  const tone = _pickAspectToneWords(dict, aspectKey, `${seed}|tone`, 3);
+  const planetPool = _planetKwPool(dict, a);
+  const signPool = _signKwPool(dict, aSign);
+  const extra = _uniq([...tone, ...planetPool, ...signPool]);
+  return _composeKeywords({
+    aspectPool: tone,
+    planetPool,
+    signPool,
+    extraPool: extra,
+    seed: `${seed}|pub`,
+  });
+}
+
+function _fallbackKwPersonal(dict, item, seed = "") {
+  const a = _lowerKey(item?.natal_body_or_point || item?.natal_body || item?.a);
+  const b = _lowerKey(item?.transit_body || item?.b);
+  const aSign = _lowerKey(item?.natal_sign_key || item?.natal_sign || item?.a_sign_key);
+  const bSign = _lowerKey(item?.transit_sign_key || item?.transit_sign || item?.b_sign_key);
+  const aspectKey = _normAspectKey(item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+  const tone = _pickAspectToneWords(dict, aspectKey, `${seed}|tone`, 3);
+  const planetPool = _uniq([..._planetKwPool(dict, a), ..._planetKwPool(dict, b)]);
+  const signPool = _uniq([..._signKwPool(dict, aSign), ..._signKwPool(dict, bSign)]);
+  const extra = _uniq([...tone, ...planetPool, ...signPool]);
+  return _composeKeywords({
+    aspectPool: tone,
+    planetPool,
+    signPool,
+    extraPool: extra,
+    seed: `${seed}|per`,
+  });
+}
+
+async function renderLineAI(story, deps = {}) {
+  const { createChatCompletion } = require("../blog/openai_client");
+  const {
+    getSkyLayers,
+    buildNowModernPlanetCounts,
+    buildPersonalTPCounts,
+    buildDistLinesFromcounts,
+    RENDER_COPY,
+  } = deps || {};
+
+  const dict = deps?.dict || require("../../dict");
+  const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
+  const tpKeyFn = typeof deps?.tpKey === "function" ? deps.tpKey : (x) => String(x);
+  const layers = typeof getSkyLayers === "function" ? getSkyLayers(story) : null;
+
+  const publicTop = Array.isArray(story?.public?.sky_top)
+    ? story.public.sky_top.slice(0, 5)
+    : Array.isArray(story?.public?.sky_all)
+      ? story.public.sky_all.slice(0, 5)
+      : [];
+
+  const personalPick = _pickPersonalBlocks(layers || {}, tpKeyFn);
+
+  const aspectLabel = (item) => {
+    const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
+    return info.label_ja || "";
+  };
+  const aspectDeg = (item) => {
+    const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
+    return _fmtDeg(info.deg);
+  };
+
+  const publicInput = publicTop.map((it) => ({
+    a: _planetJa(dict, it?.a),
+    b: _planetJa(dict, it?.b),
+    a_sign: _signJa(dict, it?.aS || it?.a_sign_key),
+    b_sign: _signJa(dict, it?.bS || it?.b_sign_key),
+    aspect: aspectLabel(it),
+    degree: aspectDeg(it),
+    orb: Number(it?.orb_deg ?? it?.orb ?? 0).toFixed(1),
+    role_a: _getRole(dict, it?.aS || it?.a_sign_key, it?.a),
+    role_b: _getRole(dict, it?.bS || it?.b_sign_key, it?.b),
+  }));
+
+  const personalInput = {
+    inner: personalPick.inner
+      ? {
+          a: _planetJa(dict, personalPick.inner?.a),
+          b: _planetJa(dict, personalPick.inner?.b),
+          a_sign: _signJa(dict, personalPick.inner?.aS || personalPick.inner?.a_sign_key),
+          b_sign: _signJa(dict, personalPick.inner?.bS || personalPick.inner?.b_sign_key),
+          aspect: aspectLabel(personalPick.inner),
+          degree: aspectDeg(personalPick.inner),
+          orb: Number(personalPick.inner?.orb_deg ?? personalPick.inner?.orb ?? 0).toFixed(1),
+          role_a: _getRole(dict, personalPick.inner?.aS || personalPick.inner?.a_sign_key, personalPick.inner?.a),
+          role_b: _getRole(dict, personalPick.inner?.bS || personalPick.inner?.b_sign_key, personalPick.inner?.b),
+        }
+      : null,
+    outer: personalPick.outer
+      ? {
+          a: _planetJa(dict, personalPick.outer?.a),
+          b: _planetJa(dict, personalPick.outer?.b),
+          a_sign: _signJa(dict, personalPick.outer?.aS || personalPick.outer?.a_sign_key),
+          b_sign: _signJa(dict, personalPick.outer?.bS || personalPick.outer?.b_sign_key),
+          aspect: aspectLabel(personalPick.outer),
+          degree: aspectDeg(personalPick.outer),
+          orb: Number(personalPick.outer?.orb_deg ?? personalPick.outer?.orb ?? 0).toFixed(1),
+          role_a: _getRole(dict, personalPick.outer?.aS || personalPick.outer?.a_sign_key, personalPick.outer?.a),
+          role_b: _getRole(dict, personalPick.outer?.bS || personalPick.outer?.b_sign_key, personalPick.outer?.b),
+        }
+      : null,
+    flow: personalPick.flow
+      ? {
+          a: _planetJa(dict, personalPick.flow?.a),
+          b: _planetJa(dict, personalPick.flow?.b),
+          a_sign: _signJa(dict, personalPick.flow?.aS || personalPick.flow?.a_sign_key),
+          b_sign: _signJa(dict, personalPick.flow?.bS || personalPick.flow?.b_sign_key),
+          aspect: aspectLabel(personalPick.flow),
+          degree: aspectDeg(personalPick.flow),
+          orb: Number(personalPick.flow?.orb_deg ?? personalPick.flow?.orb ?? 0).toFixed(1),
+          role_a: _getRole(dict, personalPick.flow?.aS || personalPick.flow?.a_sign_key, personalPick.flow?.a),
+          role_b: _getRole(dict, personalPick.flow?.bS || personalPick.flow?.b_sign_key, personalPick.flow?.b),
+          is_rare: !!personalPick.flow?._is_rare,
+        }
+      : null,
+  };
+
+  const distCounts =
+    layers && typeof buildPersonalTPCounts === "function"
+      ? buildPersonalTPCounts(
+          [personalPick.inner, personalPick.outer, personalPick.flow].filter(Boolean)
+        )
+      : typeof buildNowModernPlanetCounts === "function"
+        ? buildNowModernPlanetCounts(story)
+        : null;
+
+  const distLines =
+    typeof buildDistLinesFromcounts === "function"
+      ? buildDistLinesFromcounts(distCounts, { forX: false })
+      : "";
+
+  const inputPayload = {
+    date: dateLabel,
+    public: publicInput,
+    personal: personalInput,
+    dist: distLines,
+    meta: {
+      moon: _signJa(dict, story?.public?.moon_sign),
+      element_modality: story?.public?.element_modality || "",
+    },
+  };
+
+  const apiKey = process.env.OPENAI_API_KEY || "";
+  const model = process.env.OPENAI_MODEL || process.env.LINE_AI_MODEL || "gpt-4o";
+  const baseUrl = process.env.OPENAI_BASE_URL || "";
+
+  const raw = await createChatCompletion({
+    apiKey,
+    baseUrl,
+    model,
+    temperature: 0.5,
+    maxTokens: 1200,
+    messages: [
+      { role: "system", content: LINE_AI_SYSTEM_PROMPT },
+      { role: "user", content: `${LINE_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
+    ],
+  });
+
+  const jsonText = _extractJsonBlock(raw);
+  const parsed = _safeJsonParse(jsonText || raw);
+  if (!parsed || typeof parsed !== "object") throw new Error("LINE AI: invalid JSON");
+
+  const aiPublic = Array.isArray(parsed.public) ? parsed.public : [];
+  const aiPersonal = parsed.personal || {};
+  const aiSkyLayer = parsed.sky_layer || {};
+  const aiPersonalLayer = parsed.personal_layer || {};
+
+  const SEP = RENDER_COPY?.LINE_SEP || "────────────────";
+  const parts = [];
+
+  // ---------- public (top 5)
+  if (publicTop.length) {
+    parts.push(`🌌 今日のソラ｜そら｜${dateLabel}`);
+    parts.push("");
+    parts.push("【今日のソラの配置｜上位5共鳴（orb≤6°）】");
+    parts.push("");
+    parts.push(SEP);
+    for (let i = 0; i < publicTop.length; i++) {
+      const item = publicTop[i];
+      const ai = aiPublic[i] || {};
+      const fmtSky =
+        resolveFormatters(deps).fmtPublicSkyLine || resolveFormatters(deps).fmtPublicSkyBlock;
+      const header = typeof fmtSky === "function"
+        ? fmtSky(story, item, `${RENDER_COPY?.CIRCLES?.[i] || ["①", "②", "③", "④", "⑤"][i]} `, deps)
+        : "";
+      const roles = `【${_getRole(dict, item?.aS || item?.a_sign_key, item?.a)} × ${_getRole(
+        dict,
+        item?.bS || item?.b_sign_key,
+        item?.b
+      )}】`;
+      const kwFallback = _fallbackKwPublic(dict, item, `${dateLabel}|public|${i}`);
+      parts.push(
+        [
+          header,
+          roles,
+          ai.s1 ? `→ ${ai.s1}` : "",
+          _formatKeywordsLine(ai.keywords, kwFallback),
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+      if (i < publicTop.length - 1) parts.push(SEP);
+    }
+
+    const moonLine = story?.public?.moon_sign
+      ? `🌙月：${_signJa(dict, story.public.moon_sign)}`
+      : "";
+    if (moonLine) parts.push("", moonLine);
+
+    if (distLines) parts.push("", distLines);
+
+    if (aiSkyLayer?.line1 || aiSkyLayer?.line2) {
+      parts.push("");
+      parts.push(`【空層】${story?.public?.element_modality?.label || story?.public?.element_modality || ""}`.trim());
+      if (aiSkyLayer.line1) parts.push(aiSkyLayer.line1);
+      if (aiSkyLayer.line2) parts.push(aiSkyLayer.line2);
+    }
+
+    parts.push("");
+    parts.push(RENDER_COPY?.FOOTER_LINE || "解釈は、あなたのもの。");
+    parts.push(RENDER_COPY?.SOAR_END || "星は語る。決めるのは、人。");
+    parts.push(RENDER_COPY?.SOAR_BY || "そらとして、眺めてみてね。🌌");
+  }
+
+  // ---------- personal
+  if (personalInput.inner || personalInput.outer || personalInput.flow) {
+    parts.push("");
+    parts.push(`🌌 今日のソラのこえ。｜${dateLabel}`);
+    parts.push("");
+    parts.push("【あなたの星 × きょうのそら】");
+    parts.push("");
+    parts.push(SEP);
+
+    let personalIndex = 1;
+    const block = (label, emoji, item, ai) => {
+      if (!item) return;
+      parts.push(`${personalIndex} ${emoji} ${label}`);
+      const fmtTP =
+        resolveFormatters(deps).fmtPersonalTPLine || resolveFormatters(deps).fmtPersonalTPBlock;
+      const header = typeof fmtTP === "function" ? fmtTP(story, item, "", deps) : "";
+      const roles = `【${_getRole(dict, item?.aS || item?.a_sign_key, item?.a)} × ${_getRole(
+        dict,
+        item?.bS || item?.b_sign_key,
+        item?.b
+      )}】`;
+      const kwFallback = _fallbackKwPersonal(dict, item, `${dateLabel}|personal|${personalIndex}`);
+      parts.push(
+        [
+          header,
+          roles,
+          ai?.s1 ? `→ ${ai.s1}` : "",
+          ai?.s2 ? `→ ${ai.s2}` : "",
+          _formatKeywordsLine(ai?.keywords, kwFallback),
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+      parts.push(SEP);
+      personalIndex += 1;
+    };
+
+    block("🌗 内側の反応点", "", personalPick.inner, aiPersonal.inner);
+    block("☀️ 外に出やすい反応", "", personalPick.outer, aiPersonal.outer);
+
+    let flowItem = personalPick.flow;
+    if (!flowItem) {
+      const pool = [personalPick.inner, personalPick.outer].filter(Boolean);
+      if (pool.length) {
+        // fallback: pick the next best (orb) as flow to keep 3 blocks
+        flowItem = pool.sort((a, b) => _orb(a) - _orb(b))[0];
+      }
+    }
+    if (flowItem) {
+      block("🌿 自然に流れる接点", "", flowItem, aiPersonal.flow);
+    }
+
+    const pLayer1 = aiPersonalLayer?.line1 || aiSkyLayer?.line1 || "";
+    const pLayer2 = aiPersonalLayer?.line2 || aiSkyLayer?.line2 || "";
+    if (pLayer1 || pLayer2) {
+      parts.push(`【空層】${story?.public?.element_modality?.label || story?.public?.element_modality || ""}`.trim());
+      if (pLayer1) parts.push(pLayer1);
+      if (pLayer2) parts.push(pLayer2);
+      parts.push("");
+    }
+
+    parts.push(RENDER_COPY?.FOOTER_LINE || "解釈は、あなたのもの。");
+    parts.push(RENDER_COPY?.SOAR_END || "星は語る。決めるのは、人。🌎️🛸✨️");
+    parts.push("");
+    parts.push("──");
+    parts.push("");
+    parts.push("必要な人は、次に");
+    parts.push("「そら」");
+    parts.push("と送ってみてね。");
+    parts.push("今日のソラの配置一覧が出るよ🌌");
+  }
+
+  return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/* =========================
  * main
  * ========================= */
-function renderLine(story, deps = {}) {
+function renderLineDict(story, deps = {}) {
   const {
     tpKey,
     getSkyLayers,
@@ -932,10 +1556,22 @@ function renderLine(story, deps = {}) {
     HIDDEN: "【ひそかな接点】",
   };
   const CIRCLES = RENDER_COPY?.CIRCLES || ["①", "②", "③"];
+  const SEP = RENDER_COPY?.LINE_SEP || "────────────────";
 
   const parts = [];
   const used = new Set();
   const tpsShown = [];
+  const tpKeyFn = typeof tpKey === "function" ? tpKey : (x) => String(x);
+  const pickFirstUnused = (list) => {
+    const arr = Array.isArray(list) ? list : [];
+    for (const item of arr) {
+      if (!item) continue;
+      const k = tpKeyFn(item);
+      if (used.has(k)) continue;
+      return item;
+    }
+    return null;
+  };
 
   // --------------------
   // personal first
@@ -946,7 +1582,7 @@ function renderLine(story, deps = {}) {
     const hidden0 = layers.hidden?.[0] || null;
 
     if (theme0) {
-      used.add(typeof tpKey === "function" ? tpKey(theme0) : String(theme0));
+      used.add(tpKeyFn(theme0));
       tpsShown.push(theme0);
       const line = formatWithFlavor({
         story,
@@ -960,7 +1596,7 @@ function renderLine(story, deps = {}) {
     }
 
     if (touch[0]) {
-      used.add(typeof tpKey === "function" ? tpKey(touch[0]) : String(touch[0]));
+      used.add(tpKeyFn(touch[0]));
       tpsShown.push(touch[0]);
       const line = formatWithFlavor({
         story,
@@ -973,32 +1609,19 @@ function renderLine(story, deps = {}) {
       parts.push(HEAD_LAYERS.TOUCH ? `${HEAD_LAYERS.TOUCH}\n${line}` : line);
     }
 
-    if (touch[1]) {
-      used.add(typeof tpKey === "function" ? tpKey(touch[1]) : String(touch[1]));
-      tpsShown.push(touch[1]);
+    const thirdCandidate =
+      pickFirstUnused([touch[1], hidden0]) ||
+      pickFirstUnused(touch.slice(2)) ||
+      pickFirstUnused(layers.hidden) ||
+      pickFirstUnused(layers.theme);
+
+    if (thirdCandidate) {
+      used.add(tpKeyFn(thirdCandidate));
+      tpsShown.push(thirdCandidate);
       const line = formatWithFlavor({
         story,
-        item: touch[1],
+        item: thirdCandidate,
         prefix: `${CIRCLES[2]} `,
-        deps,
-        baseFormatter: fmtTP,
-        flavorMode: "personal",
-      });
-      parts.push(line);
-    }
-
-    const hidden =
-      hidden0 && !used.has(typeof tpKey === "function" ? tpKey(hidden0) : String(hidden0))
-        ? hidden0
-        : null;
-
-    if (hidden) {
-      used.add(typeof tpKey === "function" ? tpKey(hidden) : String(hidden));
-      tpsShown.push(hidden);
-      const line = formatWithFlavor({
-        story,
-        item: hidden,
-        prefix: "・",
         deps,
         baseFormatter: fmtTP,
         flavorMode: "personal",
@@ -1045,24 +1668,13 @@ function renderLine(story, deps = {}) {
       parts.push(HEAD_LAYERS.TOUCH ? `${HEAD_LAYERS.TOUCH}\n${line}` : line);
     }
 
-    if (t2 && typeof fmtSky === "function") {
-      const line = formatWithFlavor({
-        story,
-        item: t2,
-        prefix: `${CIRCLES[2]} `,
-        deps,
-        baseFormatter: fmtSky,
-        flavorMode: "sky",
-      });
-      parts.push(line);
-    }
-
     const secret = typeof pickSecretPublicContact === "function" ? pickSecretPublicContact(story) : null;
-    if (secret && typeof fmtSky === "function") {
+    const thirdSky = t2 || secret || null;
+    if (thirdSky && typeof fmtSky === "function") {
       const line = formatWithFlavor({
         story,
-        item: secret,
-        prefix: "・",
+        item: thirdSky,
+        prefix: `${CIRCLES[2]} `,
         deps,
         baseFormatter: fmtSky,
         flavorMode: "sky",
@@ -1109,7 +1721,7 @@ function renderLine(story, deps = {}) {
   if (typeof tpl === "function") {
     return tpl({
       dateLabel,
-      parts: parts.join("\n\n"),
+      parts: parts.join(`\n\n${SEP}\n\n`),
       distLines,
       kusouYoin: yoin,
       footerLines: RENDER_COPY?.FOOTER_LINE,
@@ -1119,7 +1731,7 @@ function renderLine(story, deps = {}) {
 
   return buildLineMainFallback({
     dateLabel,
-    parts: parts.join("\n\n"),
+    parts: parts.join(`\n\n${SEP}\n\n`),
     distLines,
     kusouYoin: yoin,
     footerLines: RENDER_COPY?.FOOTER_LINE,
@@ -1127,4 +1739,17 @@ function renderLine(story, deps = {}) {
   });
 }
 
-module.exports = { renderLine, renderSoraUraSilentPersonalLine };
+async function renderLine(story, deps = {}) {
+  const aiEnabled = boolishEnv(process.env.LINE_AI_ENABLED);
+  if (aiEnabled && process.env.OPENAI_API_KEY) {
+    try {
+      return await renderLineAI(story, deps);
+    } catch (e) {
+      // fallback to dict-based render
+      return renderLineDict(story, deps);
+    }
+  }
+  return renderLineDict(story, deps);
+}
+
+module.exports = { renderLine, renderLineDict, renderSoraUraSilentPersonalLine };

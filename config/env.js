@@ -145,6 +145,27 @@ const WORKER_PUSH_NATAL_RESULT = getEnv("WORKER_PUSH_NATAL_RESULT", { defaultVal
 // テスト用（任意）：特定のLINEだけに送る
 const WORKER_PUSH_ONLY_LINE_USER_ID = getEnv("WORKER_PUSH_ONLY_LINE_USER_ID", { defaultValue: null });
 
+// --------------------
+// WordPress (BLOG)
+// --------------------
+const WP_BASE_URL = getEnv("WP_BASE_URL", { defaultValue: null }); // e.g. https://sora-no-koe.jp
+const WP_USER = getEnv("WP_USER", { defaultValue: null }); // wp user or email
+const WP_APP_PASSWORD = getEnv("WP_APP_PASSWORD", { defaultValue: null });
+const WP_CATEGORY_DAILY = numEnv("WP_CATEGORY_DAILY", null);
+const WP_CATEGORY_SIGN = numEnv("WP_CATEGORY_SIGN", null);
+const WP_CATEGORY_PLANET = numEnv("WP_CATEGORY_PLANET", null);
+const WP_CATEGORY_ASPECT = numEnv("WP_CATEGORY_ASPECT", null);
+
+const BLOG_RECO_ENABLED = boolEnv("BLOG_RECO_ENABLED", true);
+const BLOG_RECO_COUNT = numEnv("BLOG_RECO_COUNT", 3);
+
+// --------------------
+// OpenAI (BLOG generation)
+// --------------------
+const OPENAI_API_KEY = getEnv("OPENAI_API_KEY", { defaultValue: null });
+const OPENAI_BASE_URL = getEnv("OPENAI_BASE_URL", { defaultValue: "https://api.openai.com/v1" });
+const OPENAI_MODEL = getEnv("OPENAI_MODEL", { defaultValue: "gpt-4.1" });
+
 
 // --------------------
 // export
@@ -206,5 +227,21 @@ module.exports = {
 
   //worker
   WORKER_PUSH_NATAL_RESULT,
-  WORKER_PUSH_ONLY_LINE_USER_ID
+  WORKER_PUSH_ONLY_LINE_USER_ID,
+
+  // WordPress (BLOG)
+  WP_BASE_URL,
+  WP_USER,
+  WP_APP_PASSWORD,
+  WP_CATEGORY_DAILY,
+  WP_CATEGORY_SIGN,
+  WP_CATEGORY_PLANET,
+  WP_CATEGORY_ASPECT,
+  BLOG_RECO_ENABLED,
+  BLOG_RECO_COUNT,
+
+  // OpenAI
+  OPENAI_API_KEY,
+  OPENAI_BASE_URL,
+  OPENAI_MODEL
 };

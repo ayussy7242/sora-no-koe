@@ -20,7 +20,7 @@ function readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-function main() {
+async function main() {
   const date = getArg("--date", null);
   const storyPath = getArg("--story", null);
   const savePath = getArg("--save", null);
@@ -56,7 +56,7 @@ function main() {
   });
 
   const x = r.renderX(story);
-  const line = r.renderLine(story);
+  const line = await r.renderLine(story);
 
   const out = [
     "==================== X ====================",

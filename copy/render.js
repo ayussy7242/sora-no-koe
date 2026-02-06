@@ -17,7 +17,7 @@ const { TP_ITEM_V1 } = require("../dict/tp_item.v1");
 const BRAND = "ソラのこえ。";
 
 // --- personal（今日）側 ---
-const HEAD_TODAY = "【今日の星（あなたの星×今日のソラ）】";
+const HEAD_TODAY = "【あなたの星 × きょうのそら】";
 const HEAD_SKY = "【今日のソラ（星の配置）】"; // 互換用（残す）
 const HEAD_SKY_MAIN = "【星の主な配置】";
 const HEAD_moon = "【今日の月】";
@@ -27,8 +27,8 @@ const HEAD_NATAL_LIST = "🌌 わたしのほし（あなたの星の一覧）";
 // --- public（そら）側 ---
 const HEAD_SORA = "【今日のソラ｜そら】";
 const HEAD_SORA_SKY = "【今日のソラの配置】";
-const HEAD_SORA_SKY_TOP5 = "【今日のソラの配置 上位5共鳴（orb≤6°）】";
-const HEAD_SORA_SKY_ALL = "【今日のソラの配置 全部（orb≤6°）】";
+const HEAD_SORA_SKY_TOP5 = "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
+const HEAD_SORA_SKY_ALL = "【今日のソラの配置｜全部（orb≤6°）】";
 const HEAD_DIST = "【分布（エレメント／三区分）】";
 const HEAD_KUSOU = "【空層】";
 const HEAD_KUSOU_YOIN = "";
@@ -145,7 +145,8 @@ const RENDER_COPY = Object.freeze({
   // --------------------
   // Generic small bits
   // --------------------
-  CIRCLES: ["①", "②", "③"],
+  CIRCLES: ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"],
+  LINE_SEP: "────────────────",
   ORB_LABEL: (orb) => `orb ${orb}°`,
   DEG_LABEL: (deg, orb) => `（${deg}°｜orb ${orb}°）`,
   YOIN_PREFIX_X: "余韻：",
@@ -197,9 +198,9 @@ const RENDER_COPY = Object.freeze({
   // Today layers（personal-only：3層ラベル）
   // --------------------
   HEAD_LAYERS: {
-    THEME: "",
-    TOUCH: "",
-    HIDDEN: "",
+    THEME: "🌗 内側の反応点",
+    TOUCH: "☀️ 外に出やすい反応",
+    HIDDEN: "🌿 自然に流れる接点",
   },
 
   // --------------------
@@ -533,7 +534,10 @@ const RENDER_COPY = Object.freeze({
         // 配置見出し（上位5 or 全部）
         const headSky = listTitle ? String(listTitle) : RENDER_COPY.HEAD_SORA_SKY; // デフォ
         pushLine(lines, headSky);
-        if (mainLines) pushLine(lines, mainLines);
+        if (mainLines) {
+          pushBlank(lines, 1);
+          pushLine(lines, mainLines);
+        }
         pushBlank(lines, 1);
 
         // 月

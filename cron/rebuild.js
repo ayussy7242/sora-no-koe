@@ -121,7 +121,7 @@ async function rebuildDaily8(deps, opts = {}) {
         orbMaxDeg,
         precisionDeg,
       });
-      return renderFn(story);
+      return await renderFn(story);
     }
 
     // mode=today
@@ -133,7 +133,7 @@ async function rebuildDaily8(deps, opts = {}) {
       orbMaxDeg,
       precisionDeg,
     });
-    return renderFn(story);
+    return await renderFn(story);
   }
 
   // 共通: outbox に書くペイロード生成
