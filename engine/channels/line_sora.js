@@ -462,7 +462,7 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     };
 
     const apiKey = process.env.OPENAI_API_KEY || "";
-    const model = process.env.OPENAI_MODEL || process.env.LINE_AI_MODEL || "gpt-4o";
+    const model = process.env.OPENAI_MODEL || "gpt-4o";
     const baseUrl = process.env.OPENAI_BASE_URL || "";
 
     const raw = await createChatCompletion({
