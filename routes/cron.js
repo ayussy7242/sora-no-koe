@@ -22,6 +22,7 @@ const { handleJobsWorker } = require("../jobs/worker");
 const { runDaily8 } = require("../cron/daily8");
 const { rebuildDaily8 } = require("../cron/rebuild");
 const { sendDaily8 } = require("../cron/send");
+const { runDailyBlog } = require("../cron/blog_daily");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -189,6 +190,34 @@ function createCronRouter(deps = {}) {
     }
   });
 
+  // ✅ POST /cron/blog/daily : WordPress 日次下書き生成
+  router.post("/blog/daily", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/blog/daily" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
+
+      const asOfRaw = b.as_of || q.as_of;
+      const asOfISO = isValidISO(asOfRaw) ? String(asOfRaw) : asOfIsoFromDateLocalJST(dateLocal);
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+
+      const result = await runDailyBlog(
+        { env: env2, storyService },
+        { dateLocal, asOfISO, dryRun }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/blog/daily" });
+    }
+  });
+
 
   // POST /cron/worker : jobs_natal_calc を 1件処理
   router.post("/worker", async (req, res) => {
@@ -211,4 +240,3 @@ function createCronRouter(deps = {}) {
 }
 
 module.exports = { createCronRouter };
-

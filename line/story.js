@@ -73,7 +73,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     });
 
     const fn = typeof renderer === "function" ? renderer : renderers.renderLine;
-    const text = safeText(fn(story));
+    const text = safeText(await fn(story));
     return { story, text };
   }
 

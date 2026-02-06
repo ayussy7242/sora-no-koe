@@ -276,7 +276,7 @@ function createStoriesRouter(deps = {}) {
                             // default
                             "line";
 
-      const primaryText = (renderMap[wantKey] || renderMap.line)();
+      const primaryText = await (renderMap[wantKey] || renderMap.line)();
 
       // outputs: include only if requested (and never break main response)
       if (includeOutputs) {
@@ -287,7 +287,7 @@ function createStoriesRouter(deps = {}) {
         for (const k of Object.keys(outputs)) {
           if (k === wantKey) continue;
           try {
-            outputs[k] = renderMap[k]();
+            outputs[k] = await renderMap[k]();
           } catch (e) {
             errors[k] = e?.message || String(e);
           }

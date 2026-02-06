@@ -59,6 +59,40 @@ function filterKeepBlanks(arr) {
 // --------------------
 // Public / Sora helpers (line format)
 // --------------------
+function _emojiForBody(key) {
+    const k = String(key || "").toLowerCase();
+    const map = {
+        sun: "☀️",
+        moon: "🌙",
+        mercury: "☿️",
+        venus: "♀️",
+        mars: "♂️",
+        jupiter: "♃",
+        saturn: "♄",
+        uranus: "♅",
+        neptune: "♆",
+        pluto: "♇",
+        chiron: "⚷",
+    };
+    return map[k] || "";
+}
+
+function _aspectDegFromMeta(aspectType, deps) {
+    const k = String(aspectType || "").trim().toLowerCase();
+    if (!k) return null;
+    const meta = deps?.META?.ASPECTS_META?.[k];
+    if (Number.isFinite(meta?.deg)) return Number(meta.deg);
+
+    const d = deps?.dict?.ASPECTS_V2;
+    const v =
+        d?.major?.[k]?.deg ??
+        d?.deep_space?.[k]?.deg ??
+        d?.craft_space?.[k]?.deg ??
+        d?.minor?.[k]?.deg ??
+        null;
+    return Number.isFinite(v) ? Number(v) : null;
+}
+
 function formatPublicSkyLine(story, s, prefixOrDeps, maybeDeps) {
     if (!s) return "";
 
@@ -78,14 +112,20 @@ function formatPublicSkyLine(story, s, prefixOrDeps, maybeDeps) {
 
     const aLabel = fmtAnyJa(aKey);
     const bLabel = fmtAnyJa(bKey);
+    const aEmoji = _emojiForBody(aKey);
+    const bEmoji = _emojiForBody(bKey);
 
     const aSignJa = s.a_sign_ja || publicSignJa(story, aKey);
     const bSignJa = s.b_sign_ja || publicSignJa(story, bKey);
 
     const aspectJa = fmtAspectJa(s.type);
     const orb = fmtDeg(s.orb_deg);
+    const deg = _aspectDegFromMeta(s.type, deps);
+    const degStr = Number.isFinite(deg) ? `${fmtDeg(deg, 0)}°` : "";
 
-    return `${prefix}${aLabel}（${aSignJa}）× ${bLabel}（${bSignJa}）｜${aspectJa}（orb ${orb}°）`;
+    const head = `${prefix}${aEmoji ? `${aEmoji} ` : ""}${aLabel}（${aSignJa}）× ${bEmoji ? `${bEmoji} ` : ""}${bLabel}（${bSignJa}）`;
+    const tail = degStr ? `｜${aspectJa} ${degStr}（orb ${orb}°）` : `｜${aspectJa}（orb ${orb}°）`;
+    return `${head}\n${tail}`;
 }
 
 // Soraも同じで良いなら alias でOK（将来差分出すなら別実装に）
@@ -129,14 +169,20 @@ function formatPersonalTPLine(storyOrTp, tpOrPrefix, prefixOrDeps, maybeDeps) {
 
     const aLabel = fmtAnyJa(aKey);
     const bLabel = fmtAnyJa(bKey);
+    const aEmoji = _emojiForBody(aKey);
+    const bEmoji = _emojiForBody(bKey);
 
     const aSignJa = tp.natal_sign_ja || tp.natal_sign_label_ja || tp.natal_sign || tp.natal_sign_en || "";
     const bSignJa = tp.transit_sign_ja || tp.transit_sign_label_ja || tp.transit_sign || tp.transit_sign_en || "";
 
     const aspectJa = fmtAspectJa(type);
     const orb = fmtDeg(tp.orb_deg);
+    const deg = _aspectDegFromMeta(type, deps);
+    const degStr = Number.isFinite(deg) ? `${fmtDeg(deg, 0)}°` : "";
 
-    return `${prefix}${aLabel}${aSignJa ? `（${aSignJa}）` : ""} × ${bLabel}${bSignJa ? `（${bSignJa}）` : ""}｜${aspectJa}（orb ${orb}°）`;
+    const head = `${prefix}${aEmoji ? `${aEmoji} ` : ""}${aLabel}${aSignJa ? `（${aSignJa}）` : ""} × ${bEmoji ? `${bEmoji} ` : ""}${bLabel}${bSignJa ? `（${bSignJa}）` : ""}`;
+    const tail = degStr ? `｜${aspectJa} ${degStr}（orb ${orb}°）` : `｜${aspectJa}（orb ${orb}°）`;
+    return `${head}\n${tail}`;
 }
 
 // --------------------

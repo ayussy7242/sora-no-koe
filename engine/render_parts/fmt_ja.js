@@ -32,6 +32,7 @@ function createJaFormatters({
   BODY_JA = {},
   POINT_JA = {},
   ASPECT_JA = {},
+  ASPECTS_V2 = null,
   META = {},
   // ✅ ここ超重要：ASPECT key も lower で統一
   normalizeAspectType = (x) => String(x || "").trim().toLowerCase(),
@@ -64,7 +65,16 @@ function createJaFormatters({
     const k = normalizeAspectType(aspectType);
     if (_memo.aspectJa.has(k)) return _memo.aspectJa.get(k);
 
-    const v = ASPECTS_META?.[k]?.label_ja || ASPECT_JA?.[k] || k;
+    let v = ASPECTS_META?.[k]?.label_ja || ASPECT_JA?.[k] || k;
+    if ((v === k || /[a-z_]/i.test(String(v))) && ASPECTS_V2) {
+      const v2 =
+        ASPECTS_V2?.major?.[k]?.label_ja ||
+        ASPECTS_V2?.minor?.[k]?.label_ja ||
+        ASPECTS_V2?.craft_space?.[k]?.label_ja ||
+        ASPECTS_V2?.deep_space?.[k]?.label_ja ||
+        null;
+      if (v2) v = v2;
+    }
     _memo.aspectJa.set(k, v);
     return v;
   }
