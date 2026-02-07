@@ -228,14 +228,18 @@ function createStoriesRouter(deps = {}) {
         precisionDeg,
       });
 
-      // anshin 用に natal_cache を補足（publicは取得しない）
+      // anshin / natal 用に natal_cache を補足（publicは取得しない）
       let anshinNatalCache = null;
-      if (isAnshin && appUserId && appUserId !== "public") {
+      let natalCache = null;
+      if (appUserId && appUserId !== "public") {
         try {
           const snap = await db.collection("natal_cache").doc(appUserId).get();
-          anshinNatalCache = snap.exists ? snap.data() : null;
+          const data = snap.exists ? snap.data() : null;
+          if (isAnshin) anshinNatalCache = data;
+          natalCache = data;
         } catch (_) {
           anshinNatalCache = null;
+          natalCache = null;
         }
       }
 
@@ -258,6 +262,7 @@ function createStoriesRouter(deps = {}) {
         sora_ura_rare: () => renderers.renderSoraUraRareLine(story),
         sora_ura_harmony: () => renderers.renderSoraUraHarmonyLine(story),
         anshin: () => renderers.renderAnshinLine({ story, meta: story?.meta, natal_cache: anshinNatalCache || null }),
+        natal: () => renderers.renderNatalListFromcache(natalCache || null),
         x: () => renderers.renderX(story),
         ig: () => renderers.renderIG(story),
         threads: () => renderers.renderThreads(story),
@@ -279,6 +284,7 @@ function createStoriesRouter(deps = {}) {
                       (format === "text" && ch === "line_sora_ura_rare") ? "sora_ura_rare" :
                       (format === "text" && ch === "line_sora_ura_harmony") ? "sora_ura_harmony" :
                       (format === "text" && ch === "line_anshin") ? "anshin" :
+                      (format === "text" && (ch === "natal" || ch === "line_natal")) ? "natal" :
                           (format === "text" && (ch === "line" || !ch)) ? "line" :
                             // default
                             "line";
@@ -287,7 +293,7 @@ function createStoriesRouter(deps = {}) {
 
       // outputs: include only if requested (and never break main response)
       if (includeOutputs) {
-        const outputs = { line: "", sora: "", sora_all: "", sora_ura: "", sora_ura_silent: "", sora_ura_rare: "", sora_ura_harmony: "", anshin: "", x: "", ig: "", threads: "" };
+        const outputs = { line: "", sora: "", sora_all: "", sora_ura: "", sora_ura_silent: "", sora_ura_rare: "", sora_ura_harmony: "", anshin: "", natal: "", x: "", ig: "", threads: "" };
         outputs[wantKey] = primaryText;
 
         const errors = {};

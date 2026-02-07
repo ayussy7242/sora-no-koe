@@ -66,15 +66,15 @@ function createNatalListRenderer({
       null;
 
     let asc =
-      angles?.asc ?? angles?.asc ?? angles?.asc_deg ??
-      d?.min?.asc ?? d?.min?.asc ??
-      d?.asc ?? d?.asc ??
+      angles?.asc ?? angles?.ASC ?? angles?.asc_deg ?? angles?.ASC_deg ??
+      d?.min?.asc ?? d?.min?.asc_deg ?? d?.min?.ASC ?? d?.min?.ASC_deg ??
+      d?.asc ?? d?.ASC ??
       null;
 
     let mc =
-      angles?.mc ?? angles?.mc ?? angles?.mc_deg ??
-      d?.min?.mc ?? d?.min?.mc ??
-      d?.mc ?? d?.mc ??
+      angles?.mc ?? angles?.MC ?? angles?.mc_deg ?? angles?.MC_deg ??
+      d?.min?.mc ?? d?.min?.mc_deg ?? d?.min?.MC ?? d?.min?.MC_deg ??
+      d?.mc ?? d?.MC ??
       null;
 
     // fallback: house cusp 1 / 10
@@ -113,7 +113,7 @@ function createNatalListRenderer({
         : "asc/mc が取得できませんでした。出生情報を確認してください。";
     }
 
-    const order = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+    const order = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto", "lilith", "chiron"];
 
     const glyph = {
       sun: "☉",
@@ -126,8 +126,10 @@ function createNatalListRenderer({
       uranus: "♅",
       neptune: "♆",
       pluto: "♇",
-      asc: "asc",
-      mc: "mc",
+      lilith: "⚸",
+      chiron: "⚷",
+      asc: "✧",
+      mc: "✦",
     };
 
     const safeFmtPoint = (k) => (typeof fmtPointJa === "function" ? fmtPointJa(k) : String(k));
@@ -138,17 +140,127 @@ function createNatalListRenderer({
     lines.push(`${glyph.mc}  ${safeFmtPoint("mc")}：${lonToSignDegMin(mc)}`);
     lines.push("");
 
-    for (const k of order) {
-      const v = bodies?.[k];
+    const SIGN_KEYS = [
+      "aries",
+      "taurus",
+      "gemini",
+      "cancer",
+      "leo",
+      "virgo",
+      "libra",
+      "scorpio",
+      "sagittarius",
+      "capricorn",
+      "aquarius",
+      "pisces",
+    ];
+    const SIGNS_V2 = require("../../dict").SIGNS_V2 || {};
+    const sigMeta = (lon) => {
+      const v = Number(lon);
+      if (!Number.isFinite(v)) return null;
+      const lonNorm = ((v % 360) + 360) % 360;
+      const idx = Math.floor(lonNorm / 30);
+      const key = SIGN_KEYS[idx];
+      return SIGNS_V2.signs?.[key] || null;
+    };
+
+    const element = { fire: 0, earth: 0, air: 0, water: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+
+    const bodiesLower = (() => {
+      const out = {};
+      for (const [k, v] of Object.entries(bodies || {})) {
+        const key = String(k || "").trim();
+        if (!key) continue;
+        const lower = key.toLowerCase();
+        out[lower] = v;
+      }
+      return out;
+    })();
+
+    // fill missing optional bodies (lilith / chiron) if cache lacks them
+    const needsLilith = bodiesLower.lilith == null;
+    const needsChiron = bodiesLower.chiron == null;
+    if (needsLilith || needsChiron) {
+      const birth = d?.birth || {};
+      const dateLocal = birth?.date_local || null;
+      const timeHm = birth?.time_hm || null;
+      const tz = birth?.timezone || null;
+
+      if (dateLocal && timeHm && (!tz || tz === "Asia/Tokyo")) {
+        try {
+          const { swisseph } = require("../../config/swisseph");
+          const iso = `${dateLocal}T${timeHm}:00+09:00`;
+          const dd = new Date(iso);
+          if (!Number.isNaN(dd.getTime()) && swisseph) {
+            const y = dd.getUTCFullYear();
+            const m = dd.getUTCMonth() + 1;
+            const day = dd.getUTCDate();
+            const hour =
+              dd.getUTCHours() +
+              dd.getUTCMinutes() / 60 +
+              dd.getUTCSeconds() / 3600 +
+              dd.getUTCMilliseconds() / 3600000;
+            const jdUt = swisseph.swe_julday(y, m, day, hour, swisseph.SE_GREG_CAL);
+            const flags = swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED;
+            if (needsLilith && swisseph.SE_MEAN_APOG != null) {
+              const out = swisseph.swe_calc_ut(jdUt, swisseph.SE_MEAN_APOG, flags);
+              const lon1 = typeof out?.longitude === "number" ? out.longitude : out?.data?.[0];
+              if (Number.isFinite(lon1)) bodiesLower.lilith = lon1;
+            }
+            if (needsChiron && swisseph.SE_CHIRON != null) {
+              const out = swisseph.swe_calc_ut(jdUt, swisseph.SE_CHIRON, flags);
+              const lon1 = typeof out?.longitude === "number" ? out.longitude : out?.data?.[0];
+              if (Number.isFinite(lon1)) bodiesLower.chiron = lon1;
+            }
+          }
+        } catch (_) {
+          // optional: ignore if calc fails
+        }
+      }
+    }
+
+    const readBodyLon = (key) => {
+      if (!key) return undefined;
+      const lower = String(key).toLowerCase();
+      if (bodiesLower[lower] != null) return bodiesLower[lower];
+      // legacy/odd casing (e.g. "Jupiter")
+      const upperFirst = lower.charAt(0).toUpperCase() + lower.slice(1);
+      if (bodies?.[upperFirst] != null) return bodies[upperFirst];
+      return bodies?.[key];
+    };
+
+    let insertedSpecialSep = false;
+    for (let i = 0; i < order.length; i++) {
+      const k = order[i];
+      const v = readBodyLon(k);
       const str = lonToSignDegMin(v);
       if (!str) continue;
       const label = safeFmtBody(k);
+      if (!insertedSpecialSep && (k === "lilith" || k === "chiron")) {
+        lines.push("");
+        insertedSpecialSep = true;
+      }
       lines.push(`${glyph[k]} ${label}：${str}`);
+
+      const meta = sigMeta(v);
+      const e = String(meta?.element || "").toLowerCase();
+      const m = String(meta?.modality || "").toLowerCase();
+      if (element[e] !== undefined) element[e] += 1;
+      if (modality[m] !== undefined) modality[m] += 1;
+    }
+
+    const total = element.fire + element.earth + element.air + element.water;
+    if (total > 0) {
+      // 余白を1行追加（見やすさ優先）
+      lines.push("");
+      lines.push(`【惑星属性】 🔥 火${element.fire}　🪨 地${element.earth}　💨 風${element.air}　💧 水${element.water}`);
+      lines.push(`【三区分】 🏃 活動${modality.cardinal}　🧱 不動${modality.fixed}　🌿 柔軟${modality.mutable}`);
     }
 
     const head = RENDER_COPY?.HEAD_NATAL_LIST || "【わたしの星】";
-    const note = typeof RENDER_COPY?.NATAL_LIST?.NOTE === "function" ? RENDER_COPY.NATAL_LIST.NOTE() : "";
-    return [head, "", ...lines, note].filter(Boolean).join("\n");
+    // タイトル直下に余白を1行追加
+    return [head, "", ...lines].filter((v) => v !== undefined && v !== null).join("\n");
   }
 
   return {
