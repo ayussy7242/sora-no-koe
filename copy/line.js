@@ -24,7 +24,8 @@ const LINE_COPY = Object.freeze({
       "・「わたしのほし」→ あなたの星の一覧（asc/mcふくむ）\n\n" +
       "個人版を使うなら「はじめる」🕊️\n\n" +
       "途中でわからなくても大丈夫。\n" +
-      "「不明」って送れば、そのまま進めるよ。"
+      "「不明」って送れば、そのまま進めるよ。\n\n" +
+      "Source: github.com/ayussy7242/sora-no-koe"
     );
   },
 
