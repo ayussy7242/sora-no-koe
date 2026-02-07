@@ -575,8 +575,8 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderSoraUraHarmonyLine(story) {
     return fnSoraUraHarmony ? fnSoraUraHarmony(story, ctxFor(story)) : "";
   }
-  function renderAnshinLine(payload) {
-    return fnAnshin ? fnAnshin(payload, ctxFor(payload)) : "";
+  async function renderAnshinLine(payload) {
+    return fnAnshin ? await fnAnshin(payload, ctxFor(payload)) : "";
   }
   function renderX(story) {
     return fnX(story, ctxFor(story));
