@@ -271,6 +271,14 @@ function renderX(story, deps = {}) {
   }
   lines.push("");
   lines.push("星は語る。🌎🛸");
+  const tags = [
+    "#ソラのこえ",
+    sunSign ? `#太陽星座${sunSign}` : "",
+    moonSign ? `#月星座${moonSign}` : "",
+  ].filter(Boolean);
+  if (tags.length) {
+    lines.push(tags.join(" "));
+  }
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
