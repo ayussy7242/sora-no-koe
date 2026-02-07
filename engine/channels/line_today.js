@@ -82,6 +82,19 @@ function _safeJsonParse(raw) {
   }
 }
 
+function _containsBannedTokens(text, banned = []) {
+  const s = String(text || "");
+  if (!s) return false;
+  if (/\d+\s*°/.test(s)) return true;
+  if (/orb|オーブ/i.test(s)) return true;
+  if (/座/.test(s)) return true;
+  for (const t of banned || []) {
+    if (!t) continue;
+    if (s.includes(t)) return true;
+  }
+  return false;
+}
+
 const LINE_AI_SYSTEM_PROMPT = [
   "あなたは「ソラのこえ。」LINE配信用の生成エンジン。",
   "占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
@@ -139,19 +152,18 @@ const LINE_AI_USER_GUIDE = [
 ].join("\n");
 
 const LINE_AI_SYSTEM_PROMPT_PERSONAL = [
-  "あなたは「ソラのこえ。」LINE配信用の生成エンジン。",
-  "占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
-  "読者主語は禁止。説明口調は禁止。",
+  "あなたは「sora-no-koe / LINE（きょう）本文」を生成する。",
+  "目的は占いでも説明でもなく、“状態の短い描写”を置くこと。",
+  "読者主語は禁止。断定・助言・結論は禁止。",
   "日本語のみ。英語・ローマ字は禁止。",
   "出力はJSONのみ。余計な文は書かない。",
   "",
-  "【最重要】",
-  "本文は（惑星×星座 × 惑星×星座）× アスペクトの意味を“溶かした短い段落”。",
-  "アスペクト名・角度名・配置という語は出さない。",
-  "「〜しやすい」「影響」「〜として」「〜によって」は使わない。",
-  "同じ語を2回繰り返さない。",
-  "入力の語彙以外の名詞を増やさない（助詞・接続・活用はOK）。",
-  "抽象語に偏りすぎない。身体感覚・距離・温度・圧・視線・重さ・間・輪郭を優先。",
+  "【BLOG呼吸の定義（LLM向け制約）】",
+  "説明しない（因果・解説・まとめ禁止）。",
+  "感触を1回だけ置く（手触り/ズレ/気配）。比喩は増やさない。",
+  "構造語は後置き（名詞で添える。主張しない）。",
+  "結論で閉じない（余白で終える）。",
+  "語彙は“弱い主語”で置く（誘導・評価・読者主語を避ける）。",
 ].join("\n");
 
 const LINE_AI_USER_GUIDE_PERSONAL = [
@@ -166,18 +178,20 @@ const LINE_AI_USER_GUIDE_PERSONAL = [
   "【本文ルール】",
   "- 2文で、1段落。改行は入れない。",
   "- 80〜111文字程度を目安に短くする。",
-  "- A/B/Aspectの意味を必ず含める（語彙は入力のtokens/texture/process/touch/gap/restから）。",
-  "- 説明しない・判断しない・結論を出さない。",
+  "- 固有名詞禁止（惑星名/星座名/アスペクト名/角度/記号/専門用語）。",
+  "- A/B/Aspect の意味を必ず含める（入力の tokens/texture/process/touch/gap/rest を優先）。",
   "- 同じ語を繰り返さない。",
+  "- 説明/因果/まとめ/一般論は禁止。",
   "- 入力の banned に含まれる語は使わない。",
-  "- 角度/配置/アスペクト名/〜しやすい/影響/〜として/〜によっては禁止。",
+  "- 「〜の中で」「場面で」「生まれる」「助ける」「見せる」などの説明語は禁止。",
+  "- 「角度/配置/アスペクト名/〜しやすい/影響/〜として/〜によって」禁止。",
   "",
   "【入力フォーマット】",
   "{",
   '  "slot": "inner|outer|third",',
-  '  "A": { "label": "惑星（星座）", "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
-  '  "B": { "label": "惑星（星座）", "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
-  '  "aspect": { "label": "角度名", "tokens": ["..."], "touch": ["..."], "gap": ["..."], "rest": ["..."] },',
+  '  "A": { "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "B": { "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "aspect": { "tokens": ["..."], "touch": ["..."], "gap": ["..."], "rest": ["..."] },',
   '  "banned": ["..."],',
   '  "seed": "..."',
   "}",
@@ -2974,7 +2988,7 @@ async function renderLineAI(story, deps = {}) {
   const model = process.env.OPENAI_MODEL || "gpt-4o";
   const baseUrl = process.env.OPENAI_BASE_URL || "";
 
-  const SEP = RENDER_COPY?.LINE_SEP || "────────────────";
+  const SEP = RENDER_COPY?.LINE_SEP || "─────────────";
   const parts = [];
   const hasPersonal = personalPool.length > 0;
 
@@ -3093,27 +3107,33 @@ async function renderLineAI(story, deps = {}) {
 
     const generateProse = async (input) => {
       if (!input) return "";
-      try {
-        const raw = await createChatCompletion({
-          apiKey,
-          baseUrl,
-          model,
-          temperature: 0.4,
-          maxTokens: 220,
-          messages: [
-            { role: "system", content: LINE_AI_SYSTEM_PROMPT_PERSONAL },
-            { role: "user", content: `${LINE_AI_USER_GUIDE_PERSONAL}\n\nINPUT:\n${JSON.stringify(input)}` },
-          ],
-        });
-        const jsonText = _extractJsonBlock(raw);
-        const parsed = _safeJsonParse(jsonText || raw);
-        if (parsed && typeof parsed === "object" && typeof parsed.prose === "string") {
-          return _limitProseSentences(parsed.prose || "", 2, 111);
+      const banned = input?.banned || [];
+      for (let i = 0; i < 2; i++) {
+        try {
+          const raw = await createChatCompletion({
+            apiKey,
+            baseUrl,
+            model,
+            temperature: 0.4,
+            maxTokens: 220,
+            messages: [
+              { role: "system", content: LINE_AI_SYSTEM_PROMPT_PERSONAL },
+              { role: "user", content: `${LINE_AI_USER_GUIDE_PERSONAL}\n\nINPUT:\n${JSON.stringify(input)}` },
+            ],
+          });
+          const jsonText = _extractJsonBlock(raw);
+          const parsed = _safeJsonParse(jsonText || raw);
+          const prose = parsed && typeof parsed === "object" && typeof parsed.prose === "string"
+            ? parsed.prose
+            : raw;
+          const cleaned = _limitProseSentences(prose || "", 2, 111);
+          if (_containsBannedTokens(cleaned, banned)) continue;
+          return cleaned;
+        } catch (_) {
+          // retry
         }
-        return _limitProseSentences(raw || "", 2, 111);
-      } catch (_) {
-        return "";
       }
+      return "";
     };
 
     aiPersonal = {
