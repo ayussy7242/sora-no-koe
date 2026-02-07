@@ -169,10 +169,15 @@ const LINE_AI_SYSTEM_PROMPT_PERSONAL = [
   "",
   "【BLOG呼吸の定義（LLM向け制約）】",
   "説明しない（因果・解説・まとめ禁止）。",
-  "感触を1回だけ置く（手触り/ズレ/気配）。比喩は増やさない。",
+  "感触を1回だけ置く（手触り/ズレ/気配の“描写”）。",
   "構造語は後置き（名詞で添える。主張しない）。",
   "結論で閉じない（余白で終える）。",
   "語彙は“弱い主語”で置く（誘導・評価・読者主語を避ける）。",
+  "比喩を増やさない（象徴/示唆/水脈系は封印）。",
+  "",
+  "【断片禁止（最重要）】",
+  "単語列・名詞列で終えない。必ず“文”として成立させる。",
+  "NG例: 「導入、余白。」/「停滞、狭さ。」",
 ].join("\n");
 
 const LINE_AI_BANNED_TOKENS_PERSONAL = [
@@ -191,20 +196,15 @@ const LINE_AI_BANNED_TOKENS_PERSONAL = [
   "更新",
   "全体最適",
   "意味づけ",
+  "意味",
+  "本質",
+  "可能性",
   "状況",
+  "余韻",
+  "理想",
   "場面",
   "場面で",
-  "の中で",
-  "中で",
-  "生まれる",
-  "手助け",
   "観測",
-  "訪れる",
-  "浮かび上がる",
-  "広がる",
-  "進む",
-  "助ける",
-  "見せる",
   "水脈",
   "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
   "ASC","MC","IC","DSC","アセンダント","ディセンダント","ミディアムコエリ","ノード","キロン","リリス",
@@ -235,15 +235,17 @@ const LINE_AI_USER_GUIDE_PERSONAL = [
   "}",
   "",
   "【本文ルール】",
-  "- 2文で、1段落。改行は入れない。",
-  "- 80〜111文字程度を目安に短くする。",
+  "- 必ず2文。合計80〜111字。",
+  "- 1段落。改行は入れない。",
   "- 固有名詞禁止（惑星名/星座名/アスペクト名/角度/記号/専門用語）。",
   "- A/B/Aspect の意味を必ず含める（入力の tokens/texture/process/touch/gap/rest を優先）。",
   "- 同じ語を繰り返さない。",
   "- 説明/因果/まとめ/一般論は禁止。",
+  "- 「〜だ。」で断定しない（「〜が残る」「〜が濃い」など“置く”語尾に寄せる）。",
   "- 入力の banned に含まれる語は使わない。",
-  "- 「〜の中で」「場面で」「生まれる」「助ける」「見せる」などの説明語は禁止。",
   "- 「角度/配置/アスペクト名/〜しやすい/影響/〜として/〜によって」禁止。",
+  "- 断片禁止：単語列/名詞列で終えない（必ず述語のある文にする）。",
+  "NG例: 「導入、余白。」/「停滞、狭さ。」",
   "",
   "【入力フォーマット】",
   "{",
@@ -899,7 +901,11 @@ function _getSignFlavor(dict, signKey, planetKey) {
   const sKey = _lowerKey(signKey);
   const pKey = _lowerKey(planetKey);
   const sign = sf?.signs?.[sKey] || null;
-  const by = sign?.by_body?.[pKey] || null;
+  const by =
+    sign?.by_body?.[pKey] ||
+    (pKey === "lilith" ? sign?.by_body?.Lilith : null) ||
+    (pKey === "chiron" ? sign?.by_body?.Chiron : null) ||
+    null;
   return { sf, sign, by };
 }
 
@@ -2517,24 +2523,17 @@ function _collectSignPack(dict, signKey, planetKey, aspectKey, orb) {
     .concat(soar?.signs?.[_lowerKey(signKey)]?.touch || []);
   const texture = _buildPiecePool(texturePool, 5, 22);
 
-  let processPool = [];
-  if (tone === "tense" || tone === "adjust") {
-    processPool = processPool.concat(fusion.tension || []);
-  }
-  if (tone === "smooth" || tone === "blend") {
-    processPool = processPool.concat(fusion.clarity || []);
-  }
-  if (tone === "craft") {
-    processPool = processPool.concat(fusion.tendency || []);
-  }
-  if (tier === "tight") {
-    processPool = processPool.concat(fusion.tension || []);
-  } else if (tier === "wide" || tier === "loose") {
-    processPool = processPool.concat(fusion.clarity || []);
-  } else {
-    processPool = processPool.concat(fusion.tendency || []);
-  }
-  const process = _buildPiecePool(processPool, 6, 26);
+  const pickProcessBucket = () => {
+    if (tone === "tense" || tone === "adjust") return "tension";
+    if (tone === "smooth" || tone === "blend") return "clarity";
+    if (tone === "craft") return "tendency";
+    if (tier === "tight") return "tension";
+    if (tier === "wide" || tier === "loose") return "clarity";
+    return "tendency";
+  };
+  const bucket = pickProcessBucket();
+  const processPool = (fusion?.[bucket] || []);
+  const process = _buildPiecePool(processPool, 3, 26);
 
   return {
     tokens: _uniq(tokens),
@@ -2594,7 +2593,7 @@ function _samplingPlan(aspectKey, orb) {
   let p = {
     aTok: 4, bTok: 4,
     aTex: 2, bTex: 2,
-    aProc: 2, bProc: 2,
+    aProc: 1, bProc: 1,
     aspTok: 4,
     touch: 1, gap: 1, rest: 1,
   };
@@ -2635,8 +2634,8 @@ function _samplingPlan(aspectKey, orb) {
   p.bTok = _clampNum(p.bTok, 2, 6);
   p.aTex = _clampNum(p.aTex, 1, 3);
   p.bTex = _clampNum(p.bTex, 1, 3);
-  p.aProc = _clampNum(p.aProc, 1, 3);
-  p.bProc = _clampNum(p.bProc, 1, 3);
+  p.aProc = _clampNum(p.aProc, 0, 1);
+  p.bProc = _clampNum(p.bProc, 0, 1);
   p.aspTok = _clampNum(p.aspTok, 2, 6);
   p.touch = _clampNum(p.touch, 0, 2);
   p.gap = _clampNum(p.gap, 0, 2);
@@ -3357,6 +3356,14 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     parts.push("");
     parts.push(SEP);
     parts.push("");
+
+    const sunSign =
+      story?.public?.transit_signs?.sun?.sign_ja ||
+      _signJa(dict, story?.public?.transit_signs?.sun?.sign_key || "");
+    if (sunSign) {
+      parts.push(`☀️ 太陽：${sunSign}`);
+      parts.push("");
+    }
 
     const phase = _moonPhaseInfo(story);
     const moonSign =

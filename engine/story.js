@@ -204,6 +204,8 @@ function createStoryService({
     uranus: sweConst("uranus"),
     neptune: sweConst("neptune"),
     pluto: sweConst("pluto"),
+    chiron: sweConst("chiron"),
+    lilith: swisseph.SE_MEAN_APOG ?? sweConst("mean_apog") ?? sweConst("meanapog"),
   };
 
   // 起動時に検査（ここ超大事）
@@ -232,14 +234,20 @@ function createStoryService({
 
     const bodies = {};
     const bodies_signs = {};
+    const optionalBodies = new Set(["lilith", "chiron"]);
 
     for (const body of TRANSIT_TARGETS) {
-      const lon = sweLonDeg(body, jdUt);
-      const lonFixed = toFixedPrecision(lon, precisionDeg);
-      bodies[body] = lonFixed;
+      try {
+        const lon = sweLonDeg(body, jdUt);
+        const lonFixed = toFixedPrecision(lon, precisionDeg);
+        bodies[body] = lonFixed;
 
-      const s = signFromLon(lonFixed);
-      bodies_signs[body] = { ...s, lon_deg: lonFixed };
+        const s = signFromLon(lonFixed);
+        bodies_signs[body] = { ...s, lon_deg: lonFixed };
+      } catch (err) {
+        if (optionalBodies.has(body)) continue;
+        throw err;
+      }
     }
 
     const moonLon = bodies.moon;

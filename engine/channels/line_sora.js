@@ -78,6 +78,7 @@ function _emojiForBodyLocal(key) {
         neptune: "♆",
         pluto: "♇",
         chiron: "⚷",
+        lilith: "⚸",
     };
     return map[k] || "";
 }
@@ -137,7 +138,11 @@ function _getSignFlavor(dict, signKey, planetKey) {
     const sKey = _lowerKey(signKey);
     const pKey = _lowerKey(planetKey);
     const sign = sf?.signs?.[sKey] || null;
-    const by = sign?.by_body?.[pKey] || null;
+    const by =
+        sign?.by_body?.[pKey] ||
+        (pKey === "lilith" ? sign?.by_body?.Lilith : null) ||
+        (pKey === "chiron" ? sign?.by_body?.Chiron : null) ||
+        null;
     return { sf, sign, by };
 }
 
@@ -419,7 +424,21 @@ function _getFallbackKeywords(dict, signKey, planetKey) {
     const pKey = _lowerKey(planetKey);
     const sign = dict?.SIGNS_V2?.signs?.[sKey] || null;
     const planet = dict?.PLANETS_V2?.bodies?.[pKey] || null;
+    const { by } = _getSignFlavor(dict, signKey, planetKey);
+    const fusion = by?.fusion || {};
+    const isShortToken = (w) => {
+        const t = String(w || "").trim();
+        if (!t) return false;
+        if (t.length > 8) return false;
+        if (/[ 　]/.test(t)) return false;
+        if (/(つつ|ながら|ように|こと|ため|ながら)/.test(t)) return false;
+        return true;
+    };
     const pool = [
+        ...(Array.isArray(fusion?.A) ? fusion.A.filter(isShortToken) : []),
+        ...(Array.isArray(fusion?.B) ? fusion.B.filter(isShortToken) : []),
+        ...(Array.isArray(fusion?.expression) ? fusion.expression.filter(isShortToken) : []),
+        ...(Array.isArray(fusion?.tendency) ? fusion.tendency.filter(isShortToken) : []),
         ...(Array.isArray(planet?.action_noun_ja) ? planet.action_noun_ja : []),
         ...(Array.isArray(sign?.texture) ? sign.texture : []),
         ...(Array.isArray(sign?.keywords) ? sign.keywords : []),
@@ -662,10 +681,13 @@ const LINE_SORA_AI_SYSTEM_PROMPT = `
 結論で閉じない（余白で終える）。
 語彙は“弱い主語”で置く（誘導・評価・読者主語を避ける）。
 
+【断片禁止（最重要）】
+単語列・名詞列で終えない。必ず“文”として成立させる。
+NG例: 「導入、余白。」/「停滞、狭さ。」
+
 【禁止】
 固有名詞（惑星/星座/アスペクト/ポイント/ASC/MC など）
 「配置」「影響」「〜によって」「現れやすい」「表に出やすい」
-「場面で」「〜の中で」「生まれる」「訪れる」「広がる」「進む」「見せる」「助ける」
 `.trim();
 
 const LINE_SORA_AI_USER_GUIDE = `
@@ -682,7 +704,7 @@ INPUTキー: date, title, top5, sky_layer_hints
 
 条件:
 - s1/s2はそれぞれ1文。合計2文（改行はしない）。
-- 80〜111字程度の軽さを優先（長文禁止）。
+- 合計80〜111字を目安に短くする。
 - 断定/指示/助言なし。説明しない。
 - 英語禁止。日本語のみ。
 - keywords は5語。近い意味の連打は禁止。
@@ -690,7 +712,11 @@ INPUTキー: date, title, top5, sky_layer_hints
 - 各itemの A/B/aspect の tokens/texture/process を優先して混ぜる。
 - banned に含まれる語は本文に使わない。
 - 固有名詞は本文に出さない（ヘッダに出るので不要）。
-- 「〜の中で」「場面で」「生まれる」「助ける」「見せる」などの説明語は禁止。
+- 断片禁止：単語列/名詞列で終えない（必ず述語のある文にする）。
+
+NG例:
+- 「導入、余白。」
+- 「停滞、狭さ。」
 `.trim();
 
 function _dominantKey(counts, order = []) {
@@ -778,6 +804,22 @@ function _cleanSoraSentence(s, maxLen = 56) {
     return t;
 }
 
+function _fallbackProseFromTokens(input, seed) {
+    if (!input) return { s1: "", s2: "" };
+    const pool = []
+        .concat(input?.A?.tokens || [], input?.A?.texture || [], input?.A?.process || [])
+        .concat(input?.B?.tokens || [], input?.B?.texture || [], input?.B?.process || [])
+        .concat(input?.aspect?.tokens || [], input?.aspect?.touch || [], input?.aspect?.gap || [], input?.aspect?.rest || []);
+    const picks = _pickMany(pool.filter(Boolean), `${seed || "fallback"}|prose`, 3);
+    if (!picks.length) return { s1: "", s2: "" };
+    const verbs = ["漂う", "にじむ", "揺れる", "ひっかかる", "立つ", "残る"];
+    const v1 = _pickMany(verbs, `${seed}|v1`, 1)[0] || "残る";
+    const v2 = _pickMany(verbs, `${seed}|v2`, 1)[0] || "漂う";
+    const s1 = picks[0] ? `${picks[0]}が${v1}` : "";
+    const s2 = picks[1] ? `${picks[1]}が${v2}` : (picks[2] ? `${picks[2]}が${v2}` : "");
+    return { s1, s2 };
+}
+
 function _formatPublicAspectLine(dict, item, prefix = "") {
     if (!item) return "";
     const a = _planetJa(dict, item?.a);
@@ -811,6 +853,7 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const listTitle = trimStr(opts.listTitle || "");
     const headerLine = trimStr(opts.headerLine || `🌌 今日のソラ｜そら｜${dateLabel}`);
+    const includeSun = opts.includeSun !== false;
     const includeMoon = opts.includeMoon !== false;
     const includeDist = opts.includeDist !== false;
     const includeSkyLayer = opts.includeSkyLayer !== false;
@@ -830,21 +873,13 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const list = limit === Infinity ? baseList : baseList.slice(0, Math.max(1, limit));
 
     const dict = deps?.dict || require("../../dict");
-    const SORA_AI_BANNED = [
-        "配置",
-        "影響",
-        "現れやすい",
-        "表に出やすい",
-        "によって",
-        "場面で",
-        "の中で",
-        "生まれる",
-        "訪れる",
-        "広がる",
-        "進む",
-        "見せる",
-        "助ける",
-        "水脈",
+const SORA_AI_BANNED = [
+    "配置",
+    "影響",
+    "現れやすい",
+    "表に出やすい",
+    "によって",
+    "水脈",
         "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
         "ASC","MC","IC","DSC","アセンダント","ディセンダント","ミディアムコエリ","ノード","キロン","リリス",
         "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
@@ -852,6 +887,8 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
         "オポジション","インコンジャンクト","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
     ];
 
+    const inputScale = Number.isFinite(opts.inputScale) ? Math.max(0.2, Math.min(1, Number(opts.inputScale))) : 1;
+    const scaled = (n, min = 1) => Math.max(min, Math.round(n * inputScale));
     const inputItems = list.map((it, idx) => {
         const aKey = it?.a;
         const bKey = it?.b;
@@ -866,20 +903,20 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
         return {
             seed: seedBase,
             A: {
-                tokens: _samplePool(aPack.tokens, `${seedBase}|a|tok`, 6),
-                texture: _samplePool(aPack.texture, `${seedBase}|a|tex`, 4),
-                process: _samplePool(aPack.process, `${seedBase}|a|proc`, 4),
+                tokens: _samplePool(aPack.tokens, `${seedBase}|a|tok`, scaled(6, 3)),
+                texture: _samplePool(aPack.texture, `${seedBase}|a|tex`, scaled(4, 2)),
+                process: _samplePool(aPack.process, `${seedBase}|a|proc`, scaled(4, 1)),
             },
             B: {
-                tokens: _samplePool(bPack.tokens, `${seedBase}|b|tok`, 6),
-                texture: _samplePool(bPack.texture, `${seedBase}|b|tex`, 4),
-                process: _samplePool(bPack.process, `${seedBase}|b|proc`, 4),
+                tokens: _samplePool(bPack.tokens, `${seedBase}|b|tok`, scaled(6, 3)),
+                texture: _samplePool(bPack.texture, `${seedBase}|b|tex`, scaled(4, 2)),
+                process: _samplePool(bPack.process, `${seedBase}|b|proc`, scaled(4, 1)),
             },
             aspect: {
-                tokens: _samplePool(aspectPack.tokens, `${seedBase}|asp|tok`, 6),
-                touch: _samplePool(aspectPack.touch, `${seedBase}|asp|touch`, 3),
-                gap: _samplePool(aspectPack.gap, `${seedBase}|asp|gap`, 3),
-                rest: _samplePool(aspectPack.rest, `${seedBase}|asp|rest`, 3),
+                tokens: _samplePool(aspectPack.tokens, `${seedBase}|asp|tok`, scaled(6, 3)),
+                touch: _samplePool(aspectPack.touch, `${seedBase}|asp|touch`, scaled(3, 1)),
+                gap: _samplePool(aspectPack.gap, `${seedBase}|asp|gap`, scaled(3, 1)),
+                rest: _samplePool(aspectPack.rest, `${seedBase}|asp|rest`, scaled(3, 1)),
             },
             banned: SORA_AI_BANNED,
         };
@@ -904,38 +941,54 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
 
     let aiItems = [];
     let aiSky = {};
-    for (let attempt = 0; attempt < 2; attempt++) {
-        const raw = await createChatCompletion({
-            apiKey,
-            baseUrl,
-            model,
-            temperature: 0.5,
-            maxTokens: 1200,
-            messages: [
-                { role: "system", content: LINE_SORA_AI_SYSTEM_PROMPT },
-                { role: "user", content: `${LINE_SORA_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
-            ],
-        });
+    if (apiKey) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            let raw = "";
+            try {
+                raw = await createChatCompletion({
+                    apiKey,
+                    baseUrl,
+                    model,
+                    temperature: 0.5,
+                    maxTokens: 1200,
+                    messages: [
+                        { role: "system", content: LINE_SORA_AI_SYSTEM_PROMPT },
+                        { role: "user", content: `${LINE_SORA_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
+                    ],
+                });
+            } catch (e) {
+                if (LINE_AI_DEBUG) console.error("[line_sora] renderSoraBaseAI error", e);
+                break;
+            }
 
-        const jsonText = _extractJsonBlock(raw);
-        const parsed = _safeJsonParse(jsonText || raw);
-        if (!parsed || typeof parsed !== "object") continue;
+            const jsonText = _extractJsonBlock(raw);
+            const parsed = _safeJsonParse(jsonText || raw);
+            if (!parsed || typeof parsed !== "object") continue;
 
-        aiItems = Array.isArray(parsed.items) ? parsed.items : [];
-        aiSky = parsed.sky_layer || {};
+            aiItems = Array.isArray(parsed.items) ? parsed.items : [];
+            aiSky = parsed.sky_layer || {};
 
-        let hasBad = false;
-        aiItems.forEach((it) => {
-            if (_containsBannedTokens(it?.s1, SORA_AI_BANNED)) hasBad = true;
-            if (_containsBannedTokens(it?.s2, SORA_AI_BANNED)) hasBad = true;
-        });
-        if (_containsBannedTokens(aiSky?.line1, SORA_AI_BANNED)) hasBad = true;
-        if (_containsBannedTokens(aiSky?.line2, SORA_AI_BANNED)) hasBad = true;
+            let hasBad = false;
+            aiItems.forEach((it) => {
+                if (_containsBannedTokens(it?.s1, SORA_AI_BANNED)) hasBad = true;
+                if (_containsBannedTokens(it?.s2, SORA_AI_BANNED)) hasBad = true;
+            });
+            if (_containsBannedTokens(aiSky?.line1, SORA_AI_BANNED)) hasBad = true;
+            if (_containsBannedTokens(aiSky?.line2, SORA_AI_BANNED)) hasBad = true;
 
-        if (!hasBad) break;
-        aiItems = [];
-        aiSky = {};
+            if (!hasBad) break;
+            aiItems = [];
+            aiSky = {};
+        }
     }
+
+    const sunLine = (() => {
+        if (!includeSun) return "";
+        const sunSign =
+            story?.public?.transit_signs?.sun?.sign_ja ||
+            _signJa(dict, story?.public?.transit_signs?.sun?.sign_key || "");
+        return sunSign ? `☀️ 太陽：${sunSign}` : "";
+    })();
 
     const parts = [];
     const noProse = !!opts.noProse;
@@ -949,12 +1002,18 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     for (let i = 0; i < list.length; i++) {
         const it = list[i];
         const ai = aiItems[i] || {};
+        const inputPack = inputItems[i] || {};
         const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
         const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`);
-        const s1Raw = _containsBannedTokens(ai.s1, SORA_AI_BANNED) ? "" : ai.s1;
-        const s2Raw = _containsBannedTokens(ai.s2, SORA_AI_BANNED) ? "" : ai.s2;
-        const s1 = _cleanSoraSentence(s1Raw, 56);
-        const s2 = _cleanSoraSentence(s2Raw, 56);
+        let s1Raw = _containsBannedTokens(ai.s1, SORA_AI_BANNED) ? "" : ai.s1;
+        let s2Raw = _containsBannedTokens(ai.s2, SORA_AI_BANNED) ? "" : ai.s2;
+        let s1 = _cleanSoraSentence(s1Raw, 56);
+        let s2 = _cleanSoraSentence(s2Raw, 56);
+        if (!noProse && !s1 && !s2) {
+            const fb = _fallbackProseFromTokens(inputPack, `${dateLabel}|sora|${i}`);
+            s1 = _cleanSoraSentence(fb.s1, 56);
+            s2 = _cleanSoraSentence(fb.s2, 56);
+        }
         const structure = noProse ? "" : _formatStructureLine(s1, s2);
         parts.push(
             [
@@ -981,6 +1040,7 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     }
 
     const moonLine = (() => {
+        if (!includeMoon) return "";
         const signJa = story?.public?.moon?.sign_ja || _signJa(dict, story?.public?.moon_sign);
         if (!signJa) return "";
         const phase = _moonPhaseInfo(story);
@@ -989,7 +1049,11 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
         }
         return `🌙 月：${signJa}`;
     })();
-    if (includeMoon && moonLine) {
+    if (sunLine) {
+        parts.push(sunLine);
+        parts.push("");
+    }
+    if (moonLine) {
         parts.push(moonLine);
         parts.push("");
     }
@@ -1211,17 +1275,22 @@ function resolveFormatters(deps) {
     };
 }
 
-function buildLineSoraFallback({ dateLabel, listTitle, moonLine, mainLines, distLines, kusouYoin, footerLines }) {
+function buildLineSoraFallback({ dateLabel, listTitle, sunLine, moonLine, mainLines, distLines, kusouYoin, footerLines, headerLine }) {
     const lines = [];
-    lines.push(`🌌 今日のソラ｜そら｜${dateLabel}`);
+    lines.push(headerLine || `🌌 今日のソラ｜そら｜${dateLabel}`);
     lines.push("");
-    if (moonLine) {
-        lines.push(moonLine);
-        lines.push("");
-    }
     lines.push(listTitle || "【空の配置】");
     lines.push("");
     if (mainLines) lines.push(mainLines);
+
+    if (sunLine) {
+        lines.push("");
+        lines.push(sunLine);
+    }
+    if (moonLine) {
+        lines.push("");
+        lines.push(moonLine);
+    }
 
     if (distLines) {
         lines.push("");
@@ -1669,7 +1738,16 @@ function renderSoraBase(story, opts = {}, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const noProse = !!opts.noProse;
 
+    const sunLine = (() => {
+        if (opts.includeSun === false) return "";
+        const sunSign =
+            story?.public?.transit_signs?.sun?.sign_ja ||
+            _signJa(dict, story?.public?.transit_signs?.sun?.sign_key || "");
+        return sunSign ? `☀️ 太陽：${sunSign}` : "";
+    })();
+
     const moonLine = (() => {
+        if (opts.includeMoon === false) return "";
         const moonJa = story?.public?.moon?.sign_ja || null;
         if (!moonJa) return "";
         const phase = _moonPhaseInfo(story);
@@ -1875,10 +1953,11 @@ function renderSoraBase(story, opts = {}, deps = {}) {
             tpl({
                 dateLabel,
                 mainLines,
+                sunLine,
                 moonLine,
-                distLines,
-                kusouYoin: kusouText,
-                footerLines: footer,
+                distLines: opts.includeDist === false ? "" : distLines,
+                kusouYoin: opts.includeSkyLayer === false ? "" : kusouText,
+                footerLines: opts.includeFooter === false ? "" : footer,
                 listTitle: opts.listTitle,
             })
         );
@@ -1887,22 +1966,24 @@ function renderSoraBase(story, opts = {}, deps = {}) {
     return buildLineSoraFallback({
         dateLabel,
         listTitle: opts.listTitle,
+        sunLine,
         moonLine,
         mainLines,
-        distLines,
-        kusouYoin: kusouText,
-        footerLines: RENDER_COPY?.FOOTER_SORA_LINE,
+        distLines: opts.includeDist === false ? "" : distLines,
+        kusouYoin: opts.includeSkyLayer === false ? "" : kusouText,
+        footerLines: opts.includeFooter === false ? "" : RENDER_COPY?.FOOTER_SORA_LINE,
+        headerLine: opts.headerLine,
     });
 }
 
 /* =========================
  * public API
  * ========================= */
-function renderSoraLine(story, deps = {}) {
+async function renderSoraLine(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置 上位5共鳴（orb≤6°）】";
     if (aiEnabledDefaultTrue()) {
         try {
-            return renderSoraBaseAI(story, { limit: 5, listTitle: title, noProse: true }, deps);
+            return await renderSoraBaseAI(story, { limit: 5, listTitle: title, noProse: true }, deps);
         } catch (_) {
             return renderSoraBase(story, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
         }
@@ -1910,11 +1991,11 @@ function renderSoraLine(story, deps = {}) {
     return renderSoraBase(story, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
 }
 
-function renderSoraAllLine(story, deps = {}) {
+async function renderSoraAllLine(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_ALL || "【今日のソラの配置 全部（orb≤6°）】";
     if (aiEnabledDefaultTrue()) {
         try {
-            return renderSoraBaseAI(story, { limit: Infinity, listTitle: title, noProse: true }, deps);
+            return await renderSoraBaseAI(story, { limit: Infinity, listTitle: title, noProse: true }, deps);
         } catch (_) {
             return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
         }
@@ -1922,11 +2003,11 @@ function renderSoraAllLine(story, deps = {}) {
     return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
 }
 
-function renderSoraLineEssay(story, deps = {}) {
+async function renderSoraLineEssay(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置 上位5共鳴（orb≤6°）】";
     if (aiEnabledDefaultTrue()) {
         try {
-            return renderSoraBaseAI(story, { limit: 5, listTitle: title }, deps);
+            return await renderSoraBaseAI(story, { limit: 5, listTitle: title }, deps);
         } catch (_) {
             return renderSoraBase(story, { limit: 5, listTitle: title, style: "essay" }, deps);
         }
@@ -1934,11 +2015,11 @@ function renderSoraLineEssay(story, deps = {}) {
     return renderSoraBase(story, { limit: 5, listTitle: title, style: "essay" }, deps);
 }
 
-function renderSoraAllLineEssay(story, deps = {}) {
+async function renderSoraAllLineEssay(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_ALL || "【今日のソラの配置 全部（orb≤6°）】";
     if (aiEnabledDefaultTrue()) {
         try {
-            return renderSoraBaseAI(story, { limit: Infinity, listTitle: title }, deps);
+            return await renderSoraBaseAI(story, { limit: Infinity, listTitle: title }, deps);
         } catch (_) {
             return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "essay" }, deps);
         }
@@ -1949,20 +2030,22 @@ function renderSoraAllLineEssay(story, deps = {}) {
 function renderSoraUraLine(story, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const parts = [
-        `🌒 ソラのうら｜${dateLabel}`,
-        "・沈黙のほし",
-        "・裏共鳴",
-        "・調和層",
+        `🌒 うらこまんど｜${dateLabel}`,
+        "・あんしん",
+        "・ちんもく",
+        "・きょうのうら",
+        "・ちょうわ",
         "",
-        "「沈黙のほし」「裏共鳴」「調和層」",
+        "「あんしん」「ちんもく」「きょうのうら」「ちょうわ」",
         "送ってね🪐",
     ];
     return parts.join("\n").trim();
 }
 
-function renderSoraUraSilentLine(story, deps = {}) {
+async function renderSoraUraSilentLine(story, deps = {}) {
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dateLabel = toDotDate(story?.meta?.date_local);
+    const listTitle = "【沈黙のほし（Lilith / Chiron）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
@@ -1975,50 +2058,69 @@ function renderSoraUraSilentLine(story, deps = {}) {
             const b = String(x.norm?.b || "").toLowerCase();
             return a === "chiron" || b === "chiron" || a === "lilith" || b === "lilith";
         })
-        .slice(0, 5)
         .map((x) => x.raw);
+    const listTop = list.slice(0, 3);
 
-    if (!list.length) {
-        return [`🌒 沈黙のほし｜${dateLabel}`, "今日は沈黙。"].join("\n").trim();
+    if (!listTop.length) {
+        return [`🌒 ちんもくのほし｜${dateLabel}`, "今日は沈黙。"].join("\n").trim();
     }
 
     if (aiEnabledDefaultTrue()) {
-        return renderSoraBaseAI(
-            { ...story, public: { ...story?.public, sky_all: list } },
-            {
-                limit: Math.min(5, list.length),
-                listTitle: "",
-                headerLine: `🌒 沈黙のほし｜${dateLabel}`,
-                includeMoon: false,
-                includeDist: false,
-                includeSkyLayer: false,
-                includeFooter: false,
-                noProse: true,
-            },
-            deps
-        );
+        try {
+            return await renderSoraBaseAI(
+                { ...story, public: { ...story?.public, sky_all: listTop } },
+                {
+                    limit: listTop.length,
+                    listTitle,
+                    headerLine: `🌒 ちんもくのほし｜${dateLabel}`,
+                    inputScale: 0.6,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                    includeSkyLayer: true,
+                    includeFooter: true,
+                    noProse: false,
+                },
+                deps
+            );
+        } catch (_) {
+            return renderSoraBase(
+                { ...story, public: { ...story?.public, sky_all: listTop } },
+                {
+                    limit: listTop.length,
+                    listTitle,
+                    style: "list",
+                    noProse: false,
+                    headerLine: `🌒 ちんもくのほし｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                },
+                deps
+            );
+        }
     }
 
-    const lines = list
-        .map((s) =>
-            formatListWithOptionalFusion({
-                story,
-                item: s,
-                prefix: "・",
-                deps,
-                baseFormatter: fmtSoraSkyLine,
-                fusionTemplate: "sky_micro",
-            })
-        )
-        .filter(Boolean)
-        .join("\n\n");
-
-    return [`🌒 沈黙のほし｜${dateLabel}`, lines].join("\n").trim();
+    return renderSoraBase(
+        { ...story, public: { ...story?.public, sky_all: listTop } },
+        {
+            limit: listTop.length,
+            listTitle,
+            style: "list",
+            noProse: false,
+            headerLine: `🌒 ちんもくのほし｜${dateLabel}`,
+            includeSun: false,
+            includeMoon: false,
+            includeDist: false,
+        },
+        deps
+    );
 }
 
-function renderSoraUraRareLine(story, deps = {}) {
+async function renderSoraUraRareLine(story, deps = {}) {
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dateLabel = toDotDate(story?.meta?.date_local);
+    const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
@@ -2067,45 +2169,64 @@ function renderSoraUraRareLine(story, deps = {}) {
         .map((x) => x.raw);
 
     if (!list.length) {
-        return [`🌒 裏共鳴｜${dateLabel}`, "（該当なし）"].join("\n").trim();
+        return [`🌒 きょうのうら｜${dateLabel}`, "（該当なし）"].join("\n").trim();
     }
 
     if (boolishEnv(process.env.LINE_AI_ENABLED)) {
-        return renderSoraBaseAI(
-            { ...story, public: { ...story?.public, sky_all: list } },
-            {
-                limit: Math.min(5, list.length),
-                listTitle: "",
-                headerLine: `🌒 裏共鳴｜${dateLabel}`,
-                includeMoon: false,
-                includeDist: false,
-                includeSkyLayer: false,
-                includeFooter: false,
-            },
-            deps
-        );
+        try {
+            return await renderSoraBaseAI(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    headerLine: `🌒 きょうのうら｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                    includeSkyLayer: true,
+                    includeFooter: true,
+                    noProse: true,
+                },
+                deps
+            );
+        } catch (_) {
+            return renderSoraBase(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    style: "list",
+                    noProse: true,
+                    headerLine: `🌒 きょうのうら｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                },
+                deps
+            );
+        }
     }
 
-    const lines = list
-        .map((s) =>
-            formatListWithOptionalFusion({
-                story,
-                item: s,
-                prefix: "・",
-                deps,
-                baseFormatter: fmtSoraSkyLine,
-                fusionTemplate: "sky_micro",
-            })
-        )
-        .filter(Boolean)
-        .join("\n\n");
-
-    return [`🌒 裏共鳴｜${dateLabel}`, lines].join("\n").trim();
+    return renderSoraBase(
+        { ...story, public: { ...story?.public, sky_all: list } },
+        {
+            limit: Math.min(5, list.length),
+            listTitle,
+            style: "list",
+            noProse: true,
+            headerLine: `🌒 きょうのうら｜${dateLabel}`,
+            includeSun: false,
+            includeMoon: false,
+            includeDist: false,
+        },
+        deps
+    );
 }
 
-function renderSoraUraHarmonyLine(story, deps = {}) {
+async function renderSoraUraHarmonyLine(story, deps = {}) {
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dateLabel = toDotDate(story?.meta?.date_local);
+    const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
@@ -2137,40 +2258,58 @@ function renderSoraUraHarmonyLine(story, deps = {}) {
         .map((x) => x.raw);
 
     if (!list.length) {
-        return [`🌓 調和層｜${dateLabel}`, "（該当なし）"].join("\n").trim();
+        return [`🌓 ちょうわ｜${dateLabel}`, "（該当なし）"].join("\n").trim();
     }
 
     if (boolishEnv(process.env.LINE_AI_ENABLED)) {
-        return renderSoraBaseAI(
-            { ...story, public: { ...story?.public, sky_all: list } },
-            {
-                limit: Math.min(5, list.length),
-                listTitle: "",
-                headerLine: `🌓 調和層｜${dateLabel}`,
-                includeMoon: false,
-                includeDist: false,
-                includeSkyLayer: false,
-                includeFooter: false,
-            },
-            deps
-        );
+        try {
+            return await renderSoraBaseAI(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    headerLine: `🌓 ちょうわ｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                    includeSkyLayer: true,
+                    includeFooter: true,
+                    noProse: true,
+                },
+                deps
+            );
+        } catch (_) {
+            return renderSoraBase(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    style: "list",
+                    noProse: true,
+                    headerLine: `🌓 ちょうわ｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                },
+                deps
+            );
+        }
     }
 
-    const lines = list
-        .map((s) =>
-            formatListWithOptionalFusion({
-                story,
-                item: s,
-                prefix: "・",
-                deps,
-                baseFormatter: fmtSoraSkyLine,
-                fusionTemplate: "sky_micro",
-            })
-        )
-        .filter(Boolean)
-        .join("\n\n");
-
-    return [`🌓 調和層｜${dateLabel}`, lines].join("\n").trim();
+    return renderSoraBase(
+        { ...story, public: { ...story?.public, sky_all: list } },
+        {
+            limit: Math.min(5, list.length),
+            listTitle,
+            style: "list",
+            noProse: true,
+            headerLine: `🌓 ちょうわ｜${dateLabel}`,
+            includeSun: false,
+            includeMoon: false,
+            includeDist: false,
+        },
+        deps
+    );
 }
 
 module.exports = {
