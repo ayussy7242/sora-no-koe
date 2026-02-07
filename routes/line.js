@@ -139,7 +139,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       ? await story.buildToday({ appUserId })
       : await story.buildSky();
     const text = storyJson
-      ? (usePersonalSilent ? renderers.renderSoraUraSilentPersonalLine(storyJson)
+      ? await (usePersonalSilent ? renderers.renderSoraUraSilentPersonalLine(storyJson)
         : soraMode === "sora_all" ? renderers.renderSoraAllLine(storyJson)
         : soraMode === "sora_ura" ? renderers.renderSoraUraLine(storyJson)
         : soraMode === "sora_ura_silent" ? renderers.renderSoraUraSilentLine(storyJson)
