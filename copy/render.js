@@ -146,7 +146,7 @@ const RENDER_COPY = Object.freeze({
   // Generic small bits
   // --------------------
   CIRCLES: ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"],
-  LINE_SEP: "────────────────",
+  LINE_SEP: "─────────────",
   ORB_LABEL: (orb) => `orb ${orb}°`,
   DEG_LABEL: (deg, orb) => `（${deg}°｜orb ${orb}°）`,
   YOIN_PREFIX_X: "余韻：",

@@ -1659,7 +1659,7 @@ function renderSoraBase(story, opts = {}, deps = {}) {
 
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dict = deps?.dict || require("../../dict");
-    const sep = deps?.RENDER_COPY?.LINE_SEP || "────────────────";
+    const sep = deps?.RENDER_COPY?.LINE_SEP || "─────────────";
     const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
 
     const limit =

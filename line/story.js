@@ -109,7 +109,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       },
       natal_cache: natalCache,
     };
-    const text = safeText(renderers.renderAnshinLine(payload));
+    const text = safeText(await renderers.renderAnshinLine(payload));
     return { payload, text };
   }
   

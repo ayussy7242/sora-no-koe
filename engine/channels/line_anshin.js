@@ -14,6 +14,108 @@ function safeStr(x) {
   return String(x ?? "");
 }
 
+function boolishEnv(v) {
+  const s = String(v || "").toLowerCase().trim();
+  return ["1", "true", "yes", "on", "enabled"].includes(s);
+}
+
+function hash32(input) {
+  const s = String(input || "");
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h >>> 0;
+}
+
+function _pickMany(pool, seed, count = 1) {
+  const arr = (Array.isArray(pool) ? pool.filter(Boolean) : []).slice();
+  if (!arr.length || count <= 0) return [];
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    if (!arr.length) break;
+    const idx = hash32(`${seed}|${i}`) % arr.length;
+    out.push(arr.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+function _uniq(arr) {
+  const seen = new Set();
+  const out = [];
+  (arr || []).forEach((v) => {
+    const s = String(v || "").trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  });
+  return out;
+}
+
+function _lowerKey(x) {
+  return safeStr(x).toLowerCase().trim();
+}
+
+function _limitProseSentences(text, maxSent = 2, maxLen = 111) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  const parts = s.split(/[。]+/).map((p) => p.trim()).filter(Boolean);
+  const picked = parts.slice(0, maxSent).map((p) => `${p}。`);
+  let out = picked.join("");
+  if (out.length > maxLen) {
+    out = out.slice(0, maxLen);
+    if (!out.endsWith("。")) out = `${out}。`;
+  }
+  return out;
+}
+
+function _containsBannedTokens(text, banned = []) {
+  const s = String(text || "");
+  if (!s) return false;
+  if (/\d+\s*°/.test(s)) return true;
+  if (/orb|オーブ/i.test(s)) return true;
+  if (/座/.test(s)) return true;
+  for (const t of banned || []) {
+    if (!t) continue;
+    if (s.includes(t)) return true;
+  }
+  return false;
+}
+
+function _extractJsonBlock(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (s.startsWith("{") && s.endsWith("}")) return s;
+  const m = s.match(/\{[\s\S]*\}/);
+  return m ? m[0] : "";
+}
+
+function _safeJsonParse(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+function _aspectToneCategory(aspectKey) {
+  const k = String(aspectKey || "");
+  if (k.includes("quincunx") || k.includes("semi_square") || k.includes("sesqui_square") || k.includes("semi_sextile")) return "adjust";
+  if (k.includes("square") || k.includes("opposition")) return "tense";
+  if (k.includes("trine") || k.includes("sextile")) return "smooth";
+  if (k.includes("conjunction")) return "blend";
+  if (k.includes("quintile") || k.includes("biquintile")) return "craft";
+  return "smooth";
+}
+
+function _orbTier(orb) {
+  const v = Number(orb);
+  if (!Number.isFinite(v)) return "mid";
+  if (v <= 0.6) return "tight";
+  if (v <= 1.6) return "mid";
+  return "wide";
+}
 function norm360(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
@@ -100,7 +202,237 @@ function pickManyStable(arr, seed, count = 3, pickStable) {
   return out;
 }
 
-function renderAnshinLine(payload, deps = {}) {
+const ANSHIN_AI_SYSTEM_PROMPT = [
+  "あなたは「sora-no-koe / LINE（きょう）本文」を生成する。",
+  "目的は占いでも説明でもなく、“状態の短い描写”を置くこと。",
+  "読者主語は禁止。断定・助言・結論は禁止。",
+  "日本語のみ。英語・ローマ字は禁止。",
+  "出力はJSONのみ。余計な文は書かない。",
+  "",
+  "説明しない（因果・解説・まとめ禁止）。",
+  "感触を1回だけ置く（手触り/ズレ/気配）。比喩は増やさない。",
+  "構造語は後置き（名詞で添える。主張しない）。",
+  "結論で閉じない（余白で終える）。",
+  "語彙は“弱い主語”で置く（誘導・評価・読者主語を避ける）。",
+].join("\n");
+
+const ANSHIN_AI_USER_GUIDE = [
+  "以下の入力データから、本文だけを生成してください。",
+  "出力はJSONのみ。フォーマット厳守。",
+  "",
+  "【出力フォーマット】",
+  "{",
+  '  "prose": "短い段落"',
+  "}",
+  "",
+  "【本文ルール】",
+  "- 2文で、1段落。改行は入れない。",
+  "- 80〜111文字程度を目安に短くする。",
+  "- 固有名詞禁止（惑星名/星座名/アスペクト名/角度/記号/専門用語）。",
+  "- A/B/Aspect の意味を必ず含める（入力の tokens/texture/process/touch/gap/rest を優先）。",
+  "- 同じ語を繰り返さない。",
+  "- 説明/因果/まとめ/一般論は禁止。",
+  "- 入力の banned に含まれる語は使わない。",
+  "- 「〜の中で」「場面で」「生まれる」「助ける」「見せる」などの説明語は禁止。",
+  "- 「角度/配置/アスペクト名/〜しやすい/影響/〜として/〜によって」禁止。",
+  "",
+  "【入力フォーマット】",
+  "{",
+  '  "slot": "anshin",',
+  '  "A": { "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "B": { "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "aspect": { "tokens": ["..."], "touch": ["..."], "gap": ["..."], "rest": ["..."] },',
+  '  "banned": ["..."],',
+  '  "seed": "..."',
+  "}",
+].join("\n");
+
+function _stripSentenceEnd(str) {
+  return String(str || "").trim().replace(/[。．\.]+$/g, "").trim();
+}
+
+function _normalizePiece(str, maxLen = 24) {
+  let t = String(str || "").trim();
+  if (!t) return "";
+  t = t.replace(/[、，,]+/g, "、");
+  t = t.replace(/[。\.]+/g, "。");
+  t = t.replace(/\s+/g, " ").trim();
+  t = _stripSentenceEnd(t);
+  if (t.length > maxLen) t = t.slice(0, maxLen);
+  return t;
+}
+
+function _isOkPiece(s) {
+  if (!s) return false;
+  if (/座/.test(s)) return false;
+  if (/しつつ|しながら/.test(s)) return false;
+  if (/アスペクト|角度|配置|影響|として|によって/.test(s)) return false;
+  if (/現れやすい|表に出やすい|しやすい|やすい/.test(s)) return false;
+  if (/場面で|の中で|中で|生まれる|手助け|見せる|訪れる|浮かび上がる|広がる|進む/.test(s)) return false;
+  if (/\d+\s*°/.test(s)) return false;
+  return true;
+}
+
+function _buildPiecePool(list, minLen = 4, maxLen = 22) {
+  const raw = Array.isArray(list) ? list : [];
+  const out = [];
+  raw.forEach((v) => {
+    const s = String(v || "").trim();
+    if (!s) return;
+    const parts = s.includes("。") ? s.split(/[。\.]+/g) : [s];
+    parts.forEach((p) => {
+      const piece = _normalizePiece(p, maxLen);
+      if (!piece) return;
+      if (piece.length < minLen) return;
+      if (!_isOkPiece(piece)) return;
+      out.push(piece);
+    });
+  });
+  return _uniq(out);
+}
+
+function _compactStateToken(s) {
+  let t = String(s || "").trim();
+  if (!t) return "";
+  t = t.replace(/[。．\.]+$/g, "");
+  t = t.replace(/(が)?(出|残|見え|目立ち|続き|起き|入り|強まり|増え|浮かび|戻り)?やすい/g, "");
+  t = t.replace(/しやすい/g, "");
+  t = t.replace(/なりやすい/g, "");
+  t = t.replace(/が/g, "");
+  t = t.trim();
+  return t;
+}
+
+function _filterPhraseList(list) {
+  const raw = Array.isArray(list) ? list : [];
+  return _uniq(
+    raw
+      .map((v) => String(v || "").trim())
+      .filter(Boolean)
+      .filter((v) => !/[{}]/.test(v))
+      .filter((v) => !/しつつ|しながら|の中で|場面で|生まれる|手助け|見せる|訪れる|浮かび上がる|広がる|進む/.test(v))
+  );
+}
+
+function _pickFirst(pool) {
+  const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+  return arr[0] || "";
+}
+
+function _fallbackProseFromTokens(input) {
+  if (!input) return "";
+  const a = _pickFirst([].concat(input?.A?.tokens || [], input?.A?.texture || []));
+  const b = _pickFirst([].concat(input?.B?.tokens || [], input?.B?.texture || []));
+  const asp = _pickFirst([].concat(input?.aspect?.tokens || [], input?.aspect?.touch || [], input?.aspect?.gap || [], input?.aspect?.rest || []));
+  if (!a || !b || !asp) return "";
+  const s1 = `${a}が手前にあり、${b}が重なる。`;
+  const s2 = `${asp}が静かに残る。`;
+  return _limitProseSentences(`${s1}${s2}`, 2, 111);
+}
+
+function _getSignFlavor(dict, signKey, planetKey) {
+  const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+  const sKey = _lowerKey(signKey);
+  const pKey = _lowerKey(planetKey);
+  const sign = sf?.signs?.[sKey] || null;
+  const by = sign?.by_body?.[pKey] || null;
+  return { sf, sign, by };
+}
+
+function _collectSignPackAnshin(dict, signKey, planetKey, aspectKey, orb) {
+  const { by } = _getSignFlavor(dict, signKey, planetKey);
+  const style = dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
+  const tone = _aspectToneCategory(String(aspectKey || ""));
+  const tier = _orbTier(orb);
+  const fusion = by?.fusion || {};
+
+  const aList = fusion.A || [];
+  const bList = fusion.B || [];
+  const exprList = fusion.expression || [];
+  const tensionList = _filterPhraseList([by?.tension].concat(fusion.tension || []));
+  const clarityList = _filterPhraseList(fusion.clarity || []);
+  const tendencyList = _filterPhraseList(fusion.tendency || []);
+  const processList = _filterPhraseList(fusion.process || []);
+
+  let tokensPool = [].concat(aList, bList, exprList);
+  if (tone === "tense" || tone === "adjust") tokensPool = tokensPool.concat(tensionList);
+  if (tone === "smooth" || tone === "blend") tokensPool = tokensPool.concat(clarityList);
+  if (tone === "craft") tokensPool = tokensPool.concat(tendencyList);
+
+  if (tier === "tight") tokensPool = tokensPool.concat(tensionList);
+  if (tier === "mid") tokensPool = tokensPool.concat(tendencyList);
+  if (tier === "wide") tokensPool = tokensPool.concat(clarityList);
+
+  const tokens = _buildPiecePool(tokensPool, 4, 22);
+
+  const sKey = _lowerKey(signKey);
+  const pKey = _lowerKey(planetKey);
+  const texturePool = []
+    .concat(style?.signs?.[sKey]?.touch || [])
+    .concat(style?.signs?.[sKey]?.keywords || [])
+    .concat(style?.planets?.[pKey]?.touch || []);
+  const texture = _buildPiecePool(texturePool, 4, 22);
+
+  const process = _buildPiecePool(processList, 4, 24);
+
+  return {
+    tokens: _uniq(tokens),
+    texture: _uniq(texture),
+    process: _uniq(process),
+  };
+}
+
+function _collectAspectPackAnshin(dict, aspectKey, orb) {
+  const style = dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
+  const key = String(aspectKey || "");
+  const tone = _aspectToneCategory(key);
+  const tier = _orbTier(orb);
+  const stateAspect = style?.state_by_aspect?.[key] || {};
+  const stateTone = style?.state_by_tone?.[tone] || [];
+  const stateShort = style?.state_short_by_tone?.[tone] || [];
+  const depthPool = tier === "tight"
+    ? [].concat(stateAspect?.deep || [], stateAspect?.mid || [])
+    : tier === "wide"
+      ? [].concat(stateAspect?.light || [])
+      : [].concat(stateAspect?.mid || [], stateAspect?.light || []);
+  const touchPool = _filterPhraseList(depthPool.map(_compactStateToken)).concat(_filterPhraseList(stateShort.map(_compactStateToken)));
+  const gapPool = _filterPhraseList(stateTone.map(_compactStateToken));
+  const restPool = _filterPhraseList(stateShort.map(_compactStateToken));
+
+  return {
+    tokens: _buildPiecePool([].concat(touchPool, gapPool), 3, 18),
+    touch: _buildPiecePool(touchPool, 3, 18),
+    gap: _buildPiecePool(gapPool, 3, 18),
+    rest: _buildPiecePool(restPool, 3, 18),
+  };
+}
+
+function _buildBannedList(dict) {
+  const PLANETS = dict?.PLANETS_V2?.bodies || {};
+  const SIGNS = dict?.SIGNS_V2?.signs || {};
+  const ASPECTS = {
+    ...(dict?.ASPECTS_V2?.major || {}),
+    ...(dict?.ASPECTS_V2?.deep_space || {}),
+    ...(dict?.ASPECTS_V2?.craft_space || {}),
+  };
+  const banned = [
+    "配置","現れやすい","表に出やすい","影響","によって","角度","アスペクト","として",
+    "しやすい","やすい","試行錯誤","独自","更新","全体最適","意味づけ","状況","場面で","の中で","中で",
+    "生まれる","手助け","観測","訪れる","浮かび上がる","広がる","進む","助ける","見せる","水脈",
+    "ASC","MC","IC","DSC","アセンダント","ディセンダント","ミディアムコエリ","ノード","キロン","リリス",
+  ];
+  Object.values(PLANETS).forEach((p) => {
+    if (p?.label_ja) banned.push(String(p.label_ja));
+  });
+  Object.values(SIGNS).forEach((s) => {
+    if (s?.label_ja) banned.push(String(s.label_ja));
+  });
+  Object.values(ASPECTS).forEach((a) => {
+    if (a?.label_ja) banned.push(String(a.label_ja));
+  });
+  return _uniq(banned);
+}
+function renderAnshinLineLegacy(payload, deps = {}) {
   const dict = deps?.dict || require("../../dict");
   const PLANETS = dict?.PLANETS_V2 || dict?.PLANETS || {};
   const SIGNS = dict?.SIGNS_V2 || dict?.SIGNS || {};
@@ -319,12 +651,240 @@ function renderAnshinLine(payload, deps = {}) {
     "ただ、崩れない理由になりやすい場所。",
     "",
     "安心とは感情ではなく、",
-    "残り方の構造である。",
+    "残り方の構造である。🪐✨️",
   ])
     .map((l) => String(l || ""))
     .join("\n");
 
   return [intro, blocks.join("\n\n"), tail].join("\n").trim();
+}
+
+async function renderAnshinLine(payload, deps = {}) {
+  const dict = deps?.dict || require("../../dict");
+  const PLANETS = dict?.PLANETS_V2 || dict?.PLANETS || {};
+  const SIGNS = dict?.SIGNS_V2 || dict?.SIGNS || {};
+  const ANSHIN = dict?.ANSHIN_V1 || require("../../dict/anshin.v1").ANSHIN_V1;
+
+  const aiFlagSet = process.env.LINE_AI_ENABLED !== undefined;
+  const aiEnabled = aiFlagSet ? boolishEnv(process.env.LINE_AI_ENABLED) : true;
+  if (!aiEnabled) return renderAnshinLineLegacy(payload, deps);
+
+  const story = payload?.story || null;
+  const dateLabel = toDotDate(payload?.meta?.date_local || story?.meta?.date_local);
+  const natalCache = payload?.natal_cache || payload?.natal || null;
+
+  if (!natalCache) {
+    return [
+      "🫧 あんしんネイタル",
+      "（ネイタルが未登録だった🙏「はじめる」で登録してね）",
+    ].join("\n");
+  }
+
+  const longitudes = extractNatalLongitudes(natalCache);
+  const planetKeys = [
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ];
+
+  const buildAspectList = () => {
+    const A = dict?.ASPECTS_V2 || {};
+    const out = [];
+    const groups = [A.major, A.deep_space, A.craft_space].filter(Boolean);
+    for (const g of groups) {
+      for (const [k, v] of Object.entries(g || {})) {
+        const deg = Number(v?.deg ?? v?.angle_deg);
+        if (!Number.isFinite(deg)) continue;
+        out.push({ type: String(k), deg });
+      }
+    }
+    return out;
+  };
+  const ASPECT_LIST = buildAspectList();
+  const normalizeAspectType = deps?.normalizeAspectType || ((x) => String(x || ""));
+
+  const ASPECTS_META = {
+    ...(dict?.ASPECTS_V2?.major || {}),
+    ...(dict?.ASPECTS_V2?.deep_space || {}),
+    ...(dict?.ASPECTS_V2?.craft_space || {}),
+  };
+
+  function absAngularDistance(a, b) {
+    const x = Math.abs(norm360(a) - norm360(b));
+    return x > 180 ? 360 - x : x;
+  }
+
+  function bestAspectForDistance(dist, list, orbMax = 6) {
+    let best = null;
+    for (const a of list) {
+      const delta = Math.abs(dist - a.deg);
+      if (delta <= orbMax && (!best || delta < best.delta)) {
+        best = { type: a.type, aspect_deg: a.deg, delta };
+      }
+    }
+    return best;
+  }
+
+  const softAspectKeys = new Set([
+    "trine","sextile","semi_sextile_30",
+    "quintile_72","biquintile_144",
+    "novile_40","binovile_80","trinovile_120","quadranovile_160",
+    "decile_36","tridecile_108",
+  ]);
+
+  const aspects = [];
+  for (let i = 0; i < planetKeys.length; i++) {
+    const a = planetKeys[i];
+    const lonA = longitudes[a];
+    if (!Number.isFinite(lonA)) continue;
+    for (let j = i + 1; j < planetKeys.length; j++) {
+      const b = planetKeys[j];
+      const lonB = longitudes[b];
+      if (!Number.isFinite(lonB)) continue;
+      const dist = absAngularDistance(lonA, lonB);
+      const best = bestAspectForDistance(dist, ASPECT_LIST, 6);
+      if (!best) continue;
+      const key = normalizeAspectType(best.type);
+      if (!softAspectKeys.has(key)) continue;
+      aspects.push({ a, b, aspectKey: key, aspect_deg: best.aspect_deg, orb: best.delta });
+    }
+  }
+
+  const pickSignKey = (lon) => {
+    const idx = signIndexFromLon(lon);
+    return Number.isFinite(idx) && deps?.signKeyFromIndex ? deps.signKeyFromIndex(idx) : null;
+  };
+
+  aspects.sort((x, y) => x.orb - y.orb);
+  const picked = [];
+  const used = new Set();
+  for (const it of aspects) {
+    const sig = `${it.a}|${it.b}|${it.aspectKey}`;
+    if (used.has(sig)) continue;
+    used.add(sig);
+    picked.push(it);
+    if (picked.length >= 3) break;
+  }
+
+  if (!picked.length) {
+    return renderAnshinLineLegacy(payload, deps);
+  }
+
+  const banned = _buildBannedList(dict);
+  const apiKey = process.env.OPENAI_API_KEY || "";
+  const model = process.env.OPENAI_MODEL || "gpt-4o";
+  const baseUrl = process.env.OPENAI_BASE_URL || "";
+
+  const { createChatCompletion } = require("../blog/openai_client");
+
+  async function generateProse(input) {
+    if (!input) return "";
+    for (let i = 0; i < 3; i++) {
+      try {
+        const raw = await createChatCompletion({
+          apiKey,
+          baseUrl,
+          model,
+          temperature: 0.4,
+          maxTokens: 220,
+          messages: [
+            { role: "system", content: ANSHIN_AI_SYSTEM_PROMPT },
+            { role: "user", content: `${ANSHIN_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(input)}` },
+          ],
+        });
+        const jsonText = _extractJsonBlock(raw);
+        const parsed = _safeJsonParse(jsonText || raw);
+        const prose = parsed && typeof parsed === "object" && typeof parsed.prose === "string"
+          ? parsed.prose
+          : raw;
+        const cleaned = _limitProseSentences(prose || "", 2, 111);
+        if (_containsBannedTokens(cleaned, input?.banned || banned)) continue;
+        return cleaned;
+      } catch (_) {
+        // retry
+      }
+    }
+    return "";
+  }
+
+  const SEP = "─────────────";
+  const parts = [];
+  parts.push(`🫧 あんしんネイタル｜${dateLabel}`);
+  parts.push("");
+  parts.push("やわらかな重なりのかけあわせ");
+  parts.push("");
+  parts.push(SEP);
+
+  for (let i = 0; i < picked.length; i++) {
+    const it = picked[i];
+    const aSignKey = pickSignKey(longitudes[it.a]);
+    const bSignKey = pickSignKey(longitudes[it.b]);
+    const aSignJa = deps?.signJaFromIndex && Number.isFinite(signIndexFromLon(longitudes[it.a]))
+      ? deps.signJaFromIndex(signIndexFromLon(longitudes[it.a]))
+      : (SIGNS?.signs?.[_lowerKey(aSignKey)]?.label_ja || "");
+    const bSignJa = deps?.signJaFromIndex && Number.isFinite(signIndexFromLon(longitudes[it.b]))
+      ? deps.signJaFromIndex(signIndexFromLon(longitudes[it.b]))
+      : (SIGNS?.signs?.[_lowerKey(bSignKey)]?.label_ja || "");
+    const meta = ASPECTS_META?.[it.aspectKey] || {};
+    const aspectLabel = meta?.label_ja || it.aspectKey;
+    const deg = Number.isFinite(meta?.deg) ? `${meta.deg}°` : (Number.isFinite(it.aspect_deg) ? `${it.aspect_deg}°` : "");
+    const orbText = Number.isFinite(it.orb) ? it.orb.toFixed(1) : "—";
+    const aJa = PLANETS?.bodies?.[it.a]?.label_ja || it.a;
+    const bJa = PLANETS?.bodies?.[it.b]?.label_ja || it.b;
+
+    const seed = `${dateLabel}|anshin|${it.a}|${it.b}|${it.aspectKey}|${aSignKey}|${bSignKey}`;
+    const aPack = _collectSignPackAnshin(dict, aSignKey, it.a, it.aspectKey, it.orb);
+    const bPack = _collectSignPackAnshin(dict, bSignKey, it.b, it.aspectKey, it.orb);
+    const aspPack = _collectAspectPackAnshin(dict, it.aspectKey, it.orb);
+
+    const input = {
+      slot: "anshin",
+      A: {
+        tokens: _pickMany(aPack.tokens, `${seed}|A|tok`, 6),
+        texture: _pickMany(aPack.texture, `${seed}|A|tex`, 4),
+        process: _pickMany(aPack.process, `${seed}|A|proc`, 4),
+      },
+      B: {
+        tokens: _pickMany(bPack.tokens, `${seed}|B|tok`, 6),
+        texture: _pickMany(bPack.texture, `${seed}|B|tex`, 4),
+        process: _pickMany(bPack.process, `${seed}|B|proc`, 4),
+      },
+      aspect: {
+        tokens: _pickMany(aspPack.tokens, `${seed}|asp|tok`, 6),
+        touch: _pickMany(aspPack.touch, `${seed}|asp|touch`, 4),
+        gap: _pickMany(aspPack.gap, `${seed}|asp|gap`, 4),
+        rest: _pickMany(aspPack.rest, `${seed}|asp|rest`, 3),
+      },
+      banned,
+      seed,
+    };
+
+    const prose = await generateProse(input);
+    const proseFinal = prose || _fallbackProseFromTokens(input);
+    const kwPoolRaw = []
+      .concat(aPack.tokens, aPack.texture, aPack.process)
+      .concat(bPack.tokens, bPack.texture, bPack.process)
+      .concat(aspPack.tokens);
+    const kwPool = _buildPiecePool(kwPoolRaw, 3, 12);
+    const kw = _pickMany(kwPool, `${seed}|kw`, 3);
+
+    parts.push([
+      `${["①","②","③"][i]} ${aJa}（${aSignJa}）×${bJa}（${bSignJa}）｜${aspectLabel} ${deg}（orb ${orbText}°）`,
+      proseFinal ? `→ ${proseFinal}` : "",
+      kw.length ? `KeyWord：\n${kw.join(" / ")}` : "",
+      "",
+      SEP,
+    ].filter(Boolean).join("\n"));
+  }
+
+  parts.push((ANSHIN?.tail_lines || [
+    "",
+    "ここがあるから、揺れないわけでもない。",
+    "ただ、他と絡まれずに残っている場所。",
+    "",
+    "安心とは感情ではなく、",
+    "残り方の構造である。🪐✨️",
+  ]).join("\n"));
+
+  return parts.join("\n").trim();
 }
 
 module.exports = { renderAnshinLine };
