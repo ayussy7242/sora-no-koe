@@ -1,5 +1,9 @@
 "use strict";
 
+const { fmtDeg, planetJa } = require("../render_parts/line_ai_utils");
+const _fmtDeg = fmtDeg;
+const _planetJa = planetJa;
+
 /**
  * channels/line_sora.js — FULL INTEGRATED SSOT (v2026.01) — FLAVOR FIXED
  *
@@ -177,31 +181,91 @@ function _getRole(dict, signKey, planetKey) {
     return p?.role || p?.core || "";
 }
 
-function _planetJa(dict, planetKey) {
-    const k = _lowerKey(planetKey);
-    return dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.PLANETS_V1?.[k]?.label_ja || planetKey || "";
-}
-
 function _signJa(dict, signKey) {
     const k = _lowerKey(signKey);
     return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
 }
 
-function _aspectInfo(dict, rawType) {
-    const k = _normAspectKey(rawType);
-    const a = dict?.ASPECTS_V2?.aspects?.[k] || dict?.ASPECTS_V1?.aspects?.[k] || null;
+function _planetMeta(dict, planetKey) {
+    const k = _lowerKey(planetKey);
+    const p = dict?.PLANETS_V2?.bodies?.[k] || dict?.PLANETS_V1?.[k] || null;
+    const point = dict?.POINTS_V1?.points?.[k] || null;
     return {
-        key: k,
-        label_ja: a?.label_ja || "",
-        deg: Number.isFinite(Number(a?.deg)) ? Number(a.deg) : null,
-        core: a?.core || "",
-        tone: a?.tendency_key || "",
+        role: p?.role || p?.core || point?.core || "",
+        core: p?.core || point?.core || "",
+        texture: Array.isArray(p?.texture) ? p.texture.slice(0, 3) : [],
     };
 }
 
-function _fmtDeg(deg) {
-    if (deg == null || isNaN(Number(deg))) return "";
-    return Math.round(Number(deg));
+function _signMeta(dict, signKey) {
+    const k = _lowerKey(signKey);
+    const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+    return {
+        label_ja: s?.label_ja || signKey || "",
+        texture: Array.isArray(s?.texture) ? s.texture.slice(0, 3) : [],
+        keywords: Array.isArray(s?.keywords) ? s.keywords.slice(0, 3) : [],
+    };
+}
+
+function _signFlavor(dict, signKey) {
+    const k = _lowerKey(signKey);
+    const flavor = dict?.SIGN_FLAVOR_V1?.signs?.[k]?.flavor || "";
+    if (!flavor) return "";
+    const first = String(flavor).split("。")[0];
+    return String(first || flavor).trim();
+}
+
+const _ASPECT_JA_FALLBACK = {
+    conjunction: "コンジャンクション",
+    sextile: "セクスタイル",
+    square: "スクエア",
+    trine: "トライン",
+    opposition: "オポジション",
+    quincunx_150: "インコンジャンクト",
+    semi_square_45: "セミスクエア",
+    sesqui_square_135: "セスキスクエア",
+    semi_sextile_30: "セミセクスタイル",
+    quintile_72: "クインタイル",
+    biquintile_144: "バイクインタイル",
+    septile: "セプタイル",
+    novile_40: "ノヴィル",
+    binovile_80: "バイノヴィル",
+    trinovile_120: "トリノヴィル",
+    quadranovile_160: "クアドラノヴィル",
+    decile_36: "デシル",
+    tridecile_108: "トリデシル",
+};
+
+function _aspectMetaFromDict(dict, k) {
+    if (!k) return null;
+    const v2 = dict?.ASPECTS_V2 || {};
+    const v1 = dict?.ASPECTS_V1 || {};
+    const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space];
+    for (const p of pools) {
+        if (p && p[k]) return p[k];
+    }
+    return null;
+}
+
+function _aspectInfo(dict, rawType) {
+    const k = _normAspectKey(rawType);
+    const a = _aspectMetaFromDict(dict, k);
+    let deg = Number.isFinite(Number(a?.deg)) ? Number(a.deg) : null;
+    if (deg == null) {
+        const m = String(k || "").match(/_(\d+)/);
+        if (m) deg = Number(m[1]);
+    }
+    return {
+        key: k,
+        label_ja: a?.label_ja || _ASPECT_JA_FALLBACK[k] || "",
+        deg,
+        core: a?.core || "",
+        tone: a?.tendency_key || "",
+        relation: a?.relation || "",
+        clause: a?.clause || "",
+        feel: Array.isArray(a?.feel) ? a.feel : [],
+        adverbs: Array.isArray(a?.adverbs) ? a.adverbs : [],
+    };
 }
 
 function _getFallbackKeywords(dict, signKey, planetKey) {
@@ -217,13 +281,54 @@ function _getFallbackKeywords(dict, signKey, planetKey) {
     return pool;
 }
 
+function _normalizeKwToken(s) {
+    return String(s || "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "")
+        .trim();
+}
+
+const _KW_GROUP_RULES = [
+    { key: "adjust", re: /(調整|補正|修正|是正|整合|調律|整え|整う|整える|微調整|補う)/ },
+    { key: "boundary", re: /(境界|境目|境|輪郭|区切り|端|縁)/ },
+    { key: "distance", re: /(距離|間合|間|隔たり|離れ)/ },
+    { key: "space", re: /(余白|空間|空気|隙間|隙)/ },
+    { key: "temperature", re: /(温度|温か|暖|冷|冷え|熱)/ },
+    { key: "speed", re: /(速度|速さ|スピード|テンポ|リズム|加速|減速)/ },
+    { key: "density", re: /(密度|濃度|濃淡|厚み|重さ|軽さ)/ },
+    { key: "flow", re: /(流れ|循環|巡り|滞り|移ろい|動き)/ },
+    { key: "texture", re: /(手触り|触感|感触|質感|摩擦)/ },
+    { key: "layer", re: /(層|重なり|重ね|奥行)/ },
+    { key: "balance", re: /(配分|配合|配慮|均衡|バランス|割り振り|置き方)/ },
+    { key: "stability", re: /(保ち|維持|持続|継続|安定|定着)/ },
+    { key: "tension", re: /(緊張|張り|引っかかり)/ },
+    { key: "fluctuation", re: /(揺れ|ゆらぎ|揺らぎ|震え|滲み|にじみ)/ },
+    { key: "direction", re: /(指向|向き|方向|焦点)/ },
+    { key: "language", re: /(言葉|語|発話|対話|会話|表現)/ },
+    { key: "body", re: /(身体|からだ|体感|感覚)/ },
+    { key: "update", re: /(更新|刷新|切替|切り替え|置き換え|再構成)/ },
+];
+
+function _kwGroup(s) {
+    const t = String(s || "");
+    if (!t) return "";
+    const flat = _normalizeKwToken(t);
+    for (const rule of _KW_GROUP_RULES) {
+        if (rule.re.test(t) || (flat && rule.re.test(flat))) return rule.key;
+    }
+    return "";
+}
+
 function _isSimilarKw(a, b) {
-    const sa = String(a || "").trim();
-    const sb = String(b || "").trim();
+    const sa = _normalizeKwToken(a);
+    const sb = _normalizeKwToken(b);
     if (!sa || !sb) return false;
     if (sa === sb) return true;
     if (sa.includes(sb) || sb.includes(sa)) return true;
     if (sa.length >= 2 && sb.length >= 2 && sa.slice(0, 2) === sb.slice(0, 2)) return true;
+    const ga = _kwGroup(sa);
+    const gb = _kwGroup(sb);
+    if (ga && ga === gb) return true;
     return false;
 }
 
@@ -278,14 +383,18 @@ const _KW_BANNED = new Set(
     [
         "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
         "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-        "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
+        "サン","ムーン","マーキュリー","ヴィーナス","ビーナス","マーズ","ジュピター","サターン","ウラヌス","ネプチューン","プルート","プルト",
+        "ASC","MC","IC","DSC","キロン","リリス","ノード","アセンダント","ディセンダント","ミディアムコエリ",
         "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
-        "コンジャンクション","セミセクスタイル","セミスクエア","セクスタイル","スクエア","トライン","インコンジャンクト","クインカンクス",
-        "オポジション","セスキスクエア","クインタイル","バイクインタイル","セプタイル","ノヴィル",
-        "conjunction","semi_sextile","semi_square","sextile","square","trine","quincunx","opposition","sesqui_square","quintile","biquintile","septile","novile",
+        "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
+        "コンジャンクション","セミセクスタイル","セミスクエア","セクスタイル",
+        "スクエア","トライン","インコンジャンクト","クインカンクス","オポジション",
+        "セスキスクエア","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
+        "conjunction","semi_sextile","semi_square","sextile","square","trine","quincunx","opposition","sesqui_square","quintile","biquintile","septile","novile","decile",
         "共鳴","共鳴的","影響","影響的","エネルギー","エネルギー的","運勢","運気","運","吉","凶","開運",
         "ラッキー","アンラッキー","ハッピー","幸運","不運","占い","占星術","運命","導き","救い","正解",
         "吉兆","凶兆","スピ","ヒーリング","セラピー","メッセージ",
+        "内側","外側","反応","出やすい","内面","外面","きょう","今日",
     ].map((s) => String(s || "").toLowerCase().trim()).filter(Boolean)
 );
 
@@ -298,8 +407,11 @@ const _KW_SAFE_POOL = [
 ];
 
 function _isBannedKw(s) {
-    const t = String(s || "").toLowerCase().trim();
-    if (!t) return true;
+    const raw = String(s || "").trim();
+    if (!raw) return true;
+    if (/[0-9°]/.test(raw)) return true;
+    if (raw.includes("座")) return true;
+    const t = raw.toLowerCase();
     const flat = t.replace(/[^\p{L}\p{N}]+/gu, "");
     if (_KW_BANNED.has(t) || (flat && _KW_BANNED.has(flat))) return true;
     for (const b of _KW_BANNED) {
@@ -312,17 +424,22 @@ function _isBannedKw(s) {
 function _sanitizeKeywords(primary, fallback) {
     const candidates = _normalizeKeywords(primary).concat(_normalizeKeywords(fallback));
     const out = [];
-    for (const w of candidates) {
-        if (_isBannedKw(w)) continue;
-        if (out.some((x) => _isSimilarKw(x, w))) continue;
+    const usedGroups = new Set();
+    const tryAdd = (w) => {
+        if (_isBannedKw(w)) return;
+        if (out.some((x) => _isSimilarKw(x, w))) return;
+        const g = _kwGroup(w);
+        if (g && usedGroups.has(g)) return;
         out.push(w);
+        if (g) usedGroups.add(g);
+    };
+    for (const w of candidates) {
+        tryAdd(w);
         if (out.length >= 5) break;
     }
     if (out.length < 5) {
         for (const w of _KW_SAFE_POOL) {
-            if (_isBannedKw(w)) continue;
-            if (out.some((x) => _isSimilarKw(x, w))) continue;
-            out.push(w);
+            tryAdd(w);
             if (out.length >= 5) break;
         }
     }
@@ -332,7 +449,7 @@ function _sanitizeKeywords(primary, fallback) {
 function _formatKeywordsLine(keywords, fallback) {
     const final = _sanitizeKeywords(keywords, fallback);
     if (!final.length) return "";
-    return ["KeyWord", final.join(" / ")].join("\n");
+    return `KeyWord ${final.join(" / ")}`;
 }
 
 function _fallbackKwPublic(dict, item, seed) {
@@ -373,41 +490,132 @@ function _safeJsonParse(s) {
 }
 
 const LINE_SORA_AI_SYSTEM_PROMPT = `
-あなたは「ソラのこえ。」LINE用の出力を生成する。
-占いではない。未来断定・助言・結論は禁止。
-構造を、静かに置く。日本語のみ。
-語彙は広く使い、同じ語の連続や繰り返しを避ける。
+あなたは「ソラのこえ。」LINE配信用の生成エンジン。
+占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。
+主語は「星・配置・接点」。読者を主語にしない。
+日本語のみ。英語・ローマ字は禁止。
+出力はJSONのみ。本文の装飾や余計な文は書かない。
+構造を静かに置く。説明しすぎない。
+構造語彙（役割/触れ方/質感）を本文に必ず含める。
 
-【KeyWordルール】
-- 必ず5語
-- 近い意味の連打は禁止（多様性優先）
-- アスペクト由来1語＋惑星由来1語＋星座由来1語を必ず含める
-- 残り2語は補助（配置全体から）
-- 同語根/類語が連続したら差し替える
-
-出力はJSONのみ。
+【KeyWordルール（候補出力）】
+- keywords は8〜12語の候補を出す（後処理で5語に絞る）
+- 固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー等）禁止
+- 近い意味の連打は禁止（多様性最優先）
 `.trim();
 
 const LINE_SORA_AI_USER_GUIDE = `
 以下のINPUTから、LINE用の本文パーツを生成する。
-public.items と同じ長さで items を返すこと。
+items は top5 と同じ長さで返すこと。
+候補は入力データにあるもののみを使う（自由解釈しない）。
+INPUTキー: date, title, top5, sky_layer_hints
 
 出力JSONスキーマ:
 {
-  "items":[{"s1":"...","keywords":["...","...","...","...","..."]}],
+  "items":[{"s1":"...","s2":"...","keywords":["..."]}],
   "sky_layer":{"line1":"...","line2":"..."}
 }
 
-制約:
-- 英語禁止
-- 断定しない
-- 説明しすぎない
-- 構造の残り方を書く
+条件:
+- s1/s2は合計2行以内。断定/指示/助言なし。
+- 英語禁止。日本語のみ。
+- keywords は8〜12語の候補（多様性優先）。
+- sky_layer は2行。状態を「置く」だけ。
+- 各itemの structure を必ず参照し、構造語彙を入れる。
+- s1/s2は「惑星A/Bの役割」「アスペクトの触れ方」「サイン質感」から最低2要素を含める（汎用語だけで完結しない）。
+- structure内の語を優先し、言い換えても意味を外さない。
 `.trim();
+
+function _dominantKey(counts, order = []) {
+    const entries = order.length
+        ? order.map((k) => [k, Number(counts?.[k] || 0)])
+        : Object.entries(counts || {}).map(([k, v]) => [k, Number(v || 0)]);
+    if (!entries.length) return "";
+    let bestKey = "";
+    let bestVal = -1;
+    entries.forEach(([k, v]) => {
+        if (v > bestVal) {
+            bestVal = v;
+            bestKey = k;
+        }
+    });
+    return bestVal > 0 ? bestKey : "";
+}
+
+function _elementJa(dict, key) {
+    return dict?.ELEMENTS_V1?.elements?.[key]?.label_ja || "";
+}
+
+function _modalityJa(dict, key) {
+    return dict?.MODALITIES_V1?.modalities?.[key]?.label_ja || "";
+}
+
+function _buildLayerHints(counts, dict) {
+    const element = counts?.element || {};
+    const modality = counts?.modality || {};
+    const domElementKey = _dominantKey(element, ["fire", "earth", "air", "water"]);
+    const domModalityKey = _dominantKey(modality, ["cardinal", "fixed", "mutable"]);
+    return {
+        dominant_element: {
+            key: domElementKey,
+            label_ja: _elementJa(dict, domElementKey),
+            count: Number(element?.[domElementKey] || 0),
+        },
+        dominant_modality: {
+            key: domModalityKey,
+            label_ja: _modalityJa(dict, domModalityKey),
+            count: Number(modality?.[domModalityKey] || 0),
+        },
+        element_counts: element,
+        modality_counts: modality,
+    };
+}
+
+function _formatDistLines(counts) {
+    const e = counts?.element || {};
+    const m = counts?.modality || {};
+    if (!Object.keys(e).length && !Object.keys(m).length) return [];
+    return [
+        `【惑星属性】 🔥 火${Number(e.fire || 0)}　🪨 地${Number(e.earth || 0)}　💨 風${Number(e.air || 0)}　💧 水${Number(e.water || 0)}`,
+        `【三区分】 🏃 活動${Number(m.cardinal || 0)}　🧱 不動${Number(m.fixed || 0)}　🌿 柔軟${Number(m.mutable || 0)}`,
+    ];
+}
+
+function _formatStructureLine(s1, s2) {
+    const line1 = trimStr(s1);
+    const line2 = trimStr(s2);
+    if (!line1 && !line2) return "";
+    if (line1 && line2) return `→ ${line1}\n${line2}`;
+    return `→ ${line1 || line2}`;
+}
+
+function _formatPublicAspectLine(dict, item, prefix = "") {
+    if (!item) return "";
+    const a = _planetJa(dict, item?.a);
+    const b = _planetJa(dict, item?.b);
+    const aSign = _signJa(dict, item?.aS || item?.a_sign_key);
+    const bSign = _signJa(dict, item?.bS || item?.b_sign_key);
+    const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
+    const aspectLabel = info.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
+    const deg = _fmtDeg(info.deg);
+    const orb = Number(item?.orb_deg ?? item?.orb ?? 0).toFixed(1);
+    const head = `${prefix}${a}${aSign ? `（${aSign}）` : ""} × ${b}${bSign ? `（${bSign}）` : ""}`;
+    const aspectText = deg ? `${aspectLabel} ${deg}` : aspectLabel;
+    return `${head} ｜${aspectText}（orb ${orb}°）`;
+}
+
+function _fallbackDomLabel(story) {
+    const raw = story?.public?.element_modality?.label || story?.public?.element_modality || "";
+    const parts = String(raw || "").split(/[×x]/).map((s) => s.trim()).filter(Boolean);
+    return {
+        element: parts[0] || "",
+        modality: parts[1] || "",
+    };
+}
 
 async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const { createChatCompletion } = require("../blog/openai_client");
-    const { buildNowModernPlanetCounts, buildDistLinesFromcounts, RENDER_COPY } = deps || {};
+    const { buildNowModernPlanetCounts } = deps || {};
 
     const dateLabel = toDotDate(story?.meta?.date_local);
     const listTitle = trimStr(opts.listTitle || "");
@@ -417,7 +625,6 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const includeSkyLayer = opts.includeSkyLayer !== false;
     const includeFooter = opts.includeFooter !== false;
 
-    const { fmtSoraSkyLine } = resolveFormatters(deps);
     const sep = deps?.RENDER_COPY?.LINE_SEP || "────────────────";
     const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
 
@@ -432,33 +639,54 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const list = limit === Infinity ? baseList : baseList.slice(0, Math.max(1, limit));
 
     const dict = deps?.dict || require("../../dict");
-    const inputItems = list.map((it) => ({
-        a: _planetJa(dict, it?.a),
-        b: _planetJa(dict, it?.b),
-        a_sign: _signJa(dict, it?.aS || it?.a_sign_key),
-        b_sign: _signJa(dict, it?.bS || it?.b_sign_key),
-        aspect: (_aspectInfo(dict, it?.type || it?.aspT || it?.aspect).label_ja || ""),
-        degree: _fmtDeg(_aspectInfo(dict, it?.type || it?.aspT || it?.aspect).deg),
-        orb: Number(it?.orb_deg ?? it?.orb ?? 0).toFixed(1),
-        role_a: _getRole(dict, it?.aS || it?.a_sign_key, it?.a),
-        role_b: _getRole(dict, it?.bS || it?.b_sign_key, it?.b),
-    }));
+    const inputItems = list.map((it) => {
+        const aKey = it?.a;
+        const bKey = it?.b;
+        const aSignKey = it?.aS || it?.a_sign_key;
+        const bSignKey = it?.bS || it?.b_sign_key;
+        const roleA = _getRole(dict, aSignKey, aKey);
+        const roleB = _getRole(dict, bSignKey, bKey);
+        const info = _aspectInfo(dict, it?.type || it?.aspT || it?.aspect);
+        const aMeta = _planetMeta(dict, aKey);
+        const bMeta = _planetMeta(dict, bKey);
+        const aSignMeta = _signMeta(dict, aSignKey);
+        const bSignMeta = _signMeta(dict, bSignKey);
+        return {
+            a: _planetJa(dict, aKey),
+            b: _planetJa(dict, bKey),
+            a_sign: _signJa(dict, aSignKey),
+            b_sign: _signJa(dict, bSignKey),
+            aspect: info.label_ja || "",
+            degree: _fmtDeg(info.deg),
+            orb: Number(it?.orb_deg ?? it?.orb ?? 0).toFixed(1),
+            axis: roleA && roleB ? `${roleA} × ${roleB}` : "",
+            structure: {
+                a_role: roleA || aMeta.role,
+                b_role: roleB || bMeta.role,
+                a_core: aMeta.core,
+                b_core: bMeta.core,
+                a_texture: aMeta.texture,
+                b_texture: bMeta.texture,
+                sign_a_texture: aSignMeta.texture,
+                sign_b_texture: bSignMeta.texture,
+                sign_a_flavor: _signFlavor(dict, aSignKey),
+                sign_b_flavor: _signFlavor(dict, bSignKey),
+                aspect_core: info.core || "",
+                aspect_relation: info.relation || info.clause || "",
+                aspect_feel: info.feel || [],
+                aspect_adverbs: info.adverbs || [],
+            },
+        };
+    });
 
     const distCounts = typeof buildNowModernPlanetCounts === "function" ? buildNowModernPlanetCounts(story) : null;
-    const distLines =
-        typeof buildDistLinesFromcounts === "function"
-            ? buildDistLinesFromcounts(distCounts, { forX: false })
-            : "";
+    const skyLayerHints = _buildLayerHints(distCounts, dict);
 
     const inputPayload = {
         date: dateLabel,
         title: listTitle,
-        items: inputItems,
-        dist: distLines,
-        meta: {
-            moon: story?.public?.moon?.sign_ja || _signJa(dict, story?.public?.moon_sign),
-            element_modality: story?.public?.element_modality || "",
-        },
+        top5: inputItems,
+        sky_layer_hints: skyLayerHints,
     };
 
     const apiKey = process.env.OPENAI_API_KEY || "";
@@ -486,51 +714,59 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
 
     const parts = [];
     parts.push(headerLine);
-    parts.push("");
-    if (listTitle) {
-        parts.push(listTitle);
-        parts.push("");
-    }
+    if (listTitle) parts.push(listTitle);
     parts.push(sep);
 
     for (let i = 0; i < list.length; i++) {
         const it = list[i];
         const ai = aiItems[i] || {};
-        const header = typeof fmtSoraSkyLine === "function"
-            ? fmtSoraSkyLine(story, it, `${circles[i] || `${i + 1}.`} `, deps)
-            : "";
-        const roles = `【${_getRole(dict, it?.aS || it?.a_sign_key, it?.a)} × ${_getRole(
-            dict,
-            it?.bS || it?.b_sign_key,
-            it?.b
-        )}】`;
+        const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
         const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`);
         parts.push(
-            [header, roles, ai.s1 ? `→ ${ai.s1}` : "", _formatKeywordsLine(ai.keywords, kwFallback)]
+            [
+                header,
+                _formatStructureLine(ai.s1, ai.s2),
+                _formatKeywordsLine(ai.keywords, kwFallback),
+            ]
                 .filter(Boolean)
                 .join("\n")
         );
         if (i < list.length - 1) parts.push(sep);
     }
 
+    if (list.length) parts.push(sep);
+
     const moonLine = story?.public?.moon?.sign_ja || story?.public?.moon_sign
-        ? `🌙月：${story?.public?.moon?.sign_ja || _signJa(dict, story?.public?.moon_sign)}`
+        ? `🌙 月：${story?.public?.moon?.sign_ja || _signJa(dict, story?.public?.moon_sign)}`
         : "";
-    if (includeMoon && moonLine) parts.push("", moonLine);
-    if (includeDist && distLines) parts.push("", distLines);
+    if (includeMoon && moonLine) parts.push(moonLine);
+
+    const distLines = _formatDistLines(distCounts);
+    if (includeDist && distLines.length) parts.push(...distLines);
 
     if (includeSkyLayer && (aiSky?.line1 || aiSky?.line2)) {
-        parts.push("");
-        parts.push(`【空層】${story?.public?.element_modality?.label || story?.public?.element_modality || ""}`.trim());
+        const fallbackDom = _fallbackDomLabel(story);
+        const domElement =
+            skyLayerHints?.dominant_element?.label_ja ||
+            fallbackDom.element ||
+            "";
+        const domModality =
+            skyLayerHints?.dominant_modality?.label_ja ||
+            fallbackDom.modality ||
+            "";
+        if (domElement || domModality) {
+            parts.push(`【空層】${domElement}${domElement && domModality ? " × " : ""}${domModality}`.trim());
+        } else {
+            parts.push("【空層】");
+        }
         if (aiSky.line1) parts.push(aiSky.line1);
         if (aiSky.line2) parts.push(aiSky.line2);
     }
 
     if (includeFooter) {
-        parts.push("");
-        parts.push(RENDER_COPY?.FOOTER_LINE || "解釈は、あなたのもの。");
-        parts.push(RENDER_COPY?.SOAR_END || "星は語る。決めるのは、人。");
-        parts.push(RENDER_COPY?.SOAR_BY || "そらとして、眺めてみてね。🌌");
+        parts.push("解釈は、あなたのもの。");
+        parts.push("星は語る。決めるのは、人。");
+        parts.push("そらとして、眺めてみてね。🌌");
     }
 
     return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -680,7 +916,7 @@ function buildFlavorBlockSky({ story, item, normalized, deps }) {
 
     const tone = _pickAspectToneWords(dict, aspectKey, seed, profile.tone);
     const kwBase = _uniq([...tone, ...A, ...B].filter(Boolean));
-    const keywordAll = kwBase.length > 5 ? _pickMany(kwBase, `${seed}|KW`, 5) : kwBase;
+    const keywordAll = _sanitizeKeywords(kwBase, fb);
     const keywordLine = keywordAll.length ? `KeyWord\n${keywordAll.join(" / ")}` : "";
 
     const lines = [];
