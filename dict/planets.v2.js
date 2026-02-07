@@ -260,6 +260,11 @@ const PLANETS_V2 = {
     ],
 };
 
+// alias: lower-case key for lilith
+if (PLANETS_V2?.bodies?.Lilith && !PLANETS_V2?.bodies?.lilith) {
+    PLANETS_V2.bodies.lilith = PLANETS_V2.bodies.Lilith;
+}
+
 // ============================================================
 // Flavor wording injection (safe, non-breaking)
 // - sign_flavor の「言い回し」を planet 側に “足すだけ”

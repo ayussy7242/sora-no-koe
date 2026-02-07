@@ -148,6 +148,13 @@ function createStoriesRouter(deps = {}) {
         sora_ura_line: "line_sora_ura",
         sora_ura: "line_sora_ura",
         line_sora_ura: "line_sora_ura",
+        kyou_no_ura: "line_sora_ura_rare",
+        chinmoku: "line_sora_ura_silent",
+        chimmoku: "line_sora_ura_silent",
+        chouwa: "line_sora_ura_harmony",
+        "きょうのうら": "line_sora_ura_rare",
+        "ちんもく": "line_sora_ura_silent",
+        "ちょうわ": "line_sora_ura_harmony",
 
         sora_ura_silent: "line_sora_ura_silent",
         line_sora_ura_silent: "line_sora_ura_silent",
