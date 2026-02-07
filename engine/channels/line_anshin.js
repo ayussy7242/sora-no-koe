@@ -116,6 +116,12 @@ function _orbTier(orb) {
   if (v <= 1.6) return "mid";
   return "wide";
 }
+
+function _pickOne(pool, seed) {
+  const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+  if (!arr.length) return "";
+  return _pickMany(arr, `${seed}|one`, 1)[0] || "";
+}
 function norm360(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
@@ -723,12 +729,67 @@ async function renderAnshinLine(payload, deps = {}) {
     return best;
   }
 
+  const majorAspectKeys = new Set(["conjunction","opposition","square","trine","sextile"]);
+  const MAJOR_ASPECT_LIST = ASPECT_LIST.filter((a) =>
+    majorAspectKeys.has(normalizeAspectType(a.type))
+  );
+  const majorOrb = 6;
+
   const softAspectKeys = new Set([
     "trine","sextile","semi_sextile_30",
     "quintile_72","biquintile_144",
     "novile_40","binovile_80","trinovile_120","quadranovile_160",
     "decile_36","tridecile_108",
   ]);
+
+  const angleLongitudes = {};
+  if (Number.isFinite(longitudes.asc)) {
+    angleLongitudes.asc = longitudes.asc;
+    angleLongitudes.dsc = norm360(longitudes.asc + 180);
+  }
+  if (Number.isFinite(longitudes.mc)) {
+    angleLongitudes.mc = longitudes.mc;
+    angleLongitudes.ic = norm360(longitudes.mc + 180);
+  }
+
+  const majorHits = new Map();
+  const addMajorHit = (p, delta) => {
+    const cur = majorHits.get(p) || { count: 0, minOrb: 99 };
+    cur.count += 1;
+    cur.minOrb = Math.min(cur.minOrb, delta);
+    majorHits.set(p, cur);
+  };
+
+  for (let i = 0; i < planetKeys.length; i++) {
+    const a = planetKeys[i];
+    const lonA = longitudes[a];
+    if (!Number.isFinite(lonA)) continue;
+    for (let j = i + 1; j < planetKeys.length; j++) {
+      const b = planetKeys[j];
+      const lonB = longitudes[b];
+      if (!Number.isFinite(lonB)) continue;
+      const dist = absAngularDistance(lonA, lonB);
+      const best = bestAspectForDistance(dist, MAJOR_ASPECT_LIST, majorOrb);
+      if (!best) continue;
+      addMajorHit(a, best.delta);
+      addMajorHit(b, best.delta);
+    }
+    for (const [angKey, angLon] of Object.entries(angleLongitudes)) {
+      if (!Number.isFinite(angLon)) continue;
+      const dist = absAngularDistance(lonA, angLon);
+      const best = bestAspectForDistance(dist, MAJOR_ASPECT_LIST, majorOrb);
+      if (!best) continue;
+      addMajorHit(a, best.delta);
+    }
+  }
+
+  const isolated = planetKeys.filter((p) => !majorHits.has(p));
+  const weak = planetKeys.filter((p) => {
+    if (isolated.includes(p)) return false;
+    const hit = majorHits.get(p);
+    if (!hit) return true;
+    return hit.count <= 1 && hit.minOrb >= 4;
+  });
 
   const aspects = [];
   for (let i = 0; i < planetKeys.length; i++) {
@@ -752,6 +813,78 @@ async function renderAnshinLine(payload, deps = {}) {
     const idx = signIndexFromLon(lon);
     return Number.isFinite(idx) && deps?.signKeyFromIndex ? deps.signKeyFromIndex(idx) : null;
   };
+
+  const renderIsolatedBlock = (planetKey, seed) => {
+    const lon = longitudes[planetKey];
+    const signKey = pickSignKey(lon);
+    const signJa =
+      deps?.signJaFromIndex && Number.isFinite(signIndexFromLon(lon))
+        ? deps.signJaFromIndex(signIndexFromLon(lon))
+        : (SIGNS?.signs?.[_lowerKey(signKey)]?.label_ja || "");
+    const pJa = PLANETS?.bodies?.[planetKey]?.label_ja || planetKey;
+    const emoji = (ANSHIN?.planet_emoji && ANSHIN.planet_emoji[planetKey]) || "🪐";
+    const pack = _collectSignPackAnshin(dict, signKey, planetKey, "trine", 6);
+    const t1 = _pickOne(pack.tokens, `${seed}|t1`) || _pickOne(pack.texture, `${seed}|t1b`);
+    const t2 = _pickOne(pack.tokens, `${seed}|t2`) || _pickOne(pack.process, `${seed}|t2b`);
+    const line1 = t1 && t2
+      ? `${t1}と${t2}が、他と絡まれずに残っている。`
+      : "他と絡まれずに残っている。";
+    const line2 = _pickOne(
+      [
+        "触れられていないまま、保管されている。",
+        "参照されないまま残っている。",
+        "崩れにくい場所に置かれている。",
+      ],
+      `${seed}|tail`
+    );
+    return [
+      `${emoji}${pJa}（${signJa}）`,
+      line1,
+      line2,
+    ].join("\n");
+  };
+
+  if (isolated.length) {
+    const picks = _pickMany(isolated, `${dateLabel}|anshin|isolated`, Math.min(3, isolated.length));
+    const blocks = picks.map((p, i) => renderIsolatedBlock(p, `${dateLabel}|isolated|${p}|${i}`));
+    return [
+      `🫧 あんしんネイタル｜${dateLabel}`,
+      "",
+      "何も起きない星",
+      "",
+      blocks.join("\n\n"),
+      "",
+      ...(ANSHIN?.tail_lines || [
+        "",
+        "ここがあるから、揺れないわけでもない。",
+        "ただ、他と絡まれずに残っている場所。",
+        "",
+        "安心とは感情ではなく、",
+        "残り方の構造である。🪐✨️",
+      ]),
+    ].join("\n").trim();
+  }
+
+  if (weak.length) {
+    const picks = _pickMany(weak, `${dateLabel}|anshin|weak`, Math.min(3, weak.length));
+    const blocks = picks.map((p, i) => renderIsolatedBlock(p, `${dateLabel}|weak|${p}|${i}`));
+    return [
+      `🫧 あんしんネイタル｜${dateLabel}`,
+      "",
+      "何も起きない星",
+      "",
+      blocks.join("\n\n"),
+      "",
+      ...(ANSHIN?.tail_lines || [
+        "",
+        "ここがあるから、揺れないわけでもない。",
+        "ただ、他と絡まれずに残っている場所。",
+        "",
+        "安心とは感情ではなく、",
+        "残り方の構造である。🪐✨️",
+      ]),
+    ].join("\n").trim();
+  }
 
   aspects.sort((x, y) => x.orb - y.orb);
   const picked = [];
@@ -809,7 +942,7 @@ async function renderAnshinLine(payload, deps = {}) {
   const parts = [];
   parts.push(`🫧 あんしんネイタル｜${dateLabel}`);
   parts.push("");
-  parts.push("やわらかな重なりのかけあわせ");
+  parts.push("調和の星");
   parts.push("");
   parts.push(SEP);
 
@@ -868,10 +1001,13 @@ async function renderAnshinLine(payload, deps = {}) {
 
     parts.push([
       `${["①","②","③"][i]} ${aJa}（${aSignJa}）×${bJa}（${bSignJa}）｜${aspectLabel} ${deg}（orb ${orbText}°）`,
+      "",
       proseFinal ? `→ ${proseFinal}` : "",
+      "",
       kw.length ? `KeyWord：\n${kw.join(" / ")}` : "",
       "",
       SEP,
+      "",
     ].filter(Boolean).join("\n"));
   }
 
