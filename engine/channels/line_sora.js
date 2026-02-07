@@ -63,6 +63,7 @@ function aiEnabledDefaultTrue() {
     const set = process.env.LINE_AI_ENABLED !== undefined;
     return set ? boolishEnv(process.env.LINE_AI_ENABLED) : true;
 }
+const LINE_AI_DEBUG = boolishEnv(process.env.LINE_AI_DEBUG);
 
 function _emojiForBodyLocal(key) {
     const k = String(key || "").toLowerCase();
@@ -841,8 +842,10 @@ function _fallbackProseFromTokens(input, seed) {
     const pool = []
         .concat(input?.A?.tokens || [], input?.A?.texture || [], input?.A?.process || [])
         .concat(input?.B?.tokens || [], input?.B?.texture || [], input?.B?.process || [])
-        .concat(input?.aspect?.tokens || [], input?.aspect?.touch || [], input?.aspect?.gap || [], input?.aspect?.rest || []);
-    const picks = _pickMany(pool.filter(Boolean), `${seed || "fallback"}|prose`, 3);
+        .concat(input?.aspect?.tokens || [], input?.aspect?.touch || [], input?.aspect?.gap || [], input?.aspect?.rest || [])
+        .filter(Boolean)
+        .filter((t) => !/やすい/.test(String(t)));
+    const picks = _pickMany(pool, `${seed || "fallback"}|prose`, 3);
     if (!picks.length) return { s1: "", s2: "" };
     const verbs = ["漂う", "にじむ", "揺れる", "ひっかかる", "立つ", "残る"];
     const v1 = _pickMany(verbs, `${seed}|v1`, 1)[0] || "残る";
@@ -971,10 +974,11 @@ const SORA_AI_BANNED = [
     const apiKey = process.env.OPENAI_API_KEY || "";
     const model = process.env.OPENAI_MODEL || "gpt-4o";
     const baseUrl = process.env.OPENAI_BASE_URL || "";
+    const forceNoLLM = !!opts.forceNoLLM;
 
     let aiItems = [];
     let aiSky = {};
-    if (apiKey) {
+    if (apiKey && !forceNoLLM) {
         for (let attempt = 0; attempt < 2; attempt++) {
             let raw = "";
             try {
@@ -996,7 +1000,10 @@ const SORA_AI_BANNED = [
 
             const jsonText = _extractJsonBlock(raw);
             const parsed = _safeJsonParse(jsonText || raw);
-            if (!parsed || typeof parsed !== "object") continue;
+            if (!parsed || typeof parsed !== "object") {
+                if (LINE_AI_DEBUG) console.warn("[line_sora] renderSoraBaseAI parse failed");
+                continue;
+            }
 
             aiItems = Array.isArray(parsed.items) ? parsed.items : [];
             aiSky = parsed.sky_layer || {};
@@ -1010,6 +1017,7 @@ const SORA_AI_BANNED = [
             if (_containsBannedTokens(aiSky?.line2, SORA_AI_BANNED)) hasBad = true;
 
             if (!hasBad) break;
+            if (LINE_AI_DEBUG) console.warn("[line_sora] renderSoraBaseAI banned hit");
             aiItems = [];
             aiSky = {};
         }
@@ -1770,6 +1778,7 @@ function renderSoraBase(story, opts = {}, deps = {}) {
     const style = safeStr(opts.style || "list"); // "list" | "essay"
     const dateLabel = toDotDate(story?.meta?.date_local);
     const noProse = !!opts.noProse;
+    const kwLimit = isFiniteNum(opts.kwLimit) ? Math.max(1, Number(opts.kwLimit)) : 5;
 
     const sunLine = (() => {
         if (opts.includeSun === false) return "";
@@ -2113,7 +2122,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
-                    includeSkyLayer: true,
+                    includeSkyLayer: false,
                     includeFooter: true,
                     noProse: false,
                     kwLimit: 3,
@@ -2121,7 +2130,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                 deps
             );
         } catch (_) {
-            return renderSoraBase(
+            return renderSoraBaseAI(
                 { ...story, public: { ...story?.public, sky_all: listTop } },
                 {
                     limit: listTop.length,
@@ -2132,14 +2141,16 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
+                    includeSkyLayer: false,
                     kwLimit: 3,
+                    forceNoLLM: true,
                 },
                 deps
             );
         }
     }
 
-    return renderSoraBase(
+    return renderSoraBaseAI(
         { ...story, public: { ...story?.public, sky_all: listTop } },
         {
             limit: listTop.length,
@@ -2150,7 +2161,9 @@ async function renderSoraUraSilentLine(story, deps = {}) {
             includeSun: false,
             includeMoon: false,
             includeDist: false,
+            includeSkyLayer: false,
             kwLimit: 3,
+            forceNoLLM: true,
         },
         deps
     );
@@ -2159,7 +2172,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
 async function renderSoraUraRareLine(story, deps = {}) {
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dateLabel = toDotDate(story?.meta?.date_local);
-    const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
+    const listTitle = "【今日のソラの配置｜レア共鳴】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const excludeSet = _buildTop5Set(skyAll);
     const sorted = skyAll
@@ -2170,14 +2183,21 @@ async function renderSoraUraRareLine(story, deps = {}) {
         "quintile_72",
         "biquintile_144",
         "septile_family",
-        "semi_square_45",
-        "sesqui_square_135",
-        "semi_sextile_30",
+        "septile",
+        "biseptile",
+        "triseptile",
+        "novile_family",
         "novile_40",
+        "novile",
         "binovile_80",
+        "binovile",
         "quadranovile_160",
+        "quadranovile",
+        "decile_family",
         "decile_36",
+        "decile",
         "tridecile_108",
+        "tridecile",
     ]);
 
     const candidates = sorted
@@ -2187,11 +2207,13 @@ async function renderSoraUraRareLine(story, deps = {}) {
             return !(sig && excludeSet.has(sig));
         });
 
-    const rareList = candidates.filter((x) =>
-        rareAspects.has(String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase())
-    );
+    const rareList = candidates.filter((x) => {
+        const rawType = x.norm?.aspect?.type || x.norm?.type || x.raw?.type || x.raw?.aspect || "";
+        const key = normalizeAspectType(rawType);
+        return rareAspects.has(key);
+    });
 
-    const list = (rareList.length ? rareList : candidates)
+    const list = rareList
         .slice(0, 5)
         .map((x) => x.raw);
 
@@ -2210,7 +2232,7 @@ async function renderSoraUraRareLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
-                    includeSkyLayer: true,
+                    includeSkyLayer: false,
                     includeFooter: true,
                     noProse: true,
                 },
@@ -2228,6 +2250,7 @@ async function renderSoraUraRareLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
+                    includeSkyLayer: false,
                 },
                 deps
             );
@@ -2245,6 +2268,7 @@ async function renderSoraUraRareLine(story, deps = {}) {
             includeSun: false,
             includeMoon: false,
             includeDist: false,
+            includeSkyLayer: false,
         },
         deps
     );
@@ -2253,7 +2277,7 @@ async function renderSoraUraRareLine(story, deps = {}) {
 async function renderSoraUraHarmonyLine(story, deps = {}) {
     const { fmtSoraSkyLine } = resolveFormatters(deps);
     const dateLabel = toDotDate(story?.meta?.date_local);
-    const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
+    const listTitle = "【今日のソラの配置｜調和層（orb≤6°）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const excludeSet = _buildTop5Set(skyAll);
     const sorted = skyAll
@@ -2263,8 +2287,9 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
     const list = sorted
         .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
         .filter((x) => {
-            const t = String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase();
-            return t === "trine" || t === "sextile";
+            const rawType = x.norm?.aspect?.type || x.norm?.type || x.raw?.type || x.raw?.aspect || "";
+            const t = normalizeAspectType(rawType);
+            return t === "trine" || t === "sextile" || t === "semi_sextile_30" || t === "quintile_72" || t === "biquintile_144";
         })
         .filter((x) => {
             const sig = _skySignature(x.raw);
@@ -2287,7 +2312,7 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
-                    includeSkyLayer: true,
+                    includeSkyLayer: false,
                     includeFooter: true,
                     noProse: true,
                 },
@@ -2305,6 +2330,7 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
+                    includeSkyLayer: false,
                 },
                 deps
             );
@@ -2322,6 +2348,7 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
             includeSun: false,
             includeMoon: false,
             includeDist: false,
+            includeSkyLayer: false,
         },
         deps
     );
