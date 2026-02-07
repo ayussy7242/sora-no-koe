@@ -1897,11 +1897,18 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
 
   const inner = innerCandidates[0] || sortedAll[0] || null;
   const used = new Set(inner ? [tpKeyFn(inner)] : []);
-  const outer =
+  let outer =
     outerCandidates.find((i) => !used.has(tpKeyFn(i))) ||
     sortedAll.find((i) => !used.has(tpKeyFn(i))) ||
     inner ||
     null;
+  // guard: avoid inner/outer duplicate if an alternative exists
+  if (inner && outer && tpKeyFn(outer) === tpKeyFn(inner)) {
+    outer =
+      outerCandidates.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      sortedAll.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      outer;
+  }
   if (outer) used.add(tpKeyFn(outer));
 
   const remaining = src.filter((i) => !used.has(tpKeyFn(i)));
