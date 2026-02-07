@@ -36,8 +36,8 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
   const title = buildDailyTitle(story, dateLocal);
   const hasHtmlHeadings = /<h[23][\s>]/i.test(String(content || ""));
   content = hasHtmlHeadings
-    ? `<h1>${escapeHtml(title)}</h1>\n${content}`
-    : markdownToHtml(content, { h1: title });
+    ? content
+    : markdownToHtml(content, { h1: "" });
 
   if (dryRun) {
     return {
