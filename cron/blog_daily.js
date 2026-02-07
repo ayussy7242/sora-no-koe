@@ -1,7 +1,7 @@
 "use strict";
 
 const { createWpClient } = require("../engine/blog/wp_client");
-const { generateDailyDraft, buildDailyTitle } = require("../engine/blog/daily");
+const { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml } = require("../engine/blog/daily");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -22,7 +22,7 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
     mode: "public",
   });
 
-  const content = await generateDailyDraft({
+  let content = await generateDailyDraft({
     story,
     dateLocal,
     openai: {
@@ -34,6 +34,10 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
 
   const slug = String(dateLocal);
   const title = buildDailyTitle(story, dateLocal);
+  const hasHtmlHeadings = /<h[23][\s>]/i.test(String(content || ""));
+  content = hasHtmlHeadings
+    ? `<h1>${escapeHtml(title)}</h1>\n${content}`
+    : markdownToHtml(content, { h1: title });
 
   if (dryRun) {
     return {

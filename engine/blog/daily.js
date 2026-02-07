@@ -37,6 +37,49 @@ const ASPECTS_RARE_PRI = new Set([
   "sesqui_square_135",
 ]);
 
+const ASPECT_QUALITY_MAP = Object.freeze({
+  conjunction: ["密度", "重なり", "厚み", "濃度", "合流"],
+  opposition: ["張り", "対照", "揺れ", "鏡", "間"],
+  square: ["ざらつき", "圧", "ひずみ", "引っかかり", "張り"],
+  trine: ["ほどけ", "風通し", "抜け", "ゆるみ", "余白"],
+  sextile: ["通路", "ひらき", "空白", "ゆるみ", "交点"],
+  semi_square_45: ["ざらつき", "引っかかり", "端差", "張り", "圧"],
+  sesqui_square_135: ["圧", "引っかかり", "蓄積", "調整", "摩耗"],
+  quincunx_150: ["ずれ", "未調整", "折れ", "違和感", "端差"],
+  semi_sextile_30: ["にじみ", "余白", "境目", "滲点", "ゆらぎ"],
+  quintile_72: ["工夫", "編み直し", "妙技", "ひらめき", "端差"],
+  biquintile_144: ["調律", "余白", "抜け", "響き", "整え直し"],
+  novile_40: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  binovile_80: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  quadranovile_160: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  decile_36: ["伸び", "抜け", "ひらき", "工夫", "通り"],
+  tridecile_108: ["伸び", "抜け", "ひらき", "工夫", "通り"],
+  // aliases / family keys
+  inconjunct: ["ずれ", "未調整", "折れ", "違和感", "端差"],
+  quincunx: ["ずれ", "未調整", "折れ", "違和感", "端差"],
+  semisquare: ["ざらつき", "引っかかり", "端差", "張り", "圧"],
+  sesquisquare: ["圧", "引っかかり", "蓄積", "調整", "摩耗"],
+  semisextile: ["にじみ", "余白", "境目", "滲点", "ゆらぎ"],
+  quintile: ["工夫", "編み直し", "妙技", "ひらめき", "端差"],
+  biquintile: ["調律", "余白", "抜け", "響き", "整え直し"],
+  novile: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  binovile: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  trinovile: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  quadranovile: ["静けさ", "ゆるみ", "余白", "ほどけ", "にじみ"],
+  decile: ["伸び", "抜け", "ひらき", "工夫", "通り"],
+  tridecile: ["伸び", "抜け", "ひらき", "工夫", "通り"],
+  septile_family: ["縁", "響き", "余韻", "隔たり", "引力"],
+  septile: ["縁", "響き", "余韻", "隔たり", "引力"],
+  biseptile: ["縁", "響き", "余韻", "隔たり", "引力"],
+  triseptile: ["縁", "響き", "余韻", "隔たり", "引力"],
+});
+
+const ASPECT_QUALITY_BUCKETS = Object.freeze({
+  yin: ["ざらつき", "にじみ", "引っかかり", "ひずみ", "圧", "張り"],
+  harmony: ["余白", "通路", "交点", "調律", "ゆるみ", "空白"],
+  yang: ["抜け", "風通し", "ひらき", "伸び", "ほどけ", "通り"],
+});
+
 const OPENING_TONE_POOL = [
   "言葉にしきれない小さなズレ",
   "まだ名前のつかない違和感",
@@ -104,9 +147,93 @@ function signJa(signKey) {
   return dict?.SIGNS_V2?.signs?.[k]?.label_ja || signKey || "";
 }
 
+function signElement(signKey) {
+  const k = String(signKey || "").toLowerCase();
+  return dict?.SIGNS_V2?.signs?.[k]?.element || "";
+}
+
+function elementBucket(element) {
+  if (element === "fire") return "yang";
+  if (element === "air") return "harmony";
+  if (element === "earth" || element === "water") return "yin";
+  return "harmony";
+}
+
+function fusionTokensFor(signKey, bodyKey) {
+  const sKey = String(signKey || "").toLowerCase();
+  const bKey = String(bodyKey || "").toLowerCase();
+  const s = dict?.SIGN_FLAVOR_V1?.signs?.[sKey];
+  const sp = s?.by_body?.[bKey];
+  const f = sp?.fusion;
+  if (!f) return [];
+  return uniqList([
+    ...(f.A || []),
+    ...(f.B || []),
+    ...(f.expression || []),
+    ...(f.process || []),
+    ...(f.clarity || []),
+    ...(f.tendency || []),
+  ]);
+}
+
 function aspectMeta(typeRaw) {
   const key = normalizeAspectType(typeRaw);
   return ASPECTS_META?.[key] || null;
+}
+
+const ASPECT_TONE_HARD = new Set([
+  "square",
+  "opposition",
+  "quincunx_150",
+  "inconjunct",
+  "semi_square_45",
+  "sesqui_square_135",
+  "semisquare",
+  "sesquisquare",
+  "quincunx",
+  "septile",
+  "biseptile",
+  "triseptile",
+  "septile_family",
+]);
+const ASPECT_TONE_SOFT = new Set([
+  "trine",
+  "sextile",
+  "semi_sextile_30",
+  "quintile_72",
+  "biquintile_144",
+  "novile_40",
+  "binovile_80",
+  "trinovile_120",
+  "quadranovile_160",
+  "decile_36",
+  "tridecile_108",
+  "semi_sextile",
+  "quintile",
+  "biquintile",
+  "novile",
+  "binovile",
+  "trinovile",
+  "quadranovile",
+  "decile",
+  "tridecile",
+]);
+
+function aspectToneBucket(typeRaw) {
+  const key = normalizeAspectType(typeRaw);
+  if (ASPECT_TONE_HARD.has(key)) return "yin";
+  if (ASPECT_TONE_SOFT.has(key)) return "yang";
+  return "harmony";
+}
+
+function aspectQualityLabel(typeRaw, seed) {
+  const key = normalizeAspectType(typeRaw);
+  const bucket = aspectToneBucket(typeRaw);
+  const pool = uniqList([
+    ...(ASPECT_QUALITY_BUCKETS[bucket] || []),
+    ...(ASPECT_QUALITY_MAP[key] || []),
+  ]);
+  return pickBySeed(pool, seed, 1)[0] || "余白";
 }
 
 function getAspectByType(typeRaw) {
@@ -133,6 +260,34 @@ function aspectRoleEcho(typeRaw) {
   const core = String(meta.core || "").trim();
   if (!core) return "同じ質感が別の層にも残る";
   return `${core}の質感が、別の層にも静かに残る`;
+}
+
+function pickTripletByBucket(items, bucketFn, order, seed) {
+  const out = [];
+  const used = new Set();
+  const sorted = [...items].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
+  for (const bucket of order) {
+    const hit = sorted.find((x) => !used.has(x) && bucketFn(x) === bucket);
+    if (hit) {
+      used.add(hit);
+      out.push(hit);
+    }
+  }
+  for (const x of sorted) {
+    if (out.length >= 3) break;
+    if (used.has(x)) continue;
+    used.add(x);
+    out.push(x);
+  }
+  if (out.length > 3) return out.slice(0, 3);
+  if (out.length < 3 && items.length) {
+    const fill = pickBySeed(items, hash32(seed || "fill"), 3);
+    for (const x of fill) {
+      if (out.length >= 3) break;
+      if (!out.includes(x)) out.push(x);
+    }
+  }
+  return out;
 }
 
 function pickSecondaryAspect(all, primary) {
@@ -218,49 +373,54 @@ function aspectVoice(typeRaw) {
   return pickList(parts, 4);
 }
 
-function buildDailyDataBlock(story, maxItems = 5) {
+function buildDailyDataBlock(story, maxItems = 5, dateLocal = "") {
   const pub = story?.public || {};
   const all = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   all.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
 
-  const rare = all.filter((x) => isRareAspect(x.type));
-  rare.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-
-  const picked = [];
-  const pickedKey = new Set();
-  const pushUnique = (x) => {
-    const key = `${x?.a}-${x?.b}-${x?.type}-${x?.orb_deg}`;
-    if (pickedKey.has(key)) return;
-    pickedKey.add(key);
-    picked.push(x);
-  };
-
-  rare.slice(0, Math.min(2, maxItems)).forEach(pushUnique);
-  all.forEach((x) => {
-    if (picked.length >= maxItems) return;
-    pushUnique(x);
-  });
-
-  const list = picked.slice(0, maxItems);
+  const aspectTriplet = pickTripletByBucket(
+    all,
+    (x) => aspectToneBucket(x?.type),
+    ["yin", "harmony", "yang"],
+    `${dateLocal}|aspect-triplet`
+  );
+  const list = aspectTriplet.slice(0, 3);
   const seenAspect = new Set();
 
-  const bodies = [];
-  const seenBodies = new Set();
+  const baseCandidates = [];
+  const baseSeen = new Set();
   for (const x of list) {
-    for (const key of [x?.a, x?.b]) {
-      const k = String(key || "").toLowerCase();
-      if (!k || seenBodies.has(k)) continue;
-      seenBodies.add(k);
-      bodies.push(key);
+    const aKey = String(x?.a || "");
+    const bKey = String(x?.b || "");
+    const aSignKey = String(x?.a_sign_key || x?.a_sign || x?.aS || "").toLowerCase();
+    const bSignKey = String(x?.b_sign_key || x?.b_sign || x?.bS || "").toLowerCase();
+    const aSig = `${aKey}|${aSignKey}`;
+    const bSig = `${bKey}|${bSignKey}`;
+    if (aKey && aSignKey && !baseSeen.has(aSig)) {
+      baseSeen.add(aSig);
+      baseCandidates.push({ bodyKey: aKey, signKey: aSignKey, orb_deg: x?.orb_deg });
+    }
+    if (bKey && bSignKey && !baseSeen.has(bSig)) {
+      baseSeen.add(bSig);
+      baseCandidates.push({ bodyKey: bKey, signKey: bSignKey, orb_deg: x?.orb_deg });
     }
   }
-  const aspects = list.map((x) => {
+  const baseTriplet = pickTripletByBucket(
+    baseCandidates,
+    (x) => elementBucket(signElement(x.signKey)),
+    ["yin", "harmony", "yang"],
+    `${dateLocal}|base-triplet`
+  ).slice(0, 3);
+
+  const aspects = list.map((x, idx) => {
     const a = fmt.fmtAnyJa(x.a);
     const b = fmt.fmtAnyJa(x.b);
     const aS = signJa(x.a_sign_key || x.a_sign || x.aS);
     const bS = signJa(x.b_sign_key || x.b_sign || x.bS);
     const typeRaw = x.type || x.aspect || x.aspectType;
     const asp = aspectLabelWithDeg(typeRaw);
+    const qSeed = hash32(`${dateLocal}-${normalizeAspectType(typeRaw)}-${x?.a}-${x?.b}`);
+    const quality = aspectQualityLabel(typeRaw, qSeed);
     const aspectKey = normalizeAspectType(typeRaw);
     const role = seenAspect.has(aspectKey) ? aspectRoleEcho(typeRaw) : aspectRoleSentence(typeRaw);
     seenAspect.add(aspectKey);
@@ -269,6 +429,7 @@ function buildDailyDataBlock(story, maxItems = 5) {
     const meta = aspectMeta(typeRaw);
     const core = meta?.core ? `角度質感: ${meta.core}` : "";
     const feel = Array.isArray(meta?.feel) && meta.feel.length ? `触れ味: ${meta.feel.join(" / ")}` : "";
+    const qualityLine = quality ? `質感ラベル: ${quality}` : "";
     const voice = aspectVoice(typeRaw);
     const voiceLine = voice.length ? `角度語彙: ${voice.join(" / ")}` : "";
     const pTouchA = planetTouch(x.a);
@@ -276,27 +437,31 @@ function buildDailyDataBlock(story, maxItems = 5) {
     const sTouchA = signTouch(x.a_sign_key || x.a_sign || x.aS);
     const sTouchB = signTouch(x.b_sign_key || x.b_sign || x.bS);
     const pLine = pTouchA.length || pTouchB.length ? `惑星感触: ${[...pTouchA, ...pTouchB].join(" / ")}` : "";
-  const sLine = sTouchA.length || sTouchB.length ? `サイン感触: ${[...sTouchA, ...sTouchB].join(" / ")}` : "";
-  const extra = [core, feel].filter(Boolean).join(" / ");
-  return [
-    `${a}（${aS}）× ${b}（${bS}）｜${asp}（orb ${orb}°）`,
-    roleLine ? `  ${roleLine}` : "",
+    const sLine = sTouchA.length || sTouchB.length ? `サイン感触: ${[...sTouchA, ...sTouchB].join(" / ")}` : "";
+    const extra = [core, feel].filter(Boolean).join(" / ");
+    return [
+      `${["①", "②", "③"][idx] || "①"} ${a}（${aS}）× ${b}（${bS}）｜${asp}（orb ${orb}°）`,
+      roleLine ? `  ${roleLine}` : "",
       extra ? `  ${extra}` : "",
+      qualityLine ? `  ${qualityLine}` : "",
       voiceLine ? `  ${voiceLine}` : "",
       pLine ? `  ${pLine}` : "",
-    sLine ? `  ${sLine}` : "",
-  ].filter(Boolean).join("\n");
-});
+      sLine ? `  ${sLine}` : "",
+    ].filter(Boolean).join("\n");
+  });
 
-  const planetLines = bodies.map((bodyKey) => {
+  const planetLines = baseTriplet.map((item, idx) => {
+    const bodyKey = item.bodyKey;
+    const signKey = item.signKey;
     const ja = fmt.fmtAnyJa(bodyKey);
-    const signKey = pub?.transit_signs?.[String(bodyKey)?.toLowerCase()]?.sign_key;
     const signJaLabel = signJa(signKey || "");
     const pTouch = planetTouch(bodyKey);
     const sTouch = signTouch(signKey);
     const touch = [...pTouch, ...sTouch].filter(Boolean);
     const touchLine = touch.length ? `感触: ${touch.slice(0, 4).join(" / ")}` : "";
-    return [`${ja}×${signJaLabel}`, touchLine].filter(Boolean).join(" / ");
+    const fusion = fusionTokensFor(signKey, bodyKey);
+    const fusionLine = fusion.length ? `融合語彙: ${fusion.slice(0, 12).join(" / ")}` : "";
+    return [`${["①", "②", "③"][idx] || "①"} ${ja}×${signJaLabel}`, touchLine, fusionLine].filter(Boolean).join(" / ");
   });
 
   const sky = pub.sky_strata || {};
@@ -306,17 +471,26 @@ function buildDailyDataBlock(story, maxItems = 5) {
   const modalities = `活${m.cardinal || 0} 不${m.fixed || 0} 柔${m.mutable || 0}`;
   const moon = pub?.moon?.sign_ja || signJa(pub?.moon?.sign_key || "");
 
+  const qualities = aspects
+    .map((a) => {
+      const m = String(a || "").match(/質感ラベル:\s*([^\n]+)/);
+      return m ? m[1].trim() : "";
+    })
+    .filter(Boolean);
+
   return [
     `月：${moon}`,
     `要素：${elements}`,
     `区分：${modalities}`,
     "",
-    "惑星×星座（中核）:",
+    "配置メモ（①〜③）:",
     ...planetLines,
     "",
-    "上位共鳴:",
+    "角度メモ（①〜③）:",
     ...aspects.map((a) => `- ${a}`),
-  ].join("\n");
+    "",
+    qualities.length ? `余韻ヒント: ${qualities.join(" / ")}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 function systemPrompt() {
@@ -418,20 +592,29 @@ function userPrompt({ dateLocal, dataBlock }) {
     "解釈しない / 判断しない / 導かない / 構造をやさしく置く",
     "",
     "【出力フォーマット】",
+    "H1は不要（別途タイトルで付与される）。",
+    "見出しはHTMLで書く（<h2> / <h3>）。Markdownは使わない。",
+    "H2はこの順で固定：",
+    "<h2>今日の空のはなし</h2>",
+    "<h2>今日の余韻</h2>",
+    "この順序を崩さない。",
     "冒頭1〜2文は観測者の目線で、以下のような語を動的に使って触れる",
     `冒頭の言い回し候補: ${openingHints}`,
     "感触 → 構造 → 余白 の順で書く",
     "感触は具体（手触り・場面・ズレ）に1回必ず触れる",
     "構造は後置きで、説明せずに添える",
     "余白はまとめない／結論を出さない",
-    "各アスペクトの直後に「角度の役割」1文を必ず置く（説明しない／固定文）",
-    "見出しはMarkdownで書く（## / ###）",
-    "必ずこの順で構成する：",
-    "1) ## 今日の空の骨格",
-    "2) ## 惑星×星座（中核）",
-    "3) ## アスペクトの接触",
-    "4) ## 今日の終わり方",
-    "惑星×星座は本文の中核として短い段落を複数置く（例：☿水星×水瓶座）",
+    "本文は次の順で並べる：",
+    "1) 惑星×星座のH3を①〜③で並べる（例：<h3>① 🌙 月 × 乙女座｜細部・手触り</h3>）。",
+    "2) アスペクトのH3を①〜③で並べる（例：<h3>① 🌙 月（乙女座） × ☿️ 水星（水瓶座）｜インコンジャンクト（150°）：ずれ</h3>）。",
+    "惑星×星座はH3で見出しを付ける（例：<h3>① 🌙 月 × 乙女座｜細部・手触り</h3>）。",
+    "惑星×星座のH3の「｜」以降は、入力の「融合語彙」から短い2語を選んで付ける（例：細部・手触り）。",
+    "アスペクトはH3で見出しを付ける。必ず「惑星（星座）」を入れる（例：<h3>① 🌙 月（乙女座） × ☿️ 水星（水瓶座）｜インコンジャンクト（150°）：ずれ</h3>）。",
+    "「質感ラベル: ○○」がデータにある場合は、必ずアスペクト見出しの末尾に「：○○」として使う",
+    "惑星×星座／アスペクトはそれぞれ①〜③の3件のみを使う（陰陽などの分類ラベルは出さない）。",
+    "アスペクト③は“抜け/風通し/ひらき/余白/ほどけ”系の明るい質感を優先する（希望を言わずに、抜けで終える）。",
+    "アスペクト本文は「角度質感」「触れ味」を必ず1回は溶かして使う（惑星×星座×角度の合成）。",
+    "入力内の「融合語彙」を優先して使う（言い回しは自由／語を溶かして短文にする）",
     "",
     "【文字数】",
     "1500〜2000字",
@@ -446,36 +629,20 @@ function buildDailyTitle(story, dateLocal) {
   const aspect = getAspectByType(top.type);
   const label = aspect?.label_ja;
   const deg = top?.aspect_deg;
-  const core = aspect?.core;
+  const seed = hash32(`${dateLocal}-${normalizeAspectType(top.type)}-title`);
+  const quality = aspectQualityLabel(top.type, seed);
 
-  if (!label || !deg || !core) return fallback;
+  if (!label || !deg || !quality) return fallback;
 
   const strata = story?.public?.sky_strata || {};
   const dom = dominantLabel(strata);
   const domLabel = dom ? `${dom} ` : "";
 
-  const all = Array.isArray(story?.public?.sky_all) ? [...story.public.sky_all] : [];
-  all.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-  const secondary = pickSecondaryAspect(all, top);
-  const secLabel = secondary ? aspectLabelWithDeg(secondary.type) : "";
-  const secSuffix = secLabel ? `＋${secLabel}` : "";
-
-  const coreWords = splitCoreWords(core);
-  const toneWords = uniqList([
-    ...(aspect?.feel || []),
-    ...aspectVoice(top.type),
-  ]);
-  const seed = hash32(`${dateLocal}-${normalizeAspectType(top.type)}`);
-  const pickedCore = pickBySeed(coreWords, seed, 1);
-  const pickedTone = pickBySeed(toneWords, seed + 3, 2);
-  const words = uniqList([...pickedCore, ...pickedTone]).slice(0, 3);
-  const coreLabel = words.length ? words.join("・") : core;
-
-  return `今日のソラ｜${dateLocal} ― ${domLabel}${label}（${deg}°）${secSuffix}が残す${coreLabel}`;
+  return `今日のソラ｜${dateLocal} ― ${domLabel}${label}（${deg}°）：${quality}`;
 }
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
-  const dataBlock = buildDailyDataBlock(story, 5);
+  const dataBlock = buildDailyDataBlock(story, 3, dateLocal);
   const messages = [
     { role: "system", content: systemPrompt() },
     { role: "user", content: userPrompt({ dateLocal, dataBlock }) },
@@ -493,6 +660,60 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
   const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\nどう感じ、どう扱うかの主権は、常にあなたにあります。";
   const cleaned = softenText(text);
   return enforceSingleClosing(cleaned, closing);
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function markdownToHtml(text, opts = {}) {
+  const h1 = String(opts.h1 || "").trim();
+  const raw = String(text || "");
+  const lines = raw.split(/\r?\n/);
+  const out = [];
+  let para = [];
+
+  const flushPara = () => {
+    if (!para.length) return;
+    out.push(`<p>${para.join(" ")}</p>`);
+    para = [];
+  };
+
+  const pushHeading = (level, title) => {
+    flushPara();
+    out.push(`<h${level}>${escapeHtml(title)}</h${level}>`);
+  };
+
+  if (h1) {
+    out.push(`<h1>${escapeHtml(h1)}</h1>`);
+  }
+
+  for (const line of lines) {
+    const t = String(line || "").trim();
+    if (!t) {
+      flushPara();
+      continue;
+    }
+    if (t.startsWith("### ")) {
+      pushHeading(3, t.slice(4).trim());
+      continue;
+    }
+    if (t.startsWith("## ")) {
+      pushHeading(2, t.slice(3).trim());
+      continue;
+    }
+    if (t.startsWith("# ")) {
+      pushHeading(1, t.slice(2).trim());
+      continue;
+    }
+    para.push(escapeHtml(t));
+  }
+  flushPara();
+  return out.join("\n");
 }
 
 function softenText(text) {
@@ -517,8 +738,13 @@ function softenText(text) {
     [/生じている/g, "並んでいる"],
     [/生まれる/g, "残る"],
     [/起きる/g, "残る"],
+    [/を生む/g, "が残る"],
     [/により/g, "その配置のまま"],
     [/ことによるもの/g, "として置かれている"],
+    [/影響を与えている/g, "並んでいる"],
+    [/必要になる/g, "置かれている"],
+    [/形成している/g, "並んでいる"],
+    [/これは([^。]+?)の感触。/g, "$1の感触が残る。"],
     [/と感じる/g, "が残る"],
     [/感じることがある/g, "が残る"],
   ];
@@ -558,4 +784,4 @@ function enforceSingleClosing(text, closing) {
   return `${body}\n\n${closing}`.trim();
 }
 
-module.exports = { generateDailyDraft, buildDailyTitle };
+module.exports = { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml };
