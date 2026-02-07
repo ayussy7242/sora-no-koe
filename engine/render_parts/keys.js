@@ -14,7 +14,7 @@
  */
 function tpKey(tp) {
   if (!tp) return "";
-  return `${tp.natal_body_or_point || ""}|${tp.transit_body || ""}|${tp.aspect || tp.type || ""}`;
+  return `${tp.natal_body_or_point || ""}|${tp.transit_body || ""}|${tp.aspect || tp.type || tp.aspectType || ""}`;
 }
 
 /**

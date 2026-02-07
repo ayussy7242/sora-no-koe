@@ -1,5 +1,9 @@
 "use strict";
 
+const { fmtDeg, planetJa } = require("../render_parts/line_ai_utils");
+const { tpKey: defaultTpKey } = require("../render_parts/keys");
+const _fmtDeg = fmtDeg;
+const _planetJa = planetJa;
 /**
  * channels/line_today.js (Unified / deps-safe) — FIXED SSOT
  * - LINE「今日のソラのこえ」(personal優先 / 無ければpublic)
@@ -56,7 +60,7 @@ function boolishEnv(v) {
   return s === "1" || s === "true" || s === "yes" || s === "on";
 }
 
-function _fmtDeg(deg) {
+function _fmtDegLocal(deg) {
   const n = Number(deg);
   if (!Number.isFinite(n)) return "";
   return `${Math.round(n)}°`;
@@ -79,54 +83,630 @@ function _safeJsonParse(raw) {
 }
 
 const LINE_AI_SYSTEM_PROMPT = [
-  "あなたは「ソラのこえ。」LINE配信用の生成エンジンです。",
-  "これは占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
+  "あなたは「ソラのこえ。」LINE配信用の生成エンジン。",
+  "占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
   "主語は「星・配置・接点」。読者を主語にしない。",
   "日本語のみ。英語・ローマ字は禁止。",
   "出力はJSONのみ。本文の装飾や余計な文は書かない。",
   "文体は静かで簡潔。説明しすぎない。観測的に「置く」。",
+  "構造語彙（役割/触れ方/質感）を本文に必ず含める。",
   "",
-  "【KeyWordルール】",
-  "- 必ず5語",
-  "- 固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー）禁止",
+  "【3枠構成（personal）】",
+  "- 必ず2枠：🌗内側 / ☀️外側",
+  "- レア共鳴がある日のみ✶レア共鳴 を1枠追加（最大1）",
+  "- 各枠の構造文は2行まで",
+  "",
+  "【KeyWordルール（候補出力）】",
+  "- keywordsは8〜12語の候補を出す（後処理で5語に絞る）",
+  "- 固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー等）禁止",
   "- 近い意味の連打は禁止（多様性最優先）",
-  "- アスペクト由来1語＋惑星由来1語＋星座由来1語を必ず含める",
-  "- 残り2語は当日の配置全体から補助的に抽出",
-  "- 同語根/類語が連続したら必ず差し替える",
 ].join("\n");
 
 const LINE_AI_USER_GUIDE = [
   "以下の入力データを使って、JSONのみを返してください。",
+  "候補は入力データにあるもののみを使う（自由解釈しない）。",
   "出力フォーマット（厳守）:",
   "{",
   '  "public": [',
-  '    { "s1": "本文1行（〜しやすい/残りやすい等）", "keywords": ["5語"] },',
+  '    { "s1": "1行目", "s2": "2行目", "keywords": ["候補語..."] },',
   "    ...",
   "  ],",
   '  "personal": {',
-  '    "inner": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"] },',
-  '    "outer": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"] },',
-  '    "flow": { "s1": "1行目", "s2": "2行目", "keywords": ["5語"], "is_rare": false }',
+  '    "inner": { "s1": "1行目", "s2": "2行目", "keywords": ["候補語..."] },',
+  '    "outer": { "s1": "1行目", "s2": "2行目", "keywords": ["候補語..."] },',
+  '    "rare": { "s1": "1行目", "s2": "2行目", "keywords": ["候補語..."] }',
   "  },",
   '  "sky_layer": { "line1": "空層1行目", "line2": "空層2行目" },',
-  '  "personal_layer": { "line1": "個人空層1行目", "line2": "個人空層2行目" }',
+  '  "personal_layer": { "line1": "個人空層1行目" }',
   "}",
   "",
   "条件:",
-  "- s1/s2は2行以内。断定/指示/助言なし。",
+  "- public は top5 と同じ長さ。",
+  "- s1/s2は合計2行以内。断定/指示/助言なし。",
   "- 英語は禁止。日本語のみ。",
-  "- keywordsは5語。固有名詞（惑星/星座/アスペクト/共鳴/影響/エネルギー/運勢/吉凶/開運/ラッキー）禁止。",
-  "- keywordsは意味の近い語の連打を避ける（多様性）。",
-  "- keywordsにはアスペクト/惑星/星座の意味を必ず含める。",
-  "- 空層は「状態を置く」2行（決めない）。空層は必ず2行を返す。",
-  "- personal_layer も必ず2行を返す。",
-  "- レア共鳴がある場合は flow.is_rare=true にする。",
+  "- keywords は8〜12語の候補（多様性）。",
+  "- sky_layer は2行。personal_layer は1行。",
+  "- rare_candidate_aspects が空の場合、personal.rare は null か省略。",
+  "- 候補配列は優先順（orb昇順/癒し優先）で並んでいるため、原則1件目を使う。",
+  "- 各itemの structure を必ず参照し、構造語彙を入れる。",
+  "- s1/s2は「惑星A/Bの役割」「アスペクトの触れ方」「サイン質感」から最低2要素を含める（汎用語だけで完結しない）。",
+  "- structure内の語を優先し、言い換えても意味を外さない。",
   "",
   "personal出力のニュアンス指定:",
-  "- inner.s1/s2: 内側で起きやすい構造（「〜しやすい」「〜が残りやすい」）",
-  "- outer.s1/s2: 外に出やすい反応（刺激/動き/反応として描写）",
-  "- flow.s1/s2: 自然に流れるところ（「無理なく」「自然に」など）",
+  "- inner: 内側で残る/起きやすい構造",
+  "- outer: 外に出やすい反応",
+  "- rare: レア共鳴（短く）",
 ].join("\n");
+
+const LINE_AI_SYSTEM_PROMPT_PERSONAL = [
+  "あなたは「ソラのこえ。」LINE配信用の生成エンジン。",
+  "占いではない。未来断定・助言・指示・結論・吉凶判断は禁止。",
+  "読者主語は禁止。説明口調は禁止。",
+  "日本語のみ。英語・ローマ字は禁止。",
+  "出力はJSONのみ。余計な文は書かない。",
+  "",
+  "【最重要】",
+  "本文は（惑星×星座 × 惑星×星座）× アスペクトの意味を“溶かした短い段落”。",
+  "アスペクト名・角度名・配置という語は出さない。",
+  "「〜しやすい」「影響」「〜として」「〜によって」は使わない。",
+  "同じ語を2回繰り返さない。",
+  "入力の語彙以外の名詞を増やさない（助詞・接続・活用はOK）。",
+  "抽象語に偏りすぎない。身体感覚・距離・温度・圧・視線・重さ・間・輪郭を優先。",
+].join("\n");
+
+const LINE_AI_USER_GUIDE_PERSONAL = [
+  "以下の入力データから、本文だけを生成してください。",
+  "出力はJSONのみ。フォーマット厳守。",
+  "",
+  "【出力フォーマット】",
+  "{",
+  '  "prose": "短い段落"',
+  "}",
+  "",
+  "【本文ルール】",
+  "- 2文で、1段落。改行は入れない。",
+  "- 80〜111文字程度を目安に短くする。",
+  "- A/B/Aspectの意味を必ず含める（語彙は入力のtokens/texture/process/touch/gap/restから）。",
+  "- 説明しない・判断しない・結論を出さない。",
+  "- 同じ語を繰り返さない。",
+  "- 入力の banned に含まれる語は使わない。",
+  "- 角度/配置/アスペクト名/〜しやすい/影響/〜として/〜によっては禁止。",
+  "",
+  "【入力フォーマット】",
+  "{",
+  '  "slot": "inner|outer|third",',
+  '  "A": { "label": "惑星（星座）", "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "B": { "label": "惑星（星座）", "tokens": ["..."], "texture": ["..."], "process": ["..."] },',
+  '  "aspect": { "label": "角度名", "tokens": ["..."], "touch": ["..."], "gap": ["..."], "rest": ["..."] },',
+  '  "banned": ["..."],',
+  '  "seed": "..."',
+  "}",
+].join("\n");
+
+function _dominantKey(counts, order = []) {
+  const entries = order.length
+    ? order.map((k) => [k, Number(counts?.[k] || 0)])
+    : Object.entries(counts || {}).map(([k, v]) => [k, Number(v || 0)]);
+  if (!entries.length) return "";
+  let bestKey = "";
+  let bestVal = -1;
+  entries.forEach(([k, v]) => {
+    if (v > bestVal) {
+      bestVal = v;
+      bestKey = k;
+    }
+  });
+  return bestVal > 0 ? bestKey : "";
+}
+
+function _elementJa(dict, key) {
+  return dict?.ELEMENTS_V1?.elements?.[key]?.label_ja || "";
+}
+
+function _modalityJa(dict, key) {
+  return dict?.MODALITIES_V1?.modalities?.[key]?.label_ja || "";
+}
+
+function _buildLayerHints(counts, dict) {
+  const element = counts?.element || {};
+  const modality = counts?.modality || {};
+  const domElementKey = _dominantKey(element, ["fire", "earth", "air", "water"]);
+  const domModalityKey = _dominantKey(modality, ["cardinal", "fixed", "mutable"]);
+  return {
+    dominant_element: {
+      key: domElementKey,
+      label_ja: _elementJa(dict, domElementKey),
+      count: Number(element?.[domElementKey] || 0),
+    },
+    dominant_modality: {
+      key: domModalityKey,
+      label_ja: _modalityJa(dict, domModalityKey),
+      count: Number(modality?.[domModalityKey] || 0),
+    },
+    element_counts: element,
+    modality_counts: modality,
+  };
+}
+
+function _formatDistLines(counts) {
+  const e = counts?.element || {};
+  const m = counts?.modality || {};
+  if (!Object.keys(e).length && !Object.keys(m).length) return [];
+  return [
+    `【惑星属性】 🔥 火${Number(e.fire || 0)}　🪨 地${Number(e.earth || 0)}　💨 風${Number(e.air || 0)}　💧 水${Number(e.water || 0)}`,
+    `【三区分】 🏃 活動${Number(m.cardinal || 0)}　🧱 不動${Number(m.fixed || 0)}　🌿 柔軟${Number(m.mutable || 0)}`,
+  ];
+}
+
+function _formatStructureLine(s1, s2) {
+  const line1 = String(s1 || "").replace(/\s+/g, " ").trim();
+  const line2 = String(s2 || "").replace(/\s+/g, " ").trim();
+  if (!line1 && !line2) return "";
+  if (line1 && line2) return `→ ${line1}\n${line2}`;
+  return `→ ${line1 || line2}`;
+}
+
+function _formatStructureParagraph(text) {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return `→ ${t}`;
+}
+
+function _limitProseSentences(text, maxSent = 2, maxLen = 111) {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  const parts = s.split(/[。]+/).map((p) => p.trim()).filter(Boolean);
+  const picked = parts.slice(0, maxSent).map((p) => `${p}。`);
+  let out = picked.join("");
+  if (out.length > maxLen) {
+    out = out.slice(0, maxLen);
+    if (!out.endsWith("。")) out = `${out}。`;
+  }
+  return out;
+}
+
+function _fallbackPersonalLayerLine(domElement, domModality) {
+  const label = [domElement, domModality].filter(Boolean).join("×");
+  if (label) return `個人空層は${label}に寄る。`;
+  return "個人空層は均衡気味。";
+}
+
+function _publicAspectPayload(dict, item) {
+  if (!item) return null;
+  const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
+  const degree = _fmtDeg(info.deg);
+  const aspectText = info.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
+  const aspectJaDeg = degree ? `${aspectText} ${degree}` : aspectText;
+  const aKey = item?.a;
+  const bKey = item?.b;
+  const aSignKey = item?.aS || item?.a_sign_key;
+  const bSignKey = item?.bS || item?.b_sign_key;
+  const roleA = _getRole(dict, aSignKey, aKey);
+  const roleB = _getRole(dict, bSignKey, bKey);
+  const aMeta = _planetMeta(dict, aKey);
+  const bMeta = _planetMeta(dict, bKey);
+  const aSignMeta = _signMeta(dict, aSignKey);
+  const bSignMeta = _signMeta(dict, bSignKey);
+  return {
+    a: _planetJa(dict, aKey),
+    b: _planetJa(dict, bKey),
+    a_sign: _signJa(dict, aSignKey),
+    b_sign: _signJa(dict, bSignKey),
+    aspect: aspectText,
+    degree,
+    aspect_ja_deg: aspectJaDeg,
+    orb: Number(item?.orb_deg ?? item?.orb ?? 0).toFixed(1),
+    axis: roleA && roleB ? `${roleA} × ${roleB}` : "",
+    structure: {
+      a_role: roleA || aMeta.role,
+      b_role: roleB || bMeta.role,
+      a_core: aMeta.core,
+      b_core: bMeta.core,
+      a_texture: aMeta.texture,
+      b_texture: bMeta.texture,
+      sign_a_texture: aSignMeta.texture,
+      sign_b_texture: bSignMeta.texture,
+      sign_a_flavor: _signFlavor(dict, aSignKey),
+      sign_b_flavor: _signFlavor(dict, bSignKey),
+      aspect_core: info.core || "",
+      aspect_relation: info.relation || info.clause || "",
+      aspect_feel: info.feel || [],
+      aspect_adverbs: info.adverbs || [],
+    },
+  };
+}
+
+function _personalAspectPayload(dict, item) {
+  if (!item) return null;
+  const info = _aspectInfo(dict, item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+  const degree = _fmtDeg(info.deg);
+  const aspectText = info.label_ja || String(item?.aspect || item?.type || item?.aspectType || "");
+  const aspectJaDeg = degree ? `${aspectText} ${degree}` : aspectText;
+  const aKey = item?.natal_body_or_point || item?.natal_body || item?.a;
+  const bKey = item?.transit_body || item?.b;
+  const aSignKey = item?.natal_sign_key || item?.natal_sign || item?.a_sign_key;
+  const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key;
+  const aSign =
+    item?.natal_sign_ja ||
+    item?.natal_sign_label_ja ||
+    item?.natal_sign_en ||
+    (aSignKey ? _signJa(dict, aSignKey) : "");
+  const bSign =
+    item?.transit_sign_ja ||
+    item?.transit_sign_label_ja ||
+    item?.transit_sign_en ||
+    (bSignKey ? _signJa(dict, bSignKey) : "");
+  const aSignJa = /^[a-z]+$/.test(String(aSign || "")) ? _signJa(dict, aSign) : aSign;
+  const bSignJa = /^[a-z]+$/.test(String(bSign || "")) ? _signJa(dict, bSign) : bSign;
+  const roleA = _getRole(dict, aSignKey, aKey);
+  const roleB = _getRole(dict, bSignKey, bKey);
+  const aMeta = _planetMeta(dict, aKey);
+  const bMeta = _planetMeta(dict, bKey);
+  const aSignMeta = _signMeta(dict, aSignKey);
+  const bSignMeta = _signMeta(dict, bSignKey);
+  return {
+    a: _planetJa(dict, aKey),
+    b: _planetJa(dict, bKey),
+    a_key: aKey,
+    b_key: bKey,
+    a_sign_key: aSignKey,
+    b_sign_key: bSignKey,
+    a_sign: aSignJa || "",
+    b_sign: bSignJa || "",
+    aspect: aspectText,
+    degree,
+    aspect_ja_deg: aspectJaDeg,
+    orb: Number(item?.orb_deg ?? item?.orb ?? 0).toFixed(1),
+    axis: roleA && roleB ? `${roleA} × ${roleB}` : "",
+    structure: {
+      a_role: roleA || aMeta.role,
+      b_role: roleB || bMeta.role,
+      a_core: aMeta.core,
+      b_core: bMeta.core,
+      a_texture: aMeta.texture,
+      b_texture: bMeta.texture,
+      sign_a_texture: aSignMeta.texture,
+      sign_b_texture: bSignMeta.texture,
+      sign_a_flavor: _signFlavor(dict, aSignKey),
+      sign_b_flavor: _signFlavor(dict, bSignKey),
+      aspect_core: info.core || "",
+      aspect_relation: info.relation || info.clause || "",
+      aspect_feel: info.feel || [],
+      aspect_adverbs: info.adverbs || [],
+    },
+  };
+}
+
+function _formatPublicAspectLine(dict, item, prefix = "") {
+  const payload = _publicAspectPayload(dict, item);
+  if (!payload) return "";
+  const head = `${prefix}${payload.a}${payload.a_sign ? `（${payload.a_sign}）` : ""} × ${payload.b}${payload.b_sign ? `（${payload.b_sign}）` : ""}`;
+  const aspectText = payload.degree ? `${payload.aspect} ${payload.degree}` : payload.aspect;
+  return `${head} ｜${aspectText}（orb ${payload.orb}°）`;
+}
+
+function _formatPersonalAspectLine(dict, item, prefix = "") {
+  const payload = _personalAspectPayload(dict, item);
+  if (!payload) return "";
+  return _formatPersonalAspectLineFromPayload(payload, prefix);
+}
+
+function _formatPersonalAspectLineFromPayload(payload, prefix = "") {
+  if (!payload) return "";
+  const aEmoji = _emojiForBodyLocal(payload.a_key || payload.a);
+  const bEmoji = _emojiForBodyLocal(payload.b_key || payload.b);
+  const head = `${prefix}${aEmoji ? `${aEmoji} ` : ""}${payload.a}${payload.a_sign ? `（${payload.a_sign}）` : ""}×${bEmoji ? `${bEmoji} ` : ""}${payload.b}${payload.b_sign ? `（${payload.b_sign}）` : ""}`;
+  const aspectText = payload.degree ? `${payload.aspect} ${payload.degree}` : payload.aspect;
+  return `${head}｜${aspectText}（orb ${payload.orb}°）`;
+}
+
+function _emojiForBodyLocal(key) {
+  const k = String(key || "").toLowerCase();
+  const map = {
+    sun: "☀️",
+    moon: "🌙",
+    mercury: "☿️",
+    venus: "♀️",
+    mars: "♂️",
+    jupiter: "♃",
+    saturn: "♄",
+    uranus: "♅",
+    neptune: "♆",
+    pluto: "♇",
+    chiron: "⚷",
+  };
+  return map[k] || "";
+}
+
+function _splitRoleTokens(text) {
+  const raw = String(text || "").replace(/[（）()]/g, "").trim();
+  if (!raw) return [];
+  let t = raw
+    .replace(/[×／/、,]/g, "・")
+    .replace(/・+/g, "・");
+  t = t.replace(/([一-龥ぁ-んァ-ン])と([一-龥ぁ-んァ-ン])/g, "$1・$2");
+  return t
+    .split("・")
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+}
+
+function _splitRoleTokenParts(token) {
+  const t = String(token || "").replace(/\s+/g, "");
+  if (!t) return { noun: "", prefix: "" };
+  const parts = t.split("の").filter(Boolean);
+  if (parts.length >= 2) {
+    const noun = parts[parts.length - 1] || "";
+    const prefix = parts.slice(0, -1).join("") || "";
+    return { noun, prefix };
+  }
+  return { noun: t, prefix: "" };
+}
+
+function _shortenLabelText(text, maxLen = 4) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  if (t.length <= maxLen) return t;
+  return t.slice(0, maxLen);
+}
+
+function _shortRoleToken(token) {
+  let t = String(token || "").trim();
+  if (!t) return "";
+  t = t.replace(/[（）()]/g, "");
+  t = t.replace(/意味づけ|意味付け|意味付/g, "意味");
+  t = t.replace(/の/g, "");
+  const dropSuffix = [
+    "通路",
+    "回路",
+    "スイッチ",
+    "エンジン",
+    "水脈",
+    "設計",
+    "場",
+    "場所",
+    "条件",
+    "基準",
+    "方向",
+    "意識",
+    "感覚",
+    "反射",
+    "反応",
+  ];
+  for (const s of dropSuffix) {
+    if (t.endsWith(s) && t.length > s.length + 1) {
+      t = t.slice(0, -s.length);
+      break;
+    }
+  }
+  t = _shortenLabelText(t, 4);
+  return t;
+}
+
+function _shortRolePhrase(text) {
+  const tokens = _splitRoleTokens(text)
+    .map((v) => _shortRoleToken(v))
+    .filter(Boolean);
+  if (!tokens.length) return "";
+  if (tokens.length === 1) return tokens[0];
+  const first = tokens[0];
+  const last = tokens[tokens.length - 1];
+  if (first === last) return first;
+  let label = `${first}・${last}`;
+  const dropTailList = ["再編", "更新", "変容", "調整", "設計", "整合", "再配置", "切替"];
+  if (dropTailList.includes(last) && first.length >= 3) {
+    label = first;
+  }
+  return label;
+}
+
+function _compactRoleLabel(role, core) {
+  const src = role || core || "";
+  const tokens = _splitRoleTokens(src);
+  const altTokens = role ? _splitRoleTokens(core) : [];
+  const first = _splitRoleTokenParts(tokens[0] || "");
+  const last = _splitRoleTokenParts(tokens.length ? tokens[tokens.length - 1] : "");
+
+  let main = first.noun || first.prefix || (tokens[0] || "");
+  let sub = "";
+
+  if (tokens.length > 1) {
+    if (first.prefix && last.noun) sub = `${first.prefix}${last.noun}`;
+    else if (last.prefix) sub = last.prefix;
+    else if (last.noun) sub = last.noun;
+  } else if (first.prefix) {
+    sub = first.prefix;
+  }
+
+  if (!sub && altTokens.length) {
+    const alt = _splitRoleTokenParts(altTokens[altTokens.length - 1]);
+    sub = alt.prefix || alt.noun || "";
+  }
+
+  main = _shortenLabelText(main, 4);
+  sub = _shortenLabelText(sub, 4);
+  if (sub && sub === main) sub = "";
+
+  return { main, sub };
+}
+
+function _roleShortForStructure(role, core) {
+  const label = _compactRoleLabel(role, core);
+  if (!label.main) return "";
+  return label.sub ? `${label.main}（${label.sub}）` : label.main;
+}
+
+function _roleLine(dict, aSignKey, aPlanetKey, bSignKey, bPlanetKey) {
+  const ra = _getRole(dict, aSignKey, aPlanetKey);
+  const rb = _getRole(dict, bSignKey, bPlanetKey);
+  const aCore = _planetMeta(dict, aPlanetKey)?.core || "";
+  const bCore = _planetMeta(dict, bPlanetKey)?.core || "";
+  const aLabel = _compactRoleLabel(ra, aCore);
+  const bLabel = _compactRoleLabel(rb, bCore);
+  const aText = aLabel.main ? `${aLabel.main}${aLabel.sub ? `（${aLabel.sub}）` : ""}` : "";
+  const bText = bLabel.main ? `${bLabel.main}${bLabel.sub ? `（${bLabel.sub}）` : ""}` : "";
+  if (!aText && !bText) return "";
+  if (aText && bText) return `【${aText} × ${bText}】`;
+  return `【${aText || bText}】`;
+}
+
+function _roleLinePublic(dict, item) {
+  return _roleLine(
+    dict,
+    item?.aS || item?.a_sign_key,
+    item?.a,
+    item?.bS || item?.b_sign_key,
+    item?.b
+  );
+}
+
+function _roleLinePersonal(dict, item) {
+  return _roleLine(
+    dict,
+    item?.natal_sign_key || item?.natal_sign || item?.a_sign_key,
+    item?.natal_body_or_point || item?.natal_body || item?.a,
+    item?.transit_sign_key || item?.transit_sign || item?.b_sign_key,
+    item?.transit_body || item?.b
+  );
+}
+
+function _labelTokenPoolFromAspect(dict, item) {
+  const info = _aspectInfo(dict, item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+  const raw = []
+    .concat(info.core || [])
+    .filter(Boolean);
+  return _uniq(
+    raw
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座/.test(v))
+  );
+}
+
+function _labelTokenPoolFromSignFlavor(dict, signKey, planetKey) {
+  const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
+  const pool = []
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || [])
+    .concat(by?.fusion?.expression || [])
+    .concat(by?.core || [])
+    .concat(by?.role || [])
+    .concat(sign?.base?.keywords || [])
+    .concat(sign?.base?.short || [])
+    .concat(sign?.base?.flavor || [])
+    .filter(Boolean);
+  return _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座/.test(v))
+  );
+}
+
+function _labelNounize(val) {
+  let t = _nounizePhrase(val);
+  if (!t) return "";
+  if (t.includes("の")) t = t.split("の").pop() || t;
+  t = t.replace(/・/g, "");
+  if (/[がをにはへでと]/.test(t)) return "";
+  if (/続|残|出|止|効|立|揺|にじ/.test(t)) return "";
+  if (t.length <= 1) return "";
+  return t;
+}
+
+function _pickLabelToken(pool, seed, fallback = "") {
+  const xs = (Array.isArray(pool) ? pool : []).filter(Boolean);
+  if (!xs.length) return fallback;
+  const picked = _pickMany(xs, seed, 1)[0];
+  return picked || fallback;
+}
+
+function _buildRoleLabelText(main, sub, extra, seed) {
+  const m = _shortenLabelText(main || "", 4);
+  const s = _shortenLabelText(sub || "", 4);
+  const e = _shortenLabelText(extra || "", 4);
+  const patterns = [
+    () => (m ? (s ? `${m}（${s}）` : m) : s),
+    () => (m ? (e ? `${m}（${e}）` : s ? `${m}（${s}）` : m) : e || s),
+    () => (m ? (s && e ? `${m}（${_shortenLabelText(`${s}${e}`, 4)}）` : s ? `${m}（${s}）` : m) : e || s),
+  ];
+  const idx = hash32(`${seed}|role`) % patterns.length;
+  let text = patterns[idx]();
+  if (text) {
+    text = text.replace(/のの/g, "の").replace(/の$/g, "");
+  }
+  return text || m || s || e || "";
+}
+
+function _roleLinePersonalDynamic(dict, item, seed) {
+  const aKey = item?.natal_body_or_point || item?.natal_body || item?.a;
+  const bKey = item?.transit_body || item?.b;
+  const aSignKey = item?.natal_sign_key || item?.natal_sign || item?.a_sign_key;
+  const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key;
+  const roleA = _getRole(dict, aSignKey, aKey);
+  const roleB = _getRole(dict, bSignKey, bKey);
+  const aCore = _planetMeta(dict, aKey)?.core || "";
+  const bCore = _planetMeta(dict, bKey)?.core || "";
+  const longA = String(roleA || aCore || "").trim();
+  const longB = String(roleB || bCore || "").trim();
+  if (longA || longB) {
+    const shortA = _shortRolePhrase(longA);
+    const shortB = _shortRolePhrase(longB);
+    if (shortA && shortB) return `【${shortA} × ${shortB}】`;
+    return `【${shortA || shortB}】`;
+  }
+  const aLabel = _compactRoleLabel(roleA, aCore);
+  const bLabel = _compactRoleLabel(roleB, bCore);
+
+  const aSignPool = _labelTokenPoolFromSignFlavor(dict, aSignKey, aKey);
+  const bSignPool = _labelTokenPoolFromSignFlavor(dict, bSignKey, bKey);
+
+  const aExtraPool = _uniq([...aSignPool]);
+  const bExtraPool = _uniq([...bSignPool]);
+  const aExtra = _pickLabelToken(aExtraPool, `${seed}|a`, "");
+  const bExtra = _pickLabelToken(bExtraPool, `${seed}|b`, "");
+
+  const aText = _buildRoleLabelText(aLabel.main || roleA || "", aLabel.sub || aCore || "", aExtra, `${seed}|a`);
+  const bText = _buildRoleLabelText(bLabel.main || roleB || "", bLabel.sub || bCore || "", bExtra, `${seed}|b`);
+
+  if (!aText && !bText) return "";
+  if (aText && bText) return `【${aText} × ${bText}】`;
+  return `【${aText || bText}】`;
+}
+
+function _fallbackDomLabel(story) {
+  const raw = story?.public?.element_modality?.label || story?.public?.element_modality || "";
+  const parts = String(raw || "").split(/[×x]/).map((s) => s.trim()).filter(Boolean);
+  return {
+    element: parts[0] || "",
+    modality: parts[1] || "",
+  };
+}
+
+function _fallbackDomFromPublicSky(story, dict) {
+  const list = Array.isArray(story?.public?.sky_all)
+    ? story.public.sky_all
+    : Array.isArray(story?.public?.sky_top)
+      ? story.public.sky_top
+      : [];
+  const counts = { element: {}, modality: {} };
+  list.forEach((it) => {
+    [it?.aS || it?.a_sign_key, it?.bS || it?.b_sign_key].forEach((key) => {
+      const k = _lowerKey(key);
+      if (!k) return;
+      const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+      if (!s) return;
+      if (s.element) counts.element[s.element] = (counts.element[s.element] || 0) + 1;
+      if (s.modality) counts.modality[s.modality] = (counts.modality[s.modality] || 0) + 1;
+    });
+  });
+  const domElementKey = _dominantKey(counts.element, ["fire", "earth", "air", "water"]);
+  const domModalityKey = _dominantKey(counts.modality, ["cardinal", "fixed", "mutable"]);
+  return {
+    element: _elementJa(dict, domElementKey),
+    modality: _modalityJa(dict, domModalityKey),
+  };
+}
 
 
 function buildLineMainFallback({ dateLabel, parts, distLines, kusouYoin, footerLines, cta }) {
@@ -539,7 +1119,7 @@ function _getRole(dict, signKey, planetKey) {
   return p?.role || p?.core || "";
 }
 
-function _planetJa(dict, planetKey) {
+function _planetJaLocal(dict, planetKey) {
   const k = _lowerKey(planetKey);
   return dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.PLANETS_V1?.[k]?.label_ja || planetKey || "";
 }
@@ -549,15 +1129,87 @@ function _signJa(dict, signKey) {
   return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
 }
 
+function _planetMeta(dict, planetKey) {
+  const k = _lowerKey(planetKey);
+  const p = dict?.PLANETS_V2?.bodies?.[k] || dict?.PLANETS_V1?.[k] || null;
+  const point = dict?.POINTS_V1?.points?.[k] || null;
+  return {
+    role: p?.role || p?.core || point?.core || "",
+    core: p?.core || point?.core || "",
+    texture: Array.isArray(p?.texture) ? p.texture.slice(0, 3) : [],
+  };
+}
+
+function _signMeta(dict, signKey) {
+  const k = _lowerKey(signKey);
+  const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+  return {
+    label_ja: s?.label_ja || signKey || "",
+    texture: Array.isArray(s?.texture) ? s.texture.slice(0, 3) : [],
+    keywords: Array.isArray(s?.keywords) ? s.keywords.slice(0, 3) : [],
+  };
+}
+
+function _signFlavor(dict, signKey) {
+  const k = _lowerKey(signKey);
+  const flavor = dict?.SIGN_FLAVOR_V1?.signs?.[k]?.flavor || "";
+  if (!flavor) return "";
+  const first = String(flavor).split("。")[0];
+  return String(first || flavor).trim();
+}
+
+const _ASPECT_JA_FALLBACK = {
+  conjunction: "コンジャンクション",
+  sextile: "セクスタイル",
+  square: "スクエア",
+  trine: "トライン",
+  opposition: "オポジション",
+  quincunx_150: "インコンジャンクト",
+  semi_square_45: "セミスクエア",
+  sesqui_square_135: "セスキスクエア",
+  semi_sextile_30: "セミセクスタイル",
+  quintile_72: "クインタイル",
+  biquintile_144: "バイクインタイル",
+  septile: "セプタイル",
+  novile_40: "ノヴィル",
+  binovile_80: "バイノヴィル",
+  trinovile_120: "トリノヴィル",
+  quadranovile_160: "クアドラノヴィル",
+  decile_36: "デシル",
+  tridecile_108: "トリデシル",
+};
+
+function _aspectMetaFromDict(dict, k) {
+  if (!k) return null;
+  const v2 = dict?.ASPECTS_V2 || {};
+  const v1 = dict?.ASPECTS_V1 || {};
+  const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space];
+  for (const p of pools) {
+    if (p && p[k]) return p[k];
+  }
+  return null;
+}
+
 function _aspectInfo(dict, rawType) {
   const k = _normAspectKey(rawType);
-  const a = dict?.ASPECTS_V2?.aspects?.[k] || dict?.ASPECTS_V1?.aspects?.[k] || null;
+  const a = _aspectMetaFromDict(dict, k);
+  let deg = Number.isFinite(Number(a?.deg)) ? Number(a.deg) : null;
+  if (deg == null) {
+    const m = String(k || "").match(/_(\d+)/);
+    if (m) deg = Number(m[1]);
+  }
   return {
     key: k,
-    label_ja: a?.label_ja || "",
-    deg: Number.isFinite(Number(a?.deg)) ? Number(a.deg) : null,
+    label_ja: a?.label_ja || _ASPECT_JA_FALLBACK[k] || "",
+    deg,
     core: a?.core || "",
     tone: a?.tendency_key || "",
+    relation: a?.relation || "",
+    clause: a?.clause || "",
+    feel: Array.isArray(a?.feel) ? a.feel : [],
+    adverbs: Array.isArray(a?.adverbs) ? a.adverbs : [],
+    sora: a?.sora || "",
+    prose_result: a?.prose_ja?.result || "",
   };
 }
 
@@ -1015,32 +1667,47 @@ function formatWithFlavor({
 /* =========================
  * AI render (LINE)
  * ========================= */
+// --- personal selection constants (keep for structure)
 const INNER_BODIES = ["moon", "ic", "neptune", "saturn", "pluto", "lilith", "chiron"];
 const OUTER_BODIES = ["sun", "asc", "mc", "mars", "uranus", "jupiter", "mercury", "venus"];
 const FLOW_BODIES = ["venus", "jupiter", "moon", "neptune"];
-const FLOW_ASPECTS = [
-  "trine",
-  "sextile",
-  "conjunction",
-  "quintile_72",
-  "biquintile_144",
-];
+const FLOW_ASPECTS = ["trine", "sextile", "semi_sextile_30", "quintile_72", "biquintile_144"];
+const HARD_ASPECTS = ["square", "opposition", "quincunx_150", "semi_square_45", "sesqui_square_135"];
 const RARE_ASPECTS = [
   "quintile_72",
   "biquintile_144",
   "septile",
   "biseptile",
   "triseptile",
+  "novile_family",
   "novile_40",
+  "novile",
   "binovile_80",
+  "binovile",
+  "trinovile_120",
+  "trinovile",
   "quadranovile_160",
+  "quadranovile",
+  "decile_family",
   "decile_36",
+  "decile",
+  "decile_108",
   "tridecile_108",
+  "tridecile",
 ];
+const RARE_ASPECT_RE = /(novile|binovile|trinovile|quadranovile|decile|tridecile)/;
 
-function _bodyMatch(item, keys) {
-  const a = _lowerKey(item?.a);
-  const b = _lowerKey(item?.b);
+const HEAL_ASPECT_PRIORITY = ["trine", "sextile", "semi_sextile_30", "biquintile_144"];
+const HEAL_BODIES = new Set(["moon", "venus", "jupiter"]);
+
+function _tpBodies(item) {
+  const a = _lowerKey(item?.natal_body_or_point || item?.natal_body || item?.a);
+  const b = _lowerKey(item?.transit_body || item?.b);
+  return [a, b].filter(Boolean);
+}
+
+function _tpBodyMatch(item, keys) {
+  const [a, b] = _tpBodies(item);
   return keys.includes(a) || keys.includes(b);
 }
 
@@ -1051,6 +1718,45 @@ function _aspectKey(item) {
 function _orb(item) {
   const v = Number(item?.orb_deg);
   return Number.isFinite(v) ? v : 999;
+}
+
+function _moonElementKey(story, dict) {
+  const raw =
+    story?.public?.moon_sign ||
+    story?.public?.moon?.sign_key ||
+    story?.public?.moon?.signKey ||
+    story?.public?.moon_sign_key ||
+    "";
+  const key = _lowerKey(raw);
+  return (
+    dict?.SIGNS_V2?.signs?.[key]?.element ||
+    dict?.SIGNS_V1?.signs?.[key]?.element ||
+    ""
+  );
+}
+
+function _healingPriority(aspectKey) {
+  const idx = HEAL_ASPECT_PRIORITY.indexOf(aspectKey);
+  return idx === -1 ? 99 : idx;
+}
+
+function _healingBodyCount(item) {
+  const bodies = _tpBodies(item);
+  return bodies.reduce((acc, b) => acc + (HEAL_BODIES.has(b) ? 1 : 0), 0);
+}
+
+function _pickHealingCandidates(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((i) => _healingPriority(_aspectKey(i)) < 99)
+    .sort((a, b) => {
+      const pa = _healingPriority(_aspectKey(a));
+      const pb = _healingPriority(_aspectKey(b));
+      if (pa !== pb) return pa - pb;
+      const ha = _healingBodyCount(a);
+      const hb = _healingBodyCount(b);
+      if (ha !== hb) return hb - ha;
+      return _orb(a) - _orb(b);
+    });
 }
 
 function _uniqueByTpKey(list, tpKeyFn) {
@@ -1066,45 +1772,80 @@ function _uniqueByTpKey(list, tpKeyFn) {
   return out;
 }
 
-function _pickPersonalBlocks(layers, tpKeyFn) {
-  const src = _uniqueByTpKey(
-    [
-      ...(Array.isArray(layers?.theme) ? layers.theme : []),
-      ...(Array.isArray(layers?.touch) ? layers.touch : []),
-      ...(Array.isArray(layers?.hidden) ? layers.hidden : []),
-    ],
-    tpKeyFn
-  );
+function _isFlowCandidate(item) {
+  const k = _aspectKey(item);
+  return FLOW_ASPECTS.includes(k);
+}
+
+function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
+  const layerItems = [
+    ...(Array.isArray(layers?.theme) ? layers.theme : []),
+    ...(Array.isArray(layers?.touch) ? layers.touch : []),
+    ...(Array.isArray(layers?.hidden) ? layers.hidden : []),
+  ];
+  const basePool = layerItems.length ? layerItems : (Array.isArray(fallbackPool) ? fallbackPool : []);
+  const src = _uniqueByTpKey(basePool, tpKeyFn);
 
   const byOrb = (a, b) => _orb(a) - _orb(b);
-  const inner = src.filter((i) => _bodyMatch(i, INNER_BODIES)).sort(byOrb)[0] || null;
-  const outer = src.filter((i) => _bodyMatch(i, OUTER_BODIES)).sort(byOrb)[0] || null;
+  const sortedAll = src.slice().sort(byOrb);
 
-  const used = new Set([inner, outer].filter(Boolean).map((i) => tpKeyFn(i)));
+  const moonElement = _moonElementKey(story, dict);
+  const moonIsYin = moonElement === "earth" || moonElement === "water";
+  const innerBodies = moonIsYin ? ["moon", ...INNER_BODIES] : ["asc", ...INNER_BODIES];
+  const outerBodies = moonIsYin ? ["asc", "mc", ...OUTER_BODIES] : ["moon", "mc", ...OUTER_BODIES];
+
+  const innerCandidates = src.filter((i) => _tpBodyMatch(i, innerBodies)).sort(byOrb);
+  const outerCandidates = src.filter((i) => _tpBodyMatch(i, outerBodies)).sort(byOrb);
+
+  const inner = innerCandidates[0] || sortedAll[0] || null;
+  const used = new Set(inner ? [tpKeyFn(inner)] : []);
+  const outer =
+    outerCandidates.find((i) => !used.has(tpKeyFn(i))) ||
+    sortedAll.find((i) => !used.has(tpKeyFn(i))) ||
+    inner ||
+    null;
+  if (outer) used.add(tpKeyFn(outer));
+
   const remaining = src.filter((i) => !used.has(tpKeyFn(i)));
+  const rareCandidates = remaining
+    .filter((i) => {
+      const k = _aspectKey(i);
+      return RARE_ASPECTS.includes(k) || RARE_ASPECT_RE.test(k);
+    })
+    .sort(byOrb);
+  const rare = rareCandidates[0] || null;
+  if (rare) rare._is_rare = true;
 
-  const flowPool = remaining.filter((i) => {
-    const k = _aspectKey(i);
-    return FLOW_ASPECTS.includes(k) || _bodyMatch(i, FLOW_BODIES);
-  });
-  let flow = flowPool.sort(byOrb)[0] || null;
-
-  let rare = null;
-  for (const i of remaining.sort(byOrb)) {
-    const k = _aspectKey(i);
-    const isRare = RARE_ASPECTS.includes(k) || _orb(i) <= 0.2;
-    if (isRare) {
-      rare = i;
-      break;
-    }
+  let flowCandidates = [];
+  let flow = null;
+  if (!rare) {
+    flowCandidates = remaining
+      .filter((i) => _isFlowCandidate(i))
+      .sort(byOrb);
+    const softFallback = remaining
+      .filter((i) => !HARD_ASPECTS.includes(_aspectKey(i)))
+      .sort(byOrb);
+    flow =
+      flowCandidates[0] ||
+      softFallback[0] ||
+      remaining[0] ||
+      sortedAll.find((i) => !used.has(tpKeyFn(i))) ||
+      outer ||
+      inner ||
+      null;
   }
 
-  if (rare && (!flow || tpKeyFn(rare) !== tpKeyFn(flow))) {
-    flow = rare;
-    flow._is_rare = true;
-  }
-
-  return { inner, outer, flow };
+  return {
+    inner,
+    outer,
+    flow,
+    rare,
+    innerCandidates,
+    outerCandidates,
+    flowCandidates,
+    rareCandidates,
+    mode: moonIsYin ? "moon" : "asc",
+  };
 }
 
 function _aiKeywordList(arr, fallback = []) {
@@ -1114,17 +1855,63 @@ function _aiKeywordList(arr, fallback = []) {
   return merged.slice(0, 5);
 }
 
-const _KW_BANNED = [
-  "太陽", "月", "水星", "金星", "火星", "木星", "土星", "天王星", "海王星", "冥王星",
-  "ASC", "MC", "IC", "DSC", "キロン", "リリス", "ノード",
-  "牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座",
-  "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座",
-  "コンジャンクション", "セミセクスタイル", "セミスクエア", "セクスタイル",
-  "スクエア", "トライン", "インコンジャンクト", "クインカンクス", "オポジション",
-  "セスキスクエア", "クインタイル", "バイクインタイル", "セプタイル",
-  "ノヴィル", "デシル",
-  "共鳴", "影響", "エネルギー", "運勢", "吉", "凶", "開運", "ラッキー",
+function _normalizeKwToken(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .trim();
+}
+
+const _KW_GROUP_RULES = [
+  { key: "adjust", re: /(調整|補正|修正|是正|整合|調律|整え|整う|整える|微調整|補う)/ },
+  { key: "boundary", re: /(境界|境目|境|輪郭|区切り|端|縁)/ },
+  { key: "distance", re: /(距離|間合|間|隔たり|離れ)/ },
+  { key: "space", re: /(余白|空間|空気|隙間|隙)/ },
+  { key: "temperature", re: /(温度|温か|暖|冷|冷え|熱)/ },
+  { key: "speed", re: /(速度|速さ|スピード|テンポ|リズム|加速|減速)/ },
+  { key: "density", re: /(密度|濃度|濃淡|厚み|重さ|軽さ)/ },
+  { key: "flow", re: /(流れ|循環|巡り|滞り|移ろい|動き)/ },
+  { key: "texture", re: /(手触り|触感|感触|質感|摩擦)/ },
+  { key: "layer", re: /(層|重なり|重ね|奥行)/ },
+  { key: "balance", re: /(配分|配合|配慮|均衡|バランス|割り振り|置き方)/ },
+  { key: "stability", re: /(保ち|維持|持続|継続|安定|定着)/ },
+  { key: "tension", re: /(緊張|張り|引っかかり)/ },
+  { key: "fluctuation", re: /(揺れ|ゆらぎ|揺らぎ|震え|滲み|にじみ)/ },
+  { key: "direction", re: /(指向|向き|方向|焦点)/ },
+  { key: "language", re: /(言葉|語|発話|対話|会話|表現)/ },
+  { key: "body", re: /(身体|からだ|体感|感覚)/ },
+  { key: "update", re: /(更新|刷新|切替|切り替え|置き換え|再構成)/ },
 ];
+
+function _kwGroup(s) {
+  const t = String(s || "");
+  if (!t) return "";
+  const flat = _normalizeKwToken(t);
+  for (const rule of _KW_GROUP_RULES) {
+    if (rule.re.test(t) || (flat && rule.re.test(flat))) return rule.key;
+  }
+  return "";
+}
+
+const _KW_BANNED = new Set(
+  [
+    "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+    "サン","ムーン","マーキュリー","ヴィーナス","ビーナス","マーズ","ジュピター","サターン","ウラヌス","ネプチューン","プルート","プルト",
+    "ASC","MC","IC","DSC","キロン","リリス","ノード","アセンダント","ディセンダント","ミディアムコエリ",
+    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+    "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
+    "コンジャンクション","セミセクスタイル","セミスクエア","セクスタイル",
+    "スクエア","トライン","インコンジャンクト","クインカンクス","オポジション",
+    "セスキスクエア","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
+    "conjunction","semi_sextile","semi_square","sextile","square","trine","quincunx","opposition","sesqui_square","quintile","biquintile","septile","novile","decile",
+    "共鳴","共鳴的","影響","影響的","エネルギー","エネルギー的","運勢","運気","運","吉","凶","開運",
+    "ラッキー","アンラッキー","ハッピー","幸運","不運","占い","占星術","運命","導き","救い","正解",
+    "吉兆","凶兆","スピ","ヒーリング","セラピー","メッセージ",
+    "内側","外側","反応","出やすい","内面","外面","きょう","今日",
+    "理想","意味","余韻","本質","可能性","状況",
+  ].map((s) => String(s || "").toLowerCase().trim()).filter(Boolean)
+);
 
 const _KW_SAFE_POOL = [
   "余白", "間", "輪郭", "密度", "距離", "手触り", "温度差", "配分", "境目",
@@ -1137,42 +1924,904 @@ function _isBannedKw(w) {
   if (!s) return true;
   if (/[0-9°]/.test(s)) return true;
   if (s.includes("座")) return true;
-  for (const t of _KW_BANNED) {
-    if (s.includes(t)) return true;
+  const t = s.toLowerCase();
+  const flat = t.replace(/[^\p{L}\p{N}]+/gu, "");
+  if (_KW_BANNED.has(t) || (flat && _KW_BANNED.has(flat))) return true;
+  for (const b of _KW_BANNED) {
+    if (!b) continue;
+    if (t.includes(b) || flat.includes(b)) return true;
   }
   return false;
 }
 
-function _sanitizeKeywords(list, fallback) {
+function _splitKwString(val) {
+  const raw = String(val || "");
+  return raw
+    .split(/[\/、,\|\n]+/g)
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+}
+
+function _normalizeKeywords(list) {
   const out = [];
-  const add = (w) => {
+  const src = Array.isArray(list)
+    ? list.flatMap((w) => _splitKwString(w))
+    : _splitKwString(list);
+  src.forEach((w) => {
     const s = String(w || "").trim();
     if (!s) return;
-    if (_isBannedKw(s)) return;
     if (out.some((x) => _isSimilarKw(x, s))) return;
     out.push(s);
+  });
+  return out;
+}
+
+function _isSimilarKw(a, b) {
+  const sa = _normalizeKwToken(a);
+  const sb = _normalizeKwToken(b);
+  if (!sa || !sb) return false;
+  if (sa === sb) return true;
+  if (sa.includes(sb) || sb.includes(sa)) return true;
+  if (sa.length >= 2 && sb.length >= 2 && sa.slice(0, 2) === sb.slice(0, 2)) return true;
+  const ga = _kwGroup(sa);
+  const gb = _kwGroup(sb);
+  if (ga && ga === gb) return true;
+  return false;
+}
+
+function _sanitizeKeywords(list, fallback, avoidList = [], maxLen = 5) {
+  const candidates = _normalizeKeywords(list).concat(_normalizeKeywords(fallback));
+  const out = [];
+  const usedGroups = new Set();
+  const avoid = Array.isArray(avoidList) ? avoidList : [];
+  const tryAdd = (w) => {
+    const s = String(w || "").trim();
+    if (!s) return;
+    if (avoid.some((x) => _isSimilarKw(x, s))) return;
+    if (_isBannedKw(s)) return;
+    if (out.some((x) => _isSimilarKw(x, s))) return;
+    const g = _kwGroup(s);
+    if (g && usedGroups.has(g)) return;
+    out.push(s);
+    if (g) usedGroups.add(g);
   };
-  (Array.isArray(list) ? list : []).forEach(add);
-  if (out.length < 5) {
-    (Array.isArray(fallback) ? fallback : []).forEach(add);
+  for (const w of candidates) {
+    tryAdd(w);
+    if (out.length >= maxLen) break;
   }
-  if (out.length < 5) {
-    _KW_SAFE_POOL.forEach(add);
+  if (out.length < maxLen) {
+    _KW_SAFE_POOL.forEach(tryAdd);
   }
-  return out.slice(0, 5);
+  return out.slice(0, maxLen);
 }
 
 function _formatKeywordsLine(list, fallback) {
   const xs = _sanitizeKeywords(list, fallback);
-  return xs.length ? `KeyWord\n${xs.join(" / ")}` : "";
+  return xs.length ? `KeyWord ${xs.join(" / ")}` : "";
 }
 
-function _isSimilarKw(a, b) {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  if (a.includes(b) || b.includes(a)) return true;
-  if (a.length >= 2 && b.length >= 2 && a.slice(0, 2) === b.slice(0, 2)) return true;
-  return false;
+function _formatKeywordsBlock(list, fallback, avoidList = [], maxLen = 5) {
+  const xs = _sanitizeKeywords(list, fallback, avoidList, maxLen);
+  if (!xs.length) return "";
+  return `KeyWord：\n${xs.join(" / ")}`;
+}
+
+function _kwPoolFromSignFlavor(dict, signKey, planetKey) {
+  const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
+  const pool = []
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || [])
+    .concat(by?.fusion?.expression || [])
+    .concat(by?.core || [])
+    .concat(by?.role || [])
+    .concat(sign?.base?.keywords || []);
+  const tokens = _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座|として|やすい/.test(v))
+  );
+  return _uniq(tokens.map((v) => _normalizeKw(v)).filter(Boolean));
+}
+
+function _kwBoundaryFromSignFlavor(dict, signKey, planetKey) {
+  const { by } = _getSignFlavor(dict, signKey, planetKey);
+  const pool = []
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || []);
+  const tokens = _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座|として|やすい/.test(v))
+  );
+  return _uniq(tokens.map((v) => _normalizeKw(v)).filter(Boolean));
+}
+
+function _kwPoolFromAspect(dict, aspectKey, seed = "") {
+  const info = _aspectInfo(dict, aspectKey);
+  const tone = _pickAspectToneWords(dict, aspectKey, `${seed}|tone`, 2);
+  const pool = []
+    .concat(info?.core || [])
+    .concat(info?.feel || [])
+    .concat(info?.relation || [])
+    .concat(tone || []);
+  const tokens = _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座|として|やすい/.test(v))
+  );
+  return _uniq(tokens.map((v) => _normalizeKw(v)).filter(Boolean));
+}
+
+function _kwPoolFromSoar(dict, signKey, planetKey) {
+  const soar = _getSoarStyle(dict);
+  const pKey = _lowerKey(planetKey);
+  const sKey = _lowerKey(signKey);
+  const pTouch = soar?.planets?.[pKey]?.touch || [];
+  const sTouch = soar?.signs?.[sKey]?.touch || [];
+  const pool = []
+    .concat(pTouch || [])
+    .concat(sTouch || []);
+  const tokens = _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座|として|やすい/.test(v))
+  );
+  return _uniq(tokens.map((v) => _normalizeKw(v)).filter(Boolean));
+}
+
+function _pickKwFromPool(pool, seed, avoid = [], relaxAvoid = false) {
+  const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+  if (!arr.length) return "";
+  const picked = _pickMany(arr, seed, arr.length);
+  for (const w of picked) {
+    const s = String(w || "").trim();
+    if (!s) continue;
+    if (_isBannedKw(s)) continue;
+    if (!relaxAvoid && avoid.some((x) => _isSimilarKw(x, s))) continue;
+    return s;
+  }
+  return "";
+}
+
+function _formatKeywordsBlockPersonal(dict, item, seed = "", aiList = [], usedSet = null) {
+  const aKey = item?.natal_body_or_point || item?.natal_body || item?.a;
+  const bKey = item?.transit_body || item?.b;
+  const aSignKey = item?.natal_sign_key || item?.natal_sign || item?.a_sign_key;
+  const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key;
+  const aspectKey = _normAspectKey(item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+
+  const aPool = _uniq([
+    ..._kwPoolFromSignFlavor(dict, aSignKey, aKey),
+    ..._signKwPool(dict, aSignKey),
+    ..._kwPoolFromSoar(dict, aSignKey, aKey),
+  ]);
+  const bPool = _uniq([
+    ..._kwPoolFromSignFlavor(dict, bSignKey, bKey),
+    ..._signKwPool(dict, bSignKey),
+    ..._kwPoolFromSoar(dict, bSignKey, bKey),
+  ]);
+  const aspectPool = _kwPoolFromAspect(dict, aspectKey, seed);
+
+  const fused = _uniq([...aPool, ...bPool, ...aspectPool]);
+  const avoid = usedSet ? Array.from(usedSet) : [];
+  const picked = [];
+
+  const tone = _aspectToneCategory(aspectKey);
+  const boundaryPool = _uniq([
+    ..._kwBoundaryFromSignFlavor(dict, aSignKey, aKey),
+    ..._kwBoundaryFromSignFlavor(dict, bSignKey, bKey),
+  ]);
+
+  if ((tone === "tense" || tone === "adjust") && boundaryPool.length) {
+    const b1 = _pickKwFromPool(boundaryPool, `${seed}|boundary`, avoid, true);
+    if (b1) {
+      picked.push(b1);
+      avoid.push(b1);
+    }
+  }
+
+  const candidates = _pickMany(fused, `${seed}|fused`, fused.length);
+  for (const w of candidates) {
+    const s = String(w || "").trim();
+    if (!s) continue;
+    if (_isBannedKw(s)) continue;
+    if (avoid.some((x) => _isSimilarKw(x, s))) continue;
+    picked.push(s);
+    avoid.push(s);
+    if (picked.length >= 3) break;
+  }
+
+  if (picked.length < 3) {
+    for (const w of _KW_SAFE_POOL) {
+      const s = String(w || "").trim();
+      if (!s) continue;
+      if (avoid.some((x) => _isSimilarKw(x, s))) continue;
+      picked.push(s);
+      avoid.push(s);
+      if (picked.length >= 3) break;
+    }
+  }
+
+  const fallback = _uniq([...fused, ...(Array.isArray(aiList) ? aiList : [])]);
+  const block = _formatKeywordsBlock(picked.filter(Boolean), fallback, avoid, 3);
+  if (usedSet && block) {
+    const lines = block.split("\n");
+    const words = (lines[1] || "").split("/").map((s) => s.trim()).filter(Boolean);
+    words.forEach((w) => usedSet.add(w));
+  }
+  return block;
+}
+
+function _normalizePhrase(str, maxLen = 28) {
+  let t = String(str || "").trim();
+  if (!t) return "";
+  t = t.replace(/（.*?）/g, "").replace(/\(.*?\)/g, "");
+  t = t.split("。")[0];
+  t = t.replace(/やすい/g, "");
+  t = t.replace(/[、，,]/g, " ");
+  t = t.replace(/\s+/g, " ").trim();
+  if (t.length > maxLen) t = t.slice(0, maxLen);
+  return t;
+}
+
+function _normalizeProseLine(str, maxLen = 38) {
+  let t = String(str || "").trim();
+  if (!t) return "";
+  t = t.replace(/[，,]+/g, "、");
+  t = t.replace(/\s+/g, " ").trim();
+  if (t.length > maxLen) t = t.slice(0, maxLen);
+  return t;
+}
+
+function _stripSentenceEnd(str) {
+  return String(str || "").trim().replace(/[。\.]+$/g, "").trim();
+}
+
+function _normalizePiece(str, maxLen = 26) {
+  let t = String(str || "").trim();
+  if (!t) return "";
+  t = t.replace(/[、，,]+/g, "、");
+  t = t.replace(/[。\.]+/g, "。");
+  t = t.replace(/\s+/g, " ").trim();
+  t = _stripSentenceEnd(t);
+  if (t.length > maxLen) t = t.slice(0, maxLen);
+  return t;
+}
+
+function _shortRolePhrase(text, maxLen = 16) {
+  const tokens = _splitRoleTokens(text);
+  if (!tokens.length) return "";
+  const phrase = tokens.slice(0, 2).join("と");
+  return _shortenLabelText(phrase, maxLen);
+}
+
+const _STRUCTURE_BANNED = [
+  /残りやすい/g,
+  /処理/g,
+  /交差点で触れ/g,
+  /AとBが触れ/g,
+  /だから/g,
+  /なので/g,
+  /ため/g,
+  /場面で/g,
+  /の中で/g,
+  /中で/g,
+  /生まれる/g,
+  /手助け/g,
+  /観測/g,
+  /訪れる/g,
+  /浮かび上がる/g,
+  /広がる/g,
+  /進む/g,
+  /助ける/g,
+  /見せる/g,
+];
+
+function _isBannedStructure(line) {
+  const s = String(line || "");
+  return _STRUCTURE_BANNED.some((re) => re.test(s));
+}
+
+function _formatStructureLines(lines) {
+  const xs = Array.isArray(lines) ? lines.filter(Boolean) : [];
+  if (!xs.length) return "";
+  const head = `→ ${xs[0]}`;
+  const rest = xs.slice(1).join("\n");
+  return rest ? `${head}\n${rest}` : head;
+}
+
+function _splitSentences(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  return raw
+    .split(/[。\.]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => `${s}。`);
+}
+
+function _normalizeProseSentence(s, maxLen = 40) {
+  const t = _normalizeProseLine(s, maxLen);
+  if (!t) return "";
+  return /[。\.]$/.test(t) ? t : `${t}。`;
+}
+
+function _isOkProse(line) {
+  const s = String(line || "").trim();
+  if (!s) return false;
+  if (s.length < 8) return false;
+  if (/(太陽|月|水星|金星|火星|木星|土星|天王星|海王星|冥王星|ASC|MC|IC|DSC|アセンダント|ディセンダント|ミディアムコエリ|ノード|キロン|リリス)/.test(s)) return false;
+  if (/(牡羊座|牡牛座|双子座|蟹座|獅子座|乙女座|天秤座|蠍座|射手座|山羊座|水瓶座|魚座)/.test(s)) return false;
+  if (/(スクエア|トライン|セクスタイル|セミセクスタイル|セミスクエア|セスキスクエア|オポジション|インコンジャンクト|クインタイル|バイクインタイル|セプタイル|ノヴィル|デシル)/.test(s)) return false;
+  if (/配置/.test(s)) return false;
+  if (/現れやすい|表に出やすい/.test(s)) return false;
+  if (/影響/.test(s)) return false;
+  if (/として/.test(s)) return false;
+  if (/(試行錯誤|独自|更新|全体最適|意味づけ|状況)/.test(s)) return false;
+  if (_isBannedStructure(s)) return false;
+  if (/座/.test(s)) return false;
+  return true;
+}
+
+function _isOkPiece(line) {
+  const s = String(line || "").trim();
+  if (!s) return false;
+  if (s.length < 6) return false;
+  if (/(太陽|月|水星|金星|火星|木星|土星|天王星|海王星|冥王星|ASC|MC|IC|DSC|アセンダント|ディセンダント|ミディアムコエリ|ノード|キロン|リリス)/.test(s)) return false;
+  if (/(牡羊座|牡牛座|双子座|蟹座|獅子座|乙女座|天秤座|蠍座|射手座|山羊座|水瓶座|魚座)/.test(s)) return false;
+  if (/(スクエア|トライン|セクスタイル|セミセクスタイル|セミスクエア|セスキスクエア|オポジション|インコンジャンクト|クインタイル|バイクインタイル|セプタイル|ノヴィル|デシル)/.test(s)) return false;
+  if (/配置/.test(s)) return false;
+  if (/現れやすい|表に出やすい/.test(s)) return false;
+  if (/影響/.test(s)) return false;
+  if (/として/.test(s)) return false;
+  if (/(試行錯誤|独自|更新|全体最適|意味づけ|状況)/.test(s)) return false;
+  if (_isBannedStructure(s)) return false;
+  if (/座/.test(s)) return false;
+  return true;
+}
+
+function _pickSentence(pool, seed, avoid = []) {
+  const arr = (Array.isArray(pool) ? pool : []).filter(Boolean);
+  if (!arr.length) return "";
+  const shuffled = _pickMany(arr, seed, arr.length);
+  for (const s of shuffled) {
+    if (!s) continue;
+    if (avoid.some((a) => _isSimilarKw(a, s))) continue;
+    if (!_isOkProse(s)) continue;
+    return s;
+  }
+  return "";
+}
+
+function _buildPiecePool(list, minLen = 6, maxLen = 26) {
+  const raw = Array.isArray(list) ? list : [];
+  const out = [];
+  raw.forEach((v) => {
+    const s = String(v || "").trim();
+    if (!s) return;
+    const parts = s.includes("。") ? s.split(/[。\.]+/g) : [s];
+    parts.forEach((p) => {
+      const piece = _normalizePiece(p, maxLen);
+      if (!piece) return;
+      if (piece.length < minLen) return;
+      if (!_isOkPiece(piece)) return;
+      out.push(piece);
+    });
+  });
+  return _uniq(out);
+}
+
+function _signFlavorTokens(dict, signKey, planetKey) {
+  const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
+  const pool = []
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || [])
+    .concat(by?.fusion?.expression || [])
+    .concat(by?.core || [])
+    .concat(by?.role || [])
+    .concat(sign?.base?.keywords || []);
+  return _uniq(
+    pool
+      .flatMap((v) => _tokenizePhrase(v))
+      .map((v) => _labelNounize(_miniNormalize(v)))
+      .filter((v) => v && !_isBannedKw(v) && !/座|として|やすい/.test(v))
+  );
+}
+
+function _pickNounPhrase(tokens, seed) {
+  const arr = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
+  if (!arr.length) return "";
+  const picks = _uniq(_pickMany(arr, seed, 2));
+  if (!picks.length) return "";
+  return picks.length >= 2 ? `${picks[0]}と${picks[1]}` : picks[0];
+}
+
+function _pickSingleToken(tokens, seed) {
+  const arr = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
+  if (!arr.length) return "";
+  const picks = _uniq(_pickMany(arr, seed, 1));
+  return picks[0] || "";
+}
+
+function _meaningPiecesFromSignFlavor(dict, signKey, planetKey) {
+  const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
+  const pool = []
+    .concat(by?.core || [])
+    .concat(by?.role || [])
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || [])
+    .concat(by?.fusion?.expression || [])
+    .concat(sign?.base?.short || [])
+    .concat(sign?.base?.flavor || [])
+    .concat(sign?.base?.keywords || []);
+  return _buildPiecePool(pool, 6, 28);
+}
+
+function _meaningPiecesFromSoar(dict, signKey, planetKey) {
+  const soar = _getSoarStyle(dict);
+  const sKey = _lowerKey(signKey);
+  const pKey = _lowerKey(planetKey);
+  const pTouch = soar?.planets?.[pKey]?.touch || [];
+  const sTouch = soar?.signs?.[sKey]?.touch || [];
+  return _buildPiecePool([].concat(pTouch || []).concat(sTouch || []), 6, 28);
+}
+
+function _meaningPiecesFromAspect(dict, aspectKey) {
+  const info = _aspectInfo(dict, aspectKey);
+  const voice = dict?.ASPECTS_V2?.voice_templates?.[_normAspectKey(aspectKey)] || {};
+  const pool = []
+    .concat(info?.core || [])
+    .concat(info?.feel || [])
+    .concat(info?.relation || [])
+    .concat(info?.adverbs || [])
+    .concat(voice?.touch || [])
+    .concat(voice?.gap || [])
+    .concat(voice?.rest || []);
+  return _buildPiecePool(pool, 6, 28);
+}
+
+function _collectSignPack(dict, signKey, planetKey, aspectKey, orb) {
+  const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
+  const soar = _getSoarStyle(dict);
+  const fusion = by?.fusion || {};
+  const tone = _aspectToneCategory(aspectKey);
+  const tier = _orbTier(orb);
+  const aList = fusion.A || [];
+  const bList = fusion.B || [];
+
+  let tokensPool = [];
+  if (tone === "tense" || tone === "adjust") {
+    tokensPool = [].concat(aList, aList, bList);
+  } else if (tone === "smooth" || tone === "blend") {
+    tokensPool = [].concat(bList, bList, aList);
+  } else {
+    tokensPool = [].concat(aList, bList);
+  }
+
+  const tokens = _buildPiecePool(tokensPool, 5, 22);
+
+  const signMeta = dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)] || {};
+  const texturePool = []
+    .concat(signMeta?.texture || [])
+    .concat(soar?.signs?.[_lowerKey(signKey)]?.touch || []);
+  const texture = _buildPiecePool(texturePool, 5, 22);
+
+  let processPool = [];
+  if (tone === "tense" || tone === "adjust") {
+    processPool = processPool.concat(fusion.tension || []);
+  }
+  if (tone === "smooth" || tone === "blend") {
+    processPool = processPool.concat(fusion.clarity || []);
+  }
+  if (tone === "craft") {
+    processPool = processPool.concat(fusion.tendency || []);
+  }
+  if (tier === "tight") {
+    processPool = processPool.concat(fusion.tension || []);
+  } else if (tier === "wide" || tier === "loose") {
+    processPool = processPool.concat(fusion.clarity || []);
+  } else {
+    processPool = processPool.concat(fusion.tendency || []);
+  }
+  const process = _buildPiecePool(processPool, 6, 26);
+
+  return {
+    tokens: _uniq(tokens),
+    texture: _uniq(texture),
+    process: _uniq(process),
+  };
+}
+
+function _collectAspectPack(dict, aspectKey, orb) {
+  const info = _aspectInfo(dict, aspectKey);
+  const voice = dict?.ASPECTS_V2?.voice_templates?.[_normAspectKey(aspectKey)] || {};
+  const key = _normAspectKey(aspectKey);
+  const tone = _aspectToneCategory(key);
+  const tier = _orbTier(orb);
+  const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+  const stateAspect = sf?.states?.state_by_aspect?.[key] || {};
+  const stateTone = sf?.states?.state_by_tone?.[tone] || [];
+  const stateShort = sf?.states?.state_short_by_tone?.[tone] || [];
+  const touchPool = [].concat(stateAspect?.light || [], stateAspect?.mid || [], stateShort || []);
+  const gapPool = [].concat(stateTone || []);
+  const restPool = [].concat(stateAspect?.deep || [], stateShort || [], voice?.rest || []);
+
+  const touch = _buildPiecePool(touchPool, 5, 22);
+  const gap = _buildPiecePool(gapPool, 5, 22);
+  const rest = _buildPiecePool(restPool, 5, 22);
+  const tokens = _uniq([].concat(touch, gap, rest));
+  return {
+    tokens: _uniq(tokens),
+    touch: _uniq(touch),
+    gap: _uniq(gap),
+    rest: _uniq(rest),
+  };
+}
+
+function _samplePool(pool, seed, max = 4) {
+  const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+  if (!arr.length) return [];
+  return _pickMany(arr, seed, Math.min(max, arr.length));
+}
+
+function _clampNum(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function _orbTier(orb) {
+  const v = Number(orb);
+  if (!Number.isFinite(v)) return "mid";
+  if (v <= 0.6) return "tight";
+  if (v <= 1.4) return "mid";
+  if (v <= 2.4) return "wide";
+  return "loose";
+}
+
+function _samplingPlan(aspectKey, orb) {
+  const tone = _aspectToneCategory(aspectKey);
+  const tier = _orbTier(orb);
+  let p = {
+    aTok: 4, bTok: 4,
+    aTex: 2, bTex: 2,
+    aProc: 2, bProc: 2,
+    aspTok: 4,
+    touch: 1, gap: 1, rest: 1,
+  };
+
+  if (tier === "tight") {
+    p.aspTok += 2;
+    p.touch += 1;
+    p.gap += 1;
+    p.aTok -= 1;
+    p.bTok -= 1;
+  } else if (tier === "wide") {
+    p.aspTok -= 1;
+    p.rest += 1;
+    p.aTok += 1;
+    p.bTok += 1;
+    p.aTex += 1;
+    p.bTex += 1;
+    p.gap -= 1;
+  } else if (tier === "loose") {
+    p.aspTok -= 2;
+    p.rest += 1;
+    p.aTok += 1;
+    p.bTok += 1;
+    p.gap -= 1;
+  }
+
+  if (tone === "tense" || tone === "adjust") {
+    p.gap += 1;
+    p.rest -= 1;
+  } else if (tone === "smooth" || tone === "blend") {
+    p.rest += 1;
+    p.gap -= 1;
+  } else if (tone === "craft") {
+    p.touch += 1;
+  }
+
+  p.aTok = _clampNum(p.aTok, 2, 6);
+  p.bTok = _clampNum(p.bTok, 2, 6);
+  p.aTex = _clampNum(p.aTex, 1, 3);
+  p.bTex = _clampNum(p.bTex, 1, 3);
+  p.aProc = _clampNum(p.aProc, 1, 3);
+  p.bProc = _clampNum(p.bProc, 1, 3);
+  p.aspTok = _clampNum(p.aspTok, 2, 6);
+  p.touch = _clampNum(p.touch, 0, 2);
+  p.gap = _clampNum(p.gap, 0, 2);
+  p.rest = _clampNum(p.rest, 0, 2);
+
+  return p;
+}
+
+function _phraseGroups(phrase) {
+  const groups = new Set();
+  const tokens = _tokenizePhrase(phrase);
+  for (const tok of tokens) {
+    const g = _kwGroup(tok);
+    if (g) groups.add(g);
+  }
+  return Array.from(groups);
+}
+
+function _hasGroupOverlap(groups, targetGroups) {
+  if (!targetGroups || !targetGroups.length) return true;
+  return groups.some((g) => targetGroups.includes(g));
+}
+
+function _pickPiece(pool, seed, requiredGroups = [], avoid = []) {
+  const arr = (Array.isArray(pool) ? pool : []).filter(Boolean);
+  if (!arr.length) return "";
+  const shuffled = _pickMany(arr, seed, arr.length);
+  for (const s of shuffled) {
+    if (!s) continue;
+    if (avoid.some((a) => _isSimilarKw(a, s))) continue;
+    if (!_isOkPiece(s)) continue;
+    const groups = _phraseGroups(s);
+    if (!_hasGroupOverlap(groups, requiredGroups)) continue;
+    return s;
+  }
+  // fallback without group constraint
+  for (const s of shuffled) {
+    if (!s) continue;
+    if (avoid.some((a) => _isSimilarKw(a, s))) continue;
+    if (!_isOkPiece(s)) continue;
+    return s;
+  }
+  return "";
+}
+
+function _composeSentence(pieceA, pieceB, maxLen = 42) {
+  const a = _normalizePiece(pieceA, Math.min(26, maxLen));
+  const b = _normalizePiece(pieceB, Math.min(26, maxLen));
+  let core = "";
+  if (a && b && !_isSimilarKw(a, b)) {
+    core = `${a}、${b}`;
+  } else {
+    core = a || b || "";
+  }
+  core = core.trim();
+  if (!core) return "";
+  const line = _normalizeProseLine(core, maxLen);
+  return _normalizeProseSentence(line, maxLen);
+}
+
+function _nounizeWord(word) {
+  const w = String(word || "").trim();
+  if (!w) return "";
+  const map = {
+    "突然": "突然性",
+    "静か": "静けさ",
+    "硬い": "硬さ",
+    "柔らかい": "柔らかさ",
+    "鋭い": "鋭さ",
+    "深い": "深さ",
+    "薄い": "薄さ",
+    "重い": "重さ",
+    "軽い": "軽さ",
+  };
+  if (map[w]) return map[w];
+  if (w.endsWith("しい")) return `${w.slice(0, -2)}しさ`;
+  if (w.endsWith("かな")) return `${w.slice(0, -1)}さ`;
+  if (w.endsWith("い")) return `${w.slice(0, -1)}さ`;
+  if (w.endsWith("的")) return `${w}性`;
+  return w;
+}
+
+function _nounizePhrase(phrase) {
+  let t = _normalizePhrase(phrase);
+  if (!t) return "";
+  t = t.replace(/がある$/g, "");
+  t = t.replace(/している$/g, "");
+  t = t.replace(/しやすい$/g, "");
+  t = t.replace(/やすい$/g, "");
+  t = t.replace(/触れる$/g, "");
+  t = t.replace(/触れ$/g, "");
+  t = t.replace(/が(続く|出る|残る|立つ|揺れる|にじむ|増える|伸びる|引っかかる|戻る|返る|刺さる|止まる)$/g, "");
+  t = t.replace(/を(押す|引く|返す|進める|動かす)$/g, "");
+  const trimmed = t.replace(
+    /(として|の中で|のあいだで|の間で|の手前で|の境目で|の境界で|の外で|の内で|で|に|へ|を|から|まで)$/g,
+    ""
+  );
+  if (trimmed) t = trimmed;
+  const token = t.split(/[ /]/)[0];
+  return _nounizeWord(token || t);
+}
+
+function _ensureEnd(line, endChar) {
+  const t = String(line || "").trim();
+  if (!t) return "";
+  if (/[。、]$/.test(t)) return t;
+  return `${t}${endChar || ""}`;
+}
+
+function _clampStructureLine(line, maxLen = 28) {
+  let t = String(line || "").trim();
+  if (!t) return "";
+  if (t.length <= maxLen) return t;
+  t = t.replace(/（[^）]+）/g, "");
+  if (t.length <= maxLen) return t;
+  t = t.replace(/とき$/g, "");
+  if (t.length <= maxLen) return t;
+  return t.slice(0, maxLen);
+}
+
+function _tokenizePhrase(text) {
+  return String(text || "")
+    .replace(/[（）()]/g, "")
+    .split(/[・/、,\s]+/g)
+    .map((s) => _normalizePhrase(s))
+    .filter(Boolean)
+    .filter((s) => !/座|的/.test(s));
+}
+
+function _scoreTag(tag, tokens, hints = []) {
+  const t = _normalizeKwToken(tag);
+  let score = 0;
+  tokens.forEach((tok) => {
+    const nt = _normalizeKwToken(tok);
+    if (!nt || !t) return;
+    if (nt === t) score += 3;
+    else if (nt.includes(t) || t.includes(nt)) score += 2;
+  });
+  return score;
+}
+
+function _pickByScore(cands, tokens, seed) {
+  const scored = cands.map((c) => ({ c, s: _scoreTag(c, tokens) }));
+  let best = scored.reduce((m, v) => (v.s > m.s ? v : m), { c: "", s: -1 });
+  const bests = scored.filter((v) => v.s === best.s).map((v) => v.c);
+  if (!bests.length) return "";
+  const idx = hash32(`${seed}|${best.s}`) % bests.length;
+  return bests[idx];
+}
+
+function _verbizeFromPhrase(phrase) {
+  let t = _normalizePhrase(phrase);
+  if (!t) return "";
+  t = t.replace(/やすい$/g, "");
+  t = t.replace(/にくい$/g, "");
+  const m = t.match(/(?:.*?(?:が|を|に|へ|と|で|として|から))?([^\s]+)$/);
+  let tail = m ? m[1] : t;
+  if (!tail) return "";
+  if (tail.endsWith("り") && tail.length > 1) {
+    tail = `${tail.slice(0, -1)}る`;
+  }
+  if (/(する|なる|れる|られる|える|る|う|く|ぐ|む|ぶ|ぬ|つ|す)$/.test(tail)) return tail;
+  return "";
+}
+
+function _extractVerbCandidates(phrases) {
+  const list = Array.isArray(phrases) ? phrases : [phrases];
+  return _uniq(list.map((v) => _verbizeFromPhrase(v)).filter(Boolean));
+}
+
+const _MINI_BANNED_VERBS = new Set(["出る", "効く", "止まる", "続く", "残る"]);
+
+function _miniNormalize(str, maxLen = 24) {
+  let t = _normalizePhrase(str, maxLen);
+  if (!t) return "";
+  t = t.replace(/として触れ/g, "");
+  t = t.replace(/として/g, "");
+  t = t.replace(/触れ$/g, "");
+  t = t.replace(/触れる$/g, "");
+  t = t.replace(/しやすい/g, "");
+  t = t.replace(/やすい/g, "");
+  return t.trim();
+}
+
+function _isAdverbLike(phrase) {
+  return /(で|に|へ|として|ながら|まま|より|まで)$/.test(String(phrase || ""));
+}
+
+function _filterMiniTokens(list, roleTokens = []) {
+  const out = [];
+  for (const raw of list) {
+    const t = String(raw || "").trim();
+    if (!t) continue;
+    if (_isBannedStructure(t)) continue;
+    if (_isBannedKw(t)) continue;
+    if (roleTokens.some((r) => r && _isSimilarKw(r, t))) continue;
+    if (/座/.test(t)) continue;
+    out.push(t);
+  }
+  return _uniq(out);
+}
+
+function _pickDistinctPhrase(pool, seed, avoid = []) {
+  const arr = (Array.isArray(pool) ? pool : []).filter(Boolean);
+  if (!arr.length) return "";
+  const picked = _pickMany(arr, seed, arr.length);
+  for (const p of picked) {
+    if (avoid.some((a) => _isSimilarKw(a, p))) continue;
+    return p;
+  }
+  return "";
+}
+
+function buildStructureLines(item, mode = "", dict) {
+  const s = item?.structure || {};
+  const seedExtra = item?.seed || item?._seed || "";
+  const seed = `${seedExtra}|${item?.a || ""}|${item?.b || ""}|${item?.aspect_ja_deg || ""}|${item?.a_sign || ""}|${item?.b_sign || ""}|${mode}`;
+  const d = dict || require("../../dict");
+
+  const aKey = item?.a_key || item?.a || item?.natal_body_or_point || item?.natal_body || "";
+  const bKey = item?.b_key || item?.b || item?.transit_body || "";
+  const aSignKey = item?.a_sign_key || item?.a_sign || "";
+  const bSignKey = item?.b_sign_key || item?.b_sign || "";
+
+  const point = d?.POINTS_V1?.points || {};
+  const soar = _getSoarStyle(d);
+  const aSignMeta = _signMeta(d, aSignKey);
+  const bSignMeta = _signMeta(d, bSignKey);
+  const aPlanetMeta = _planetMeta(d, aKey);
+  const bPlanetMeta = _planetMeta(d, bKey);
+
+  const aspectInfo = _aspectInfo(d, item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+  const voice = d?.ASPECTS_V2?.voice_templates?.[_normAspectKey(item?.aspect || item?.type || item?.aspectType)] || {};
+  const aspectPieces = _buildPiecePool(
+    []
+      .concat(voice?.touch || [])
+      .concat(voice?.gap || [])
+      .concat(aspectInfo?.relation || [])
+      .concat(aspectInfo?.feel || [])
+      .concat(aspectInfo?.adverbs || []),
+    8,
+    28
+  );
+  const restPieces = _buildPiecePool(
+    []
+      .concat(voice?.rest || [])
+      .concat(aspectInfo?.feel || [])
+      .concat(aSignMeta?.texture || [])
+      .concat(bSignMeta?.texture || []),
+    8,
+    26
+  );
+
+  const aTokens = _signFlavorTokens(d, aSignKey, aKey);
+  const bTokens = _signFlavorTokens(d, bSignKey, bKey);
+
+  const aFallbackRole = _roleShortForStructure(_getRole(d, aSignKey, aKey), _planetMeta(d, aKey)?.core || "");
+  const bFallbackRole = _roleShortForStructure(_getRole(d, bSignKey, bKey), _planetMeta(d, bKey)?.core || "");
+  const aPhraseRaw =
+    _pickSingleToken(aTokens, `${seed}|a1`) ||
+    _pickSingleToken(aTokens, `${seed}|a2`) ||
+    _stripSentenceEnd(aFallbackRole);
+  const bPhraseRaw =
+    _pickSingleToken(bTokens, `${seed}|b1`) ||
+    _pickSingleToken(bTokens, `${seed}|b2`) ||
+    _stripSentenceEnd(bFallbackRole);
+  const aPhrase = aPhraseRaw || "感触";
+  const bPhrase = bPhraseRaw || "方向";
+
+  const aspRaw = _pickPiece(aspectPieces, `${seed}|asp`, _uniq([..._phraseGroups(aPhrase), ..._phraseGroups(bPhrase)]), [aPhrase, bPhrase]);
+  const aspClause = _normalizePiece(aspRaw, 28);
+  const aspNoun = _nounizePhrase(aspRaw) || aspClause;
+
+  const betweenPool =
+    d?.SIGN_FLAVOR_V1?.grammar?.connectors?.between ||
+    ["のあいだで", "の境目で", "の間で", "の交点で"];
+  const between = _pickOne(betweenPool, `${seed}|between`) || "のあいだで";
+
+  const openVerbs = ["先に立つ", "手前に浮く", "輪郭が立つ", "前に出る"];
+  const swayVerbs = ["揺れる", "ずれる", "触れる", "引っかかる"];
+  const openVerb = _pickOne(openVerbs, `${seed}|open`) || "先に立つ";
+  const swayVerb = _pickOne(swayVerbs, `${seed}|sway`) || "揺れる";
+
+  const aspectPartRaw = _stripSentenceEnd(aspClause || aspNoun || "");
+  const aspectPart = aspectPartRaw || "間合いが動く";
+  const sentence1 = _normalizeProseSentence(
+    `${aPhrase}が${openVerb}、${bPhrase}が${swayVerb}、${aspectPart}`,
+    56
+  );
+
+  const lines = [sentence1].filter(Boolean);
+  return lines.slice(0, 1);
 }
 
 function _pickDistinct(pool, seed, want = 1, avoid = []) {
@@ -1259,14 +2908,16 @@ async function renderLineAI(story, deps = {}) {
     getSkyLayers,
     buildNowModernPlanetCounts,
     buildPersonalTPCounts,
-    buildDistLinesFromcounts,
     RENDER_COPY,
   } = deps || {};
 
   const dict = deps?.dict || require("../../dict");
   const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
-  const tpKeyFn = typeof deps?.tpKey === "function" ? deps.tpKey : (x) => String(x);
+  const tpKeyFn = typeof deps?.tpKey === "function" ? deps.tpKey : defaultTpKey;
   const layers = typeof getSkyLayers === "function" ? getSkyLayers(story) : null;
+  const personalPool = Array.isArray(story?.personal?.touch_points_all)
+    ? story.personal.touch_points_all
+    : [];
 
   const publicTop = Array.isArray(story?.public?.sky_top)
     ? story.public.sky_top.slice(0, 5)
@@ -1274,151 +2925,226 @@ async function renderLineAI(story, deps = {}) {
       ? story.public.sky_all.slice(0, 5)
       : [];
 
-  const personalPick = _pickPersonalBlocks(layers || {}, tpKeyFn);
+  const personalPick = _pickPersonalBlocks(layers || {}, tpKeyFn, story, dict, personalPool);
 
-  const aspectLabel = (item) => {
-    const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
-    return info.label_ja || "";
-  };
-  const aspectDeg = (item) => {
-    const info = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect);
-    return _fmtDeg(info.deg);
-  };
+  const publicInput = publicTop
+    .map((it) => _publicAspectPayload(dict, it))
+    .filter(Boolean);
 
-  const publicInput = publicTop.map((it) => ({
-    a: _planetJa(dict, it?.a),
-    b: _planetJa(dict, it?.b),
-    a_sign: _signJa(dict, it?.aS || it?.a_sign_key),
-    b_sign: _signJa(dict, it?.bS || it?.b_sign_key),
-    aspect: aspectLabel(it),
-    degree: aspectDeg(it),
-    orb: Number(it?.orb_deg ?? it?.orb ?? 0).toFixed(1),
-    role_a: _getRole(dict, it?.aS || it?.a_sign_key, it?.a),
-    role_b: _getRole(dict, it?.bS || it?.b_sign_key, it?.b),
-  }));
-
-  const personalInput = {
-    inner: personalPick.inner
-      ? {
-          a: _planetJa(dict, personalPick.inner?.a),
-          b: _planetJa(dict, personalPick.inner?.b),
-          a_sign: _signJa(dict, personalPick.inner?.aS || personalPick.inner?.a_sign_key),
-          b_sign: _signJa(dict, personalPick.inner?.bS || personalPick.inner?.b_sign_key),
-          aspect: aspectLabel(personalPick.inner),
-          degree: aspectDeg(personalPick.inner),
-          orb: Number(personalPick.inner?.orb_deg ?? personalPick.inner?.orb ?? 0).toFixed(1),
-          role_a: _getRole(dict, personalPick.inner?.aS || personalPick.inner?.a_sign_key, personalPick.inner?.a),
-          role_b: _getRole(dict, personalPick.inner?.bS || personalPick.inner?.b_sign_key, personalPick.inner?.b),
-        }
-      : null,
-    outer: personalPick.outer
-      ? {
-          a: _planetJa(dict, personalPick.outer?.a),
-          b: _planetJa(dict, personalPick.outer?.b),
-          a_sign: _signJa(dict, personalPick.outer?.aS || personalPick.outer?.a_sign_key),
-          b_sign: _signJa(dict, personalPick.outer?.bS || personalPick.outer?.b_sign_key),
-          aspect: aspectLabel(personalPick.outer),
-          degree: aspectDeg(personalPick.outer),
-          orb: Number(personalPick.outer?.orb_deg ?? personalPick.outer?.orb ?? 0).toFixed(1),
-          role_a: _getRole(dict, personalPick.outer?.aS || personalPick.outer?.a_sign_key, personalPick.outer?.a),
-          role_b: _getRole(dict, personalPick.outer?.bS || personalPick.outer?.b_sign_key, personalPick.outer?.b),
-        }
-      : null,
-    flow: personalPick.flow
-      ? {
-          a: _planetJa(dict, personalPick.flow?.a),
-          b: _planetJa(dict, personalPick.flow?.b),
-          a_sign: _signJa(dict, personalPick.flow?.aS || personalPick.flow?.a_sign_key),
-          b_sign: _signJa(dict, personalPick.flow?.bS || personalPick.flow?.b_sign_key),
-          aspect: aspectLabel(personalPick.flow),
-          degree: aspectDeg(personalPick.flow),
-          orb: Number(personalPick.flow?.orb_deg ?? personalPick.flow?.orb ?? 0).toFixed(1),
-          role_a: _getRole(dict, personalPick.flow?.aS || personalPick.flow?.a_sign_key, personalPick.flow?.a),
-          role_b: _getRole(dict, personalPick.flow?.bS || personalPick.flow?.b_sign_key, personalPick.flow?.b),
-          is_rare: !!personalPick.flow?._is_rare,
-        }
-      : null,
+  const pickCandidates = (list, limit = 6) =>
+    (Array.isArray(list) ? list.slice(0, limit) : []);
+  const orderCandidates = (list, selected) => {
+    const out = [];
+    if (selected) out.push(selected);
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      if (selected && tpKeyFn(item) === tpKeyFn(selected)) return;
+      out.push(item);
+    });
+    return out;
   };
 
-  const distCounts =
+  const innerCandidates = pickCandidates(orderCandidates(personalPick.innerCandidates, personalPick.inner))
+    .map((it) => _personalAspectPayload(dict, it))
+    .filter(Boolean);
+  const outerCandidates = pickCandidates(orderCandidates(personalPick.outerCandidates, personalPick.outer))
+    .map((it) => _personalAspectPayload(dict, it))
+    .filter(Boolean);
+  const rareCandidates = pickCandidates(orderCandidates(personalPick.rareCandidates, personalPick.rare))
+    .map((it) => _personalAspectPayload(dict, it))
+    .filter(Boolean);
+
+  const distCounts = typeof buildNowModernPlanetCounts === "function"
+    ? buildNowModernPlanetCounts(story)
+    : null;
+  const skyLayerHints = _buildLayerHints(distCounts, dict);
+
+  const personalCounts =
     layers && typeof buildPersonalTPCounts === "function"
       ? buildPersonalTPCounts(
-          [personalPick.inner, personalPick.outer, personalPick.flow].filter(Boolean)
+          [
+            personalPick.inner,
+            personalPick.outer,
+            personalPick.rare ? personalPick.rare : personalPick.flow,
+          ].filter(Boolean)
         )
-      : typeof buildNowModernPlanetCounts === "function"
-        ? buildNowModernPlanetCounts(story)
-        : null;
-
-  const distLines =
-    typeof buildDistLinesFromcounts === "function"
-      ? buildDistLinesFromcounts(distCounts, { forX: false })
-      : "";
-
-  const inputPayload = {
-    date: dateLabel,
-    public: publicInput,
-    personal: personalInput,
-    dist: distLines,
-    meta: {
-      moon: _signJa(dict, story?.public?.moon_sign),
-      element_modality: story?.public?.element_modality || "",
-    },
-  };
+      : null;
+  const personalLayerHints = _buildLayerHints(personalCounts, dict);
 
   const apiKey = process.env.OPENAI_API_KEY || "";
   const model = process.env.OPENAI_MODEL || "gpt-4o";
   const baseUrl = process.env.OPENAI_BASE_URL || "";
 
-  const raw = await createChatCompletion({
-    apiKey,
-    baseUrl,
-    model,
-    temperature: 0.5,
-    maxTokens: 1200,
-    messages: [
-      { role: "system", content: LINE_AI_SYSTEM_PROMPT },
-      { role: "user", content: `${LINE_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
-    ],
-  });
-
-  const jsonText = _extractJsonBlock(raw);
-  const parsed = _safeJsonParse(jsonText || raw);
-  if (!parsed || typeof parsed !== "object") throw new Error("LINE AI: invalid JSON");
-
-  const aiPublic = Array.isArray(parsed.public) ? parsed.public : [];
-  const aiPersonal = parsed.personal || {};
-  const aiSkyLayer = parsed.sky_layer || {};
-  const aiPersonalLayer = parsed.personal_layer || {};
-
   const SEP = RENDER_COPY?.LINE_SEP || "────────────────";
   const parts = [];
+  const hasPersonal = personalPool.length > 0;
 
-  // ---------- public (top 5)
-  if (publicTop.length) {
+  let aiPublic = [];
+  let aiPersonal = {};
+  let aiSkyLayer = {};
+  let aiPersonalLayer = {};
+
+  if (!hasPersonal) {
+    const inputPayload = {
+      date: dateLabel,
+      top5: publicInput,
+      sky_layer_hints: skyLayerHints,
+      inner_candidate_aspects: innerCandidates,
+      outer_candidate_aspects: outerCandidates,
+      rare_candidate_aspects: rareCandidates,
+      layer_hints: personalLayerHints,
+      switch_mode: personalPick.mode || "",
+    };
+
+    const raw = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      temperature: 0.5,
+      maxTokens: 1200,
+      messages: [
+        { role: "system", content: LINE_AI_SYSTEM_PROMPT },
+        { role: "user", content: `${LINE_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
+      ],
+    });
+
+    const jsonText = _extractJsonBlock(raw);
+    const parsed = _safeJsonParse(jsonText || raw);
+    if (!parsed || typeof parsed !== "object") throw new Error("LINE AI: invalid JSON");
+
+    aiPublic = Array.isArray(parsed.public) ? parsed.public : [];
+    aiPersonal = parsed.personal || {};
+    aiSkyLayer = parsed.sky_layer || {};
+    aiPersonalLayer = parsed.personal_layer || {};
+  } else {
+    const banned = [
+      "配置",
+      "現れやすい",
+      "表に出やすい",
+      "影響",
+      "によって",
+      "角度",
+      "アスペクト",
+      "として",
+      "しやすい",
+      "試行錯誤",
+      "独自",
+      "更新",
+      "全体最適",
+      "意味づけ",
+      "状況",
+      "場面で",
+      "の中で",
+      "中で",
+      "生まれる",
+      "手助け",
+      "観測",
+      "訪れる",
+      "浮かび上がる",
+      "広がる",
+      "進む",
+      "助ける",
+      "見せる",
+      "水脈",
+      "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
+      "ASC","MC","IC","DSC","アセンダント","ディセンダント","ミディアムコエリ","ノード","キロン","リリス",
+      "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
+      "スクエア","トライン","セクスタイル","セミセクスタイル","セミスクエア","セスキスクエア",
+      "オポジション","インコンジャンクト","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
+    ];
+
+    const buildInput = (slot, item) => {
+      if (!item) return null;
+      const aKey = item?.natal_body_or_point || item?.natal_body || item?.a;
+      const bKey = item?.transit_body || item?.b;
+      const aSignKey = item?.natal_sign_key || item?.natal_sign || item?.a_sign_key;
+      const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key;
+      const aspectKey = _normAspectKey(item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
+      const orbDeg = Number(item?.orb_deg ?? item?.orb ?? 0);
+      const aPack = _collectSignPack(dict, aSignKey, aKey, aspectKey, orbDeg);
+      const bPack = _collectSignPack(dict, bSignKey, bKey, aspectKey, orbDeg);
+      const aspectPack = _collectAspectPack(dict, aspectKey, orbDeg);
+      const seedBase = `${dateLabel}|${slot}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`;
+      const plan = _samplingPlan(aspectKey, orbDeg);
+      return {
+        slot,
+        A: {
+          label: "A",
+          tokens: _samplePool(aPack.tokens, `${seedBase}|a|tok`, plan.aTok),
+          texture: _samplePool(aPack.texture, `${seedBase}|a|tex`, plan.aTex),
+          process: _samplePool(aPack.process, `${seedBase}|a|proc`, plan.aProc),
+        },
+        B: {
+          label: "B",
+          tokens: _samplePool(bPack.tokens, `${seedBase}|b|tok`, plan.bTok),
+          texture: _samplePool(bPack.texture, `${seedBase}|b|tex`, plan.bTex),
+          process: _samplePool(bPack.process, `${seedBase}|b|proc`, plan.bProc),
+        },
+        aspect: {
+          label: "relation",
+          tokens: _samplePool(aspectPack.tokens, `${seedBase}|asp|tok`, plan.aspTok),
+          touch: _samplePool(aspectPack.touch, `${seedBase}|asp|touch`, plan.touch),
+          gap: _samplePool(aspectPack.gap, `${seedBase}|asp|gap`, plan.gap),
+          rest: _samplePool(aspectPack.rest, `${seedBase}|asp|rest`, plan.rest),
+        },
+        banned,
+        seed: `${dateLabel}|personal|${slot}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`,
+      };
+    };
+
+    const generateProse = async (input) => {
+      if (!input) return "";
+      try {
+        const raw = await createChatCompletion({
+          apiKey,
+          baseUrl,
+          model,
+          temperature: 0.4,
+          maxTokens: 220,
+          messages: [
+            { role: "system", content: LINE_AI_SYSTEM_PROMPT_PERSONAL },
+            { role: "user", content: `${LINE_AI_USER_GUIDE_PERSONAL}\n\nINPUT:\n${JSON.stringify(input)}` },
+          ],
+        });
+        const jsonText = _extractJsonBlock(raw);
+        const parsed = _safeJsonParse(jsonText || raw);
+        if (parsed && typeof parsed === "object" && typeof parsed.prose === "string") {
+          return _limitProseSentences(parsed.prose || "", 2, 111);
+        }
+        return _limitProseSentences(raw || "", 2, 111);
+      } catch (_) {
+        return "";
+      }
+    };
+
+    aiPersonal = {
+      inner: { prose: await generateProse(buildInput("inner", personalPick.inner)) },
+      outer: { prose: await generateProse(buildInput("outer", personalPick.outer)) },
+      third: {
+        prose: await generateProse(buildInput("third", personalPick.rare || personalPick.flow)),
+      },
+    };
+  }
+
+  // ---------- public (top 5) — only when personal is not available
+  if (!hasPersonal && publicTop.length) {
     parts.push(`🌌 今日のソラ｜そら｜${dateLabel}`);
-    parts.push("");
     parts.push("【今日のソラの配置｜上位5共鳴（orb≤6°）】");
-    parts.push("");
     parts.push(SEP);
     for (let i = 0; i < publicTop.length; i++) {
       const item = publicTop[i];
       const ai = aiPublic[i] || {};
-      const fmtSky =
-        resolveFormatters(deps).fmtPublicSkyLine || resolveFormatters(deps).fmtPublicSkyBlock;
-      const header = typeof fmtSky === "function"
-        ? fmtSky(story, item, `${RENDER_COPY?.CIRCLES?.[i] || ["①", "②", "③", "④", "⑤"][i]} `, deps)
-        : "";
-      const roles = `【${_getRole(dict, item?.aS || item?.a_sign_key, item?.a)} × ${_getRole(
+      const header = _formatPublicAspectLine(
         dict,
-        item?.bS || item?.b_sign_key,
-        item?.b
-      )}】`;
+        item,
+        `${RENDER_COPY?.CIRCLES?.[i] || ["①", "②", "③", "④", "⑤"][i]} `
+      );
+      const roles = _roleLinePublic(dict, item);
       const kwFallback = _fallbackKwPublic(dict, item, `${dateLabel}|public|${i}`);
       parts.push(
         [
           header,
           roles,
-          ai.s1 ? `→ ${ai.s1}` : "",
+          _formatStructureLine(ai.s1, ai.s2),
           _formatKeywordsLine(ai.keywords, kwFallback),
         ]
           .filter(Boolean)
@@ -1426,90 +3152,129 @@ async function renderLineAI(story, deps = {}) {
       );
       if (i < publicTop.length - 1) parts.push(SEP);
     }
+    parts.push(SEP);
 
     const moonLine = story?.public?.moon_sign
-      ? `🌙月：${_signJa(dict, story.public.moon_sign)}`
+      ? `🌙 月：${_signJa(dict, story.public.moon_sign)}`
       : "";
-    if (moonLine) parts.push("", moonLine);
+    if (moonLine) parts.push(moonLine);
 
-    if (distLines) parts.push("", distLines);
+    const distLines = _formatDistLines(distCounts);
+    if (distLines.length) parts.push(...distLines);
 
     if (aiSkyLayer?.line1 || aiSkyLayer?.line2) {
-      parts.push("");
-      parts.push(`【空層】${story?.public?.element_modality?.label || story?.public?.element_modality || ""}`.trim());
+      const fallbackDom = _fallbackDomLabel(story);
+      const domElement =
+        skyLayerHints?.dominant_element?.label_ja ||
+        fallbackDom.element ||
+        "";
+      const domModality =
+        skyLayerHints?.dominant_modality?.label_ja ||
+        fallbackDom.modality ||
+        "";
+      if (domElement || domModality) {
+        parts.push(`【空層】${domElement}${domElement && domModality ? " × " : ""}${domModality}`.trim());
+      } else {
+        parts.push("【空層】");
+      }
       if (aiSkyLayer.line1) parts.push(aiSkyLayer.line1);
       if (aiSkyLayer.line2) parts.push(aiSkyLayer.line2);
     }
 
-    parts.push("");
-    parts.push(RENDER_COPY?.FOOTER_LINE || "解釈は、あなたのもの。");
-    parts.push(RENDER_COPY?.SOAR_END || "星は語る。決めるのは、人。");
-    parts.push(RENDER_COPY?.SOAR_BY || "そらとして、眺めてみてね。🌌");
+    parts.push("解釈は、あなたのもの。");
+    parts.push("星は語る。決めるのは、人。");
+    parts.push("そらとして、眺めてみてね。🌌");
   }
 
   // ---------- personal
-  if (personalInput.inner || personalInput.outer || personalInput.flow) {
-    parts.push("");
+  if (hasPersonal) {
     parts.push(`🌌 今日のソラのこえ。｜${dateLabel}`);
     parts.push("");
     parts.push("【あなたの星 × きょうのそら】");
     parts.push("");
     parts.push(SEP);
+    parts.push("");
 
-    let personalIndex = 1;
-    const block = (label, emoji, item, ai) => {
+    const aiInner = aiPersonal?.inner || {};
+    const aiOuter = aiPersonal?.outer || {};
+    const aiThird = aiPersonal?.third || {};
+    const usedKw = new Set();
+
+    const block = (label, index, item, ai, mode = "") => {
       if (!item) return;
-      parts.push(`${personalIndex} ${emoji} ${label}`);
-      const fmtTP =
-        resolveFormatters(deps).fmtPersonalTPLine || resolveFormatters(deps).fmtPersonalTPBlock;
-      const header = typeof fmtTP === "function" ? fmtTP(story, item, "", deps) : "";
-      const roles = `【${_getRole(dict, item?.aS || item?.a_sign_key, item?.a)} × ${_getRole(
+      const payload = _personalAspectPayload(dict, item);
+      if (!payload) return;
+      payload._seed = dateLabel;
+      const seedLabel = `${dateLabel}|${mode}|${item?.natal_body_or_point || item?.natal_body || item?.a || ""}|${item?.transit_body || item?.b || ""}|${item?.aspect || item?.type || item?.aspectType || ""}|${item?.natal_sign_key || item?.natal_sign || item?.a_sign_key || ""}|${item?.transit_sign_key || item?.transit_sign || item?.b_sign_key || ""}`;
+      const roles = _roleLinePersonalDynamic(dict, item, seedLabel);
+      const proseText = ai?.prose || "";
+      const structure = proseText
+        ? _formatStructureParagraph(proseText)
+        : _formatStructureLines(buildStructureLines(payload, mode, dict));
+      const keywordBlock = _formatKeywordsBlockPersonal(
         dict,
-        item?.bS || item?.b_sign_key,
-        item?.b
-      )}】`;
-      const kwFallback = _fallbackKwPersonal(dict, item, `${dateLabel}|personal|${personalIndex}`);
-      parts.push(
-        [
-          header,
-          roles,
-          ai?.s1 ? `→ ${ai.s1}` : "",
-          ai?.s2 ? `→ ${ai.s2}` : "",
-          _formatKeywordsLine(ai?.keywords, kwFallback),
-        ]
-          .filter(Boolean)
-          .join("\n")
+        item,
+        `${dateLabel}|personal|${index}`,
+        [],
+        usedKw
       );
-      parts.push(SEP);
-      personalIndex += 1;
+      const blockLines = [
+        label,
+        _formatPersonalAspectLineFromPayload(payload, `${index} `),
+        roles || null,
+        "",
+        structure,
+        "",
+        keywordBlock,
+      ].filter((v) => v !== null);
+      parts.push(...blockLines);
     };
 
-    block("🌗 内側の反応点", "", personalPick.inner, aiPersonal.inner);
-    block("☀️ 外に出やすい反応", "", personalPick.outer, aiPersonal.outer);
+    block("🌗 内側の反応点", "①", personalPick.inner, aiInner, "inner");
+    parts.push("");
+    parts.push(SEP);
+    parts.push("");
+    block("☀️ 外に出やすい反応", "②", personalPick.outer, aiOuter, "outer");
+    parts.push("");
+    parts.push(SEP);
+    parts.push("");
 
-    let flowItem = personalPick.flow;
-    if (!flowItem) {
-      const pool = [personalPick.inner, personalPick.outer].filter(Boolean);
-      if (pool.length) {
-        // fallback: pick the next best (orb) as flow to keep 3 blocks
-        flowItem = pool.sort((a, b) => _orb(a) - _orb(b))[0];
-      }
-    }
-    if (flowItem) {
-      block("🌿 自然に流れる接点", "", flowItem, aiPersonal.flow);
-    }
-
-    const pLayer1 = aiPersonalLayer?.line1 || aiSkyLayer?.line1 || "";
-    const pLayer2 = aiPersonalLayer?.line2 || aiSkyLayer?.line2 || "";
-    if (pLayer1 || pLayer2) {
-      parts.push(`【空層】${story?.public?.element_modality?.label || story?.public?.element_modality || ""}`.trim());
-      if (pLayer1) parts.push(pLayer1);
-      if (pLayer2) parts.push(pLayer2);
-      parts.push("");
+    if (personalPick.rare) {
+      block("✶ レア共鳴", "③", personalPick.rare, aiThird, "rare");
+    } else {
+      block("🌿 自然に流れるところ", "③", personalPick.flow, aiThird, "flow");
     }
 
-    parts.push(RENDER_COPY?.FOOTER_LINE || "解釈は、あなたのもの。");
-    parts.push(RENDER_COPY?.SOAR_END || "星は語る。決めるのは、人。🌎️🛸✨️");
+    parts.push("");
+    parts.push(SEP);
+    parts.push("");
+
+    const fallbackDom = _fallbackDomLabel(story);
+    const fallbackDomPublic = _fallbackDomFromPublicSky(story, dict);
+    const domElement =
+      personalLayerHints?.dominant_element?.label_ja ||
+      fallbackDom.element ||
+      fallbackDomPublic.element ||
+      skyLayerHints?.dominant_element?.label_ja ||
+      "";
+    const domModality =
+      personalLayerHints?.dominant_modality?.label_ja ||
+      fallbackDom.modality ||
+      fallbackDomPublic.modality ||
+      skyLayerHints?.dominant_modality?.label_ja ||
+      "";
+
+    parts.push(`【空層】${domElement}${domElement && domModality ? "×" : ""}${domModality}`.trim());
+    parts.push("");
+    const pLayer1 =
+      aiPersonalLayer?.line1 ||
+      aiSkyLayer?.line1 ||
+      _fallbackPersonalLayerLine(domElement, domModality);
+    if (pLayer1) parts.push(pLayer1);
+
+    parts.push("");
+    parts.push("解釈は、あなたのもの。");
+    parts.push("星は語る。決めるのは、人。🌎️🛸✨️");
     parts.push("");
     parts.push("──");
     parts.push("");
@@ -1561,7 +3326,7 @@ function renderLineDict(story, deps = {}) {
   const parts = [];
   const used = new Set();
   const tpsShown = [];
-  const tpKeyFn = typeof tpKey === "function" ? tpKey : (x) => String(x);
+  const tpKeyFn = typeof tpKey === "function" ? tpKey : defaultTpKey;
   const pickFirstUnused = (list) => {
     const arr = Array.isArray(list) ? list : [];
     for (const item of arr) {
@@ -1740,7 +3505,8 @@ function renderLineDict(story, deps = {}) {
 }
 
 async function renderLine(story, deps = {}) {
-  const aiEnabled = boolishEnv(process.env.LINE_AI_ENABLED);
+  const aiFlagSet = process.env.LINE_AI_ENABLED !== undefined;
+  const aiEnabled = aiFlagSet ? boolishEnv(process.env.LINE_AI_ENABLED) : true;
   if (aiEnabled && process.env.OPENAI_API_KEY) {
     try {
       return await renderLineAI(story, deps);
