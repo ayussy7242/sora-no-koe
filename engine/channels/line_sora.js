@@ -896,7 +896,7 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
 
     const sep = deps?.RENDER_COPY?.LINE_SEP || "─────────────";
     const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
-    const kwLimit = isFiniteNum(opts.kwLimit) ? Math.max(1, Number(opts.kwLimit)) : 5;
+    const kwLimitLocal = isFiniteNum(opts.kwLimit) ? Math.max(1, Number(opts.kwLimit)) : 5;
 
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
@@ -1045,7 +1045,7 @@ const SORA_AI_BANNED = [
         const ai = aiItems[i] || {};
         const inputPack = inputItems[i] || {};
         const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
-        const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`, kwLimit);
+        const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`, kwLimitLocal);
         let s1Raw = _containsBannedTokens(ai.s1, SORA_AI_BANNED) ? "" : ai.s1;
         let s2Raw = _containsBannedTokens(ai.s2, SORA_AI_BANNED) ? "" : ai.s2;
         let s1 = _cleanSoraSentence(s1Raw, 56);
@@ -1062,7 +1062,7 @@ const SORA_AI_BANNED = [
                 "",
                 structure,
                 structure ? "" : null,
-                _formatKeywordsLine(ai.keywords, kwFallback, kwLimit),
+                _formatKeywordsLine(ai.keywords, kwFallback, kwLimitLocal),
             ]
                 .filter((v) => v !== null)
                 .join("\n")
