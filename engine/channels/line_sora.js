@@ -298,6 +298,38 @@ function _normAspectKey(raw) {
     return map[x] || x;
 }
 
+function _skySignature(item) {
+    if (!item) return "";
+    const a = _lowerKey(item?.a);
+    const b = _lowerKey(item?.b);
+    const aS = _lowerKey(item?.aS || item?.a_sign_key || item?.aSignKey);
+    const bS = _lowerKey(item?.bS || item?.b_sign_key || item?.bSignKey);
+    const type = _normAspectKey(item?.type || item?.aspT || item?.aspect || item?.aspectType);
+    if (!a || !b || !type) return "";
+    let aKey = a;
+    let bKey = b;
+    let aSign = aS;
+    let bSign = bS;
+    if (aKey > bKey) {
+        [aKey, bKey] = [bKey, aKey];
+        [aSign, bSign] = [bSign, aSign];
+    }
+    return `${aKey}|${bKey}|${aSign}|${bSign}|${type}`;
+}
+
+function _buildTop5Set(skyAll) {
+    const sorted = (Array.isArray(skyAll) ? skyAll : [])
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+    const top = sorted.slice(0, 5);
+    const set = new Set();
+    top.forEach((it) => {
+        const sig = _skySignature(it);
+        if (sig) set.add(sig);
+    });
+    return set;
+}
+
 function _aspectToneCategory(aspectKey) {
     const k = _normAspectKey(aspectKey);
     if (["square", "opposition"].includes(k)) return "tense";
@@ -586,7 +618,7 @@ function _isBannedKw(s) {
     return false;
 }
 
-function _sanitizeKeywords(primary, fallback) {
+function _sanitizeKeywords(primary, fallback, limit = 5) {
     const candidates = _normalizeKeywords(primary).concat(_normalizeKeywords(fallback));
     const out = [];
     const usedGroups = new Set();
@@ -600,24 +632,24 @@ function _sanitizeKeywords(primary, fallback) {
     };
     for (const w of candidates) {
         tryAdd(w);
-        if (out.length >= 5) break;
+        if (out.length >= limit) break;
     }
-    if (out.length < 5) {
+    if (out.length < limit) {
         for (const w of _KW_SAFE_POOL) {
             tryAdd(w);
-            if (out.length >= 5) break;
+            if (out.length >= limit) break;
         }
     }
-    return out.slice(0, 5);
+    return out.slice(0, limit);
 }
 
-function _formatKeywordsLine(keywords, fallback) {
-    const final = _sanitizeKeywords(keywords, fallback);
+function _formatKeywordsLine(keywords, fallback, limit = 5) {
+    const final = _sanitizeKeywords(keywords, fallback, limit);
     if (!final.length) return "";
     return `KeyWord ${final.join(" / ")}`;
 }
 
-function _fallbackKwPublic(dict, item, seed) {
+function _fallbackKwPublic(dict, item, seed, limit = 5) {
     const aspectKey = item?.type || item?.aspT || item?.aspect || "";
     const tone = _pickAspectToneWords(dict, aspectKey, `${seed}|tone`, 1);
     const a = _getFallbackKeywords(dict, item?.aS || item?.a_sign_key, item?.a);
@@ -627,14 +659,14 @@ function _fallbackKwPublic(dict, item, seed) {
     const bPick = _pickDistinct(b, `${seed}|b`, profile.b, tone.concat(aPick));
     const tPick = _pickDistinct(tone, `${seed}|t`, profile.tone, aPick.concat(bPick));
     const base = _normalizeKeywords([...tPick, ...aPick, ...bPick]);
-    if (base.length >= 5) return base.slice(0, 5);
+    if (base.length >= limit) return base.slice(0, limit);
     const extra = _pickDistinct(
         [...a, ...b, ...tone],
         `${seed}|x`,
-        5 - base.length,
+        limit - base.length,
         base
     );
-    return _normalizeKeywords([...base, ...extra]).slice(0, 5);
+    return _normalizeKeywords([...base, ...extra]).slice(0, limit);
 }
 
 function _extractJsonBlock(s) {
@@ -861,6 +893,7 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
 
     const sep = deps?.RENDER_COPY?.LINE_SEP || "─────────────";
     const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
+    const kwLimit = isFiniteNum(opts.kwLimit) ? Math.max(1, Number(opts.kwLimit)) : 5;
 
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
@@ -1004,7 +1037,7 @@ const SORA_AI_BANNED = [
         const ai = aiItems[i] || {};
         const inputPack = inputItems[i] || {};
         const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
-        const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`);
+        const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`, kwLimit);
         let s1Raw = _containsBannedTokens(ai.s1, SORA_AI_BANNED) ? "" : ai.s1;
         let s2Raw = _containsBannedTokens(ai.s2, SORA_AI_BANNED) ? "" : ai.s2;
         let s1 = _cleanSoraSentence(s1Raw, 56);
@@ -1021,7 +1054,7 @@ const SORA_AI_BANNED = [
                 "",
                 structure,
                 structure ? "" : null,
-                _formatKeywordsLine(ai.keywords, kwFallback),
+                _formatKeywordsLine(ai.keywords, kwFallback, kwLimit),
             ]
                 .filter((v) => v !== null)
                 .join("\n")
@@ -1790,8 +1823,8 @@ function renderSoraBase(story, opts = {}, deps = {}) {
                         const header = fmtSoraSkyLine
                             ? fmtSoraSkyLine(story, s, `${circles[i] || `${i + 1}.`} `, deps)
                             : _formatPublicAspectLine(dict, s, `${circles[i] || `${i + 1}.`} `);
-                        const kwFallback = _fallbackKwPublic(dict, s, `${dateLabel}|sora|${i}`);
-                        const kwLine = _formatKeywordsLine([], kwFallback);
+                        const kwFallback = _fallbackKwPublic(dict, s, `${dateLabel}|sora|${i}`, kwLimit);
+                        const kwLine = _formatKeywordsLine([], kwFallback, kwLimit);
                         return [header, "", kwLine].filter(Boolean).join("\n");
                     }
                     return formatListWithOptionalFusion({
@@ -2047,6 +2080,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const listTitle = "【沈黙のほし（Lilith / Chiron）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const excludeSet = _buildTop5Set(skyAll);
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
         .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
@@ -2054,6 +2088,8 @@ async function renderSoraUraSilentLine(story, deps = {}) {
     const list = sorted
         .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
         .filter((x) => {
+            const sig = _skySignature(x.raw);
+            if (sig && excludeSet.has(sig)) return false;
             const a = String(x.norm?.a || "").toLowerCase();
             const b = String(x.norm?.b || "").toLowerCase();
             return a === "chiron" || b === "chiron" || a === "lilith" || b === "lilith";
@@ -2080,6 +2116,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSkyLayer: true,
                     includeFooter: true,
                     noProse: false,
+                    kwLimit: 3,
                 },
                 deps
             );
@@ -2095,6 +2132,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSun: false,
                     includeMoon: false,
                     includeDist: false,
+                    kwLimit: 3,
                 },
                 deps
             );
@@ -2112,6 +2150,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
             includeSun: false,
             includeMoon: false,
             includeDist: false,
+            kwLimit: 3,
         },
         deps
     );
@@ -2122,6 +2161,7 @@ async function renderSoraUraRareLine(story, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const excludeSet = _buildTop5Set(skyAll);
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
         .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
@@ -2140,25 +2180,12 @@ async function renderSoraUraRareLine(story, deps = {}) {
         "tridecile_108",
     ]);
 
-    function skyKey(norm) {
-        const a = String(norm?.a || "").toLowerCase();
-        const b = String(norm?.b || "").toLowerCase();
-        const t = String(norm?.aspect?.type || norm?.type || "").toLowerCase();
-        const pair = [a, b].sort().join("|");
-        return `${pair}|${t}`;
-    }
-
-    const topKeySet = new Set(
-        sorted
-            .slice(0, 5)
-            .map((r) => normalizeSkyForFusion(story, r, deps))
-            .map((n) => skyKey(n))
-            .filter(Boolean)
-    );
-
     const candidates = sorted
         .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
-        .filter((x) => !topKeySet.has(skyKey(x.norm)));
+        .filter((x) => {
+            const sig = _skySignature(x.raw);
+            return !(sig && excludeSet.has(sig));
+        });
 
     const rareList = candidates.filter((x) =>
         rareAspects.has(String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase())
@@ -2228,25 +2255,10 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
     const dateLabel = toDotDate(story?.meta?.date_local);
     const listTitle = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置｜上位5共鳴（orb≤6°）】";
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const excludeSet = _buildTop5Set(skyAll);
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
         .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
-
-    function skyKey(norm) {
-        const a = String(norm?.a || "").toLowerCase();
-        const b = String(norm?.b || "").toLowerCase();
-        const t = String(norm?.aspect?.type || norm?.type || "").toLowerCase();
-        const pair = [a, b].sort().join("|");
-        return `${pair}|${t}`;
-    }
-
-    const topKeySet = new Set(
-        sorted
-            .slice(0, 5)
-            .map((r) => normalizeSkyForFusion(story, r, deps))
-            .map((n) => skyKey(n))
-            .filter(Boolean)
-    );
 
     const list = sorted
         .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
@@ -2254,7 +2266,10 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
             const t = String(x.norm?.aspect?.type || x.norm?.type || "").toLowerCase();
             return t === "trine" || t === "sextile";
         })
-        .filter((x) => !topKeySet.has(skyKey(x.norm)))
+        .filter((x) => {
+            const sig = _skySignature(x.raw);
+            return !(sig && excludeSet.has(sig));
+        })
         .map((x) => x.raw);
 
     if (!list.length) {
