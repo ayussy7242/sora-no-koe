@@ -120,6 +120,23 @@ function _lowerKey(x) {
     return safeStr(x).toLowerCase().trim();
 }
 
+function _isLilithOrChiron(key) {
+    const k = _lowerKey(key);
+    return k === "lilith" || k === "chiron";
+}
+
+function _filterOutLilithChiron(list) {
+    const arr = Array.isArray(list) ? list : [];
+    return arr.filter((r) => !_isLilithOrChiron(r?.a) && !_isLilithOrChiron(r?.b));
+}
+
+function _withSkyAll(story, skyAll) {
+    return {
+        ...(story || {}),
+        public: { ...(story?.public || {}), sky_all: Array.isArray(skyAll) ? skyAll : [] },
+    };
+}
+
 function _avoidTokensFromModifier(modifier) {
     const s = String(modifier || "");
     const tokens = [];
@@ -811,6 +828,7 @@ function _formatDistLines(counts) {
     if (!Object.keys(e).length && !Object.keys(m).length) return [];
     return [
         `【惑星属性】 🔥 火${Number(e.fire || 0)} 🪨 地${Number(e.earth || 0)} 💨 風${Number(e.air || 0)} 💧 水${Number(e.water || 0)}`,
+        "",
         `【三区分】 🏃 活動${Number(m.cardinal || 0)} 🧱 不動${Number(m.fixed || 0)} 🌿 柔軟${Number(m.mutable || 0)}`,
     ];
 }
@@ -2023,50 +2041,54 @@ function renderSoraBase(story, opts = {}, deps = {}) {
  * ========================= */
 async function renderSoraLine(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置 上位5共鳴（orb≤6°）】";
+    const filteredStory = _withSkyAll(story, _filterOutLilithChiron(story?.public?.sky_all));
     if (aiEnabledDefaultTrue()) {
         try {
-            return await renderSoraBaseAI(story, { limit: 5, listTitle: title, noProse: true }, deps);
+            return await renderSoraBaseAI(filteredStory, { limit: 5, listTitle: title, noProse: true }, deps);
         } catch (_) {
-            return renderSoraBase(story, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
+            return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
         }
     }
-    return renderSoraBase(story, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
+    return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
 }
 
 async function renderSoraAllLine(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_ALL || "【今日のソラの配置 全部（orb≤6°）】";
+    const filteredStory = _withSkyAll(story, _filterOutLilithChiron(story?.public?.sky_all));
     if (aiEnabledDefaultTrue()) {
         try {
-            return await renderSoraBaseAI(story, { limit: Infinity, listTitle: title, noProse: true }, deps);
+            return await renderSoraBaseAI(filteredStory, { limit: Infinity, listTitle: title, noProse: true }, deps);
         } catch (_) {
-            return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
+            return renderSoraBase(filteredStory, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
         }
     }
-    return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
+    return renderSoraBase(filteredStory, { limit: Infinity, listTitle: title, style: "list", noProse: true }, deps);
 }
 
 async function renderSoraLineEssay(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置 上位5共鳴（orb≤6°）】";
+    const filteredStory = _withSkyAll(story, _filterOutLilithChiron(story?.public?.sky_all));
     if (aiEnabledDefaultTrue()) {
         try {
-            return await renderSoraBaseAI(story, { limit: 5, listTitle: title }, deps);
+            return await renderSoraBaseAI(filteredStory, { limit: 5, listTitle: title }, deps);
         } catch (_) {
-            return renderSoraBase(story, { limit: 5, listTitle: title, style: "essay" }, deps);
+            return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "essay" }, deps);
         }
     }
-    return renderSoraBase(story, { limit: 5, listTitle: title, style: "essay" }, deps);
+    return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "essay" }, deps);
 }
 
 async function renderSoraAllLineEssay(story, deps = {}) {
     const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_ALL || "【今日のソラの配置 全部（orb≤6°）】";
+    const filteredStory = _withSkyAll(story, _filterOutLilithChiron(story?.public?.sky_all));
     if (aiEnabledDefaultTrue()) {
         try {
-            return await renderSoraBaseAI(story, { limit: Infinity, listTitle: title }, deps);
+            return await renderSoraBaseAI(filteredStory, { limit: Infinity, listTitle: title }, deps);
         } catch (_) {
-            return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "essay" }, deps);
+            return renderSoraBase(filteredStory, { limit: Infinity, listTitle: title, style: "essay" }, deps);
         }
     }
-    return renderSoraBase(story, { limit: Infinity, listTitle: title, style: "essay" }, deps);
+    return renderSoraBase(filteredStory, { limit: Infinity, listTitle: title, style: "essay" }, deps);
 }
 
 function renderSoraUraLine(story, deps = {}) {
@@ -2291,6 +2313,7 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
             const t = normalizeAspectType(rawType);
             return t === "trine" || t === "sextile" || t === "semi_sextile_30" || t === "quintile_72" || t === "biquintile_144";
         })
+        .filter((x) => !_isLilithOrChiron(x.norm?.a) && !_isLilithOrChiron(x.norm?.b))
         .filter((x) => {
             const sig = _skySignature(x.raw);
             return !(sig && excludeSet.has(sig));
