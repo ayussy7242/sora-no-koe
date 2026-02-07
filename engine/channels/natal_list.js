@@ -254,8 +254,8 @@ function createNatalListRenderer({
     if (total > 0) {
       // 余白を1行追加（見やすさ優先）
       lines.push("");
-      lines.push(`【惑星属性】 🔥 火${element.fire}　🪨 地${element.earth}　💨 風${element.air}　💧 水${element.water}`);
-      lines.push(`【三区分】 🏃 活動${modality.cardinal}　🧱 不動${modality.fixed}　🌿 柔軟${modality.mutable}`);
+      lines.push(`【惑星属性】 🔥 火${element.fire} 🪨 地${element.earth} 💨 風${element.air} 💧 水${element.water}`);
+      lines.push(`【三区分】 🏃 活動${modality.cardinal} 🧱 不動${modality.fixed} 🌿 柔軟${modality.mutable}`);
     }
 
     const head = RENDER_COPY?.HEAD_NATAL_LIST || "【わたしの星】";
