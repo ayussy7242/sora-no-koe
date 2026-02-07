@@ -2125,7 +2125,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSkyLayer: false,
                     includeFooter: true,
                     noProse: false,
-                    kwLimit: 3,
+                    kwLimit: 5,
                 },
                 deps
             );
@@ -2142,7 +2142,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeMoon: false,
                     includeDist: false,
                     includeSkyLayer: false,
-                    kwLimit: 3,
+                    kwLimit: 5,
                     forceNoLLM: true,
                 },
                 deps
@@ -2162,7 +2162,7 @@ async function renderSoraUraSilentLine(story, deps = {}) {
             includeMoon: false,
             includeDist: false,
             includeSkyLayer: false,
-            kwLimit: 3,
+            kwLimit: 5,
             forceNoLLM: true,
         },
         deps

@@ -228,21 +228,37 @@ function computeNatalCache({
 
   const flags = swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED;
 
+  const sweConst = (name) => {
+    const n = String(name || "");
+    return (
+      swisseph[`SE_${n}`] ??
+      swisseph[`SE_${n.toUpperCase()}`] ??
+      swisseph[`SE_${n.toLowerCase()}`] ??
+      null
+    );
+  };
+
   const MAP = {
-    sun: swisseph.SE_sun,
-    moon: swisseph.SE_moon,
-    mercury: swisseph.SE_mercury,
-    venus: swisseph.SE_venus,
-    mars: swisseph.SE_mars,
-    jupiter: swisseph.SE_jupiter,
-    saturn: swisseph.SE_saturn,
-    uranus: swisseph.SE_uranus,
-    neptune: swisseph.SE_neptune,
-    pluto: swisseph.SE_pluto,
+    sun: sweConst("sun"),
+    moon: sweConst("moon"),
+    mercury: sweConst("mercury"),
+    venus: sweConst("venus"),
+    mars: sweConst("mars"),
+    jupiter: sweConst("jupiter"),
+    saturn: sweConst("saturn"),
+    uranus: sweConst("uranus"),
+    neptune: sweConst("neptune"),
+    pluto: sweConst("pluto"),
+  };
+
+  const OPTIONAL_MAP = {
+    chiron: sweConst("chiron"),
+    lilith: swisseph.SE_MEAN_APOG ?? sweConst("mean_apog") ?? sweConst("meanapog"),
   };
 
   const bodies = {};
   for (const [name, id] of Object.entries(MAP)) {
+    if (id == null) throw new Error(`swisseph constant missing for ${name}`);
     const out = swisseph.swe_calc_ut(jdUt, id, flags);
     if (!out || out.error) throw new Error(`swe_calc_ut failed for ${name}: ${out?.error || "unknown"}`);
 
@@ -250,6 +266,20 @@ function computeNatalCache({
     if (!Number.isFinite(lon1)) throw new Error(`invalid lon for ${name}`);
 
     bodies[name] = toFixedPrecision(norm360(lon1), precisionDeg);
+  }
+
+  // optional bodies (lilith / chiron) — if calc fails, just skip
+  for (const [name, id] of Object.entries(OPTIONAL_MAP)) {
+    if (id == null) continue;
+    try {
+      const out = swisseph.swe_calc_ut(jdUt, id, flags);
+      if (!out || out.error) continue;
+      const lon1 = typeof out.longitude === "number" ? out.longitude : out.data?.[0];
+      if (!Number.isFinite(lon1)) continue;
+      bodies[name] = toFixedPrecision(norm360(lon1), precisionDeg);
+    } catch (_) {
+      // optional: ignore
+    }
   }
 
   let houses = null;
@@ -609,6 +639,21 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     existingHousesOk &&
     existingEngineHousesOk;
 
+  const hasOptionalInCalc =
+    calc?.bodies && (calc.bodies.chiron != null || calc.bodies.lilith != null);
+  const hasOptionalInExisting = (() => {
+    const b = existing?.min?.bodies || {};
+    return (
+      b.chiron != null ||
+      b.lilith != null ||
+      b.Chiron != null ||
+      b.Lilith != null
+    );
+  })();
+
+  const useExistingBodies =
+    existingMinBodiesOk && (!hasOptionalInCalc || hasOptionalInExisting);
+
   const finalasc = shouldUseExistingAngles
     ? (existing?.min?.angles?.asc_deg ?? existing?.engine?.houses?.asc_deg ?? existing?.houses?.angles?.asc ?? null)
     : ascDegN;
@@ -677,7 +722,7 @@ async function processOneNatalJob(deps = {}, opts = {}) {
 
     min: {
       ...(existing.min || {}),
-      bodies: existingMinBodiesOk ? existing.min.bodies : calc.bodies,
+    bodies: useExistingBodies ? existing.min.bodies : calc.bodies,
       angles: {
         asc_deg: finalascP,
         mc_deg: finalmcP,
