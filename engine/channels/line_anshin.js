@@ -456,9 +456,24 @@ function renderAnshinLineLegacy(payload, deps = {}) {
   }
 
   const longitudes = extractNatalLongitudes(natalCache);
-  const planetKeys = [
+  const basePlanetKeys = [
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
   ];
+  const excludeFromKyou = (() => {
+    const top3 = Array.isArray(story?.personal?.touch_points_top3)
+      ? story.personal.touch_points_top3
+      : (Array.isArray(story?.personal?.touch_points_all)
+        ? story.personal.touch_points_all.slice(0, 3)
+        : []);
+    const set = new Set();
+    top3.forEach((tp) => {
+      const k = String(tp?.natal_body_or_point || tp?.natal_body || "").toLowerCase();
+      if (k) set.add(k);
+    });
+    return set;
+  })();
+  let planetKeys = basePlanetKeys.filter((p) => !excludeFromKyou.has(p));
+  if (!planetKeys.length) planetKeys = basePlanetKeys;
 
   const elementWeight = { earth: 3, water: 2, air: 1, fire: 1, unknown: 0 };
   const modalityWeight = { fixed: 3, cardinal: 1, mutable: 1, unknown: 0 };
