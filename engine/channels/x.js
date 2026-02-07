@@ -90,6 +90,31 @@ function renderX(story, deps = {}) {
     return String(typeRaw || "").trim();
   };
 
+  const normalizeAspectType = (raw) => {
+    const x = String(raw || "").trim().toLowerCase();
+    if (!x) return "";
+    const base = x.replace(/_\d+$/, "");
+    const map = {
+      inconjunct: "quincunx_150",
+      quincunx: "quincunx_150",
+      semisquare: "semi_square_45",
+      semi_square: "semi_square_45",
+      sesquisquare: "sesqui_square_135",
+      sesqui_square: "sesqui_square_135",
+    };
+    return map[base] || base;
+  };
+
+  const aspectLabelWithDeg = (typeRaw) => {
+    const key = normalizeAspectType(typeRaw);
+    const meta = (dict?.ASPECTS_V2?.major || {})[key]
+      || (dict?.ASPECTS_V2?.deep_space || {})[key]
+      || (dict?.ASPECTS_V2?.craft_space || {})[key];
+    const label = meta?.label_ja || aspectLabel(typeRaw);
+    const deg = Number.isFinite(meta?.deg) ? `${meta.deg}°` : "";
+    return deg ? `${label}（${deg}）` : label;
+  };
+
   const resonanceLine = (() => {
     if (!top) return "";
     const aLabel = typeof fmtAnyJa === "function" ? fmtAnyJa(top.a) : String(top.a || "");
@@ -98,12 +123,25 @@ function renderX(story, deps = {}) {
     const bSign = signJaFromItem(top, top.b, top?.b_sign_ja || top?.b_sign || top?.bS || top?.b_sign_key);
     const aEmoji = emojiForBody(top.a);
     const bEmoji = emojiForBody(top.b);
-    const asp = aspectLabel(top?.type || top?.aspect || top?.aspT || top?.aspectType);
+    const aspectTypeRaw = top?.type || top?.aspect || top?.aspT || top?.aspectType;
+    const asp = aspectLabelWithDeg(aspectTypeRaw);
     const orb = isFiniteNum(top?.orb_deg) ? Number(top.orb_deg).toFixed(1) : "";
     const aPart = `${aEmoji ? `${aEmoji} ` : ""}${aLabel}${aSign ? ` ${aSign}` : ""}`.trim();
     const bPart = `${bEmoji ? `${bEmoji} ` : ""}${bLabel}${bSign ? ` ${bSign}` : ""}`.trim();
-    const orbText = orb ? ` ${orb}°` : "";
-    return `☄️共鳴：${aPart} × ${bPart}｜${asp}${orbText}`;
+    const orbText = orb ? `orb ${orb}°` : "";
+    const aspectKey = normalizeAspectType(aspectTypeRaw);
+    const resonanceAspects = new Set([
+      "conjunction",
+      "trine",
+      "sextile",
+      "quintile_72",
+      "biquintile_144",
+      "semi_sextile_30",
+    ]);
+    const resonanceLabel = resonanceAspects.has(aspectKey) ? "☄️共鳴" : "☄️接点";
+    const line1 = `${resonanceLabel}：${aPart} × ${bPart}`;
+    const line2 = [asp, orbText].filter(Boolean).join(" ");
+    return [line1, line2].filter(Boolean).join("\n");
   })();
 
   const kwLine = (() => {
@@ -219,7 +257,10 @@ function renderX(story, deps = {}) {
   }
   if (resonanceLine) {
     lines.push(resonanceLine);
-    if (kwLine) lines.push(kwLine);
+    if (kwLine) {
+      lines.push("");
+      lines.push(kwLine);
+    }
     lines.push("");
   }
   lines.push(elLine);
