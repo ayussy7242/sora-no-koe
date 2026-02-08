@@ -1881,7 +1881,9 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
     ...(Array.isArray(layers?.touch) ? layers.touch : []),
     ...(Array.isArray(layers?.hidden) ? layers.hidden : []),
   ];
-  const basePool = layerItems.length ? layerItems : (Array.isArray(fallbackPool) ? fallbackPool : []);
+  const basePool = layerItems.length
+    ? [...layerItems, ...(Array.isArray(fallbackPool) ? fallbackPool : [])]
+    : (Array.isArray(fallbackPool) ? fallbackPool : []);
   const src = _uniqueByTpKey(basePool, tpKeyFn);
 
   const byOrb = (a, b) => _orb(a) - _orb(b);
@@ -1895,12 +1897,83 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const innerCandidates = src.filter((i) => _tpBodyMatch(i, innerBodies)).sort(byOrb);
   const outerCandidates = src.filter((i) => _tpBodyMatch(i, outerBodies)).sort(byOrb);
 
-  const inner = innerCandidates[0] || sortedAll[0] || null;
+  const scoreItem = (item) => {
+    if (!item) return { yin: 0, yang: 0, orb: 99 };
+    const bodies = _tpBodies(item);
+    const bodySet = new Set(bodies);
+    let yin = 0;
+    let yang = 0;
+
+    // element bias from signs
+    const aSignKey = _lowerKey(item?.natal_sign_key || item?.natal_sign || item?.a_sign_key || item?.a_sign);
+    const bSignKey = _lowerKey(item?.transit_sign_key || item?.transit_sign || item?.b_sign_key || item?.b_sign);
+    const aElem = dict?.SIGNS_V2?.signs?.[aSignKey]?.element;
+    const bElem = dict?.SIGNS_V2?.signs?.[bSignKey]?.element;
+    const addElem = (el) => {
+      if (!el) return;
+      if (el === "earth" || el === "water") yin += 0.5;
+      if (el === "fire" || el === "air") yang += 0.5;
+    };
+    addElem(aElem);
+    addElem(bElem);
+
+    // body tone
+    const yinBodies = new Set(["moon", "saturn", "pluto", "neptune", "chiron", "lilith"]);
+    const yangBodies = new Set(["sun", "jupiter", "mars", "uranus"]);
+    bodies.forEach((b) => {
+      const k = _lowerKey(b);
+      if (yinBodies.has(k)) yin += 0.6;
+      if (yangBodies.has(k)) yang += 0.6;
+    });
+
+    // moon/asc bias (keeps original intent but weaker)
+    if (moonIsYin) {
+      if (bodySet.has("moon")) yin += 0.4;
+      if (bodySet.has("asc") || bodySet.has("mc")) yang += 0.4;
+    } else {
+      if (bodySet.has("asc")) yin += 0.4;
+      if (bodySet.has("moon") || bodySet.has("mc")) yang += 0.4;
+    }
+
+    // aspect tone + orb weight
+    const aspectKey = _aspectKey(item);
+    const orb = _orb(item);
+    const orbWeight = Number.isFinite(orb) ? Math.max(0, 1 - Math.min(orb, 6) / 6) : 0;
+    if (HARD_ASPECTS.includes(aspectKey)) {
+      yin += 1 + orbWeight * 0.8;
+    } else if (FLOW_ASPECTS.includes(aspectKey)) {
+      yang += 0.8 + orbWeight * 0.8;
+    }
+
+    return { yin, yang, orb };
+  };
+
+  const scored = src.map((item) => {
+    const s = scoreItem(item);
+    return { item, key: tpKeyFn(item), yin: s.yin, yang: s.yang, orb: s.orb };
+  });
+  const yinSorted = scored.slice().sort((a, b) => (b.yin - a.yin) || (a.orb - b.orb));
+  const yangSorted = scored.slice().sort((a, b) => (b.yang - a.yang) || (a.orb - b.orb));
+
+  const pickWithAlt = (preferred, fallbackList) => {
+    const list = (Array.isArray(preferred) && preferred.length)
+      ? preferred
+      : (Array.isArray(fallbackList) ? fallbackList : []);
+    for (const cand of list) {
+      if (!cand) continue;
+      const candKey = tpKeyFn(cand);
+      const hasAlt = src.some((i) => i && tpKeyFn(i) !== candKey);
+      if (hasAlt) return cand;
+    }
+    return list[0] || null;
+  };
+
+  const inner = yinSorted[0]?.item || pickWithAlt(innerCandidates, sortedAll);
   const used = new Set(inner ? [tpKeyFn(inner)] : []);
   let outer =
+    yangSorted.find((s) => s && !used.has(s.key))?.item ||
     outerCandidates.find((i) => !used.has(tpKeyFn(i))) ||
     sortedAll.find((i) => !used.has(tpKeyFn(i))) ||
-    inner ||
     null;
   // guard: avoid inner/outer duplicate if an alternative exists
   if (inner && outer && tpKeyFn(outer) === tpKeyFn(inner)) {
@@ -1908,6 +1981,12 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
       outerCandidates.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       sortedAll.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       outer;
+  }
+  if (!outer && inner) {
+    outer =
+      outerCandidates.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      sortedAll.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      inner;
   }
   if (outer) used.add(tpKeyFn(outer));
 
