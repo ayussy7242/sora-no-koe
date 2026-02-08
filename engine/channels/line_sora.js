@@ -827,9 +827,10 @@ function _formatDistLines(counts) {
     const m = counts?.modality || {};
     if (!Object.keys(e).length && !Object.keys(m).length) return [];
     return [
-        `【惑星属性】 🔥 火${Number(e.fire || 0)} 🪨 地${Number(e.earth || 0)} 💨 風${Number(e.air || 0)} 💧 水${Number(e.water || 0)}`,
-        "",
-        `【三区分】 🏃 活動${Number(m.cardinal || 0)} 🧱 不動${Number(m.fixed || 0)} 🌿 柔軟${Number(m.mutable || 0)}`,
+        "【惑星属性】",
+        `🔥 火${Number(e.fire || 0)} 🪨 地${Number(e.earth || 0)} 💨 風${Number(e.air || 0)} 💧 水${Number(e.water || 0)}`,
+        "【三区分】",
+        `🏃 活動${Number(m.cardinal || 0)} 🧱 不動${Number(m.fixed || 0)} 🌿 柔軟${Number(m.mutable || 0)}`,
     ];
 }
 
