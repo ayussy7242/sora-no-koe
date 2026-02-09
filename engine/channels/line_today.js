@@ -1804,6 +1804,11 @@ function _tpBodies(item) {
   return [a, b].filter(Boolean);
 }
 
+function _hasLilithOrChiron(item) {
+  const bodies = _tpBodies(item);
+  return bodies.includes("lilith") || bodies.includes("chiron");
+}
+
 function _tpBodyMatch(item, keys) {
   const [a, b] = _tpBodies(item);
   return keys.includes(a) || keys.includes(b);
@@ -1884,7 +1889,7 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const basePool = layerItems.length
     ? [...layerItems, ...(Array.isArray(fallbackPool) ? fallbackPool : [])]
     : (Array.isArray(fallbackPool) ? fallbackPool : []);
-  const src = _uniqueByTpKey(basePool, tpKeyFn);
+  const src = _uniqueByTpKey(basePool, tpKeyFn).filter((i) => !_hasLilithOrChiron(i));
 
   const byOrb = (a, b) => _orb(a) - _orb(b);
   const sortedAll = src.slice().sort(byOrb);
@@ -1955,6 +1960,17 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const yinSorted = scored.slice().sort((a, b) => (b.yin - a.yin) || (a.orb - b.orb));
   const yangSorted = scored.slice().sort((a, b) => (b.yang - a.yang) || (a.orb - b.orb));
 
+  const dateSeed = String(story?.meta?.date_local || "");
+  const pickFromScored = (arr, seed, maxRange = 0.2, scoreEps = 0.15) => {
+    if (!arr.length) return null;
+    const top = arr[0];
+    const pool = arr
+      .filter((s) => (top.orb + maxRange) >= s.orb && Math.abs((s.yin - top.yin)) <= scoreEps)
+      .map((s) => s.item);
+    const picked = _pickMany(pool, `${seed}|pick`, 1)[0];
+    return picked || top.item;
+  };
+
   const pickWithAlt = (preferred, fallbackList) => {
     const list = (Array.isArray(preferred) && preferred.length)
       ? preferred
@@ -1968,10 +1984,12 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
     return list[0] || null;
   };
 
-  const inner = yinSorted[0]?.item || pickWithAlt(innerCandidates, sortedAll);
+  const inner = pickFromScored(yinSorted, `${dateSeed}|yin`) || pickWithAlt(innerCandidates, sortedAll);
   const used = new Set(inner ? [tpKeyFn(inner)] : []);
+  const yangAvailable = yangSorted.filter((s) => s && !used.has(s.key));
   let outer =
-    yangSorted.find((s) => s && !used.has(s.key))?.item ||
+    pickFromScored(yangAvailable, `${dateSeed}|yang`) ||
+    yangAvailable[0]?.item ||
     outerCandidates.find((i) => !used.has(tpKeyFn(i))) ||
     sortedAll.find((i) => !used.has(tpKeyFn(i))) ||
     null;
