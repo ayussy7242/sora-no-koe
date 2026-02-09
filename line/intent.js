@@ -86,7 +86,12 @@ const MAP = new Map([
   ["public", INTENT.PUBLIC_SKY],
 
   // NATAL
+  ["ほし", INTENT.NATAL],
+  ["星", INTENT.NATAL],
   ["わたしのほし", INTENT.NATAL],
+  ["わたしの星", INTENT.NATAL],
+  ["私のほし", INTENT.NATAL],
+  ["私の星", INTENT.NATAL],
   ["ネイタル", INTENT.NATAL],
   ["ネイタルチャート", INTENT.NATAL],
   ["出生図", INTENT.NATAL],
