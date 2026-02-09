@@ -296,6 +296,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const fnSoraUraSilent = resolveFn(chLineSora, ["renderSoraUraSilentLine"], "channels/line_sora");
   const fnSoraUraRare = resolveFn(chLineSora, ["renderSoraUraRareLine"], "channels/line_sora");
   const fnSoraUraHarmony = resolveFn(chLineSora, ["renderSoraUraHarmonyLine"], "channels/line_sora");
+  const fnSoraAnshin = resolveFn(chLineSora, ["renderSoraAnshinLine"], "channels/line_sora");
   const fnAnshin = resolveFn(chLineAnshin, ["renderAnshinLine"], "channels/line_anshin");
   const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
   const fnX = resolveFn(chX, ["renderX"], "channels/x");
@@ -575,6 +576,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderSoraUraHarmonyLine(story) {
     return fnSoraUraHarmony ? fnSoraUraHarmony(story, ctxFor(story)) : "";
   }
+  function renderSoraAnshinLine(story) {
+    return fnSoraAnshin ? fnSoraAnshin(story, ctxFor(story)) : "";
+  }
   async function renderAnshinLine(payload) {
     return fnAnshin ? await fnAnshin(payload, ctxFor(payload)) : "";
   }
@@ -602,6 +606,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     renderSoraUraSilentLine,
     renderSoraUraRareLine,
     renderSoraUraHarmonyLine,
+    renderSoraAnshinLine,
     renderAnshinLine,
     renderX,
     renderIG,

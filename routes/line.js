@@ -107,6 +107,7 @@ function requireDeps(d) {
   if (!r.renderSoraUraSilentPersonalLine) throw new Error("renderers.renderSoraUraSilentPersonalLine required");
   if (!r.renderSoraUraRareLine) throw new Error("renderers.renderSoraUraRareLine required");
   if (!r.renderSoraUraHarmonyLine) throw new Error("renderers.renderSoraUraHarmonyLine required");
+  if (!r.renderSoraAnshinLine) throw new Error("renderers.renderSoraAnshinLine required");
   if (!r.renderAnshinLine) throw new Error("renderers.renderAnshinLine required");
   if (!r.renderNatalListFromcache) throw new Error("renderers.renderNatalListFromcache required");
 
@@ -134,12 +135,14 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 0) SORA (public固定)
   const soraMode = pickSoraMode(cmd);
   if (soraMode) {
-    // "ちんもく" は基本 public を返す。個人版は明示コマンドのみ。
-    const usePersonalSilent =
-      soraMode === "sora_ura_silent" &&
-      lineUserId &&
-      appUserId &&
-      normalizeCmdLoose(rawText) === "わたしのちんもく";
+    let hasPersonal = false;
+    try {
+      hasPersonal = await natal.hasNatal(appUserId);
+    } catch (_) {
+      hasPersonal = false;
+    }
+    // "ちんもく" は登録済みなら personal を返す
+    const usePersonalSilent = soraMode === "sora_ura_silent" && hasPersonal;
     const { story: storyJson } = usePersonalSilent
       ? await story.buildToday({ appUserId })
       : await story.buildSky();
@@ -153,15 +156,12 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
         : renderers.renderSoraLine(storyJson))
       : "（そらのデータがまだなかった🙏）";
     if (soraMode === "sora_ura_silent" && !usePersonalSilent) {
-      let hasPersonal = false;
-      try {
-        hasPersonal = await natal.hasNatal(appUserId);
-      } catch (_) {
-        hasPersonal = false;
-      }
-      const tail = hasPersonal
-        ? "──\nあなたの沈黙は、もっと深い場所にあります。\n「わたしのちんもく」と送ると、あなたの星の沈黙が出ます。🌒"
-        : "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
+      const tail =
+        "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
+      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
+    }
+    if (!hasPersonal) {
+      const tail = "──\nあなたの星も、静かに待っています。\n「はじめる」と送ると登録できます。🌌";
       return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
     }
     return { text, stage: "sora", mode: soraMode };
@@ -201,8 +201,16 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.ANSHIN) {
-    if (!appUserId || appUserId === "public") {
-      return { text: "（ネイタルが未登録だった🙏「はじめる」で登録してね）", stage: "anshin_no_user" };
+    let hasPersonal = false;
+    try {
+      hasPersonal = await natal.hasNatal(appUserId);
+    } catch (_) {
+      hasPersonal = false;
+    }
+    if (!hasPersonal) {
+      const r = await story.buildAnshinPublic();
+      const tail = "──\nあなたのあんしんも、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🫧";
+      return { text: `${r?.text || story.renderFallback() || "（返す文が空だった🙏）"}\n\n${tail}`, stage: "anshin_public" };
     }
     const r = await story.buildAnshin({ appUserId });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "anshin" };

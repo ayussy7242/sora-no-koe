@@ -2390,6 +2390,86 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
     );
 }
 
+async function renderSoraAnshinLine(story, deps = {}) {
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const listTitle = "【あんしんの星（調和層）】";
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const excludeSet = _buildTop5Set(skyAll);
+    const sorted = skyAll
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+    const list = sorted
+        .map((r) => ({ raw: r, norm: normalizeSkyForFusion(story, r, deps) }))
+        .filter((x) => {
+            const rawType = x.norm?.aspect?.type || x.norm?.type || x.raw?.type || x.raw?.aspect || "";
+            const t = normalizeAspectType(rawType);
+            return t === "trine" || t === "sextile" || t === "semi_sextile_30" || t === "quintile_72" || t === "biquintile_144";
+        })
+        .filter((x) => !_isLilithOrChiron(x.norm?.a) && !_isLilithOrChiron(x.norm?.b))
+        .filter((x) => {
+            const sig = _skySignature(x.raw);
+            return !(sig && excludeSet.has(sig));
+        })
+        .map((x) => x.raw);
+
+    if (!list.length) {
+        return [`🫧 あんしん｜${dateLabel}`, "（該当なし）"].join("\n").trim();
+    }
+
+    if (boolishEnv(process.env.LINE_AI_ENABLED)) {
+        try {
+            return await renderSoraBaseAI(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    headerLine: `🫧 あんしん｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                    includeSkyLayer: false,
+                    includeFooter: true,
+                    noProse: true,
+                },
+                deps
+            );
+        } catch (_) {
+            return renderSoraBase(
+                { ...story, public: { ...story?.public, sky_all: list } },
+                {
+                    limit: Math.min(5, list.length),
+                    listTitle,
+                    style: "list",
+                    noProse: true,
+                    headerLine: `🫧 あんしん｜${dateLabel}`,
+                    includeSun: false,
+                    includeMoon: false,
+                    includeDist: false,
+                    includeSkyLayer: false,
+                },
+                deps
+            );
+        }
+    }
+
+    return renderSoraBase(
+        { ...story, public: { ...story?.public, sky_all: list } },
+        {
+            limit: Math.min(5, list.length),
+            listTitle,
+            style: "list",
+            noProse: true,
+            headerLine: `🫧 あんしん｜${dateLabel}`,
+            includeSun: false,
+            includeMoon: false,
+            includeDist: false,
+            includeSkyLayer: false,
+        },
+        deps
+    );
+}
+
 module.exports = {
     renderSoraLine,
     renderSoraAllLine,
@@ -2400,4 +2480,5 @@ module.exports = {
     renderSoraUraSilentLine,
     renderSoraUraRareLine,
     renderSoraUraHarmonyLine,
+    renderSoraAnshinLine,
 };

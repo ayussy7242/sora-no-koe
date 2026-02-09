@@ -112,6 +112,11 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     const text = safeText(await renderers.renderAnshinLine(payload));
     return { payload, text };
   }
+
+  // ---- anshin (public)
+  async function buildAnshinPublic() {
+    return buildStory({ appUserId: "public", mode: "public", renderer: renderers.renderSoraAnshinLine });
+  }
   
   async function buildSkyWithGuide({ withGuide = false } = {}) {
     const { story, text } = await buildStory({
@@ -180,6 +185,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     buildSkyWithGuide,
     buildToday,
     buildAnshin,
+    buildAnshinPublic,
     renderFallback,
     renderWelcome,
     handleUtilities,
