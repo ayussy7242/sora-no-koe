@@ -95,6 +95,10 @@ const MAP = new Map([
   // ANSHIN
   ["あんしん", INTENT.ANSHIN],
   ["安心", INTENT.ANSHIN],
+  ["わたしのあんしん", INTENT.ANSHIN],
+  ["私のあんしん", INTENT.ANSHIN],
+  ["わたしの安心", INTENT.ANSHIN],
+  ["私の安心", INTENT.ANSHIN],
   ["あんしんねいたる", INTENT.ANSHIN],
   ["安心ネイタル", INTENT.ANSHIN],
 
