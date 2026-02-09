@@ -2329,6 +2329,13 @@ async function renderSoraUraRareLine(story, deps = {}) {
         .filter((r) => isFiniteNum(r?.orb_deg))
         .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
 
+    // harmony aspects are handled by "ちょうわ" command
+    const harmonyAspects = new Set([
+        "trine",
+        "sextile",
+        "semi_sextile_30",
+    ]);
+
     const rareAspects = new Set([
         "quintile_72",
         "biquintile_144",
@@ -2360,6 +2367,9 @@ async function renderSoraUraRareLine(story, deps = {}) {
     const rareList = candidates.filter((x) => {
         const rawType = x.norm?.aspect?.type || x.norm?.type || x.raw?.type || x.raw?.aspect || "";
         const key = normalizeAspectType(rawType);
+        if (harmonyAspects.has(key)) return false;
+        // Lilith/Chiron are handled by "ちんもく"
+        if (_isLilithOrChiron(x.norm?.a) || _isLilithOrChiron(x.norm?.b)) return false;
         return rareAspects.has(key);
     });
 
@@ -2439,7 +2449,7 @@ async function renderSoraUraHarmonyLine(story, deps = {}) {
         .filter((x) => {
             const rawType = x.norm?.aspect?.type || x.norm?.type || x.raw?.type || x.raw?.aspect || "";
             const t = normalizeAspectType(rawType);
-            return t === "trine" || t === "sextile" || t === "semi_sextile_30" || t === "quintile_72" || t === "biquintile_144";
+            return t === "trine" || t === "sextile" || t === "semi_sextile_30";
         })
         .filter((x) => !_isLilithOrChiron(x.norm?.a) && !_isLilithOrChiron(x.norm?.b))
         .filter((x) => {
