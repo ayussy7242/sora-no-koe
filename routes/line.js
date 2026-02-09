@@ -134,7 +134,12 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 0) SORA (public固定)
   const soraMode = pickSoraMode(cmd);
   if (soraMode) {
-    const usePersonalSilent = soraMode === "sora_ura_silent" && lineUserId && appUserId;
+    // "ちんもく" は基本 public を返す。個人版は明示コマンドのみ。
+    const usePersonalSilent =
+      soraMode === "sora_ura_silent" &&
+      lineUserId &&
+      appUserId &&
+      normalizeCmdLoose(rawText) === "わたしのちんもく";
     const { story: storyJson } = usePersonalSilent
       ? await story.buildToday({ appUserId })
       : await story.buildSky();

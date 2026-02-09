@@ -636,17 +636,27 @@ function _isBannedKw(s) {
     return false;
 }
 
-function _sanitizeKeywords(primary, fallback, limit = 5) {
+function _sanitizeKeywords(primary, fallback, limit = 5, usedSet = null) {
     const candidates = _normalizeKeywords(primary).concat(_normalizeKeywords(fallback));
     const out = [];
     const usedGroups = new Set();
+    const used = usedSet instanceof Set ? usedSet : null;
+    const isUsed = (w) => {
+        if (!used) return false;
+        for (const u of used) {
+            if (_isSimilarKw(u, w)) return true;
+        }
+        return false;
+    };
     const tryAdd = (w) => {
         if (_isBannedKw(w)) return;
+        if (isUsed(w)) return;
         if (out.some((x) => _isSimilarKw(x, w))) return;
         const g = _kwGroup(w);
         if (g && usedGroups.has(g)) return;
         out.push(w);
         if (g) usedGroups.add(g);
+        if (used) used.add(w);
     };
     for (const w of candidates) {
         tryAdd(w);
@@ -661,8 +671,8 @@ function _sanitizeKeywords(primary, fallback, limit = 5) {
     return out.slice(0, limit);
 }
 
-function _formatKeywordsLine(keywords, fallback, limit = 5) {
-    const final = _sanitizeKeywords(keywords, fallback, limit);
+function _formatKeywordsLine(keywords, fallback, limit = 5, usedSet = null) {
+    const final = _sanitizeKeywords(keywords, fallback, limit, usedSet);
     if (!final.length) return "";
     return `KeyWord ${final.join(" / ")}`;
 }
@@ -1059,6 +1069,7 @@ const SORA_AI_BANNED = [
     parts.push(sep);
     parts.push("");
 
+    const usedKw = new Set();
     for (let i = 0; i < list.length; i++) {
         const it = list[i];
         const ai = aiItems[i] || {};
@@ -1081,7 +1092,7 @@ const SORA_AI_BANNED = [
                 "",
                 structure,
                 structure ? "" : null,
-                _formatKeywordsLine(ai.keywords, kwFallback, kwLimitLocal),
+                _formatKeywordsLine(ai.keywords, kwFallback, kwLimitLocal, usedKw),
             ]
                 .filter((v) => v !== null)
                 .join("\n")
@@ -1830,6 +1841,7 @@ function renderSoraBase(story, opts = {}, deps = {}) {
     // - allは軽め（sky_micro）
     const fusionTemplate = isAll ? "sky_micro" : "sky_aline";
 
+    const usedKw = new Set();
     const mainLines = list.length
         ? (style === "essay"
             ? list
@@ -1852,7 +1864,7 @@ function renderSoraBase(story, opts = {}, deps = {}) {
                             ? fmtSoraSkyLine(story, s, `${circles[i] || `${i + 1}.`} `, deps)
                             : _formatPublicAspectLine(dict, s, `${circles[i] || `${i + 1}.`} `);
                         const kwFallback = _fallbackKwPublic(dict, s, `${dateLabel}|sora|${i}`, kwLimit);
-                        const kwLine = _formatKeywordsLine([], kwFallback, kwLimit);
+                        const kwLine = _formatKeywordsLine([], kwFallback, kwLimit, usedKw);
                         return [header, "", kwLine].filter(Boolean).join("\n");
                     }
                     return formatListWithOptionalFusion({
