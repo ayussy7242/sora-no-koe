@@ -1076,7 +1076,7 @@ function _stripLeadingLabel(block) {
   return s.slice(end + 1).replace(/^\s*\n+/, "").trim();
 }
 
-function _silentLabelFromFlavor({ story, item, deps }) {
+function _silentLabelFromFlavor({ story, item, deps, seedSalt = "" }) {
   const dict = deps?.dict || require("../../dict");
   const n = normalizePersonalForFlavor(item);
   const aKey = String(n?.a || "").toLowerCase();
@@ -1089,7 +1089,7 @@ function _silentLabelFromFlavor({ story, item, deps }) {
     .concat(by?.fusion?.A || [])
     .concat(by?.fusion?.B || [])
     .concat(by?.fusion?.expression || []);
-  const seed = `${story?.meta?.date_local || ""}|silent|${targetBody}|${targetSign}|${n.aspectType || n.aspectLabelJa}`;
+  const seed = `${story?.meta?.date_local || ""}|silent|${targetBody}|${targetSign}|${n.aspectType || n.aspectLabelJa}|${seedSalt}`;
   const picks = _pickMany(pool.filter(Boolean), `${seed}|lbl`, 2);
   const left = picks[0] || by?.core || "";
   const right = picks[1] || by?.role || "";
@@ -1097,10 +1097,33 @@ function _silentLabelFromFlavor({ story, item, deps }) {
   return left ? `【${left}】` : "";
 }
 
+function _extractFirstSentence(block) {
+  const lines = String(block || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.replace(/^→\s*/, ""));
+  const prose = lines.filter((l) => !/^KeyWord/.test(l));
+  const line = prose[0] || "";
+  if (!line) return "";
+  const m = line.match(/^(.+?[。！？])/);
+  return m ? m[1] : line;
+}
+
+function _extractKeywordLine(block) {
+  const lines = String(block || "").split("\n").map((l) => l.trim());
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^KeyWord/.test(lines[i])) continue;
+    const next = (lines[i + 1] || "").trim();
+    if (!next) return "";
+    const kw = next.replace(/^KeyWord[:：]?\s*/i, "").trim();
+    return kw ? `KeyWord：\n${kw}` : "";
+  }
+  return "";
+}
+
 function renderSoraUraSilentPersonalLine(story, deps = {}) {
-  const { fmt } = deps || {};
-  const { formatPersonalTPLine } =
-    (fmt && (fmt.formatPersonalTPLine || fmt.formatPersonalTPLine)) || {};
+  const { fmtPersonalTPLine } = resolveFormatters(deps);
 
   const dateLabel = _toDotDate(story?.meta?.date_local);
   const list = Array.isArray(story?.personal?.touch_points_all) ? story.personal.touch_points_all : [];
@@ -1112,7 +1135,7 @@ function renderSoraUraSilentPersonalLine(story, deps = {}) {
       return a === "chiron" || b === "chiron" || a === "lilith" || b === "lilith";
     })
     .sort((a, b) => Number(a?.orb_deg ?? 99) - Number(b?.orb_deg ?? 99))
-    .slice(0, 5);
+    .slice(0, 3);
 
   if (!filtered.length) {
     return `🌒 沈黙のほし｜${dateLabel}\n今日は沈黙。`;
@@ -1120,18 +1143,54 @@ function renderSoraUraSilentPersonalLine(story, deps = {}) {
 
   const SEP = "─────────────";
   const indexMarks = ["①", "②", "③"];
+  const usedLabels = new Set();
   const lines = filtered.map((tp, i) => {
     const headPrefix = `${indexMarks[i] || `(${i + 1})`} `;
-    const header = typeof formatPersonalTPLine === "function"
-      ? formatPersonalTPLine(story, tp, headPrefix, deps)
+    const header = typeof fmtPersonalTPLine === "function"
+      ? fmtPersonalTPLine(story, tp, headPrefix, deps)
       : "";
     const flavor = buildFlavorBlockPersonal({ story, item: tp, deps });
-    const label = _silentLabelFromFlavor({ story, item: tp, deps }) || _extractLeadingLabel(flavor);
-    const prose = _stripLeadingLabel(flavor);
-    return [header, label, prose, i < filtered.length - 1 ? SEP : ""].filter(Boolean).join("\n");
-  }).join("\n\n");
+    let label = "";
+    for (let t = 0; t < 3; t++) {
+      const candidate = _silentLabelFromFlavor({
+        story,
+        item: tp,
+        deps,
+        seedSalt: `${t}`,
+      }) || _extractLeadingLabel(flavor);
+      if (candidate && !usedLabels.has(candidate)) {
+        label = candidate;
+        usedLabels.add(candidate);
+        break;
+      }
+    }
+    if (!label) label = _extractLeadingLabel(flavor);
+    if (!label) {
+      const dict = deps?.dict || require("../../dict");
+      const n = normalizePersonalForFlavor(tp);
+      const roleA = _getRole(dict, n.a_sign_key, n.a);
+      const roleB = _getRole(dict, n.b_sign_key, n.b);
+      if (roleA || roleB) {
+        label = `【${roleA || ""}${roleA && roleB ? " × " : ""}${roleB || ""}】`;
+      }
+    }
+    const prose = _extractFirstSentence(flavor);
+    const kwLine = _extractKeywordLine(flavor);
+    const parts = [
+      header,
+      "",
+      label,
+      "",
+      prose ? `→ ${prose}` : "",
+      "",
+      kwLine,
+      "",
+      i < filtered.length - 1 ? SEP : "",
+    ].filter((v) => v !== null && v !== undefined);
+    return parts.join("\n");
+  }).join("\n");
 
-  return [`🌒 沈黙のほし｜${dateLabel}`, lines].join("\n").trim();
+  return [`🌒 沈黙のほし｜${dateLabel}`, "", lines].join("\n").trim();
 }
 function _uniq(arr) {
   const seen = new Set();
