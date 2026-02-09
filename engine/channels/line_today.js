@@ -1771,9 +1771,9 @@ const OUTER_BODIES = ["sun", "asc", "mc", "mars", "uranus", "jupiter", "mercury"
 const FLOW_BODIES = ["venus", "jupiter", "moon", "neptune"];
 const FLOW_ASPECTS = ["trine", "sextile", "semi_sextile_30", "quintile_72", "biquintile_144"];
 const HARD_ASPECTS = ["square", "opposition", "quincunx_150", "semi_square_45", "sesqui_square_135"];
+// Rare共鳴は「ノヴィル系 / デシル系 / セプタイル系」のみで発動
+// ※クインタイル系は flow(harmony) 側に残す
 const RARE_ASPECTS = [
-  "quintile_72",
-  "biquintile_144",
   "septile",
   "biseptile",
   "triseptile",
@@ -1793,7 +1793,9 @@ const RARE_ASPECTS = [
   "tridecile_108",
   "tridecile",
 ];
-const RARE_ASPECT_RE = /(novile|binovile|trinovile|quadranovile|decile|tridecile)/;
+const RARE_ASPECT_RE = /(septile|biseptile|triseptile|novile|binovile|trinovile|quadranovile|decile|tridecile)/;
+const RARE_MAX_ORB = 2.0;
+const RARE_BODIES = new Set(["moon", "venus", "jupiter", "sun"]);
 
 const HEAL_ASPECT_PRIORITY = ["trine", "sextile", "semi_sextile_30", "biquintile_144"];
 const HEAL_BODIES = new Set(["moon", "venus", "jupiter"]);
@@ -2012,7 +2014,11 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const rareCandidates = remaining
     .filter((i) => {
       const k = _aspectKey(i);
-      return RARE_ASPECTS.includes(k) || RARE_ASPECT_RE.test(k);
+      if (!(RARE_ASPECTS.includes(k) || RARE_ASPECT_RE.test(k))) return false;
+      const orb = _orb(i);
+      if (Number.isFinite(orb) && orb > RARE_MAX_ORB) return false;
+      const bodies = _tpBodies(i);
+      return bodies.some((b) => RARE_BODIES.has(b));
     })
     .sort(byOrb);
   const rare = rareCandidates[0] || null;
