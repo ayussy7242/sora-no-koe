@@ -382,6 +382,29 @@ function _getRole(dict, signKey, planetKey) {
     return p?.role || p?.core || "";
 }
 
+function _isLabelNounLike(t) {
+    const s = String(t || "").trim();
+    if (!s) return false;
+    if (s.length < 2 || s.length > 12) return false;
+    if (/[、。]/.test(s)) return false;
+    if (/(しつつ|ながら|こと|やすい|する|した|して|なる|なり|いる|ある|見える|残る|漂う|出る|起きる)$/.test(s)) return false;
+    // 粒度を上げるため、助詞を含む語は除外
+    if (/[がをにへでとやもはの]/.test(s)) return false;
+    return true;
+}
+
+function _isSilentLabelLike(t) {
+    const s = String(t || "").trim();
+    if (!s) return false;
+    // 沈黙ラベルはもう少し長めを許容
+    if (s.length < 3 || s.length > 20) return false;
+    if (/[、。]/.test(s)) return false;
+    if (/(しつつ|ながら|こと|やすい|する|した|して|なる|なり|いる|ある|見える|残る|漂う|出る|起きる|できる)$/.test(s)) return false;
+    // 「の」「と」は許容、他の助詞は除外
+    if (/[がをにへでやもは]/.test(s)) return false;
+    return true;
+}
+
 function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
     const { by } = _getSignFlavor(dict, signKey, planetKey);
     const pool = []
@@ -393,13 +416,16 @@ function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
     const cleaned = pool
         .filter(Boolean)
         .map((t) => String(t || "").trim())
-        .filter((t) => t.length <= 12)
-        .filter((t) => !/[、。]/.test(t))
-        .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
-    const picked = _pickMany(cleaned, `${seed}|lbl`, 1)[0];
+        .filter(_isSilentLabelLike);
+    // 長めの語を優先して拾う
+    const picked = _pickMany(
+        cleaned.sort((a, b) => b.length - a.length),
+        `${seed}|lbl`,
+        1
+    )[0];
     if (picked) return picked;
     const role = by?.role || by?.core || "";
-    return role || "";
+    return _isSilentLabelLike(role) ? role : "";
 }
 
 function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") {
@@ -431,14 +457,11 @@ function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") 
 
 function _labelFromKeywords(keywords, seed, usedLabels, opts = {}) {
     const base = _normalizeKeywords(keywords);
-    const maxLen = Number.isFinite(opts.maxLen) ? Number(opts.maxLen) : 12;
     const cleaned = base
         .map((t) => String(t || "").trim())
         .filter(Boolean)
         .filter((t) => !_isBannedKw(t))
-        .filter((t) => t.length <= maxLen)
-        .filter((t) => !/[、。]/.test(t))
-        .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
+        .filter(_isLabelNounLike);
     const picks = _pickMany(cleaned, `${seed}|kwlbl`, 2);
     if (!picks.length) return "";
     const label = picks.length >= 2 ? `【${picks[0]} × ${picks[1]}】` : `【${picks[0]}】`;
@@ -1155,24 +1178,7 @@ const SORA_AI_BANNED = [
         const label = includeLabel
             ? (
                 labelMode === "silent"
-                    ? (() => {
-                        const kwLabel = _labelFromKeywords(
-                            ai.keywords,
-                            `${dateLabel}|sora|${i}|label`,
-                            usedLabels,
-                            { maxLen: 12 }
-                        );
-                        const roleLabel = _formatItemLabelFromRoles(
-                            dict,
-                            it,
-                            `${dateLabel}|sora|${i}|label`,
-                            usedLabels,
-                            labelMode
-                        );
-                        if (!_labelScore(kwLabel)) return roleLabel;
-                        if (!_labelScore(roleLabel)) return kwLabel;
-                        return _labelScore(roleLabel) >= _labelScore(kwLabel) ? roleLabel : kwLabel;
-                    })()
+                    ? _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode)
                     : _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode)
             )
             : "";
