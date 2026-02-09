@@ -387,11 +387,13 @@ function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
     const pool = []
         .concat(by?.fusion?.A || [])
         .concat(by?.fusion?.B || [])
-        .concat(by?.fusion?.expression || []);
+        .concat(by?.fusion?.expression || [])
+        .concat(by?.fusion?.clarity || [])
+        .concat(by?.fusion?.tendency || []);
     const cleaned = pool
         .filter(Boolean)
         .map((t) => String(t || "").trim())
-        .filter((t) => t.length <= 8)
+        .filter((t) => t.length <= 12)
         .filter((t) => !/[、。]/.test(t))
         .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
     const picked = _pickMany(cleaned, `${seed}|lbl`, 1)[0];
@@ -427,13 +429,14 @@ function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") 
     return label;
 }
 
-function _labelFromKeywords(keywords, seed, usedLabels) {
+function _labelFromKeywords(keywords, seed, usedLabels, opts = {}) {
     const base = _normalizeKeywords(keywords);
+    const maxLen = Number.isFinite(opts.maxLen) ? Number(opts.maxLen) : 12;
     const cleaned = base
         .map((t) => String(t || "").trim())
         .filter(Boolean)
         .filter((t) => !_isBannedKw(t))
-        .filter((t) => t.length <= 8)
+        .filter((t) => t.length <= maxLen)
         .filter((t) => !/[、。]/.test(t))
         .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
     const picks = _pickMany(cleaned, `${seed}|kwlbl`, 2);
@@ -442,6 +445,15 @@ function _labelFromKeywords(keywords, seed, usedLabels) {
     if (usedLabels && usedLabels.has(label)) return "";
     if (usedLabels) usedLabels.add(label);
     return label;
+}
+
+function _labelScore(label) {
+    if (!label) return 0;
+    const s = String(label)
+        .replace(/[【】]/g, "")
+        .replace(/\s+/g, "")
+        .replace(/×/g, "");
+    return s.length;
 }
 
 function _signJa(dict, signKey) {
@@ -1143,8 +1155,24 @@ const SORA_AI_BANNED = [
         const label = includeLabel
             ? (
                 labelMode === "silent"
-                    ? (_labelFromKeywords(ai.keywords, `${dateLabel}|sora|${i}|label`, usedLabels)
-                        || _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode))
+                    ? (() => {
+                        const kwLabel = _labelFromKeywords(
+                            ai.keywords,
+                            `${dateLabel}|sora|${i}|label`,
+                            usedLabels,
+                            { maxLen: 12 }
+                        );
+                        const roleLabel = _formatItemLabelFromRoles(
+                            dict,
+                            it,
+                            `${dateLabel}|sora|${i}|label`,
+                            usedLabels,
+                            labelMode
+                        );
+                        if (!_labelScore(kwLabel)) return roleLabel;
+                        if (!_labelScore(roleLabel)) return kwLabel;
+                        return _labelScore(roleLabel) >= _labelScore(kwLabel) ? roleLabel : kwLabel;
+                    })()
                     : _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode)
             )
             : "";
