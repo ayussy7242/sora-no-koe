@@ -1891,7 +1891,10 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const basePool = layerItems.length
     ? [...layerItems, ...(Array.isArray(fallbackPool) ? fallbackPool : [])]
     : (Array.isArray(fallbackPool) ? fallbackPool : []);
-  const src = _uniqueByTpKey(basePool, tpKeyFn).filter((i) => !_hasLilithOrChiron(i));
+  const srcAll = (Array.isArray(basePool) ? basePool : []).filter((i) => !_hasLilithOrChiron(i));
+  const src = _uniqueByTpKey(srcAll, tpKeyFn);
+  const tpKeyWithOrb = (i) => `${tpKeyFn(i)}|${_orb(i).toFixed(2)}`;
+  const srcLoose = _uniqueByTpKey(srcAll, tpKeyWithOrb);
 
   const byOrb = (a, b) => _orb(a) - _orb(b);
   const sortedAll = src.slice().sort(byOrb);
@@ -2000,12 +2003,14 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
     outer =
       outerCandidates.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       sortedAll.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      srcLoose.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       outer;
   }
   if (!outer && inner) {
     outer =
       outerCandidates.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       sortedAll.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
+      srcLoose.find((i) => tpKeyFn(i) !== tpKeyFn(inner)) ||
       inner;
   }
   if (outer) used.add(tpKeyFn(outer));
