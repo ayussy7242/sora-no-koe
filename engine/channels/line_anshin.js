@@ -297,6 +297,55 @@ function _buildPiecePool(list, minLen = 4, maxLen = 22) {
   return _uniq(out);
 }
 
+function _normalizeKwToken(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function _isUsedKw(usedSet, word) {
+  if (!usedSet) return false;
+  const w = _normalizeKwToken(word);
+  if (!w) return false;
+  for (const u of usedSet) {
+    const nu = _normalizeKwToken(u);
+    if (!nu) continue;
+    if (nu === w || nu.includes(w) || w.includes(nu)) return true;
+  }
+  return false;
+}
+
+function _pickDistinctKw(pool, seed, count, usedSet) {
+  const arr = Array.isArray(pool) ? pool.filter(Boolean) : [];
+  const out = [];
+  const usedLocal = new Set();
+  for (let i = 0; i < count; i++) {
+    if (!arr.length) break;
+    const idx = hash32(`${seed}|${i}`) % arr.length;
+    const cand = arr.splice(idx, 1)[0];
+    if (!cand) continue;
+    if (_isUsedKw(usedSet, cand)) continue;
+    if (_isUsedKw(usedLocal, cand)) continue;
+    out.push(cand);
+    usedLocal.add(cand);
+    if (usedSet instanceof Set) usedSet.add(cand);
+  }
+  if (out.length < count) {
+    for (const cand of arr) {
+      if (!cand) continue;
+      if (_isUsedKw(usedSet, cand)) continue;
+      if (_isUsedKw(usedLocal, cand)) continue;
+      out.push(cand);
+      usedLocal.add(cand);
+      if (usedSet instanceof Set) usedSet.add(cand);
+      if (out.length >= count) break;
+    }
+  }
+  return out;
+}
+
 function _compactStateToken(s) {
   let t = String(s || "").trim();
   if (!t) return "";
@@ -960,6 +1009,7 @@ async function renderAnshinLine(payload, deps = {}) {
   parts.push("調和の星");
   parts.push("");
   parts.push(SEP);
+  const usedKw = new Set();
 
   for (let i = 0; i < picked.length; i++) {
     const it = picked[i];
@@ -1012,7 +1062,7 @@ async function renderAnshinLine(payload, deps = {}) {
       .concat(bPack.tokens, bPack.texture, bPack.process)
       .concat(aspPack.tokens);
     const kwPool = _buildPiecePool(kwPoolRaw, 3, 12);
-    const kw = _pickMany(kwPool, `${seed}|kw`, 3);
+    const kw = _pickDistinctKw(kwPool, `${seed}|kw`, 3, usedKw);
 
     parts.push([
       `${["①","②","③"][i]} ${aJa}（${aSignJa}）×${bJa}（${bSignJa}）｜${aspectLabel} ${deg}（orb ${orbText}°）`,

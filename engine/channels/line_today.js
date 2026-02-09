@@ -1060,6 +1060,43 @@ function _toDotDate(s) {
   return String(s || "").replace(/-/g, ".");
 }
 
+function _extractLeadingLabel(block) {
+  const s = String(block || "").trim();
+  if (!s.startsWith("【")) return "";
+  const end = s.indexOf("】");
+  if (end === -1) return "";
+  return s.slice(0, end + 1);
+}
+
+function _stripLeadingLabel(block) {
+  const s = String(block || "").trim();
+  if (!s.startsWith("【")) return s;
+  const end = s.indexOf("】");
+  if (end === -1) return s;
+  return s.slice(end + 1).replace(/^\s*\n+/, "").trim();
+}
+
+function _silentLabelFromFlavor({ story, item, deps }) {
+  const dict = deps?.dict || require("../../dict");
+  const n = normalizePersonalForFlavor(item);
+  const aKey = String(n?.a || "").toLowerCase();
+  const bKey = String(n?.b || "").toLowerCase();
+  const isSilentBody = (k) => k === "lilith" || k === "chiron";
+  const targetBody = isSilentBody(aKey) ? aKey : (isSilentBody(bKey) ? bKey : bKey);
+  const targetSign = isSilentBody(aKey) ? n.a_sign_key : n.b_sign_key;
+  const { by } = _getSignFlavor(dict, targetSign, targetBody);
+  const pool = []
+    .concat(by?.fusion?.A || [])
+    .concat(by?.fusion?.B || [])
+    .concat(by?.fusion?.expression || []);
+  const seed = `${story?.meta?.date_local || ""}|silent|${targetBody}|${targetSign}|${n.aspectType || n.aspectLabelJa}`;
+  const picks = _pickMany(pool.filter(Boolean), `${seed}|lbl`, 2);
+  const left = picks[0] || by?.core || "";
+  const right = picks[1] || by?.role || "";
+  if (left && right) return `【${left} × ${right}】`;
+  return left ? `【${left}】` : "";
+}
+
 function renderSoraUraSilentPersonalLine(story, deps = {}) {
   const { fmt } = deps || {};
   const { formatPersonalTPLine } =
@@ -1081,12 +1118,17 @@ function renderSoraUraSilentPersonalLine(story, deps = {}) {
     return `🌒 沈黙のほし｜${dateLabel}\n今日は沈黙。`;
   }
 
-  const lines = filtered.map((tp) => {
+  const SEP = "─────────────";
+  const indexMarks = ["①", "②", "③"];
+  const lines = filtered.map((tp, i) => {
+    const headPrefix = `${indexMarks[i] || `(${i + 1})`} `;
     const header = typeof formatPersonalTPLine === "function"
-      ? formatPersonalTPLine(story, tp, "・", deps)
+      ? formatPersonalTPLine(story, tp, headPrefix, deps)
       : "";
     const flavor = buildFlavorBlockPersonal({ story, item: tp, deps });
-    return [header, flavor].filter(Boolean).join("\n");
+    const label = _silentLabelFromFlavor({ story, item: tp, deps }) || _extractLeadingLabel(flavor);
+    const prose = _stripLeadingLabel(flavor);
+    return [header, label, prose, i < filtered.length - 1 ? SEP : ""].filter(Boolean).join("\n");
   }).join("\n\n");
 
   return [`🌒 沈黙のほし｜${dateLabel}`, lines].join("\n").trim();
@@ -2182,14 +2224,23 @@ function _isSimilarKw(a, b) {
   return false;
 }
 
-function _sanitizeKeywords(list, fallback, avoidList = [], maxLen = 5) {
+function _sanitizeKeywords(list, fallback, avoidList = [], maxLen = 5, usedSet = null) {
   const candidates = _normalizeKeywords(list).concat(_normalizeKeywords(fallback));
   const out = [];
   const usedGroups = new Set();
   const avoid = Array.isArray(avoidList) ? avoidList : [];
+  const used = usedSet instanceof Set ? usedSet : null;
+  const isUsed = (w) => {
+    if (!used) return false;
+    for (const u of used) {
+      if (_isSimilarKw(u, w)) return true;
+    }
+    return false;
+  };
   const tryAdd = (w) => {
     const s = String(w || "").trim();
     if (!s) return;
+    if (isUsed(s)) return;
     if (avoid.some((x) => _isSimilarKw(x, s))) return;
     if (_isBannedKw(s)) return;
     if (out.some((x) => _isSimilarKw(x, s))) return;
@@ -2197,6 +2248,7 @@ function _sanitizeKeywords(list, fallback, avoidList = [], maxLen = 5) {
     if (g && usedGroups.has(g)) return;
     out.push(s);
     if (g) usedGroups.add(g);
+    if (used) used.add(s);
   };
   for (const w of candidates) {
     tryAdd(w);
@@ -2208,13 +2260,13 @@ function _sanitizeKeywords(list, fallback, avoidList = [], maxLen = 5) {
   return out.slice(0, maxLen);
 }
 
-function _formatKeywordsLine(list, fallback) {
-  const xs = _sanitizeKeywords(list, fallback);
+function _formatKeywordsLine(list, fallback, usedSet = null) {
+  const xs = _sanitizeKeywords(list, fallback, [], 5, usedSet);
   return xs.length ? `KeyWord ${xs.join(" / ")}` : "";
 }
 
-function _formatKeywordsBlock(list, fallback, avoidList = [], maxLen = 5) {
-  const xs = _sanitizeKeywords(list, fallback, avoidList, maxLen);
+function _formatKeywordsBlock(list, fallback, avoidList = [], maxLen = 5, usedSet = null) {
+  const xs = _sanitizeKeywords(list, fallback, avoidList, maxLen, usedSet);
   if (!xs.length) return "";
   return `KeyWord：\n${xs.join(" / ")}`;
 }
@@ -3354,6 +3406,7 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     parts.push(`🌌 今日のソラ｜そら｜${dateLabel}`);
     parts.push("【今日のソラの配置｜上位5共鳴（orb≤6°）】");
     parts.push(SEP);
+    const usedKwPublic = new Set();
     for (let i = 0; i < publicTop.length; i++) {
       const item = publicTop[i];
       const ai = aiPublic[i] || {};
@@ -3369,7 +3422,7 @@ async function renderLineAI(story, deps = {}, opts = {}) {
           header,
           roles,
           _formatStructureLine(ai.s1, ai.s2),
-          _formatKeywordsLine(ai.keywords, kwFallback),
+          _formatKeywordsLine(ai.keywords, kwFallback, usedKwPublic),
         ]
           .filter(Boolean)
           .join("\n")
