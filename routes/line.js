@@ -152,6 +152,18 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
         : soraMode === "sora_ura_harmony" ? renderers.renderSoraUraHarmonyLine(storyJson)
         : renderers.renderSoraLine(storyJson))
       : "（そらのデータがまだなかった🙏）";
+    if (soraMode === "sora_ura_silent" && !usePersonalSilent) {
+      let hasPersonal = false;
+      try {
+        hasPersonal = await natal.hasNatal(appUserId);
+      } catch (_) {
+        hasPersonal = false;
+      }
+      const tail = hasPersonal
+        ? "──\nあなたの沈黙は、もっと深い場所にあります。\n「わたしのちんもく」と送ると、あなたの星の沈黙が出ます。🌒"
+        : "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
+      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
+    }
     return { text, stage: "sora", mode: soraMode };
   }
 
