@@ -142,6 +142,22 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   }
 
   // --------------------
+  // registration check
+  // --------------------
+  async function hasNatal(appUserId) {
+    if (!appUserId) return false;
+    const snap = await db.collection("users").doc(appUserId).get();
+    if (!snap.exists) return false;
+    const data = snap.data() || {};
+    if (data?.natal?.enabled) return true;
+    const birth = data?.natal?.birth || {};
+    const hasDate = !!birth?.date_local;
+    const hasTime = !!birth?.time_hm;
+    const hasGeo = Number.isFinite(birth?.lat) && Number.isFinite(birth?.lon);
+    return !!(hasDate && hasTime && hasGeo);
+  }
+
+  // --------------------
   // parsers
   // --------------------
   function parseYYYYMMDD(text) {
@@ -383,6 +399,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     FLOW_STATE,
     getLineState,
     setLineState,
+    hasNatal,
     resetNatal,
     enqueueNatalCalcJob,
     isNatalCacheComplete,
