@@ -382,6 +382,68 @@ function _getRole(dict, signKey, planetKey) {
     return p?.role || p?.core || "";
 }
 
+function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
+    const { by } = _getSignFlavor(dict, signKey, planetKey);
+    const pool = []
+        .concat(by?.fusion?.A || [])
+        .concat(by?.fusion?.B || [])
+        .concat(by?.fusion?.expression || []);
+    const cleaned = pool
+        .filter(Boolean)
+        .map((t) => String(t || "").trim())
+        .filter((t) => t.length <= 8)
+        .filter((t) => !/[、。]/.test(t))
+        .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
+    const picked = _pickMany(cleaned, `${seed}|lbl`, 1)[0];
+    if (picked) return picked;
+    const role = by?.role || by?.core || "";
+    return role || "";
+}
+
+function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") {
+    const aSignKey = item?.aS || item?.a_sign_key || "";
+    const bSignKey = item?.bS || item?.b_sign_key || "";
+    const roleA = _getRole(dict, aSignKey, item?.a);
+    const roleB = _getRole(dict, bSignKey, item?.b);
+    const flavorA = _silentLabelFromFlavorSora(dict, aSignKey, item?.a, `${seed}|a`);
+    const flavorB = _silentLabelFromFlavorSora(dict, bSignKey, item?.b, `${seed}|b`);
+    const left = mode === "silent" ? (flavorA || roleA) : (roleA || flavorA);
+    const right = mode === "silent" ? (flavorB || roleB) : (roleB || flavorB);
+    let label = "";
+    if (left && right) {
+        label = `【${left} × ${right}】`;
+    } else if (left || right) {
+        label = `【${left || right}】`;
+    }
+    if (label && usedLabels?.has(label)) {
+        const altA = _silentLabelFromFlavorSora(dict, aSignKey, item?.a, `${seed}|altA`) || roleA;
+        const altB = _silentLabelFromFlavorSora(dict, bSignKey, item?.b, `${seed}|altB`) || roleB;
+        const alt = (altA || altB)
+            ? `【${altA || left}${altA && (altB || right) ? " × " : ""}${altB || right}】`
+            : label;
+        if (!usedLabels?.has(alt)) label = alt;
+    }
+    if (label && usedLabels) usedLabels.add(label);
+    return label;
+}
+
+function _labelFromKeywords(keywords, seed, usedLabels) {
+    const base = _normalizeKeywords(keywords);
+    const cleaned = base
+        .map((t) => String(t || "").trim())
+        .filter(Boolean)
+        .filter((t) => !_isBannedKw(t))
+        .filter((t) => t.length <= 8)
+        .filter((t) => !/[、。]/.test(t))
+        .filter((t) => !/(しつつ|ながら|こと|やすい|する|的)$/.test(t));
+    const picks = _pickMany(cleaned, `${seed}|kwlbl`, 2);
+    if (!picks.length) return "";
+    const label = picks.length >= 2 ? `【${picks[0]} × ${picks[1]}】` : `【${picks[0]}】`;
+    if (usedLabels && usedLabels.has(label)) return "";
+    if (usedLabels) usedLabels.add(label);
+    return label;
+}
+
 function _signJa(dict, signKey) {
     const k = _lowerKey(signKey);
     return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
@@ -922,6 +984,8 @@ async function renderSoraBaseAI(story, opts = {}, deps = {}) {
     const includeDist = opts.includeDist !== false;
     const includeSkyLayer = opts.includeSkyLayer !== false;
     const includeFooter = opts.includeFooter !== false;
+    const includeLabel = !!opts.includeLabel;
+    const labelMode = opts.labelMode || "role";
 
     const sep = deps?.RENDER_COPY?.LINE_SEP || "─────────────";
     const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
@@ -1070,11 +1134,20 @@ const SORA_AI_BANNED = [
     parts.push("");
 
     const usedKw = new Set();
+    const usedLabels = new Set();
     for (let i = 0; i < list.length; i++) {
         const it = list[i];
         const ai = aiItems[i] || {};
         const inputPack = inputItems[i] || {};
         const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
+        const label = includeLabel
+            ? (
+                labelMode === "silent"
+                    ? (_labelFromKeywords(ai.keywords, `${dateLabel}|sora|${i}|label`, usedLabels)
+                        || _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode))
+                    : _formatItemLabelFromRoles(dict, it, `${dateLabel}|sora|${i}|label`, usedLabels, labelMode)
+            )
+            : "";
         const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|${i}`, kwLimitLocal);
         let s1Raw = _containsBannedTokens(ai.s1, SORA_AI_BANNED) ? "" : ai.s1;
         let s2Raw = _containsBannedTokens(ai.s2, SORA_AI_BANNED) ? "" : ai.s2;
@@ -1090,6 +1163,8 @@ const SORA_AI_BANNED = [
             [
                 header,
                 "",
+                label || null,
+                label ? "" : null,
                 structure,
                 structure ? "" : null,
                 _formatKeywordsLine(ai.keywords, kwFallback, kwLimitLocal, usedKw),
@@ -2160,6 +2235,8 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeSkyLayer: false,
                     includeFooter: true,
                     noProse: false,
+                    includeLabel: true,
+                    labelMode: "silent",
                     kwLimit: 5,
                 },
                 deps
@@ -2178,6 +2255,8 @@ async function renderSoraUraSilentLine(story, deps = {}) {
                     includeDist: false,
                     includeSkyLayer: false,
                     kwLimit: 5,
+                    includeLabel: true,
+                    labelMode: "silent",
                     forceNoLLM: true,
                 },
                 deps
@@ -2198,6 +2277,8 @@ async function renderSoraUraSilentLine(story, deps = {}) {
             includeDist: false,
             includeSkyLayer: false,
             kwLimit: 5,
+            includeLabel: true,
+            labelMode: "silent",
             forceNoLLM: true,
         },
         deps
