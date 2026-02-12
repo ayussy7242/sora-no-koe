@@ -275,6 +275,7 @@ function _isOkPiece(s) {
   if (/アスペクト|角度|配置|影響|として|によって/.test(s)) return false;
   if (/現れやすい|表に出やすい|しやすい|やすい/.test(s)) return false;
   if (/場面で|の中で|中で|生まれる|手助け|見せる|訪れる|浮かび上がる|広がる|進む/.test(s)) return false;
+  if (EXPLANATION_CONNECTORS_RE.test(s)) return false;
   if (/\d+\s*°/.test(s)) return false;
   return true;
 }
@@ -291,6 +292,37 @@ function _buildPiecePool(list, minLen = 4, maxLen = 22) {
       if (!piece) return;
       if (piece.length < minLen) return;
       if (!_isOkPiece(piece)) return;
+      out.push(piece);
+    });
+  });
+  return _uniq(out);
+}
+
+function _isOkStatePiece(s) {
+  if (!s) return false;
+  if (s.length < 2) return false;
+  if (/座/.test(s)) return false;
+  if (/しつつ|しながら/.test(s)) return false;
+  if (/アスペクト|角度|配置|影響|として|によって/.test(s)) return false;
+  if (/現れやすい|表に出やすい|しやすい|やすい/.test(s)) return false;
+  if (/場面で|の中で|中で|生まれる|手助け|見せる|訪れる|浮かび上がる|広がる|進む/.test(s)) return false;
+  if (EXPLANATION_CONNECTORS_RE.test(s)) return false;
+  if (/\d+\s*°/.test(s)) return false;
+  return true;
+}
+
+function _buildStatePool(list, minLen = 2, maxLen = 12) {
+  const raw = Array.isArray(list) ? list : [];
+  const out = [];
+  raw.forEach((v) => {
+    const s = String(v || "").trim();
+    if (!s) return;
+    const parts = s.includes("。") ? s.split(/[。\.]+/g) : [s];
+    parts.forEach((p) => {
+      const piece = _normalizePiece(p, maxLen);
+      if (!piece) return;
+      if (piece.length < minLen) return;
+      if (!_isOkStatePiece(piece)) return;
       out.push(piece);
     });
   });
@@ -358,6 +390,8 @@ function _compactStateToken(s) {
   return t;
 }
 
+const EXPLANATION_CONNECTORS_RE = /(の中|こと|ように|だから|ので|によって|の結果|ために|ため)/;
+
 function _filterPhraseList(list) {
   const raw = Array.isArray(list) ? list : [];
   return _uniq(
@@ -366,6 +400,7 @@ function _filterPhraseList(list) {
       .filter(Boolean)
       .filter((v) => !/[{}]/.test(v))
       .filter((v) => !/しつつ|しながら|の中で|場面で|生まれる|手助け|見せる|訪れる|浮かび上がる|広がる|進む/.test(v))
+      .filter((v) => !EXPLANATION_CONNECTORS_RE.test(v))
   );
 }
 
@@ -394,7 +429,32 @@ function _getSignFlavor(dict, signKey, planetKey) {
   return { sf, sign, by };
 }
 
-function _collectSignPackAnshin(dict, signKey, planetKey, aspectKey, orb) {
+function _stateRoleKeysForLayer(layerKey) {
+  const s = String(layerKey || "").toLowerCase();
+  if (!s) return ["skeleton", "transition", "resonance"];
+  return ["skeleton", "transition", "resonance"];
+}
+
+function _stateAxisPool(dict, layerKey) {
+  const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+  const axes = sf?.state_axes || {};
+  const roles = sf?.state_roles || {};
+  const roleKeys = _stateRoleKeysForLayer(layerKey);
+  let axisKeys = [];
+  roleKeys.forEach((r) => {
+    const list = roles?.[r] || [];
+    if (Array.isArray(list)) axisKeys = axisKeys.concat(list);
+  });
+  if (!axisKeys.length) axisKeys = Object.keys(axes || {});
+  const pool = [];
+  axisKeys.forEach((k) => {
+    const list = axes?.[k] || [];
+    if (Array.isArray(list)) pool.push(...list);
+  });
+  return _uniq(pool);
+}
+
+function _collectSignPackAnshin(dict, signKey, planetKey, aspectKey, orb, layerKey) {
   const { by } = _getSignFlavor(dict, signKey, planetKey);
   const style = dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
   const tone = _aspectToneCategory(String(aspectKey || ""));
@@ -419,6 +479,7 @@ function _collectSignPackAnshin(dict, signKey, planetKey, aspectKey, orb) {
   if (tier === "wide") tokensPool = tokensPool.concat(clarityList);
 
   const tokens = _buildPiecePool(tokensPool, 4, 22);
+  const statePool = _buildStatePool(_stateAxisPool(dict, layerKey), 2, 12);
 
   const sKey = _lowerKey(signKey);
   const pKey = _lowerKey(planetKey);
@@ -431,7 +492,7 @@ function _collectSignPackAnshin(dict, signKey, planetKey, aspectKey, orb) {
   const process = _buildPiecePool(processList, 4, 24);
 
   return {
-    tokens: _uniq(tokens),
+    tokens: _uniq(tokens.concat(statePool)),
     texture: _uniq(texture),
     process: _uniq(process),
   };
@@ -887,7 +948,7 @@ async function renderAnshinLine(payload, deps = {}) {
         : (SIGNS?.signs?.[_lowerKey(signKey)]?.label_ja || "");
     const pJa = PLANETS?.bodies?.[planetKey]?.label_ja || planetKey;
     const emoji = (ANSHIN?.planet_emoji && ANSHIN.planet_emoji[planetKey]) || "🪐";
-    const pack = _collectSignPackAnshin(dict, signKey, planetKey, "trine", 6);
+    const pack = _collectSignPackAnshin(dict, signKey, planetKey, "trine", 6, "anshin");
     const t1 = _pickOne(pack.tokens, `${seed}|t1`) || _pickOne(pack.texture, `${seed}|t1b`);
     const t2 = _pickOne(pack.tokens, `${seed}|t2`) || _pickOne(pack.process, `${seed}|t2b`);
     const line1 = t1 && t2
@@ -1028,9 +1089,9 @@ async function renderAnshinLine(payload, deps = {}) {
     const aJa = PLANETS?.bodies?.[it.a]?.label_ja || it.a;
     const bJa = PLANETS?.bodies?.[it.b]?.label_ja || it.b;
 
-    const seed = `${dateLabel}|anshin|${it.a}|${it.b}|${it.aspectKey}|${aSignKey}|${bSignKey}`;
-    const aPack = _collectSignPackAnshin(dict, aSignKey, it.a, it.aspectKey, it.orb);
-    const bPack = _collectSignPackAnshin(dict, bSignKey, it.b, it.aspectKey, it.orb);
+    const seed = `${dateLabel}|anshin|${it.aspectKey || "aspect"}`;
+    const aPack = _collectSignPackAnshin(dict, aSignKey, it.a, it.aspectKey, it.orb, "anshin");
+    const bPack = _collectSignPackAnshin(dict, bSignKey, it.b, it.aspectKey, it.orb, "anshin");
     const aspPack = _collectAspectPackAnshin(dict, it.aspectKey, it.orb);
 
     const input = {
