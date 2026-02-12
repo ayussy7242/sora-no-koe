@@ -247,6 +247,30 @@ function _formatStructureParagraph(text) {
   return `→ ${t}`;
 }
 
+function _formatStructureLineProse(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const idx = raw.indexOf("。");
+  if (idx === -1) return `→ ${raw}`;
+  const first = raw.slice(0, idx + 1).trim();
+  const rest = raw.slice(idx + 1).trim();
+  return rest ? `→ ${first}\n${rest}` : `→ ${first}`;
+}
+
+function _normalizeAiLabel(raw, dict) {
+  let t = String(raw || "").trim();
+  if (!t) return "";
+  const stripped = t.replace(/\s+/g, "");
+  if (!/^【.+×.+】$/.test(stripped)) return "";
+  const inner = stripped.slice(1, -1);
+  const parts = inner.split("×");
+  if (parts.length !== 2) return "";
+  const left = _sanitizeLabelToken(parts[0], dict);
+  const right = _sanitizeLabelToken(parts[1], dict);
+  if (!left || !right) return "";
+  return `【${left} × ${right}】`;
+}
+
 function _limitProseSentences(text, maxSent = 2, maxLen = null) {
   const s = String(text || "").replace(/\s+/g, " ").trim();
   if (!s) return "";
@@ -309,10 +333,12 @@ function _fallbackProseThree(input, seed = "") {
     nouns.push(cleaned || "静けさ");
   }
 
+  const tails = ["が残る", "が漂う", "がにじむ", "が重なる", "が揺れる"];
   const sentences = [];
   for (let i = 0; i < 3; i++) {
     const word = nouns[i] || "静けさ";
-    sentences.push(`${word}。`);
+    const tail = tails[i % tails.length];
+    sentences.push(`${word}${tail}。`);
   }
   return sentences.join("");
 }
@@ -320,25 +346,16 @@ function _fallbackProseThree(input, seed = "") {
 function _normalizePersonalProse(text, input, seed = "") {
   let s = String(text || "").trim();
   if (!s) return "";
-  s = s.replace(/、+/g, "");
   s = s.replace(/。{2,}/g, "。");
   s = s.replace(/\s+/g, " ").trim();
-  s = s.replace(/が([^。]*?)が/g, "は$1が");
-  const parts = _splitSentences(s);
-  const need = 3;
-  const out = [];
-  for (let i = 0; i < Math.min(parts.length, need); i++) {
-    const sentence = String(parts[i] || "").replace(/[。\.]+/g, "").trim();
-    if (sentence) out.push(`${sentence}。`);
-  }
-  if (out.length < need) {
-    const fallback = _splitSentences(_fallbackProseThree(input, seed));
-    for (let i = 0; i < fallback.length && out.length < need; i++) {
-      const sentence = String(fallback[i] || "").replace(/[。\.]+/g, "").trim();
-      if (sentence) out.push(`${sentence}。`);
-    }
-  }
-  return out.length === need ? out.join("").replace(/。{2,}/g, "。") : "";
+  if (!/[。\.]$/.test(s)) s += "。";
+  return s.replace(/。{2,}/g, "。");
+}
+
+function _isOkAiProse(text) {
+  if (typeof text !== "string") return false;
+  const s = text.trim();
+  return !!s;
 }
 
 function _fallbackProseFromTokens(input) {
@@ -883,6 +900,33 @@ function _getSignFlavor(dict, signKey, planetKey) {
   return { sf, sign, by };
 }
 
+function _stateRoleKeysForSlot(slot) {
+  const s = String(slot || "").toLowerCase();
+  if (s === "inner") return ["inner", "resonance", "skeleton"];
+  if (s === "outer") return ["outer", "transition", "skeleton"];
+  if (s === "third" || s === "flow" || s === "rare") return ["transition", "resonance", "skeleton"];
+  return ["skeleton", "transition", "resonance"];
+}
+
+function _stateAxisPool(dict, slot) {
+  const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+  const axes = sf?.state_axes || {};
+  const roles = sf?.state_roles || {};
+  const roleKeys = _stateRoleKeysForSlot(slot);
+  let axisKeys = [];
+  roleKeys.forEach((r) => {
+    const list = roles?.[r] || [];
+    if (Array.isArray(list)) axisKeys = axisKeys.concat(list);
+  });
+  if (!axisKeys.length) axisKeys = Object.keys(axes || {});
+  const pool = [];
+  axisKeys.forEach((k) => {
+    const list = axes?.[k] || [];
+    if (Array.isArray(list)) pool.push(...list);
+  });
+  return _uniq(pool);
+}
+
 function _getSoarStyle(dict) {
   return dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
 }
@@ -1214,6 +1258,56 @@ function _silentFunctionFromFlavorPair(dict, signKeyA, bodyKeyA, signKeyB, bodyK
     .filter(Boolean)
     .filter(_isSilentLabelLike);
   return _pickMany(cleaned, `${seed}|fn`, 1)[0] || "";
+}
+
+function _labelCandidatesFromItem(dict, item, seed) {
+  const aKey = item?.natal_body_or_point || item?.natal_body || item?.a;
+  const bKey = item?.transit_body || item?.b;
+  const aSignKey = item?.natal_sign_key || item?.natal_sign || item?.a_sign_key || item?.aS;
+  const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key || item?.bS;
+
+  const soar = _getSoarStyle(dict);
+  const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
+  const aSign = String(aSignKey || "").toLowerCase();
+  const bSign = String(bSignKey || "").toLowerCase();
+
+  const leftPool = []
+    .concat(soar?.signs?.[aSign]?.keywords || [])
+    .concat(soar?.signs?.[bSign]?.keywords || [])
+    .concat(sf?.signs?.[aSign]?.base?.keywords || [])
+    .concat(sf?.signs?.[bSign]?.base?.keywords || []);
+  const left = _uniq(
+    leftPool
+      .map((t) => String(t || "").trim())
+      .filter(Boolean)
+      .filter(_isSilentLabelLike)
+  );
+
+  const a = _getSignFlavor(dict, aSignKey, aKey)?.by || {};
+  const b = _getSignFlavor(dict, bSignKey, bKey)?.by || {};
+  const rightPool = []
+    .concat(a?.role || [])
+    .concat(a?.fusion?.expression || [])
+    .concat(a?.fusion?.process || [])
+    .concat(a?.fusion?.tendency || [])
+    .concat(a?.fusion?.clarity || [])
+    .concat(a?.core || [])
+    .concat(b?.role || [])
+    .concat(b?.fusion?.expression || [])
+    .concat(b?.fusion?.process || [])
+    .concat(b?.fusion?.tendency || [])
+    .concat(b?.fusion?.clarity || [])
+    .concat(b?.core || []);
+  const right = _uniq(
+    rightPool
+      .map((t) => _normalizeSilentFunctionPiece(t))
+      .filter(Boolean)
+      .filter(_isSilentLabelLike)
+  );
+
+  const leftSample = _pickMany(left, `${seed}|lblL`, Math.min(6, left.length));
+  const rightSample = _pickMany(right, `${seed}|lblR`, Math.min(6, right.length));
+  return { left: leftSample, right: rightSample };
 }
 
 function _formatUnifiedLabel(dict, item, seed, usedLabels = null) {
@@ -2137,6 +2231,7 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
 
   const byOrb = (a, b) => _orb(a) - _orb(b);
   const sortedAll = src.slice().sort(byOrb);
+  const srcNonFlow = src.filter((i) => !_isFlowCandidate(i, "any"));
 
   const moonElement = _moonElementKey(story, dict);
   const moonIsYin = moonElement === "earth" || moonElement === "water";
@@ -2146,6 +2241,7 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
   const innerCandidates = src.filter((i) => _tpBodyMatch(i, innerBodies)).sort(byOrb);
   const outerCandidates = src.filter((i) => _tpBodyMatch(i, outerBodies)).sort(byOrb);
   const isNonFlowAspect = (item) => !_isFlowCandidate(item, "any");
+  const innerCandidatesNonFlow = innerCandidates.filter(isNonFlowAspect);
   const outerCandidatesNonFlow = outerCandidates.filter(isNonFlowAspect);
 
   const scoreItem = (item) => {
@@ -2199,13 +2295,18 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
     return { yin, yang, orb };
   };
 
-  const scored = src.map((item) => {
+  const scoredAll = src.map((item) => {
     const s = scoreItem(item);
     return { item, key: tpKeyFn(item), yin: s.yin, yang: s.yang, orb: s.orb };
   });
-  const yinSorted = scored.slice().sort((a, b) => (b.yin - a.yin) || (a.orb - b.orb));
-  const yangSorted = scored.slice().sort((a, b) => (b.yang - a.yang) || (a.orb - b.orb));
-  const yangSortedNonFlow = yangSorted.filter((s) => isNonFlowAspect(s.item));
+  const scoredNonFlow = srcNonFlow.map((item) => {
+    const s = scoreItem(item);
+    return { item, key: tpKeyFn(item), yin: s.yin, yang: s.yang, orb: s.orb };
+  });
+  const yinSorted = scoredAll.slice().sort((a, b) => (b.yin - a.yin) || (a.orb - b.orb));
+  const yangSorted = scoredAll.slice().sort((a, b) => (b.yang - a.yang) || (a.orb - b.orb));
+  const yinSortedNonFlow = scoredNonFlow.slice().sort((a, b) => (b.yin - a.yin) || (a.orb - b.orb));
+  const yangSortedNonFlow = scoredNonFlow.slice().sort((a, b) => (b.yang - a.yang) || (a.orb - b.orb));
 
   const dateSeed = String(story?.meta?.date_local || "");
   const pickFromScored = (arr, seed, maxRange = 0.2, scoreEps = 0.15) => {
@@ -2237,7 +2338,11 @@ function _pickPersonalBlocks(layers, tpKeyFn, story, dict, fallbackPool = []) {
     return bodies;
   };
 
-  const inner = pickFromScored(yinSorted, `${dateSeed}|yin`) || pickWithAlt(innerCandidates, sortedAll);
+  const inner =
+    pickFromScored(yinSortedNonFlow, `${dateSeed}|yin_nf`) ||
+    pickWithAlt(innerCandidatesNonFlow, innerCandidates) ||
+    pickFromScored(yinSorted, `${dateSeed}|yin`) ||
+    pickWithAlt(innerCandidates, sortedAll);
   const used = new Set(inner ? [tpKeyFn(inner)] : []);
   const usedLoose = new Set(inner ? [tpKeyLoose(inner)] : []);
   const yangAvailable = yangSorted.filter((s) => s && !used.has(s.key));
@@ -2389,7 +2494,7 @@ const _KW_BANNED = new Set(
     "コンジャンクション","セミセクスタイル","セミスクエア","セクスタイル",
     "スクエア","トライン","インコンジャンクト","クインカンクス","オポジション",
     "セスキスクエア","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
-    "conjunction","semi_sextile","semi_square","sextile","square","trine","quincunx","opposition","sesqui_square","quintile","biquintile","septile","novile","decile",
+        "conjunction","semi_sextile","semi_square","sextile","square","trine","quincunx","opposition","sesqui_square","quintile","biquintile","septile","novile","decile",
     "共鳴","共鳴的","影響","影響的","エネルギー","エネルギー的","運勢","運気","運","吉","凶","開運",
     "ラッキー","アンラッキー","ハッピー","幸運","不運","占い","占星術","運命","導き","救い","正解",
     "吉兆","凶兆","スピ","ヒーリング","セラピー","メッセージ",
@@ -2439,6 +2544,23 @@ function _normalizeKeywords(list) {
     out.push(s);
   });
   return out;
+}
+
+function _keywordCandidatesFromInput(input, limit = 24) {
+  if (!input) return [];
+  const pools = []
+    .concat(input?.A?.tokens || [], input?.A?.texture || [], input?.A?.process || [])
+    .concat(input?.B?.tokens || [], input?.B?.texture || [], input?.B?.process || [])
+    .concat(input?.aspect?.tokens || [], input?.aspect?.touch || [], input?.aspect?.gap || [], input?.aspect?.rest || []);
+  const normalized = _normalizeKeywords(pools).filter((w) => !_isBannedKw(w));
+  return _uniq(normalized).slice(0, limit);
+}
+
+function _filterKwByCandidates(list, candidates) {
+  if (!Array.isArray(list) || !list.length) return [];
+  if (!Array.isArray(candidates) || !candidates.length) return list;
+  const candSet = new Set(candidates.map((w) => _normalizeKwToken(w)).filter(Boolean));
+  return list.filter((w) => candSet.has(_normalizeKwToken(w)));
 }
 
 function _isSimilarKw(a, b) {
@@ -2638,8 +2760,9 @@ function _formatKeywordsBlockPersonal(dict, item, seed = "", aiList = [], usedSe
     }
   }
 
-  const fallback = _uniq([...fused, ...(Array.isArray(aiList) ? aiList : [])]);
-  const block = _formatKeywordsBlock(picked.filter(Boolean), fallback, avoid, 3);
+  const fallback = _uniq([...picked.filter(Boolean), ...fused]);
+  const aiFiltered = _filterKwByCandidates(Array.isArray(aiList) ? aiList : [], fused);
+  const block = _formatKeywordsBlock(aiFiltered, fallback, avoid, 3, usedSet);
   if (usedSet && block) {
     const lines = block.split("\n");
     const words = (lines[1] || "").split("/").map((s) => s.trim()).filter(Boolean);
@@ -2716,6 +2839,8 @@ const _STRUCTURE_BANNED = [
   /見せる/g,
 ];
 
+const EXPLANATION_CONNECTORS_RE = /(の中|こと|ように|だから|ので|によって|の結果|ために|ため)/;
+
 function _isBannedStructure(line) {
   const s = String(line || "");
   return _STRUCTURE_BANNED.some((re) => re.test(s));
@@ -2740,8 +2865,9 @@ function _splitSentences(text) {
 }
 
 function _normalizeProseSentence(s, maxLen = 40) {
-  const t = _normalizeProseLine(s, maxLen);
+  let t = _normalizeProseLine(s, maxLen);
   if (!t) return "";
+  t = t.replace(/が、/g, "、");
   return /[。\.]$/.test(t) ? t : `${t}。`;
 }
 
@@ -2756,6 +2882,7 @@ function _isOkProse(line) {
   if (/現れやすい|表に出やすい/.test(s)) return false;
   if (/影響/.test(s)) return false;
   if (/として/.test(s)) return false;
+  if (EXPLANATION_CONNECTORS_RE.test(s)) return false;
   if (/(試行錯誤|独自|更新|全体最適|意味づけ|状況)/.test(s)) return false;
   if (_isBannedStructure(s)) return false;
   if (/座/.test(s)) return false;
@@ -2788,6 +2915,7 @@ function _isOkPiece(line) {
   if (/現れやすい|表に出やすい/.test(s)) return false;
   if (/影響/.test(s)) return false;
   if (/として/.test(s)) return false;
+  if (EXPLANATION_CONNECTORS_RE.test(s)) return false;
   if (/(試行錯誤|独自|更新|全体最適|意味づけ|状況)/.test(s)) return false;
   if (_isBannedStructure(s)) return false;
   if (/座/.test(s)) return false;
@@ -2819,6 +2947,41 @@ function _buildPiecePool(list, minLen = 6, maxLen = 26) {
       if (!piece) return;
       if (piece.length < minLen) return;
       if (!_isOkPiece(piece)) return;
+      out.push(piece);
+    });
+  });
+  return _uniq(out);
+}
+
+function _isOkStatePiece(line) {
+  const s = String(line || "").trim();
+  if (!s) return false;
+  if (s.length < 2) return false;
+  if (/(太陽|月|水星|金星|火星|木星|土星|天王星|海王星|冥王星|ASC|MC|IC|DSC|アセンダント|ディセンダント|ミディアムコエリ|ノード|キロン|リリス)/.test(s)) return false;
+  if (/(牡羊座|牡牛座|双子座|蟹座|獅子座|乙女座|天秤座|蠍座|射手座|山羊座|水瓶座|魚座)/.test(s)) return false;
+  if (/(スクエア|トライン|セクスタイル|セミセクスタイル|セミスクエア|セスキスクエア|オポジション|インコンジャンクト|クインタイル|バイクインタイル|セプタイル|ノヴィル|デシル)/.test(s)) return false;
+  if (/配置/.test(s)) return false;
+  if (/現れやすい|表に出やすい/.test(s)) return false;
+  if (/影響/.test(s)) return false;
+  if (/として/.test(s)) return false;
+  if (EXPLANATION_CONNECTORS_RE.test(s)) return false;
+  if (_isBannedStructure(s)) return false;
+  if (/座/.test(s)) return false;
+  return true;
+}
+
+function _buildStatePool(list, minLen = 2, maxLen = 12) {
+  const raw = Array.isArray(list) ? list : [];
+  const out = [];
+  raw.forEach((v) => {
+    const s = String(v || "").trim();
+    if (!s) return;
+    const parts = s.includes("。") ? s.split(/[。\.]+/g) : [s];
+    parts.forEach((p) => {
+      const piece = _normalizePiece(p, maxLen);
+      if (!piece) return;
+      if (piece.length < minLen) return;
+      if (!_isOkStatePiece(piece)) return;
       out.push(piece);
     });
   });
@@ -2894,7 +3057,7 @@ function _meaningPiecesFromAspect(dict, aspectKey) {
   return _buildPiecePool(pool, 6, 28);
 }
 
-function _collectSignPack(dict, signKey, planetKey, aspectKey, orb) {
+function _collectSignPack(dict, signKey, planetKey, aspectKey, orb, slot) {
   const { sign, by } = _getSignFlavor(dict, signKey, planetKey);
   const soar = _getSoarStyle(dict);
   const fusion = by?.fusion || {};
@@ -2913,6 +3076,7 @@ function _collectSignPack(dict, signKey, planetKey, aspectKey, orb) {
   }
 
   const tokens = _buildPiecePool(tokensPool, 5, 22);
+  const statePool = _buildStatePool(_stateAxisPool(dict, slot), 2, 12);
 
   const signMeta = dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)] || {};
   const texturePool = []
@@ -2933,7 +3097,7 @@ function _collectSignPack(dict, signKey, planetKey, aspectKey, orb) {
   const process = _buildPiecePool(processPool, 3, 26);
 
   return {
-    tokens: _uniq(tokens),
+    tokens: _uniq(tokens.concat(statePool)),
     texture: _uniq(texture),
     process: _uniq(process),
   };
@@ -2946,17 +3110,26 @@ function _collectAspectPack(dict, aspectKey, orb) {
   const tone = _aspectToneCategory(key);
   const tier = _orbTier(orb);
   const sf = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
-  const stateAspect = sf?.states?.state_by_aspect?.[key] || {};
-  const stateTone = sf?.states?.state_by_tone?.[tone] || [];
-  const stateShort = sf?.states?.state_short_by_tone?.[tone] || [];
-  const touchPool = [].concat(stateAspect?.light || [], stateAspect?.mid || [], stateShort || []);
-  const gapPool = [].concat(stateTone || []);
-  const restPool = [].concat(stateAspect?.deep || [], stateShort || [], voice?.rest || []);
+  const tonePool = sf?.grammar?.aspect_tone?.[tone] || [];
+  const touchPool = []
+    .concat(info?.core || [])
+    .concat(info?.feel || [])
+    .concat(voice?.touch || [])
+    .concat(voice?.gap || []);
+  const gapPool = []
+    .concat(info?.relation || [])
+    .concat(voice?.gap || [])
+    .concat(tonePool || []);
+  const restPool = []
+    .concat(info?.adverbs || [])
+    .concat(voice?.rest || [])
+    .concat(tonePool || []);
 
   const touch = _buildPiecePool(touchPool, 5, 22);
   const gap = _buildPiecePool(gapPool, 5, 22);
   const rest = _buildPiecePool(restPool, 5, 22);
-  const tokens = _uniq([].concat(touch, gap, rest));
+  const toneTokens = _buildStatePool(tonePool, 2, 12);
+  const tokens = _uniq([].concat(touch, gap, rest, toneTokens));
   return {
     tokens: _uniq(tokens),
     touch: _uniq(touch),
@@ -3441,12 +3614,13 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     const bSignKey = item?.bS || item?.b_sign_key;
     const aspectKey = _normAspectKey(item?.type || item?.aspT || item?.aspect);
     const orbDeg = Number(item?.orb_deg ?? item?.orb ?? 0);
-    const aPack = _collectSignPack(dict, aSignKey, aKey, aspectKey, orbDeg);
-    const bPack = _collectSignPack(dict, bSignKey, bKey, aspectKey, orbDeg);
+    const layerKey = "public";
+    const aPack = _collectSignPack(dict, aSignKey, aKey, aspectKey, orbDeg, layerKey);
+    const bPack = _collectSignPack(dict, bSignKey, bKey, aspectKey, orbDeg, layerKey);
     const aspectPack = _collectAspectPack(dict, aspectKey, orbDeg);
-    const seedBase = `${dateLabel}|public|${index}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`;
+    const seedBase = `${dateLabel}|${layerKey}|${aspectKey || "aspect"}`;
     const plan = _samplingPlan(aspectKey, orbDeg);
-    return {
+    const input = {
       seed: seedBase,
       A: {
         tokens: _filterBannedPool(_samplePool(aPack.tokens, `${seedBase}|a|tok`, plan.aTok), publicBanned),
@@ -3466,6 +3640,8 @@ async function renderLineAI(story, deps = {}, opts = {}) {
       },
       banned: publicBanned,
     };
+    input.keyword_candidates = _keywordCandidatesFromInput(input);
+    return input;
   };
   const publicInput = publicTop
     .map((it, idx) => buildPublicInput(it, idx))
@@ -3533,7 +3709,10 @@ async function renderLineAI(story, deps = {}, opts = {}) {
       const inputPayload = {
         date: dateLabel,
         title: "",
-        top5: publicInput,
+        top5: publicInput.map((it) => ({
+          ...it,
+          label_candidates: _labelCandidatesFromItem(dict, it, `${dateLabel}|public|${it?.a || ""}|${it?.b || ""}`),
+        })),
         sky_layer_hints: skyLayerHints,
       };
 
@@ -3575,12 +3754,13 @@ async function renderLineAI(story, deps = {}, opts = {}) {
       const bSignKey = item?.transit_sign_key || item?.transit_sign || item?.b_sign_key;
       const aspectKey = _normAspectKey(item?.aspect || item?.type || item?.aspectType || item?.aspect_label_ja);
       const orbDeg = Number(item?.orb_deg ?? item?.orb ?? 0);
-      const aPack = _collectSignPack(dict, aSignKey, aKey, aspectKey, orbDeg);
-      const bPack = _collectSignPack(dict, bSignKey, bKey, aspectKey, orbDeg);
+      const layerKey = String(slot || "personal");
+      const aPack = _collectSignPack(dict, aSignKey, aKey, aspectKey, orbDeg, layerKey);
+      const bPack = _collectSignPack(dict, bSignKey, bKey, aspectKey, orbDeg, layerKey);
       const aspectPack = _collectAspectPack(dict, aspectKey, orbDeg);
-      const seedBase = `${dateLabel}|${slot}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`;
+      const seedBase = `${dateLabel}|${layerKey}|${aspectKey || "aspect"}`;
       const plan = _samplingPlan(aspectKey, orbDeg);
-      return {
+      const input = {
         slot,
         A: {
           label: "A",
@@ -3601,9 +3781,21 @@ async function renderLineAI(story, deps = {}, opts = {}) {
           gap: _filterBannedPool(_samplePool(aspectPack.gap, `${seedBase}|asp|gap`, plan.gap), banned),
           rest: _filterBannedPool(_samplePool(aspectPack.rest, `${seedBase}|asp|rest`, plan.rest), banned),
         },
+        label_candidates: _labelCandidatesFromItem(
+          dict,
+          {
+            natal_body_or_point: aKey,
+            transit_body: bKey,
+            natal_sign_key: aSignKey,
+            transit_sign_key: bSignKey,
+          },
+          seedBase
+        ),
         banned,
-        seed: `${dateLabel}|personal|${slot}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`,
+        seed: seedBase,
       };
+      input.keyword_candidates = _keywordCandidatesFromInput(input);
+      return input;
     };
 
     const PERSONAL_BANNED = [
@@ -3628,7 +3820,7 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     };
 
     const generateProse = async (input) => {
-      if (!input) return "";
+      if (!input) return { prose: "", label: "", keywords: [] };
       const slotKey = String(input?.slot || "unknown");
       const debug = aiDebug ? (aiDebug.personal[slotKey] = { slot: slotKey, attempts: [] }) : null;
       const pushAttempt = (entry) => {
@@ -3642,7 +3834,11 @@ async function renderLineAI(story, deps = {}, opts = {}) {
             reason: !apiKey ? "no_api_key" : (opts?.forceNoLLM ? "force_no_llm" : "llm_disabled"),
           };
         }
-        return _normalizePersonalProse(_fallbackProseThree(input, `${dateLabel}|fallback`), input, `${dateLabel}|fallback`);
+        return {
+          prose: _normalizePersonalProse(_fallbackProseThree(input, `${dateLabel}|fallback`), input, `${dateLabel}|fallback`),
+          label: "",
+          keywords: [],
+        };
       }
       const banned = input?.banned || [];
       for (let i = 0; i < 2; i++) {
@@ -3664,24 +3860,27 @@ async function renderLineAI(story, deps = {}, opts = {}) {
           const prose = parsed && typeof parsed === "object" && typeof parsed.prose === "string"
             ? parsed.prose
             : raw;
-          const cleaned = _normalizePersonalProse(prose || "", input, `${dateLabel}|p|${i}`);
-          if (_containsBannedTokens(cleaned, banned)) {
+          const labelRaw = parsed && typeof parsed === "object" && typeof parsed.label === "string"
+            ? parsed.label
+            : "";
+          const keywordsRaw = parsed && typeof parsed === "object" && Array.isArray(parsed.keywords)
+            ? parsed.keywords
+            : [];
+          if (_containsBannedTokens(prose, banned)) {
             if (LINE_AI_DEBUG) {
-              console.error("[line_today] generateProse: banned tokens hit", cleaned);
+              console.error("[line_today] generateProse: banned tokens hit", prose);
             }
             pushAttempt({ attempt: i + 1, ok: false, reason: "banned_tokens" });
             continue;
           }
-          if (isBadPersonalProse(cleaned)) {
-            if (LINE_AI_DEBUG) {
-              console.error("[line_today] generateProse: bad prose", cleaned);
-            }
-            pushAttempt({ attempt: i + 1, ok: false, reason: "bad_prose" });
+          if (!_isOkAiProse(prose)) {
+            pushAttempt({ attempt: i + 1, ok: false, reason: "empty" });
             continue;
           }
+          const rawProse = String(prose || "").trim();
           pushAttempt({ attempt: i + 1, ok: true, note: jsonParseError ? "json_parse_error" : undefined });
           if (debug) debug.result = { used: "llm", reason: "ok" };
-          return cleaned;
+          return { prose: rawProse, label: labelRaw, keywords: keywordsRaw };
         } catch (_) {
           if (LINE_AI_DEBUG) console.error("[line_today] generateProse: LLM error", _);
           const msg = _?.message || String(_);
@@ -3693,15 +3892,17 @@ async function renderLineAI(story, deps = {}, opts = {}) {
         const last = debug.attempts[debug.attempts.length - 1];
         debug.result = { used: "fallback", reason: last?.reason || "llm_failed" };
       }
-      return _normalizePersonalProse(_fallbackProseThree(input, `${dateLabel}|fallback2`), input, `${dateLabel}|fallback2`);
+      return {
+        prose: _normalizePersonalProse(_fallbackProseThree(input, `${dateLabel}|fallback2`), input, `${dateLabel}|fallback2`),
+        label: "",
+        keywords: [],
+      };
     };
 
     aiPersonal = {
-      inner: { prose: await generateProse(buildInput("inner", personalPick.inner)) },
-      outer: { prose: await generateProse(buildInput("outer", personalPick.outer)) },
-      third: {
-        prose: await generateProse(buildInput("third", personalPick.rare || personalPick.flow)),
-      },
+      inner: await generateProse(buildInput("inner", personalPick.inner)),
+      outer: await generateProse(buildInput("outer", personalPick.outer)),
+      third: await generateProse(buildInput("third", personalPick.rare || personalPick.flow)),
     };
   }
 
@@ -3714,24 +3915,30 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     const usedLabelsPublic = new Set();
     for (let i = 0; i < publicTop.length; i++) {
       const item = publicTop[i];
+      const inputPack = publicInput[i] || {};
       const ai = aiPublic[i] || {};
       const header = _formatPublicAspectLine(
         dict,
         item,
         `${RENDER_COPY?.CIRCLES?.[i] || ["①", "②", "③", "④", "⑤"][i]} `
       );
-      const label = _formatUnifiedLabel(dict, item, `${dateLabel}|public|${i}`, usedLabelsPublic);
+      const aiLabel = _normalizeAiLabel(ai?.label, dict);
+      const label = aiLabel || _formatUnifiedLabel(dict, item, `${dateLabel}|public|${i}`, usedLabelsPublic);
       const kwFallback = _fallbackKwPublic(dict, item, `${dateLabel}|public|${i}`);
-      parts.push(
-        [
-          header,
-          label,
-          _formatStructureLine(ai.s1, ai.s2),
-          _formatKeywordsLine(ai.keywords, kwFallback, usedKwPublic),
-        ]
-          .filter(Boolean)
-          .join("\n")
-      );
+      const structureLine = (() => {
+        const prose = String(ai?.prose || "").trim();
+        const ok = prose && !_containsBannedTokens(prose, LINE_AI_BANNED_TOKENS_PERSONAL);
+        return ok ? _formatStructureLineProse(prose) : _formatStructureLine(ai?.s1, ai?.s2);
+      })();
+      const kwCandidates = Array.isArray(inputPack?.keyword_candidates) ? inputPack.keyword_candidates : [];
+      const kwAi = _filterKwByCandidates(ai.keywords, kwCandidates);
+      const keywordLine = _formatKeywordsLine(kwAi, kwFallback, usedKwPublic);
+      const itemLines = [header, label];
+      if (label && structureLine) itemLines.push("");
+      if (structureLine) itemLines.push(structureLine);
+      if (structureLine && keywordLine) itemLines.push("");
+      if (keywordLine) itemLines.push(keywordLine);
+      parts.push(itemLines.join("\n"));
       if (i < publicTop.length - 1) parts.push(SEP);
     }
     parts.push(SEP);
@@ -3751,15 +3958,13 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     const raw2 = _containsBannedTokens(aiSkyLayer?.line2, LINE_AI_BANNED_TOKENS_PERSONAL)
       ? ""
       : trimStr(aiSkyLayer?.line2);
-    const sky1 = raw1 && /、/.test(raw1) ? "" : raw1;
-    const sky2 = raw2 && /、/.test(raw2) ? "" : raw2;
+    const sky1 = raw1;
+    const sky2 = raw2;
+    const line1 = sky1 || layer.line1 || "";
+    const line2 = sky2 || layer.line2 || "";
     if (layer.label) parts.push(layer.label);
-    if (sky1) parts.push(sky1);
-    if (sky2) parts.push(sky2);
-    if (!sky1 && !sky2) {
-      if (layer.line1) parts.push(layer.line1);
-      if (layer.line2) parts.push(layer.line2);
-    }
+    if (line1) parts.push(line1);
+    if (line2) parts.push(line2);
 
     parts.push("解釈は、あなたのもの。");
     parts.push("星は語る。決めるのは、人。");
@@ -3787,26 +3992,23 @@ async function renderLineAI(story, deps = {}, opts = {}) {
       if (!payload) return;
       payload._seed = dateLabel;
       const seedLabel = `${dateLabel}|${mode}|${item?.natal_body_or_point || item?.natal_body || item?.a || ""}|${item?.transit_body || item?.b || ""}|${item?.aspect || item?.type || item?.aspectType || ""}|${item?.natal_sign_key || item?.natal_sign || item?.a_sign_key || ""}|${item?.transit_sign_key || item?.transit_sign || item?.b_sign_key || ""}`;
-      const roles = _formatUnifiedLabel(dict, item, seedLabel, usedLabelsPersonal);
-      const proseText = ai?.prose || "";
-      const structure = proseText ? _formatStructureParagraph(proseText) : "";
+    const aiLabel = _normalizeAiLabel(ai?.label, dict);
+    const roles = aiLabel || _formatUnifiedLabel(dict, item, seedLabel, usedLabelsPersonal);
+    const proseText = String(ai?.prose || "").trim();
+    const structure = proseText ? _formatStructureLineProse(proseText) : "";
       const keywordBlock = _formatKeywordsBlockPersonal(
         dict,
         item,
         `${dateLabel}|personal|${index}`,
-        [],
+        Array.isArray(ai?.keywords) ? ai.keywords : [],
         usedKw
       );
-      const blockLines = [
-        label,
-        "",
-        _formatPersonalAspectLineFromPayload(payload, `${index} `),
-        roles || null,
-        "",
-        structure,
-        "",
-        keywordBlock,
-      ].filter((v) => v !== null);
+      const blockLines = [label, "", _formatPersonalAspectLineFromPayload(payload, `${index} `)];
+      if (roles) blockLines.push(roles);
+      if (structure) blockLines.push("");
+      if (structure) blockLines.push(structure);
+      if (keywordBlock) blockLines.push("");
+      if (keywordBlock) blockLines.push(keywordBlock);
       parts.push(...blockLines);
     };
 
@@ -3821,17 +4023,15 @@ async function renderLineAI(story, deps = {}, opts = {}) {
 
     if (personalPick.rare) {
       block("✶ レア", "③", personalPick.rare, aiThird, "rare");
+      parts.push("");
+      parts.push(SEP);
+      parts.push("");
     } else if (personalPick.flow) {
       block("🌿 流層", "③", personalPick.flow, aiThird, "flow");
-    } else {
-      parts.push("🌿 流層");
       parts.push("");
-      parts.push("（該当なし）");
+      parts.push(SEP);
+      parts.push("");
     }
-
-    parts.push("");
-    parts.push(SEP);
-    parts.push("");
 
     const sunSign =
       story?.public?.transit_signs?.sun?.sign_ja ||
@@ -3934,14 +4134,12 @@ async function renderLineAI(story, deps = {}, opts = {}) {
     const l2 = trimStr(aiLayer?.line2);
     const layer1 = l1 && /、/.test(l1) ? "" : l1;
     const layer2 = l2 && /、/.test(l2) ? "" : l2;
+    const line1 = layer1 || layer.line1 || "";
+    const line2 = layer2 || layer.line2 || "";
     if (layer.label) parts.push(layer.label);
-    if (layer1) parts.push(layer1);
-    if (layer2) parts.push(layer2);
-    if (!layer1 && !layer2) {
-      if (layer.line1) parts.push(layer.line1);
-      if (layer.line2) parts.push(layer.line2);
-    }
-    if (layer.label || l1 || l2 || layer.line1 || layer.line2) parts.push("");
+    if (line1) parts.push(line1);
+    if (line2) parts.push(line2);
+    if (layer.label || line1 || line2) parts.push("");
     parts.push("解釈は、あなたのもの。");
     parts.push("星は語る。決めるのは、人。🌎️🛸✨️");
     parts.push("");

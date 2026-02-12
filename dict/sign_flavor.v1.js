@@ -27,65 +27,6 @@ const SIGN_FLAVOR_V1 = Object.freeze({
     // 可変A文：言い回しパーツ（ここが “衝動と/圧が/試しながら” を可変にする場所）
     // --------------------
     grammar: Object.freeze({
-        // core と tension を “どう接続するか”
-        connectors: Object.freeze({
-            both_rise: [
-                "が同時に立ち上がり",
-                "が並走し",
-                "が重なって触れやすくなり",
-                "が同じ場所で反応し",
-                "が同時に動き出し",
-                "が同じ方向で押し合い",
-                "が交差しやすくなり",
-                "が近い位置で響き合い",
-                "が同じ層で反応し",
-                "が同時に熱を持ち",
-                "が同じ地点で立ち上がり",
-                "が相互に押し返し合い",
-                "が同じ速度で進み",
-                "が近い距離でぶつかり合い",
-                "が並び立つように現れ",
-            ],
-            between: [
-                "のあいだで",
-                "の境目で",
-                "の間で",
-                "の往復で",
-                "のはざまで",
-                "の切り替わりで",
-                "の接点で",
-                "の境界で",
-                "の交点で",
-                "の中継点で",
-                "の間合いで",
-                "の合流点で",
-                "の揺れ目で",
-                "の重なりで",
-            ],
-        }),
-
-        // “core” をどう呼ぶか（サインで変える用）
-        core_nouns: Object.freeze({
-            impulse: ["衝動", "熱", "起点", "動機", "点火", "初速", "勢い", "踏み込み", "着火", "始動", "加速", "突入"],
-            axis: ["軸", "基準", "中心", "輪郭", "核", "芯", "方向", "軌道", "立ち位置", "重心", "要", "焦点"],
-            flow: ["流れ", "通路", "テンポ", "回路", "循環", "運び", "やりとり", "流通", "往復", "連結", "推移", "通り道"],
-            hold: ["守り", "抱え方", "居場所", "保護", "包み", "受け皿", "場", "内側", "囲い", "滞在", "保つ場所", "居所"],
-            craft: ["手元", "整え", "微調整", "仕上げ", "手入れ", "扱い", "整序", "手直し", "整形", "手当て", "組み直し", "調律"],
-            mirror: ["鏡", "対比", "関係の像", "映り", "釣り合い", "バランス", "合わせ鏡", "対照", "相互", "対面", "映し合い", "等価"],
-            depth: ["深層", "境界", "濃度", "共有", "変容の圧", "奥行き", "密度", "深部", "内圧", "沈み", "重さ", "底"],
-            horizon: ["視野", "意味", "遠景", "探索", "拡張", "広がり", "射程", "俯瞰", "見通し", "範囲", "遠望", "外縁"],
-            structure: ["構造", "段取り", "積み上げ", "責任", "骨格", "枠", "設計", "手順", "規格", "土台", "工程", "配列"],
-            update: ["更新", "俯瞰", "ズレ", "観測", "自由の回路", "切り替え", "再設計", "刷新", "置き換え", "入れ替え", "飛躍", "再編"],
-            dissolve: ["余韻", "溶解", "にじみ", "共鳴", "境界のゆるみ", "浸透", "混ざり", "漂い", "曖昧", "ゆらぎ", "溶け合い", "滲み"],
-        }),
-
-        // “表現/振る舞い/反応/言葉” の言い回し
-        outputs: Object.freeze({
-            expression: ["表現", "ふるまい", "置き方", "出し方", "見せ方", "立ち方", "姿勢", "打ち出し方", "表し方", "見え方", "提示の仕方"],
-            reaction: ["反応", "守り方", "体感の動き", "揺れ方", "安心の取り方", "距離の取り方", "受け止め方", "響き方", "受信の仕方", "触れ方", "反射の仕方"],
-            language: ["言葉", "伝え方", "まとめ方", "説明の輪郭", "対話のテンポ", "語り方", "置き言葉", "言い回し", "表現語彙", "語尾の置き方", "説明の運び"],
-        }),
-
         // tension 内の動的スロット（{drive}/{dyn} 用）
         dynamics: Object.freeze({
             drive: ["衝動", "迷い", "ためらい", "反発", "引き", "勢い", "揺らぎ", "決めきれなさ", "急ぎ", "押し出し", "慎重さ", "躊躇", "跳ね返り"],
@@ -109,69 +50,26 @@ const SIGN_FLAVOR_V1 = Object.freeze({
             adjust: ["調整", "微差", "補正", "揺れ", "馴染み", "折り合い", "行き違い", "擦り合わせ", "端差", "間合い", "揺らぎ", "詰め"],
             craft: ["工夫", "磨き", "試作", "再設計", "探り", "組み替え", "手作業", "改善", "設え", "編み直し", "調律", "仕立て"],
         }),
-
-        // “試しながら” の言い回し
-        tryings: Object.freeze({
-            try: ["試しながら", "試行錯誤しながら", "形を変えながら", "微調整しながら", "探りながら", "いったん置きながら", "組み替えながら", "試作しながら"],
-            settle: ["定着させながら", "保ちながら", "積み上げながら", "固めながら", "形にしながら", "位置を決めながら", "型を保ちながら"],
-            observe: ["観測しながら", "距離を取りながら", "俯瞰しながら", "見届けながら", "様子を見ながら", "手元に置きながら"],
-            dissolve: ["にじませながら", "ほどきながら", "ゆるめながら", "溶かしながら", "薄めながら", "拡げながら"],
-        }),
-
-        // A文テンプレ（“衝動と…”固定ではなく、パーツ差し替え前提）
-        templates: Object.freeze({
-            A1: "{core}と{tension}{connector}、{output}は{trying}形を持ちやすい。",
-            A2: "{core}が前に出やすく、{between}{tension}が触れやすい。",
-            A3: "{output}に{core}が乗りやすく、{between}{tension}で揺れやすい。",
-            A4: "{core}が動きやすく、{tension}{connector}{output}が整いやすい。",
-            A5: "{core}が先に立ち、{between}{tension}が反応の形になりやすい。",
-            A6: "{core}が強まりやすく、{between}{tension}が揺れとして残りやすい。",
-            A7: "{core}が起点になり、{tension}{connector}{output}が動きやすい。",
-            A8: "{core}が前景化し、{between}{tension}で{output}が調整されやすい。",
-        }),
     }),
 
     // --------------------
-    // util：最低限の合成（render側に移してもOK）
+    // 状態軸（SSOT）: 俯瞰・総括用の素材
     // --------------------
-    util: Object.freeze({
-        _pick(arr, i = 0) {
-            if (!Array.isArray(arr) || !arr.length) return "";
-            return String(arr[Math.max(0, Math.min(i, arr.length - 1))] || "");
-        },
-        buildA({
-            templateKey = "A1",
-            core,
-            tension,
-            outputKey = "expression",
-            connectorKey = "both_rise",
-            tryingKey = "try",
-            i = 0,
-            drive,
-            dyn,
-        }) {
-            const g = SIGN_FLAVOR_V1.grammar;
-            const tpl = g.templates?.[templateKey] || g.templates.A1;
-
-            const connector = SIGN_FLAVOR_V1.util._pick(g.connectors?.[connectorKey], i) || "が触れやすくなり";
-            const between = SIGN_FLAVOR_V1.util._pick(g.connectors?.between, i) || "のあいだで";
-            const output = SIGN_FLAVOR_V1.util._pick(g.outputs?.[outputKey], i) || "表現";
-            const trying = SIGN_FLAVOR_V1.util._pick(g.tryings?.[tryingKey], i) || "探りながら";
-            const driveWord = String(drive || "");
-            const dynWord = String(dyn || "");
-
-            return String(tpl)
-                .replace("{core}", String(core || "—"))
-                .replace("{tension}", String(tension || "—"))
-                .replace("{connector}", connector)
-                .replace("{between}", between)
-                .replace("{output}", output)
-                .replace("{trying}", trying)
-                .replace("{drive}", driveWord)
-                .replace("{dyn}", dynWord)
-                .replace(/\s+/g, " ")
-                .trim();
-        },
+    state_axes: Object.freeze({
+        density: Object.freeze(["薄さ", "厚み", "粗さ", "粒度", "密", "充満", "疎", "重なり", "空隙", "詰まり"]),
+        edge: Object.freeze(["輪郭", "角", "丸み", "硬さ", "柔らかさ", "にじみ", "境目", "線", "ぼやけ", "立ち"]),
+        pressure: Object.freeze(["圧", "残圧", "押し返し", "張り", "沈み", "重さ", "詰め", "抜け", "残り"]),
+        distance: Object.freeze(["距離", "間合い", "隔たり", "近さ", "遠さ", "開き", "詰まり", "境界", "触れ幅"]),
+        temperature: Object.freeze(["熱", "冷え", "ぬるさ", "乾き", "湿り", "温度差", "火照り", "冷たさ", "温度揺れ"]),
+        flow: Object.freeze(["流れ", "滞り", "うねり", "連続", "断続", "循環", "波", "移ろい", "ほどけ", "ねじれ"]),
+        after: Object.freeze(["余韻", "残響", "残像", "余熱", "余白", "にじみ", "静まり", "尾", "残り"]),
+    }),
+    state_roles: Object.freeze({
+        outer: Object.freeze(["density", "edge", "distance", "flow"]),
+        inner: Object.freeze(["pressure", "after", "temperature", "flow"]),
+        skeleton: Object.freeze(["density", "edge"]),
+        transition: Object.freeze(["flow", "distance"]),
+        resonance: Object.freeze(["pressure", "after", "temperature"]),
     }),
 
     // --------------------
