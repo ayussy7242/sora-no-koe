@@ -254,6 +254,7 @@ function computeNatalCache({
   const OPTIONAL_MAP = {
     chiron: sweConst("chiron"),
     lilith: swisseph.SE_MEAN_APOG ?? sweConst("mean_apog") ?? sweConst("meanapog"),
+    north_node: sweConst("mean_node") ?? sweConst("true_node") ?? sweConst("truenode"),
   };
 
   const bodies = {};
@@ -280,6 +281,11 @@ function computeNatalCache({
     } catch (_) {
       // optional: ignore
     }
+  }
+
+  // if north_node exists, derive south_node
+  if (Number.isFinite(Number(bodies.north_node)) && bodies.south_node == null) {
+    bodies.south_node = toFixedPrecision(norm360(Number(bodies.north_node) + 180), precisionDeg);
   }
 
   let houses = null;
@@ -640,19 +646,45 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     existingEngineHousesOk;
 
   const hasOptionalInCalc =
-    calc?.bodies && (calc.bodies.chiron != null || calc.bodies.lilith != null);
+    calc?.bodies && (
+      calc.bodies.chiron != null ||
+      calc.bodies.lilith != null ||
+      calc.bodies.north_node != null
+    );
   const hasOptionalInExisting = (() => {
     const b = existing?.min?.bodies || {};
     return (
       b.chiron != null ||
       b.lilith != null ||
+      b.north_node != null ||
       b.Chiron != null ||
-      b.Lilith != null
+      b.Lilith != null ||
+      b.North_Node != null ||
+      b.northNode != null ||
+      b.mean_node != null ||
+      b.true_node != null ||
+      b.node != null
     );
   })();
 
+  const calcHasNorthNode = calc?.bodies?.north_node != null;
+  const existingHasNorthNode = (() => {
+    const b = existing?.min?.bodies || {};
+    return (
+      b.north_node != null ||
+      b.North_Node != null ||
+      b.northNode != null ||
+      b.mean_node != null ||
+      b.true_node != null ||
+      b.node != null
+    );
+  })();
+  const forceRecalcBodies = calcHasNorthNode && !existingHasNorthNode;
+
   const useExistingBodies =
-    existingMinBodiesOk && (!hasOptionalInCalc || hasOptionalInExisting);
+    existingMinBodiesOk &&
+    !forceRecalcBodies &&
+    (!hasOptionalInCalc || hasOptionalInExisting);
 
   const finalasc = shouldUseExistingAngles
     ? (existing?.min?.angles?.asc_deg ?? existing?.engine?.houses?.asc_deg ?? existing?.houses?.angles?.asc ?? null)
@@ -669,6 +701,8 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   const finalascP = isFiniteNumber(finalasc) ? toFixedPrecision(norm360(finalasc), PRECISION_DEG) : null;
   const finalmcP = isFiniteNumber(finalmc) ? toFixedPrecision(norm360(finalmc), PRECISION_DEG) : null;
   const finalvertexP = isFiniteNumber(finalvertex) ? toFixedPrecision(norm360(finalvertex), PRECISION_DEG) : null;
+  const finaldcP = isFiniteNumber(finalascP) ? toFixedPrecision(norm360(finalascP + 180), PRECISION_DEG) : null;
+  const finalicP = isFiniteNumber(finalmcP) ? toFixedPrecision(norm360(finalmcP + 180), PRECISION_DEG) : null;
 
   // --------------------
   // choose base houses objects then inject final angles
@@ -681,6 +715,8 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     nextHouses.angles.asc = finalascP;
     nextHouses.angles.mc = finalmcP;
     nextHouses.angles.vertex = finalvertexP;
+    nextHouses.angles.dc = finaldcP;
+    nextHouses.angles.ic = finalicP;
   }
 
   if (nextEngineHouses && typeof nextEngineHouses === "object") {
@@ -722,11 +758,13 @@ async function processOneNatalJob(deps = {}, opts = {}) {
 
     min: {
       ...(existing.min || {}),
-    bodies: useExistingBodies ? existing.min.bodies : calc.bodies,
+      bodies: useExistingBodies ? existing.min.bodies : calc.bodies,
       angles: {
         asc_deg: finalascP,
         mc_deg: finalmcP,
         vertex_deg: finalvertexP,
+        dc_deg: finaldcP,
+        ic_deg: finalicP,
       },
     },
 
