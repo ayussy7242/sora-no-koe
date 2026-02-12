@@ -48,6 +48,14 @@ function createNatalListRenderer({
     return `${signJa} ${deg}°${mm}’`;
   }
 
+  function lonToSignOnly(lonDeg) {
+    const x = Number(lonDeg);
+    if (!Number.isFinite(x)) return null;
+    const lon = ((x % 360) + 360) % 360;
+    const signIndex = Math.floor(lon / 30);
+    return (typeof signJaFromIndex === "function" ? signJaFromIndex(signIndex) : null) || "（不明）";
+  }
+
   /**
    * natal_cache のいろんな形から asc/mc を拾う
    * - d.houses.angles.asc / mc
@@ -113,7 +121,8 @@ function createNatalListRenderer({
         : "asc/mc が取得できませんでした。出生情報を確認してください。";
     }
 
-    const order = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto", "lilith", "chiron"];
+    const orderMain = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+    const orderSpecial = ["lilith", "chiron"];
 
     const glyph = {
       sun: "☉",
@@ -128,17 +137,20 @@ function createNatalListRenderer({
       pluto: "♇",
       lilith: "⚸",
       chiron: "⚷",
-      asc: "✧",
-      mc: "✦",
+      north_node: "☊",
+      south_node: "☋",
     };
 
-    const safeFmtPoint = (k) => (typeof fmtPointJa === "function" ? fmtPointJa(k) : String(k));
     const safeFmtBody = (k) => (typeof fmtBodyJa === "function" ? fmtBodyJa(k) : String(k));
+    const labelOverride = {
+      lilith: "リリス",
+      chiron: "キロン",
+      north_node: "北ノード",
+      south_node: "南ノード",
+    };
+    const bodyLabel = (k) => labelOverride[k] || safeFmtBody(k);
 
     const lines = [];
-    lines.push(`${glyph.asc} ${safeFmtPoint("asc")}：${lonToSignDegMin(asc)}`);
-    lines.push(`${glyph.mc}  ${safeFmtPoint("mc")}：${lonToSignDegMin(mc)}`);
-    lines.push("");
 
     const SIGN_KEYS = [
       "aries",
@@ -220,7 +232,7 @@ function createNatalListRenderer({
       }
     }
 
-    const readBodyLon = (key) => {
+    const readBodyLonDirect = (key) => {
       if (!key) return undefined;
       const lower = String(key).toLowerCase();
       if (bodiesLower[lower] != null) return bodiesLower[lower];
@@ -230,25 +242,107 @@ function createNatalListRenderer({
       return bodies?.[key];
     };
 
-    let insertedSpecialSep = false;
-    for (let i = 0; i < order.length; i++) {
-      const k = order[i];
-      const v = readBodyLon(k);
-      const str = lonToSignDegMin(v);
-      if (!str) continue;
-      const label = safeFmtBody(k);
-      if (!insertedSpecialSep && (k === "lilith" || k === "chiron")) {
-        lines.push("");
-        insertedSpecialSep = true;
+    const readBodyLon = (key) => {
+      if (key === "north_node") {
+        const aliases = ["north_node", "true_node", "mean_node", "northnode", "nn", "node", "rahu"];
+        for (const a of aliases) {
+          const v = readBodyLonDirect(a);
+          if (Number.isFinite(Number(v))) return v;
+        }
+        return undefined;
       }
-      lines.push(`${glyph[k]} ${label}：${str}`);
+      if (key === "south_node") {
+        const aliases = ["south_node", "southnode", "sn", "ketu"];
+        for (const a of aliases) {
+          const v = readBodyLonDirect(a);
+          if (Number.isFinite(Number(v))) return v;
+        }
+        return undefined;
+      }
+      return readBodyLonDirect(key);
+    };
 
+    const formatLine = (key, lon, { showDeg = true, suffix = "" } = {}) => {
+      const signText = showDeg ? lonToSignDegMin(lon) : lonToSignOnly(lon);
+      if (!signText) return "";
+      const label = bodyLabel(key);
+      const g = glyph[key] || "";
+      const prefix = g ? `${g}` : "";
+      return `${prefix}${label}：${signText}${suffix}`;
+    };
+
+    const bodyLines = [];
+    const pushBody = (k) => {
+      const v = readBodyLon(k);
+      if (!Number.isFinite(Number(v))) return;
+      const line = formatLine(k, v, { showDeg: true });
+      if (!line) return;
+      bodyLines.push(line);
       const meta = sigMeta(v);
       const e = String(meta?.element || "").toLowerCase();
       const m = String(meta?.modality || "").toLowerCase();
       if (element[e] !== undefined) element[e] += 1;
       if (modality[m] !== undefined) modality[m] += 1;
+    };
+
+    orderMain.forEach(pushBody);
+
+    const specialLines = [];
+    orderSpecial.forEach((k) => {
+      const v = readBodyLon(k);
+      if (!Number.isFinite(Number(v))) return;
+      const line = formatLine(k, v, { showDeg: true });
+      if (line) specialLines.push(line);
+      const meta = sigMeta(v);
+      const e = String(meta?.element || "").toLowerCase();
+      const m = String(meta?.modality || "").toLowerCase();
+      if (element[e] !== undefined) element[e] += 1;
+      if (modality[m] !== undefined) modality[m] += 1;
+    });
+
+    let northLon = readBodyLon("north_node");
+    let southLon = readBodyLon("south_node");
+    let northFromOpposite = false;
+    let southFromOpposite = false;
+    if (!Number.isFinite(Number(northLon)) && Number.isFinite(Number(southLon))) {
+      northLon = (Number(southLon) + 180) % 360;
+      northFromOpposite = true;
     }
+    if (!Number.isFinite(Number(southLon)) && Number.isFinite(Number(northLon))) {
+      southLon = (Number(northLon) + 180) % 360;
+      southFromOpposite = true;
+    }
+
+    const nodeLines = [];
+    if (Number.isFinite(Number(northLon))) {
+      const line = formatLine("north_node", northLon, { showDeg: true, suffix: northFromOpposite ? "（対向）" : "" });
+      if (line) nodeLines.push(line);
+    }
+    if (Number.isFinite(Number(southLon))) {
+      const line = formatLine("south_node", southLon, { showDeg: true, suffix: southFromOpposite ? "（対向）" : "" });
+      if (line) nodeLines.push(line);
+    }
+
+    const angleLines = [];
+    const ascLine = lonToSignDegMin(asc);
+    const mcLine = lonToSignDegMin(mc);
+    const icLine = lonToSignDegMin(Number(mc) + 180);
+    const dcLine = lonToSignDegMin(Number(asc) + 180);
+    if (ascLine) angleLines.push(`ASC：${ascLine}`);
+    if (mcLine) angleLines.push(`MC：${mcLine}`);
+    if (icLine) angleLines.push(`IC：${icLine}`);
+    if (dcLine) angleLines.push(`DC：${dcLine}`);
+
+    const appendBlock = (block) => {
+      if (!block.length) return;
+      if (lines.length) lines.push("");
+      lines.push(...block);
+    };
+
+    appendBlock(bodyLines);
+    appendBlock(specialLines);
+    appendBlock(nodeLines);
+    appendBlock(angleLines);
 
     const total = element.fire + element.earth + element.air + element.water;
     if (total > 0) {
@@ -260,7 +354,7 @@ function createNatalListRenderer({
       lines.push(`🏃 活動${modality.cardinal} 🧱 不動${modality.fixed} 🌿 柔軟${modality.mutable}`);
     }
 
-    const head = RENDER_COPY?.HEAD_NATAL_LIST || "【わたしの星】";
+    const head = RENDER_COPY?.HEAD_NATAL_LIST || "🌌 わたしのほし";
     // タイトル直下に余白を1行追加
     return [head, "", ...lines].filter((v) => v !== undefined && v !== null).join("\n");
   }

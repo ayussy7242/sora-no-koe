@@ -249,6 +249,9 @@ function createStoriesRouter(deps = {}) {
       story.meta.router_asof_source =
         (req.query.as_of && isValidISO(req.query.as_of)) ? "as_of" :
           (req.query.datetime_local ? "datetime_local" : "server_now");
+      // AI debug flag (per-request)
+      const aiDebugOn = boolish(req.query.ai_debug) || boolish(req.query.debug);
+      if (aiDebugOn) story.meta.ai_debug_on = true;
 
       // --------------------
       // render only what is requested (NO collateral failures)

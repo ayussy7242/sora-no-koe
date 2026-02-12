@@ -22,7 +22,7 @@ const HEAD_SKY = "【今日のソラ（星の配置）】"; // 互換用（残�
 const HEAD_SKY_MAIN = "【星の主な配置】";
 const HEAD_moon = "【今日の月】";
 const HEAD_YOIN = "【今日の余韻】";
-const HEAD_NATAL_LIST = "🌌 わたしのほし（あなたの星の一覧）";
+const HEAD_NATAL_LIST = "🌌 わたしのほし";
 
 // --- public（そら）側 ---
 const HEAD_SORA = "【今日のソラ｜そら】";
@@ -198,9 +198,9 @@ const RENDER_COPY = Object.freeze({
   // Today layers（personal-only：3層ラベル）
   // --------------------
   HEAD_LAYERS: {
-    THEME: "🌗 内側の反応点",
-    TOUCH: "☀️ 外に出やすい反応",
-    HIDDEN: "🌿 自然に流れる接点",
+    THEME: "🌓 内層",
+    TOUCH: "☀️ 外層",
+    HIDDEN: "🌿 流層",
   },
 
   // --------------------

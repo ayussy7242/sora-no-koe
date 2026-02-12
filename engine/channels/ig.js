@@ -129,10 +129,14 @@ function renderIG(story, deps = {}) {
     lines.push(IG_FORMAT.SKY_LINE_ASPECT(aspectJa, orb));
 
     const fusionItem = toFusionItemFromPublicSky(s);
-    const fusionSentence =
-      fusionItem && typeof buildFusionSentence === "function"
-        ? buildFusionSentence(FUSION_CTX, fusionItem, { template: "sky" }) || ""
-        : "";
+    let fusionSentence = "";
+    if (fusionItem && typeof buildFusionSentence === "function") {
+      try {
+        fusionSentence = buildFusionSentence(fusionItem, { template: "sky" }) || "";
+      } catch (_) {
+        fusionSentence = "";
+      }
+    }
 
     lines.push(safeStr(fusionSentence).trim() ? fusionSentence.trim() : "空気の接点が生まれやすい。");
     lines.push("");
@@ -162,10 +166,14 @@ function renderIG(story, deps = {}) {
     lines.push("");
 
     const fusionItem = toFusionItemFromPublicSky(secret);
-    const fusionSentence =
-      fusionItem && typeof buildFusionSentence === "function"
-        ? buildFusionSentence(FUSION_CTX, fusionItem, { template: "sky" }) || ""
-        : "";
+    let fusionSentence = "";
+    if (fusionItem && typeof buildFusionSentence === "function") {
+      try {
+        fusionSentence = buildFusionSentence(fusionItem, { template: "sky" }) || "";
+      } catch (_) {
+        fusionSentence = "";
+      }
+    }
 
     lines.push(safeStr(fusionSentence).trim() ? fusionSentence.trim() : "空気の接点が生まれやすい。");
     lines.push("");
