@@ -1744,6 +1744,15 @@ const SORA_AI_BANNED = [];
 
             aiItems = Array.isArray(parsed.items) ? parsed.items : [];
             aiSky = parsed.sky_layer || {};
+            aiItems = aiItems.map((it) => {
+                const rawProse = String(it?.prose || "").trim();
+                if (!rawProse) return it;
+                const cleaned = _extractInlineKeywordsAndCleanProse(rawProse);
+                const nextKeywords = (cleaned.inlineKeywords && cleaned.inlineKeywords.length)
+                    ? cleaned.inlineKeywords
+                    : (Array.isArray(it?.keywords) ? it.keywords : []);
+                return { ...it, prose: cleaned.prose, keywords: nextKeywords };
+            });
 
             let hasBad = false;
             aiItems.forEach((it) => {
@@ -2058,6 +2067,33 @@ function _cleanClause(s) {
         .replace(/[、\s]+$/g, "")
         .replace(/。+$/g, "")
         .trim();
+}
+
+function _splitInlineKeywords(raw) {
+    return String(raw || "")
+        .split(/[／/、,]/)
+        .map((s) => String(s || "").trim())
+        .filter(Boolean);
+}
+
+function _extractInlineKeywordsAndCleanProse(prose) {
+    const lines = String(prose || "").split(/\r?\n/);
+    const inline = [];
+    const kept = [];
+    for (const line of lines) {
+        const t = String(line || "").trim();
+        if (!t) continue;
+        const noArrow = t.replace(/^→\s*/, "");
+        if (/^【.+】$/.test(noArrow)) continue;
+        const kwMatch = t.match(/^(keywords?|keyword|KeyWord|キーワード)\s*[:：]?\s*(.+)$/i);
+        if (kwMatch) {
+            inline.push(..._splitInlineKeywords(kwMatch[2]));
+            continue;
+        }
+        kept.push(line);
+    }
+    const cleaned = kept.join("\n").trim();
+    return { prose: cleaned || String(prose || "").trim(), inlineKeywords: inline.filter(Boolean) };
 }
 
 function _subjectify(core) {

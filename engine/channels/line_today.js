@@ -2452,6 +2452,33 @@ function _normalizeKwToken(s) {
     .trim();
 }
 
+function _splitInlineKeywords(raw) {
+  return String(raw || "")
+    .split(/[／/、,]/)
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+}
+
+function _extractInlineKeywordsAndCleanProse(prose) {
+  const lines = String(prose || "").split(/\r?\n/);
+  const inline = [];
+  const kept = [];
+  for (const line of lines) {
+    const t = String(line || "").trim();
+    if (!t) continue;
+    const noArrow = t.replace(/^→\s*/, "");
+    if (/^【.+】$/.test(noArrow)) continue;
+    const kwMatch = t.match(/^(keywords?|keyword|KeyWord|キーワード)\s*[:：]?\s*(.+)$/i);
+    if (kwMatch) {
+      inline.push(..._splitInlineKeywords(kwMatch[2]));
+      continue;
+    }
+    kept.push(line);
+  }
+  const cleaned = kept.join("\n").trim();
+  return { prose: cleaned || String(prose || "").trim(), inlineKeywords: inline.filter(Boolean) };
+}
+
 const _KW_GROUP_RULES = [
   { key: "adjust", re: /(調整|補正|修正|是正|整合|調律|整え|整う|整える|微調整|補う)/ },
   { key: "boundary", re: /(境界|境目|境|輪郭|区切り|端|縁)/ },
@@ -3878,9 +3905,14 @@ async function renderLineAI(story, deps = {}, opts = {}) {
             continue;
           }
           const rawProse = String(prose || "").trim();
+          const cleaned = _extractInlineKeywordsAndCleanProse(rawProse);
+          const nextProse = cleaned.prose;
+          const nextKeywords = (cleaned.inlineKeywords && cleaned.inlineKeywords.length)
+            ? cleaned.inlineKeywords
+            : (Array.isArray(keywordsRaw) ? keywordsRaw : []);
           pushAttempt({ attempt: i + 1, ok: true, note: jsonParseError ? "json_parse_error" : undefined });
           if (debug) debug.result = { used: "llm", reason: "ok" };
-          return { prose: rawProse, label: labelRaw, keywords: keywordsRaw };
+          return { prose: nextProse, label: labelRaw, keywords: nextKeywords };
         } catch (_) {
           if (LINE_AI_DEBUG) console.error("[line_today] generateProse: LLM error", _);
           const msg = _?.message || String(_);
