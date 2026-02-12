@@ -46,12 +46,13 @@ function toDotDate(s) {
     return safeStr(s).replace(/-/g, ".");
 }
 function joinLines(...xs) {
-    return xs
+    const lines = xs
         .flat()
-        .filter((x) => trimStr(x))
+        .map((x) => (x === undefined || x === null ? "" : String(x)));
+    return lines
         .join("\n")
         .replace(/\n{3,}/g, "\n\n")
-        .trim();
+        .replace(/^\n+|\n+$/g, "");
 }
 
 function boolishEnv(v) {
@@ -374,12 +375,27 @@ function _pickAspectToneWords(dict, aspectKey, seed, count = 1) {
     return _pickMany(pool, `${seed}|tone|${aspectKey}`, count);
 }
 
-function _getRole(dict, signKey, planetKey) {
-    const { by } = _getSignFlavor(dict, signKey, planetKey);
-    const role = by?.role || by?.core || "";
+function _getRole(dict, signKey, planetKey, opts = {}) {
+  const prefer = opts.prefer || "role"; // "role" | "core" | "auto"
+  const { by } = _getSignFlavor(dict, signKey, planetKey);
+
+  const role = String(by?.role || "").trim();
+  const core = String(by?.core || "").trim();
+
+  if (prefer === "role") {
     if (role) return role;
+    // roleが無いときに core に落ちると “長文ラベル事故” になるので落とさない
+    // 代わりに惑星側の role/core に落とす（短くなりやすい）
     const p = dict?.PLANETS_V2?.bodies?.[_lowerKey(planetKey)] || null;
-    return p?.role || p?.core || "";
+    return String(p?.role || p?.core || "").trim();
+  }
+
+  if (prefer === "core") {
+    return core || role || "";
+  }
+
+  // auto（旧挙動に近い）
+  return role || core || "";
 }
 
 function _isLabelNounLike(t) {
@@ -405,6 +421,34 @@ function _isSilentLabelLike(t) {
     return true;
 }
 
+function _normalizeSilentCore(t) {
+    return String(t || "")
+        .replace(/言語化されなかった主権/g, "未言語主権")
+        .replace(/傷から学びへ向かう入口/g, "傷から学びへ")
+        .replace(/価値と好みの基準/g, "価値基準")
+        .trim();
+}
+
+function _clampSilentLabel(t, min = 6, max = 8) {
+    const s = String(t || "").trim();
+    if (!s) return "";
+    if (s.length <= max) return s;
+    return s.slice(0, max);
+}
+
+function _pickSilentLabelToken(pool, seed) {
+    const items = (pool || [])
+        .map((t) => _clampSilentLabel(_normalizeSilentCore(t)))
+        .filter(_isSilentLabelLike)
+        .filter((t) => t.length >= 6 && t.length <= 8);
+    const picked = _pickMany(items, `${seed}|slen`, 1)[0];
+    if (picked) return picked;
+    const fallback = (pool || [])
+        .map((t) => _clampSilentLabel(_normalizeSilentCore(t)))
+        .filter(_isSilentLabelLike);
+    return _pickMany(fallback, `${seed}|sfallback`, 1)[0] || "";
+}
+
 function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
     const { by } = _getSignFlavor(dict, signKey, planetKey);
     const pool = []
@@ -413,30 +457,23 @@ function _silentLabelFromFlavorSora(dict, signKey, planetKey, seed) {
         .concat(by?.fusion?.expression || [])
         .concat(by?.fusion?.clarity || [])
         .concat(by?.fusion?.tendency || []);
-    const cleaned = pool
-        .filter(Boolean)
-        .map((t) => String(t || "").trim())
-        .filter(_isSilentLabelLike);
-    // 長めの語を優先して拾う
-    const picked = _pickMany(
-        cleaned.sort((a, b) => b.length - a.length),
-        `${seed}|lbl`,
-        1
-    )[0];
+    const coreRaw = String(by?.core || "").trim();
+    const core = _clampSilentLabel(_normalizeSilentCore(coreRaw));
+    if (core && _isSilentLabelLike(core)) return core;
+    const picked = _pickSilentLabelToken(pool, `${seed}|lbl`);
     if (picked) return picked;
-    const role = by?.role || by?.core || "";
-    return _isSilentLabelLike(role) ? role : "";
+    return _isSilentLabelLike(core) ? core : "";
 }
 
 function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") {
     const aSignKey = item?.aS || item?.a_sign_key || "";
     const bSignKey = item?.bS || item?.b_sign_key || "";
-    const roleA = _getRole(dict, aSignKey, item?.a);
-    const roleB = _getRole(dict, bSignKey, item?.b);
+    const roleA = _getRole(dict, aSignKey, item?.a, { prefer: "role" });
+    const roleB = _getRole(dict, bSignKey, item?.b, { prefer: "role" });
     const flavorA = _silentLabelFromFlavorSora(dict, aSignKey, item?.a, `${seed}|a`);
     const flavorB = _silentLabelFromFlavorSora(dict, bSignKey, item?.b, `${seed}|b`);
-    const left = mode === "silent" ? (flavorA || roleA) : (roleA || flavorA);
-    const right = mode === "silent" ? (flavorB || roleB) : (roleB || flavorB);
+    const left = mode === "silent" ? flavorA : (roleA || flavorA);
+    const right = mode === "silent" ? flavorB : (roleB || flavorB);
     let label = "";
     if (left && right) {
         label = `【${left} × ${right}】`;
@@ -444,8 +481,8 @@ function _formatItemLabelFromRoles(dict, item, seed, usedLabels, mode = "role") 
         label = `【${left || right}】`;
     }
     if (label && usedLabels?.has(label)) {
-        const altA = _silentLabelFromFlavorSora(dict, aSignKey, item?.a, `${seed}|altA`) || roleA;
-        const altB = _silentLabelFromFlavorSora(dict, bSignKey, item?.b, `${seed}|altB`) || roleB;
+        const altA = _silentLabelFromFlavorSora(dict, aSignKey, item?.a, `${seed}|altA`);
+        const altB = _silentLabelFromFlavorSora(dict, bSignKey, item?.b, `${seed}|altB`);
         const alt = (altA || altB)
             ? `【${altA || left}${altA && (altB || right) ? " × " : ""}${altB || right}】`
             : label;
@@ -794,6 +831,18 @@ function _fallbackKwPublic(dict, item, seed, limit = 5) {
     return _normalizeKeywords([...base, ...extra]).slice(0, limit);
 }
 
+function _fallbackKwFromPack(pack, seed, limit = 5) {
+    const pool = []
+        .concat(pack?.tokens || [])
+        .concat(pack?.texture || [])
+        .concat(pack?.process || [])
+        .concat(pack?.clarity || [])
+        .concat(pack?.tendency || [])
+        .concat(pack?.expression || []);
+    const picks = _pickMany(pool.filter(Boolean), `${seed}|kw`, Math.max(limit, 3));
+    return _sanitizeKeywords(picks, [], limit);
+}
+
 function _extractJsonBlock(s) {
     const str = String(s || "");
     const fence = str.match(/```json([\s\S]*?)```/i);
@@ -936,9 +985,16 @@ function _formatDistLines(counts) {
     return [
         "【惑星属性】",
         `🔥 火${Number(e.fire || 0)} 🪨 地${Number(e.earth || 0)} 💨 風${Number(e.air || 0)} 💧 水${Number(e.water || 0)}`,
+        "",
         "【三区分】",
         `🏃 活動${Number(m.cardinal || 0)} 🧱 不動${Number(m.fixed || 0)} 🌿 柔軟${Number(m.mutable || 0)}`,
     ];
+}
+
+function _formatDistLinesFromCountsPublic(counts) {
+    const lines = _formatDistLines(counts);
+    if (!lines || !lines.length) return "";
+    return lines.join("\n");
 }
 
 function _formatStructureLine(s1, s2) {
@@ -961,6 +1017,30 @@ function _cleanSoraSentence(s, maxLen = 56) {
     }
     if (!t.endsWith("。")) t += "。";
     return t;
+}
+
+function _mergeSoraSentencesToOne(s1, s2) {
+    const a = String(s1 || "").trim().replace(/[。]+$/g, "");
+    const b = String(s2 || "").trim().replace(/[。]+$/g, "");
+    if (!a && !b) return "";
+    if (a && b) return `${a}、${b}。`;
+    return `${a || b}。`;
+}
+
+function _findSignForBodyInSkyAll(dict, skyAll, bodyKey) {
+    const key = String(bodyKey || "").toLowerCase();
+    if (!key) return { signJa: "", signKey: "" };
+    for (const it of skyAll || []) {
+        if (String(it?.a || "").toLowerCase() === key) {
+            const signKey = it?.a_sign_key || it?.aS || it?.a_sign || "";
+            return { signJa: _signJa(dict, signKey), signKey };
+        }
+        if (String(it?.b || "").toLowerCase() === key) {
+            const signKey = it?.b_sign_key || it?.bS || it?.b_sign || "";
+            return { signJa: _signJa(dict, signKey), signKey };
+        }
+    }
+    return { signJa: "", signKey: "" };
 }
 
 function _fallbackProseFromTokens(input, seed) {
@@ -998,12 +1078,48 @@ function _formatPublicAspectLine(dict, item, prefix = "") {
     return `${head} ｜${aspectText}（orb ${orb}°）`;
 }
 
-function _fallbackDomLabel(story) {
+function _fallbackDomLabel(story, dict) {
+    const counts = _distCountsFromSkyStrata(story);
+    const element = counts?.element || {};
+    const modality = counts?.modality || {};
+    const elemKeys = ["fire", "earth", "air", "water"];
+    const modKeys = ["cardinal", "fixed", "mutable"];
+    const maxFor = (obj, keys) => {
+        let max = -1;
+        keys.forEach((k) => {
+            const v = Number(obj?.[k] || 0);
+            if (v > max) max = v;
+        });
+        return max;
+    };
+    const maxElem = maxFor(element, elemKeys);
+    const maxMod = maxFor(modality, modKeys);
+    const elemTies = maxElem > 0 ? elemKeys.filter((k) => Number(element?.[k] || 0) === maxElem) : [];
+    const modTies = maxMod > 0 ? modKeys.filter((k) => Number(modality?.[k] || 0) === maxMod) : [];
+    if (elemTies.length || modTies.length) {
+        const elemJa = elemTies.map((k) => _elementJa(dict, k)).filter(Boolean);
+        const modJa = modTies.map((k) => _modalityJa(dict, k)).filter(Boolean);
+        const label =
+            (elemJa.length ? elemJa.join("・") : "") +
+            (elemJa.length && modJa.length ? "×" : "") +
+            (modJa.length ? modJa.join("・") : "");
+        return {
+            element: elemJa.join("・"),
+            modality: modJa.join("・"),
+            label,
+        };
+    }
     const raw = story?.public?.element_modality?.label || story?.public?.element_modality || "";
     const parts = String(raw || "").split(/[×x]/).map((s) => s.trim()).filter(Boolean);
+    const elementLabel = parts[0] || "";
+    const modalityLabel = parts[1] || "";
     return {
-        element: parts[0] || "",
-        modality: parts[1] || "",
+        element: elementLabel,
+        modality: modalityLabel,
+        label:
+            (elementLabel ? elementLabel : "") +
+            (elementLabel && modalityLabel ? "×" : "") +
+            (modalityLabel ? modalityLabel : ""),
     };
 }
 
@@ -1274,6 +1390,135 @@ const SORA_AI_BANNED = [
 
     return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/**
+ * AI items (s1/s2/keywords) + sky layer only
+ */
+async function renderSoraAiItems(story, list, opts = {}, deps = {}) {
+    const { createChatCompletion } = require("../blog/openai_client");
+    const { buildNowModernPlanetCounts } = deps || {};
+    const dict = deps?.dict || require("../../dict");
+    const dateLabel = toDotDate(story?.meta?.date_local);
+
+    const SORA_AI_BANNED = [
+        "配置",
+        "影響",
+        "現れやすい",
+        "表に出やすい",
+        "によって",
+        "水脈",
+        "太陽","月","水星","金星","火星","木星","土星","天王星","海王星","冥王星",
+        "ASC","MC","IC","DSC","アセンダント","ディセンダント","ミディアムコエリ","ノード","キロン","リリス",
+        "牡羊座","牡牛座","双子座","蟹座","獅子座","乙女座","天秤座","蠍座","射手座","山羊座","水瓶座","魚座",
+        "スクエア","トライン","セクスタイル","セミセクスタイル","セミスクエア","セスキスクエア",
+        "オポジション","インコンジャンクト","クインタイル","バイクインタイル","セプタイル","ノヴィル","デシル",
+    ];
+
+    const inputScale = Number.isFinite(opts.inputScale)
+        ? Math.max(0.2, Math.min(1, Number(opts.inputScale)))
+        : 1;
+    const scaled = (n, min = 1) => Math.max(min, Math.round(n * inputScale));
+
+    const inputItems = (Array.isArray(list) ? list : []).map((it, idx) => {
+        const aKey = it?.a;
+        const bKey = it?.b;
+        const aSignKey = it?.aS || it?.a_sign_key;
+        const bSignKey = it?.bS || it?.b_sign_key;
+        const aspectKey = _normAspectKey(it?.type || it?.aspT || it?.aspect);
+        const orb = Number(it?.orb_deg ?? it?.orb ?? 0);
+        const aPack = _collectSignPackSora(dict, aSignKey, aKey, aspectKey, orb);
+        const bPack = _collectSignPackSora(dict, bSignKey, bKey, aspectKey, orb);
+        const aspectPack = _collectAspectPackSora(dict, aspectKey, orb);
+        const seedBase = `${dateLabel}|sora|ai|${idx}|${aKey}|${bKey}|${aspectKey}|${aSignKey}|${bSignKey}`;
+        return {
+            seed: seedBase,
+            A: {
+                tokens: _samplePool(aPack.tokens, `${seedBase}|a|tok`, scaled(6, 3)),
+                texture: _samplePool(aPack.texture, `${seedBase}|a|tex`, scaled(4, 2)),
+                process: _samplePool(aPack.process, `${seedBase}|a|proc`, scaled(4, 1)),
+            },
+            B: {
+                tokens: _samplePool(bPack.tokens, `${seedBase}|b|tok`, scaled(6, 3)),
+                texture: _samplePool(bPack.texture, `${seedBase}|b|tex`, scaled(4, 2)),
+                process: _samplePool(bPack.process, `${seedBase}|b|proc`, scaled(4, 1)),
+            },
+            aspect: {
+                tokens: _samplePool(aspectPack.tokens, `${seedBase}|asp|tok`, scaled(6, 3)),
+                touch: _samplePool(aspectPack.touch, `${seedBase}|asp|touch`, scaled(3, 1)),
+                gap: _samplePool(aspectPack.gap, `${seedBase}|asp|gap`, scaled(3, 1)),
+                rest: _samplePool(aspectPack.rest, `${seedBase}|asp|rest`, scaled(3, 1)),
+            },
+            banned: SORA_AI_BANNED,
+        };
+    });
+
+    const distCountsRaw = typeof buildNowModernPlanetCounts === "function" ? buildNowModernPlanetCounts(story) : null;
+    const distCounts = distCountsRaw && (distCountsRaw.element || distCountsRaw.modality)
+        ? distCountsRaw
+        : _distCountsFromSkyStrata(story);
+    const skyLayerHints = _buildLayerHints(distCounts, dict);
+
+    const inputPayload = {
+        date: dateLabel,
+        title: opts.title || "",
+        top5: inputItems,
+        sky_layer_hints: skyLayerHints,
+    };
+
+    const apiKey = process.env.OPENAI_API_KEY || "";
+    const model = process.env.OPENAI_MODEL || "gpt-4o";
+    const baseUrl = process.env.OPENAI_BASE_URL || "";
+    const forceNoLLM = !!opts.forceNoLLM;
+
+    let aiItems = [];
+    let aiSky = {};
+    if (apiKey && !forceNoLLM) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            let raw = "";
+            try {
+                raw = await createChatCompletion({
+                    apiKey,
+                    baseUrl,
+                    model,
+                    temperature: 0.5,
+                    maxTokens: 800,
+                    messages: [
+                        { role: "system", content: LINE_SORA_AI_SYSTEM_PROMPT },
+                        { role: "user", content: `${LINE_SORA_AI_USER_GUIDE}\n\nINPUT:\n${JSON.stringify(inputPayload)}` },
+                    ],
+                });
+            } catch (e) {
+                if (LINE_AI_DEBUG) console.error("[line_sora] renderSoraAiItems error", e);
+                break;
+            }
+
+            const jsonText = _extractJsonBlock(raw);
+            const parsed = _safeJsonParse(jsonText || raw);
+            if (!parsed || typeof parsed !== "object") {
+                if (LINE_AI_DEBUG) console.warn("[line_sora] renderSoraAiItems parse failed");
+                continue;
+            }
+
+            aiItems = Array.isArray(parsed.items) ? parsed.items : [];
+            aiSky = parsed.sky_layer || {};
+
+            let hasBad = false;
+            aiItems.forEach((it) => {
+                if (_containsBannedTokens(it?.s1, SORA_AI_BANNED)) hasBad = true;
+                if (_containsBannedTokens(it?.s2, SORA_AI_BANNED)) hasBad = true;
+            });
+            if (_containsBannedTokens(aiSky?.line1, SORA_AI_BANNED)) hasBad = true;
+            if (_containsBannedTokens(aiSky?.line2, SORA_AI_BANNED)) hasBad = true;
+
+            if (!hasBad) break;
+            if (LINE_AI_DEBUG) console.warn("[line_sora] renderSoraAiItems banned hit");
+            aiItems = [];
+            aiSky = {};
+        }
+    }
+
+    return { aiItems, aiSky, inputItems };
+}
 function _dedupeRelation(relation, dynamics) {
     if (!relation || !dynamics) return relation || "";
     const roots = ["噛み合", "重な", "交差", "摩擦", "循環", "映し", "向かい", "鏡"];
@@ -1457,6 +1702,7 @@ function resolveFormatters(deps) {
 
 function buildLineSoraFallback({ dateLabel, listTitle, sunLine, moonLine, mainLines, distLines, kusouYoin, footerLines, headerLine }) {
     const lines = [];
+    const sep = "─────────────";
     lines.push(headerLine || `🌌 今日のソラ｜そら｜${dateLabel}`);
     lines.push("");
     lines.push(listTitle || "【空の配置】");
@@ -1473,6 +1719,8 @@ function buildLineSoraFallback({ dateLabel, listTitle, sunLine, moonLine, mainLi
     }
 
     if (distLines) {
+        lines.push("");
+        lines.push(sep);
         lines.push("");
         lines.push(distLines);
         lines.push("");
@@ -2162,16 +2410,120 @@ function renderSoraBase(story, opts = {}, deps = {}) {
  * public API
  * ========================= */
 async function renderSoraLine(story, deps = {}) {
-    const title = deps?.RENDER_COPY?.HEAD_SORA_SKY_TOP5 || "【今日のソラの配置 上位5共鳴（orb≤6°）】";
-    const filteredStory = _withSkyAll(story, _filterOutLilithChiron(story?.public?.sky_all));
-    if (aiEnabledDefaultTrue()) {
-        try {
-            return await renderSoraBaseAI(filteredStory, { limit: 5, listTitle: title, noProse: true }, deps);
-        } catch (_) {
-            return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
+    const dict = deps?.dict || require("../../dict");
+    const dateLabel = toDotDate(story?.meta?.date_local);
+    const sep = deps?.RENDER_COPY?.LINE_SEP || "─────────────";
+    const circles = deps?.RENDER_COPY?.CIRCLES || ["①", "②", "③", "④", "⑤"];
+
+    const headerLine = `🌌 今日のソラ｜そら｜${dateLabel}`;
+    const listTitleAll = "【今日のソラの配置｜完全一覧】";
+    const listTitleAspect = "【今日の共鳴（アスペクト 上位3件｜orb≤6°）】";
+
+    const pub = story?.public || {};
+    const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
+    const sorted = skyAll
+        .filter((r) => isFiniteNum(r?.orb_deg))
+        .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+    const top3 = sorted.slice(0, 3);
+
+    const bodyOrder = [
+        "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
+    ];
+
+    const transitSigns = pub.transit_signs || {};
+    const bodyLines = bodyOrder.map((k) => {
+        let signKey = transitSigns?.[k]?.sign_key || "";
+        let signJa = transitSigns?.[k]?.sign_ja || "";
+        if (!signKey || !signJa) {
+            const found = _findSignForBodyInSkyAll(dict, skyAll, k);
+            if (!signJa) signJa = found?.signJa || "";
+            if (!signKey) signKey = found?.signKey || "";
         }
+        if (!signJa && signKey) signJa = _signJa(dict, signKey || "");
+        signJa = String(signJa || "").trim();
+        if (!signJa) return "";
+        const emoji = _emojiForBodyLocal ? _emojiForBodyLocal(k) : "";
+        const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
+        const moonPhase = k === "moon" ? _moonPhaseInfo(story) : null;
+        const moonSuffix = moonPhase?.name ? `（${moonPhase.name}）` : "";
+        return `${emoji}${bodyJa}｜${signJa}${moonSuffix}`;
+    }).filter(Boolean);
+    const bodyLinesPlanets = bodyLines.slice(0, 10);
+    const bodyLinesPoints = bodyLines.slice(10);
+
+    const distCountsRaw = typeof deps?.buildNowModernPlanetCounts === "function"
+        ? deps.buildNowModernPlanetCounts(story)
+        : null;
+    const distCounts = distCountsRaw && (distCountsRaw.element || distCountsRaw.modality)
+        ? distCountsRaw
+        : _distCountsFromSkyStrata(story);
+    const distLines = (() => {
+        const lines = _formatDistLines(distCounts);
+        return Array.isArray(lines) ? lines : [];
+    })();
+
+    let aiItems = [];
+    let aiSky = {};
+    let inputItems = [];
+    if (aiEnabledDefaultTrue()) {
+        const ai = await renderSoraAiItems(story, top3, { title: listTitleAspect }, deps);
+        aiItems = ai.aiItems || [];
+        aiSky = ai.aiSky || {};
+        inputItems = ai.inputItems || [];
     }
-    return renderSoraBase(filteredStory, { limit: 5, listTitle: title, style: "list", noProse: true }, deps);
+
+    const usedKw = new Set();
+    const aspectLines = top3.map((it, i) => {
+        const ai = aiItems[i] || {};
+        const header = _formatPublicAspectLine(dict, it, `${circles[i] || `${i + 1}.`} `);
+        const kwFallback = _fallbackKwPublic(dict, it, `${dateLabel}|sora|top3|${i}`, 3);
+        const kwLine = _formatKeywordsLine([], kwFallback, 3, usedKw);
+        let s1Raw = _containsBannedTokens(ai.s1, ai?.banned || []) ? "" : ai.s1;
+        let s2Raw = _containsBannedTokens(ai.s2, ai?.banned || []) ? "" : ai.s2;
+        let s1 = _cleanSoraSentence(s1Raw, 56);
+        let s2 = _cleanSoraSentence(s2Raw, 56);
+        let prose = _mergeSoraSentencesToOne(s1, s2);
+        if (!prose) {
+            const fallback = _fallbackProseFromTokens(inputItems[i]);
+            prose = fallback ? _cleanSoraSentence(fallback, 112) : "";
+        }
+        return [header, "", prose ? `→ ${prose}` : "", "", kwLine].filter(Boolean).join("\n");
+    }).filter(Boolean).join("\n\n");
+
+    const skyLayerLine = (() => {
+        const domObj = _fallbackDomLabel(story, dict);
+        const domLabel = String(domObj?.label || "");
+        const aiLine1 = (aiSky && typeof aiSky.line1 === "string") ? aiSky.line1 : "";
+        const line1 = trimStr(aiLine1) || _fallbackSkyLine(domLabel);
+        return domLabel ? `【空層】${domLabel}\n${line1}` : "";
+    })();
+
+    const footerLines = deps?.RENDER_COPY?.FOOTER_SORA_LINE;
+    const footer = Array.isArray(footerLines) ? footerLines.join("\n") : trimStr(footerLines);
+
+    return [
+        headerLine,
+        "",
+        listTitleAll,
+        "",
+        ...bodyLinesPlanets,
+        "",
+        ...bodyLinesPoints,
+        "",
+        listTitleAspect,
+        "",
+        sep,
+        "",
+        aspectLines,
+        "",
+        sep,
+        "",
+        ...distLines,
+        "",
+        skyLayerLine,
+        "",
+        footer,
+    ].filter((x) => x !== null && x !== undefined).join("\n").trim();
 }
 
 async function renderSoraAllLine(story, deps = {}) {

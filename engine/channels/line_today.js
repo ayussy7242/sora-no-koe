@@ -1076,6 +1076,17 @@ function _stripLeadingLabel(block) {
   return s.slice(end + 1).replace(/^\s*\n+/, "").trim();
 }
 
+function _isSilentLabelLike(t) {
+  const s = String(t || "").trim();
+  if (!s) return false;
+  if (s.length < 3 || s.length > 20) return false;
+  if (/[、。]/.test(s)) return false;
+  if (/(しつつ|ながら|こと|やすい|する|した|して|なる|なり|いる|ある|見える|残る|漂う|出る|起きる|できる)$/.test(s)) return false;
+  // 「の」「と」は許容、他の助詞は除外
+  if (/[がをにへでやもは]/.test(s)) return false;
+  return true;
+}
+
 function _silentLabelFromFlavor({ story, item, deps, seedSalt = "" }) {
   const dict = deps?.dict || require("../../dict");
   const n = normalizePersonalForFlavor(item);
@@ -1090,11 +1101,18 @@ function _silentLabelFromFlavor({ story, item, deps, seedSalt = "" }) {
     .concat(by?.fusion?.B || [])
     .concat(by?.fusion?.expression || []);
   const seed = `${story?.meta?.date_local || ""}|silent|${targetBody}|${targetSign}|${n.aspectType || n.aspectLabelJa}|${seedSalt}`;
-  const picks = _pickMany(pool.filter(Boolean), `${seed}|lbl`, 2);
-  const left = picks[0] || by?.core || "";
-  const right = picks[1] || by?.role || "";
-  if (left && right) return `【${left} × ${right}】`;
-  return left ? `【${left}】` : "";
+  const clean = pool
+    .map((t) => String(t || "").trim())
+    .filter(Boolean)
+    .filter(_isSilentLabelLike)
+    .filter((t) => t.length >= 6 && t.length <= 8);
+  const core = String(by?.core || "").trim();
+  const coreOk = _isSilentLabelLike(core) && core.length >= 6 && core.length <= 8;
+  const left = coreOk ? core : (_pickMany(clean, `${seed}|lblA`, 1)[0] || core);
+  const right = _pickMany(clean, `${seed}|lblB`, 1)[0] || "";
+  if (left && right && left !== right) return `【${left} × ${right}】`;
+  if (left) return `【${left}】`;
+  return "";
 }
 
 function _extractFirstSentence(block) {
@@ -1103,7 +1121,7 @@ function _extractFirstSentence(block) {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => l.replace(/^→\s*/, ""));
-  const prose = lines.filter((l) => !/^KeyWord/.test(l));
+  const prose = lines.filter((l) => !/^KeyWord/.test(l) && !/^【/.test(l));
   const line = prose[0] || "";
   if (!line) return "";
   const m = line.match(/^(.+?[。！？])/);
@@ -1146,9 +1164,13 @@ function renderSoraUraSilentPersonalLine(story, deps = {}) {
   const usedLabels = new Set();
   const lines = filtered.map((tp, i) => {
     const headPrefix = `${indexMarks[i] || `(${i + 1})`} `;
-    const header = typeof fmtPersonalTPLine === "function"
+    let header = typeof fmtPersonalTPLine === "function"
       ? fmtPersonalTPLine(story, tp, headPrefix, deps)
       : "";
+    if (!header) {
+      const dict = deps?.dict || require("../../dict");
+      header = _formatPersonalAspectLine(dict, tp, headPrefix);
+    }
     const flavor = buildFlavorBlockPersonal({ story, item: tp, deps });
     let label = "";
     for (let t = 0; t < 3; t++) {
