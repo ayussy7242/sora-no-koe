@@ -1,6 +1,6 @@
 "use strict";
 
-function createSignHelpers({ SIGNS_V1, norm360 }) {
+function createSignHelpers({ SIGNS, norm360 }) {
   function signKeyFromLon(lonDeg) {
     const idx = Math.floor(norm360(lonDeg) / 30);
 
@@ -9,7 +9,7 @@ function createSignHelpers({ SIGNS_V1, norm360 }) {
       "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces",
     ];
 
-    return SIGNS_V1?.order?.[idx] ?? fallbackOrder[idx] ?? null;
+    return SIGNS?.order?.[idx] ?? fallbackOrder[idx] ?? null;
   }
 
   function signJaFromKey(signKeyRaw) {
@@ -17,14 +17,14 @@ function createSignHelpers({ SIGNS_V1, norm360 }) {
     if (!key) return null;
 
     // exact
-    if (SIGNS_V1?.signs?.[key]?.label_ja) return SIGNS_V1.signs[key].label_ja;
+    if (SIGNS?.signs?.[key]?.label_ja) return SIGNS.signs[key].label_ja;
 
     // lowercase
     const low = key.toLowerCase();
-    if (SIGNS_V1?.signs?.[low]?.label_ja) return SIGNS_V1.signs[low].label_ja;
+    if (SIGNS?.signs?.[low]?.label_ja) return SIGNS.signs[low].label_ja;
 
     // case-insensitive fallback
-    const signs = SIGNS_V1?.signs || {};
+    const signs = SIGNS?.signs || {};
     const hit = Object.keys(signs).find((k) => k.toLowerCase() === low);
     return hit ? (signs[hit]?.label_ja ?? null) : null;
   }
@@ -40,14 +40,14 @@ function createSignHelpers({ SIGNS_V1, norm360 }) {
     if (!key) return null;
 
     // 1) exact
-    if (SIGNS_V1?.signs?.[key]) return SIGNS_V1.signs[key];
+    if (SIGNS?.signs?.[key]) return SIGNS.signs[key];
 
     // 2) lowercase hit
     const low = key.toLowerCase();
-    if (SIGNS_V1?.signs?.[low]) return SIGNS_V1.signs[low];
+    if (SIGNS?.signs?.[low]) return SIGNS.signs[low];
 
     // 3) case-insensitive search (safe)
-    const signs = SIGNS_V1?.signs || {};
+    const signs = SIGNS?.signs || {};
     const hit = Object.keys(signs).find((k) => k.toLowerCase() === low);
     return hit ? signs[hit] : null;
   }

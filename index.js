@@ -48,30 +48,40 @@ const { createRenderers } = require("./engine/render");
 const { buildResonanceBullets } = require("./engine/resonance");
 
 // -------------------- Helpers (minimal / for storyService) --------------------
-// aspects list (major) — keep stable fallback for safety
-const ASPECTS_V1 = dict?.ASPECTS_V1 || null;
+// aspects list (major) — V2 primary, stable fallback for safety
+const ASPECTS_SRC = dict?.ASPECTS || dict?.ASPECTS_V2 || dict?.ASPECTS_V1 || null;
 
-const ASPECTS =
-  ASPECTS_V1?.major_list || [
+const buildAspectListFromGroup = (group) => {
+  const out = [];
+  for (const [k, v] of Object.entries(group || {})) {
+    const deg = Number(v?.deg);
+    if (!Number.isFinite(deg)) continue;
+    out.push({ type: v?.key || k, deg });
+  }
+  return out;
+};
+
+const ASPECTS = (() => {
+  const fromMajorList =
+    Array.isArray(ASPECTS_SRC?.major_list) ?
+      ASPECTS_SRC.major_list.filter((a) => Number.isFinite(Number(a?.deg))) :
+      [];
+  if (fromMajorList.length) return fromMajorList;
+
+  const fromMajor = buildAspectListFromGroup(ASPECTS_SRC?.major);
+  if (fromMajor.length) return fromMajor;
+
+  return [
     { type: "conjunction", deg: 0 },
     { type: "sextile", deg: 60 },
     { type: "square", deg: 90 },
     { type: "trine", deg: 120 },
     { type: "opposition", deg: 180 },
   ];
+})();
 
-// deep aspects（見つかった日だけ出る）
-const deep = ASPECTS_V1?.deep_space || {};
-const ASPECTS_DEEP = [
-  deep?.quincunx_150,
-  deep?.quintile_72,
-  deep?.biquintile_144,
-  deep?.semi_sextile_30,
-  deep?.semi_square_45,
-  deep?.sesqui_square_135,
-]
-  .filter(Boolean)
-  .map((a) => ({ type: a.key, deg: a.deg }));
+// deep aspects（見つかった日だけ出る / deg があるものだけ採用）
+const ASPECTS_DEEP = buildAspectListFromGroup(ASPECTS_SRC?.deep_space);
 
 // -------------------- storyService --------------------
 const storyService = createStoryService({
@@ -80,7 +90,7 @@ const storyService = createStoryService({
   swisseph,
 
   // story側が必要とする dict pieces
-  SIGNS_V1: dict?.SIGNS_V1,
+  SIGNS: dict?.SIGNS,
   ASPECTS,
   ASPECTS_DEEP,
 
@@ -99,9 +109,9 @@ const renderers = createRenderers({ dict });
 if (process.env.DEBUG_BOOT === "1") {
   const keys = dict ? Object.keys(dict) : [];
   console.log("[BOOT] dict keys:", keys);
-  console.log("[BOOT] has ASPECTS_V1:", !!dict?.ASPECTS_V1);
-  console.log("[BOOT] has PLANETS_V1:", !!dict?.PLANETS_V1);
-  console.log("[BOOT] has SIGNS_V1:", !!dict?.SIGNS_V1);
+  console.log("[BOOT] has ASPECTS_V2:", !!dict?.ASPECTS_V2);
+  console.log("[BOOT] has PLANETS_V2:", !!dict?.PLANETS_V2);
+  console.log("[BOOT] has SIGNS_V2:", !!dict?.SIGNS_V2);
 }
 
 // -------------------- create app with deps --------------------

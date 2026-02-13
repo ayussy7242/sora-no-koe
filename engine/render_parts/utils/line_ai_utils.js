@@ -21,15 +21,12 @@ const planetJa = (dictObj, planetKey) => {
   const dict = dictObj || {};
   const key = String(planetKey || "");
   const lower = key.toLowerCase();
-  const v2 = dict.PLANETS_V2?.bodies || null;
-  const v1 = dict.PLANETS_V1 || null;
+  const v2 = dict.PLANETS?.bodies || dict.PLANETS_V2?.bodies || null;
   const p =
     v2?.[key] ||
     v2?.[lower] ||
     dict.planets?.[key] ||
     dict.planets?.[lower] ||
-    v1?.[key] ||
-    v1?.[lower] ||
     null;
   if (p?.label_ja) return p.label_ja;
   if (PLANET_ALIAS[lower]) return PLANET_ALIAS[lower];

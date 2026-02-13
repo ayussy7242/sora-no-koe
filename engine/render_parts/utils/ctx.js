@@ -187,21 +187,29 @@ function buildRenderCtx({
   POINTS_META_IN = null,
   SIGNS_META_IN = null,
 } = {}) {
-  // V1
-  const ASPECTS_V1 = dict?.ASPECTS_V1 || null;
-  const PLANETS_V1 = dict?.PLANETS_V1 || null;
+  // primary (V2 preferred)
+  const ASPECTS_RAW = dict?.ASPECTS || dict?.ASPECTS_V2 || dict?.ASPECTS_V1 || null;
+  const PLANETS_RAW = dict?.PLANETS || dict?.PLANETS_V2 || dict?.PLANETS_V1 || null;
+  const SIGNS_RAW = dict?.SIGNS || dict?.SIGNS_V2 || dict?.SIGNS_V1 || null;
+
+  const ASPECTS_IS_V2 = String(ASPECTS_RAW?.version || "").includes("v2");
+  const PLANETS_IS_V2 = String(PLANETS_RAW?.version || "").includes("v2");
+  const SIGNS_IS_V2 = String(SIGNS_RAW?.version || "").includes("v2");
+
+  // V1/V2 buckets (for compatibility)
+  const ASPECTS_V2 = ASPECTS_IS_V2 ? ASPECTS_RAW : dict?.ASPECTS_V2 || null;
+  const ASPECTS_V1 = !ASPECTS_IS_V2 ? ASPECTS_RAW : dict?.ASPECTS_V1 || null;
+  const PLANETS_V2 = PLANETS_IS_V2 ? PLANETS_RAW : dict?.PLANETS_V2 || null;
+  const PLANETS_V1 = !PLANETS_IS_V2 ? PLANETS_RAW : dict?.PLANETS_V1 || null;
+  const SIGNS_V2 = SIGNS_IS_V2 ? SIGNS_RAW : dict?.SIGNS_V2 || null;
+  const SIGNS_V1 = !SIGNS_IS_V2 ? SIGNS_RAW : dict?.SIGNS_V1 || null;
+
   const POINTS_V1 = dict?.POINTS_V1 || null;
-  const SIGNS_V1 = dict?.SIGNS_V1 || null;
   const BLEND_V1 = dict?.BLEND_V1 || null;
+  const BLEND_V2 = dict?.BLEND_V2 || null;
 
   const SIGN_FLAVOR_V1 = dict?.SIGN_FLAVOR_V1 || dict?.sign_flavor || null;
   const GRAMmars_V1 = dict?.GRAMmars_V1 || dict?.grammars || null;
-
-  // V2
-  const ASPECTS_V2 = dict?.ASPECTS_V2 || null;
-  const SIGNS_V2 = dict?.SIGNS_V2 || null;
-  const PLANETS_V2 = dict?.PLANETS_V2 || null;
-  const BLEND_V2 = dict?.BLEND_V2 || null;
 
   // fallbacks
   const ASPECTS_META_FALLBACK = dict?.ASPECTS_META || ASPECTS_META_IN || {};
@@ -216,7 +224,7 @@ function buildRenderCtx({
     ASPECTS_META_FALLBACK;
 
   const PLANETS_META_RAW =
-    (PLANETS_V2 ? buildPlanetsMetaFromV2(PLANETS_V2) : null) ||
+    (PLANETS_RAW ? buildPlanetsMetaFromV2(PLANETS_RAW) : null) ||
     (PLANETS_V1 ? buildPlanetsMetaFromV1(PLANETS_V1) : null) ||
     PLANETS_META_FALLBACK;
 
@@ -225,7 +233,7 @@ function buildRenderCtx({
     POINTS_META_FALLBACK;
 
   const SIGNS_META_RAW =
-    (SIGNS_V2 ? buildSignsMetaFromV2(SIGNS_V2) : null) ||
+    (SIGNS_RAW ? buildSignsMetaFromV2(SIGNS_RAW) : null) ||
     (SIGNS_V1 ? buildSignsMetaFromV1(SIGNS_V1) : null) ||
     SIGNS_META_FALLBACK;
 

@@ -25,11 +25,19 @@ const { RESONANCE_V1 } = require(path.join(__dirname, "..", "dict", "resonance.v
 const { hash32, pickStable, getUserId } = require("./render_parts/utils/seed");
 
 // optional (if exists)
-let SIGNS_V1 = null;
+let SIGNS_V2 = null;
+let SIGNS_BY_JA = null;
 try {
-  SIGNS_V1 = require(path.join(__dirname, "..", "dict", "signs.v1"))?.SIGNS_V1 || null;
+  SIGNS_V2 = require(path.join(__dirname, "..", "dict", "signs.v2"))?.SIGNS_V2 || null;
+  const signs = SIGNS_V2?.signs || {};
+  SIGNS_BY_JA = Object.values(signs).reduce((acc, s) => {
+    const ja = s?.label_ja;
+    if (ja) acc[ja] = s;
+    return acc;
+  }, {});
 } catch {
-  SIGNS_V1 = null;
+  SIGNS_V2 = null;
+  SIGNS_BY_JA = null;
 }
 
 // --------------------
@@ -120,7 +128,7 @@ function detectThemeFromTouchPoints(touchTop3 = []) {
 // (NEW) sign → element/modality resolver
 // --------------------
 
-// fallback map（SIGNS_V1 が壊れても死なない保険）
+// fallback map（辞書が壊れても死なない保険）
 const SIGN_TO_ELEMENT_MODALITY_JA = Object.freeze({
   "牡羊座": { element_ja: "火", modality_ja: "活動" },
   "牡牛座": { element_ja: "地", modality_ja: "不動" },
@@ -140,19 +148,8 @@ function signInfoFromJa(signJa) {
   const ja = normalizeJa(signJa);
   if (!ja) return null;
 
-  // 1) SIGNS_V1 があるなら優先（構造の揺れを吸収）
-  try {
-    const byJa = SIGNS_V1?.by_ja || SIGNS_V1?.byJa || null;
-    if (byJa?.[ja]) return byJa[ja];
-
-    const list = SIGNS_V1?.list || SIGNS_V1?.signs || null;
-    if (Array.isArray(list)) {
-      const hit = list.find((s) => s?.ja === ja || s?.label_ja === ja || s?.name_ja === ja);
-      if (hit) return hit;
-    }
-  } catch {
-    // ignore
-  }
+  // 1) SIGNS_V2 から拾う（label_ja）
+  if (SIGNS_BY_JA?.[ja]) return SIGNS_BY_JA[ja];
 
   // 2) fallback
   if (SIGN_TO_ELEMENT_MODALITY_JA[ja]) return SIGN_TO_ELEMENT_MODALITY_JA[ja];
