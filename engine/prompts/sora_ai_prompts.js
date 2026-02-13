@@ -87,6 +87,48 @@ ${SORA_AI_USER_GUIDE_ITEM}
 `.trim();
 
 /**
+ * LINE｜あんしん（isolated / 未接触）
+ */
+const SORA_AI_USER_GUIDE_ANSHIN = `
+INPUTの情報から「あんしんネイタル」本文を生成する。
+これは占いではない。未接触（他と強く絡んでいない）という“残り方”を淡く記述する。
+
+出力JSON:
+{ "lines":["...","..."], "keywords":["...","...","..."] }
+
+本文（lines）条件:
+- 2行固定（lines[0], lines[1]）。各行は1文。
+- 各行 35〜70字目安。
+- 星名・星座名・アスペクト名・角度は本文に書かない（記号も出さない）。
+- 因果/解説/一般論/まとめは禁止。
+- 読者を主語にしない（あなた/きみ/〜して 等禁止）。
+- 誘導語・方向づけ語は禁止：
+  「求められる/必要/示唆/余地/可能性/問われる/大事/〜すべき」など禁止。
+- 評価語は禁止：
+  「良い/悪い/正しい/間違い/成功/失敗/安心できる」など禁止。
+- “状態を置く”言い回しに留める：
+  「〜が残る/〜が漂う/〜のまま置かれる/絡まずに保たれる/参照されずにいる」
+  ※同じ語尾の連打は避ける。
+
+行ごとの役割（2行固定）:
+- 1行目：星座×惑星の“超シンプル意味”を1つだけ置く（短い抽象語1つ）。
+  ※入力の planet_simple / sign_simple / sign_flavor を参照してよいが、説明しない。
+- 2行目：未接触＝他と絡まない “残り方の構造” を置く（どこに、どう残るか）。
+  ※日替わりで言い回しを変える（同型文の連続を避ける）。
+
+keywords条件:
+- INPUT.keyword_candidates があればそこから3語固定で選ぶ。
+- なければ INPUT.fallback_keywords から3語固定。
+- 星名・星座名・アスペクト名・角度は含めない。
+- 本文と温度を揃える（方向性のズレ禁止）。
+
+バリエーション条件:
+- INPUT.phrase_pool（言い回し候補）があれば参照してよい。
+- ただし直貼りの連発は禁止（言い換え可）。
+- 同じ文型（「〜が、〜が」）の連続を避ける。
+`.trim();
+
+/**
  * 空層（layer）
  */
 const SORA_AI_USER_GUIDE_LAYER = `
@@ -158,6 +200,7 @@ module.exports = Object.freeze({
   SORA_AI_USER_GUIDE_SORA,
   SORA_AI_USER_GUIDE_ITEM,
   SORA_AI_USER_GUIDE_PERSONAL,
+  SORA_AI_USER_GUIDE_ANSHIN,
   SORA_AI_USER_GUIDE_LAYER,
   SORA_AI_USER_GUIDE_BLOG,
 });
