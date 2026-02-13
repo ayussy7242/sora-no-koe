@@ -1,6 +1,6 @@
 "use strict";
 
-const { emojiForBody, aspectDegFromMeta } = require("./format_shared");
+const { emojiForBody, aspectDegFromMeta } = require("./shared");
 
 // --------------------
 // Personal TP helpers

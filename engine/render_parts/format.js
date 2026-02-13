@@ -9,10 +9,10 @@
  * - 実装は用途別に分割し、このファイルは集約のみ
  */
 
-const sky = require("./format_sky");
-const personal = require("./format_personal");
-const blocks = require("./format_blocks");
-const x = require("./format_x");
+const sky = require("./format/sky");
+const personal = require("./format/personal");
+const blocks = require("./format/blocks");
+const x = require("./format/x");
 
 module.exports = {
   ...sky,

@@ -1,6 +1,6 @@
 "use strict";
 
-const { emojiForBody, aspectDegFromMeta } = require("./format_shared");
+const { emojiForBody, aspectDegFromMeta } = require("./shared");
 
 // --------------------
 // Public / Sora helpers (line format)

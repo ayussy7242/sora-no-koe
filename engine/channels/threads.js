@@ -22,7 +22,7 @@ function renderThreads(story, deps = {}) {
         pickCloseLines,
         RENDER_COPY,
     } = deps || {};
-    const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/channel_common");
+    const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/format/channel_common");
 
     const dateLabel = formatDateLabel(story);
     const moonSignJa = getMoonSignJa(story);

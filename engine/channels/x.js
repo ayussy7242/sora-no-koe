@@ -17,7 +17,7 @@
 function renderX(story, deps = {}) {
   const { buildNowModernPlanetCounts, fmtAnyJa, publicSignJa, fmtAspectJa } = deps || {};
   const dict = deps?.dict || require("../../dict");
-  const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/channel_common");
+  const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/format/channel_common");
 
   const isFiniteNum = (n) => Number.isFinite(n);
 

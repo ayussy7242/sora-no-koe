@@ -22,7 +22,7 @@ const path = require("path");
 const { RESONANCE_V1 } = require(path.join(__dirname, "..", "dict", "resonance.v1"));
 
 // ✅ seed SSOT
-const { hash32, pickStable, getUserId } = require("./render_parts/seed");
+const { hash32, pickStable, getUserId } = require("./render_parts/utils/seed");
 
 // optional (if exists)
 let SIGNS_V1 = null;
