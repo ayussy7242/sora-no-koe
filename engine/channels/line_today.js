@@ -1,7 +1,7 @@
 "use strict";
 
-const { fmtDeg, planetJa } = require("../render_parts/line_ai_utils");
-const { tpKey: defaultTpKey } = require("../render_parts/keys");
+const { fmtDeg, planetJa } = require("../render_parts/utils/line_ai_utils");
+const { tpKey: defaultTpKey } = require("../render_parts/data/keys");
 const _fmtDeg = fmtDeg;
 const _planetJa = planetJa;
 const {

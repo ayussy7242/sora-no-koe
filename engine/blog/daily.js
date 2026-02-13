@@ -1,6 +1,6 @@
 "use strict";
 
-const { createJaFormatters } = require("../render_parts/fmt_ja");
+const { createJaFormatters } = require("../render_parts/utils/fmt_ja");
 const dict = require("../../dict");
 const { createChatCompletion } = require("./openai_client");
 const {

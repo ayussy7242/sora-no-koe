@@ -13,15 +13,15 @@
  * - "そら/そらぜんぶ" の文章変更は channels/line_sora 側（render.js は材料供給のみ）
  */
 
-const makeSignHelpers = require("./render_parts/signs");
-const { buildRenderCtx } = require("./render_parts/ctx");
-const { createJaFormatters } = require("./render_parts/fmt_ja");
-const { createMemo } = require("./render_parts/memo");
+const makeSignHelpers = require("./render_parts/data/signs");
+const { buildRenderCtx } = require("./render_parts/utils/ctx");
+const { createJaFormatters } = require("./render_parts/utils/fmt_ja");
+const { createMemo } = require("./render_parts/data/memo");
 
 const fmt = require("./render_parts/format");
-const dist = require("./render_parts/dist");
-const pickersPublic = require("./render_parts/pickers_public");
-const { pickStable, getUserId } = require("./render_parts/seed");
+const dist = require("./render_parts/data/dist");
+const pickersPublic = require("./render_parts/data/pickers_public");
+const { pickStable, getUserId } = require("./render_parts/utils/seed");
 
 // channels
 const chLineToday = require("./channels/line_today");
@@ -32,7 +32,7 @@ const chX = require("./channels/x");
 const chThreads = require("./channels/threads");
 
 // SSOT: export名ズレ吸収 + 日本語postfix
-const { resolveFn, postFixFusionJa } = require("./render_parts/text_postfix_ja");
+const { resolveFn, postFixFusionJa } = require("./render_parts/utils/text_postfix_ja");
 
 // ✅ ここが抜けてた（必須）
 const blendV2 = require("../dict/blend.v2");

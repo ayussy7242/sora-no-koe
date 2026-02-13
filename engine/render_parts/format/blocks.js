@@ -1,7 +1,7 @@
 "use strict";
 
-const { formatPublicSkyLine } = require("./format_sky");
-const { formatPersonalTPLine } = require("./format_personal");
+const { formatPublicSkyLine } = require("./sky");
+const { formatPersonalTPLine } = require("./personal");
 
 // --------------------
 // Blocks (header + aline)

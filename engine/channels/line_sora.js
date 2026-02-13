@@ -1,6 +1,6 @@
 "use strict";
 
-const { fmtDeg, planetJa } = require("../render_parts/line_ai_utils");
+const { fmtDeg, planetJa } = require("../render_parts/utils/line_ai_utils");
 const _fmtDeg = fmtDeg;
 const _planetJa = planetJa;
 const {
