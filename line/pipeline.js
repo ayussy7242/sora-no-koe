@@ -1,6 +1,30 @@
 "use strict";
 
 const intent = require("./intent");
+const env = require("../config/env");
+const { LINE_COPY } = require("../copy");
+
+const PAID_SORA_MODES = new Set(env.PAID_SORA_MODES || []);
+const PAID_INTENTS = new Set(env.PAID_INTENTS || []);
+
+function isPaidAllowed({ appUserId, lineUserId }) {
+  if (!env.PAID_MODE_ENABLED) return true;
+
+  if (env.PAID_ALLOW_OWNER) {
+    if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
+    if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
+  }
+
+  if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
+  if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
+
+  return false;
+}
+
+function paidOnlyMessage(mode) {
+  const map = LINE_COPY.PAID_ONLY_MESSAGES || {};
+  return map?.[mode] || LINE_COPY.PAID_ONLY || "このコマンドは深層モードで配信中だよ。";
+}
 
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers }) {
   const { natal, story } = modules;
@@ -8,6 +32,11 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 0) SORA (public固定)
   const soraMode = intent.soraModeFromCommand(rawText || cmd);
   if (soraMode) {
+    if (env.PAID_MODE_ENABLED && PAID_SORA_MODES.has(soraMode)) {
+      if (!isPaidAllowed({ appUserId, lineUserId })) {
+        return { text: paidOnlyMessage(soraMode), stage: "paid_only", mode: soraMode };
+      }
+    }
     let hasPersonal = false;
     try {
       hasPersonal = await natal.hasNatal(appUserId);
@@ -71,6 +100,11 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.ANSHIN) {
+    if (env.PAID_MODE_ENABLED && PAID_INTENTS.has(intentKey)) {
+      if (!isPaidAllowed({ appUserId, lineUserId })) {
+        return { text: paidOnlyMessage(intentKey), stage: "paid_only", mode: intentKey };
+      }
+    }
     let hasPersonal = false;
     try {
       hasPersonal = await natal.hasNatal(appUserId);

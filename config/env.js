@@ -30,6 +30,15 @@ function numEnv(key, defaultValue) {
   return Number.isFinite(n) ? n : defaultValue;
 }
 
+function listEnv(key, defaultValue = []) {
+  const v = process.env[key];
+  if (v === undefined || v === "") return defaultValue;
+  return String(v)
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 // --------------------
 // core project
 // --------------------
@@ -139,6 +148,19 @@ const FEATURES = {
   AI_EXPANSION: boolEnv("FEATURE_AI_EXPANSION", false),
 };
 
+// --------------------
+// paid mode (LINE)
+// --------------------
+const PAID_MODE_ENABLED = boolEnv("PAID_MODE_ENABLED", false);
+const PAID_SORA_MODES = listEnv(
+  "PAID_SORA_MODES",
+  ["sora_all", "sora_ura", "sora_ura_silent", "sora_ura_rare", "sora_ura_harmony"]
+);
+const PAID_INTENTS = listEnv("PAID_INTENTS", ["anshin"]);
+const PAID_ALLOW_APP_USER_IDS = listEnv("PAID_ALLOW_APP_USER_IDS", []);
+const PAID_ALLOW_LINE_USER_IDS = listEnv("PAID_ALLOW_LINE_USER_IDS", []);
+const PAID_ALLOW_OWNER = boolEnv("PAID_ALLOW_OWNER", true);
+
 //WORKER
 const WORKER_PUSH_NATAL_RESULT = getEnv("WORKER_PUSH_NATAL_RESULT", { defaultValue: "0" });
 
@@ -224,6 +246,14 @@ module.exports = {
 
   // feature flags
   FEATURES,
+
+  // paid mode (LINE)
+  PAID_MODE_ENABLED,
+  PAID_SORA_MODES,
+  PAID_INTENTS,
+  PAID_ALLOW_APP_USER_IDS,
+  PAID_ALLOW_LINE_USER_IDS,
+  PAID_ALLOW_OWNER,
 
   //worker
   WORKER_PUSH_NATAL_RESULT,
