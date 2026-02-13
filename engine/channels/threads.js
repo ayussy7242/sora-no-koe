@@ -2,30 +2,25 @@
 
 /**
  * channels/threads.js
- * - Threads（長文可）: 空の配置(最大5) + dist + 余韻 + close
+ * - Threads（長文可）: 空の配置(最大5) + dist + close
  *
  * deps:
  * - getUserId, pickStable
- * - buildYoinLine/buildYoinGlobal
  * - buildNowModernPlanetCounts/buildDistLinesFromcounts
  * - formatPublicSkyLine
  * - pickCloseLines
  * - RENDER_COPY
- * - fmt(formatYoinForX/buildYoinBlocks)
  */
 
 function renderThreads(story, deps = {}) {
     const {
         getUserId,
         pickStable,
-        buildYoinLine,
-        buildYoinGlobal,
         buildNowModernPlanetCounts,
         buildDistLinesFromcounts,
         formatPublicSkyLine,
         pickCloseLines,
         RENDER_COPY,
-        fmt,
     } = deps || {};
     const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/channel_common");
 
@@ -69,18 +64,6 @@ function renderThreads(story, deps = {}) {
     const userSeed = typeof getUserId === "function" ? getUserId(story) : "u_unknown";
     const seedBase = `${story?.meta?.date_local || dateLabel}|${userSeed}`;
 
-    const yoinPack =
-        typeof fmt?.buildYoinBlocks === "function"
-            ? fmt.buildYoinBlocks(
-                story,
-                { channel: "threads", seedBase: `${seedBase}|yoin` },
-                { buildYoinLine, buildYoinGlobal, RENDER_COPY, pickStable }
-            )
-            : { xYoinLine: typeof buildYoinLine === "function" ? buildYoinLine(story) : "" };
-
-    const yoin = typeof fmt?.formatYoinForX === "function"
-        ? fmt.formatYoinForX(yoinPack?.xYoinLine)
-        : String(yoinPack?.xYoinLine || "");
 
     const distShort =
         typeof buildDistLinesFromcounts === "function" && typeof buildNowModernPlanetCounts === "function"
@@ -115,10 +98,6 @@ function renderThreads(story, deps = {}) {
         lines.push(distShort);
     }
 
-    if (yoin) {
-        lines.push("");
-        yoin.split("\n").forEach((l) => lines.push(l));
-    }
 
     if (closeArr.length) {
         lines.push("");

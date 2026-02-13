@@ -24,7 +24,6 @@ const {
  * - tpKey, getSkyLayers
  * - pickCenterPublicContact, pickSecretPublicContact
  * - buildNoContactLine
- * - buildYoinLine
  * - buildNowModernPlanetCounts, buildPersonalTPCounts, buildDistLinesFromcounts
  * - formatPersonalTPLine / formatPersonalTPBlock
  * - formatPublicSkyLine / formatPublicSkyBlock
@@ -35,27 +34,6 @@ const {
  * NOTE:
  * - format* は (story, item, prefix, deps) で呼ぶ（deps渡し必須）
  */
-
-function clampYoin2(s) {
-  const lines = String(s || "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const maxLines = 4;
-  const out = lines.slice(0, maxLines);
-
-  if (out.length) {
-    const lastIdx = out.length - 1;
-    if (out[lastIdx].length > 60) {
-      const m = out[lastIdx].match(/^(.{1,80}?。)/);
-      if (m) out[lastIdx] = m[1];
-    }
-  }
-
-  return out.filter(Boolean).join("\n");
-}
-
 
 function safeStr(x) {
   return String(x ?? "");
@@ -4390,16 +4368,9 @@ function renderLineDict(story, deps = {}) {
   }
 
   // --------------------
-  // yoin
+  // yoin (removed)
   // --------------------
-  const yoinRaw =
-    typeof buildYoinLine === "function"
-      ? hasPersonal
-        ? buildYoinLine(story, { kind: "personal", statsScope: "all" })
-        : buildYoinLine(story, { kind: "public", statsScope: "top" })
-      : "";
-
-  const yoin = clampYoin2(yoinRaw);
+  const yoin = "";
 
   // --------------------
   // dist
