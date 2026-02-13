@@ -12,6 +12,7 @@
  */
 
 const { LINE_COPY } = require("../copy");
+const { normalizeStoryArgs } = require("../engine/story_args");
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -62,14 +63,16 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   async function buildStoryBase({ appUserId, mode }) {
     const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
-    const story = await storyService.buildStoryForUser({
-      appUserId,
-      mode, // "public" | "auto"
-      dateLocal,
-      asOfISO,
-      orbMaxDeg: ORB_MAX_DEG,
-      precisionDeg: PRECISION_DEG,
-    });
+    const story = await storyService.buildStoryForUser(
+      normalizeStoryArgs({
+        appUserId,
+        mode, // "public" | "auto"
+        dateLocal,
+        asOfISO,
+        orbMaxDeg: ORB_MAX_DEG,
+        precisionDeg: PRECISION_DEG,
+      })
+    );
     return { story, dateLocal, asOfISO };
   }
 

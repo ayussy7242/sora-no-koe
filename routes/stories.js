@@ -2,6 +2,7 @@
 "use strict";
 
 const express = require("express");
+const { normalizeStoryArgs } = require("../engine/story_args");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -219,14 +220,16 @@ function createStoriesRouter(deps = {}) {
       const includeOutputs = req.query.outputs === undefined ? true : boolish(req.query.outputs);
 
       // build story
-      const story = await storyService.buildStoryForUser({
-        appUserId,
-        mode,       // public | auto
-        dateLocal,  // 表示用
-        asOfISO,    // ✅ ここが NOW
-        orbMaxDeg,
-        precisionDeg,
-      });
+      const story = await storyService.buildStoryForUser(
+        normalizeStoryArgs({
+          appUserId,
+          mode,       // public | auto
+          dateLocal,  // 表示用
+          asOfISO,    // ✅ ここが NOW
+          orbMaxDeg,
+          precisionDeg,
+        })
+      );
 
       // anshin / natal 用に natal_cache を補足（publicは取得しない）
       let anshinNatalCache = null;

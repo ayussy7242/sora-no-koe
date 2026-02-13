@@ -17,6 +17,8 @@
  * - posts_daily_delivery/{dateLocal}/deliveries/{appUserId} に送信結果を記録
  */
 
+const { normalizeStoryArgs } = require("../engine/story_args");
+
 function isYYYYMMDD(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
@@ -190,26 +192,30 @@ async function runDaily8(deps, opts = {}) {
     const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
 
     if (mode === "sky") {
-      const story = await storyService.buildStoryForUser({
-        appUserId: "public",
-        mode: "public",
-        dateLocal,
-        asOfISO,
-        orbMaxDeg,
-        precisionDeg,
-      });
+      const story = await storyService.buildStoryForUser(
+        normalizeStoryArgs({
+          appUserId: "public",
+          mode: "public",
+          dateLocal,
+          asOfISO,
+          orbMaxDeg,
+          precisionDeg,
+        })
+      );
       return await renderFn(story);
     }
 
     // mode === "today" => auto
-    const story = await storyService.buildStoryForUser({
-      appUserId,
-      mode: "auto",
-      dateLocal,
-      asOfISO,
-      orbMaxDeg,
-      precisionDeg,
-    });
+    const story = await storyService.buildStoryForUser(
+      normalizeStoryArgs({
+        appUserId,
+        mode: "auto",
+        dateLocal,
+        asOfISO,
+        orbMaxDeg,
+        precisionDeg,
+      })
+    );
     return await renderFn(story);
   }
 

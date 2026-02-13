@@ -1,6 +1,7 @@
 "use strict";
 
 const { createWpClient } = require("../engine/blog/wp_client");
+const { normalizeStoryArgs } = require("../engine/story_args");
 const { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml } = require("../engine/blog/daily");
 
 function requiredEnv(name, value) {
@@ -15,12 +16,14 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
   requiredEnv("WP_APP_PASSWORD", env.WP_APP_PASSWORD);
   requiredEnv("WP_CATEGORY_DAILY", env.WP_CATEGORY_DAILY);
 
-  const story = await storyService.buildStoryForUser({
-    appUserId: "public",
-    dateLocal,
-    asOfISO,
-    mode: "public",
-  });
+  const story = await storyService.buildStoryForUser(
+    normalizeStoryArgs({
+      appUserId: "public",
+      dateLocal,
+      asOfISO,
+      mode: "public",
+    })
+  );
 
   let content = await generateDailyDraft({
     story,
