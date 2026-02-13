@@ -2,27 +2,11 @@
 
 const intent = require("./intent");
 
-function normalizeCmdLoose(s) {
-  return String(s || "").trim().toLowerCase().replace(/\s+/g, "");
-}
-
-function pickSoraMode(text) {
-  const t = normalizeCmdLoose(text);
-  if (t === "そらぜんぶ" || t === "そら全部" || t === "soraall" || t === "sora_all") return "sora_all";
-  if (t === "うらがわ") return "sora_all";
-  if (t === "そらのうら" || t === "ソラのうら" || t === "うらこまんど" || t === "うらコマンド" || t === "うら") return "sora_ura";
-  if (t === "沈黙のほし" || t === "沈黙" || t === "ちんもく" || t === "ちんもくのほし") return "sora_ura_silent";
-  if (t === "裏共鳴" || t === "うら共鳴" || t === "裏きょうめい" || t === "きょうのうら") return "sora_ura_rare";
-  if (t === "調和層" || t === "調和" || t === "ちょうわ層" || t === "ちょうわ") return "sora_ura_harmony";
-  if (t === "そら" || t === "sora") return "sora_top";
-  return null;
-}
-
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers }) {
   const { natal, story } = modules;
 
   // 0) SORA (public固定)
-  const soraMode = pickSoraMode(cmd);
+  const soraMode = intent.soraModeFromCommand(rawText || cmd);
   if (soraMode) {
     let hasPersonal = false;
     try {
