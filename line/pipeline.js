@@ -45,13 +45,10 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
         : renderers.renderSoraLine(storyJson))
       : "（そらのデータがまだなかった🙏）";
     if (soraMode === "sora_ura_silent" && !usePersonalSilent) {
-      const tail =
-        "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
-      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
+      return { text: story.appendTail(text, story.tailSoraSilentNoPersonal()), stage: "sora", mode: soraMode };
     }
     if (!hasPersonal) {
-      const tail = "──\nあなたの星も、静かに待っています。\n「はじめる」と送ると登録できます。🌌";
-      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
+      return { text: story.appendTail(text, story.tailSoraNoPersonal()), stage: "sora", mode: soraMode };
     }
     return { text, stage: "sora", mode: soraMode };
   }
@@ -98,8 +95,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
     if (!hasPersonal) {
       const r = await story.buildAnshinPublic();
-      const tail = "──\nあなたのあんしんも、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🫧";
-      return { text: `${r?.text || story.renderFallback() || "（返す文が空だった🙏）"}\n\n${tail}`, stage: "anshin_public" };
+      return { text: story.appendTail(r?.text || story.renderFallback() || "（返す文が空だった🙏）", story.tailAnshinNoPersonal()), stage: "anshin_public" };
     }
     const r = await story.buildAnshin({ appUserId });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "anshin" };
