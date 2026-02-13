@@ -37,7 +37,7 @@ function createStoryService({
   swisseph,
 
   // dict
-  SIGNS_V1,
+  SIGNS,
 
   // aspects list: [{ type, deg }, ...]
   ASPECTS,
@@ -69,7 +69,7 @@ function createStoryService({
 }) {
   if (!db) throw new Error("createStoryService: db required");
   if (!swisseph) throw new Error("createStoryService: swisseph required");
-  if (!SIGNS_V1) throw new Error("createStoryService: SIGNS_V1 required");
+  if (!SIGNS) throw new Error("createStoryService: SIGNS required");
   if (!Array.isArray(ASPECTS) || ASPECTS.length === 0) throw new Error("createStoryService: ASPECTS required");
 
   // ------------------------
@@ -89,7 +89,7 @@ function createStoryService({
   // ------------------------
   // sign/transit/sky services
   // ------------------------
-  const { signFromLon, getSignMetaByKey } = createSignHelpers({ SIGNS_V1, norm360 });
+  const { signFromLon, getSignMetaByKey } = createSignHelpers({ SIGNS, norm360 });
   const { computeTransitsSwiss } = createTransitsService({
     swisseph,
     signFromLon,

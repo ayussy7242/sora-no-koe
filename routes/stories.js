@@ -4,6 +4,7 @@
 const express = require("express");
 const { normalizeStoryArgs } = require("../engine/story_args");
 const { SORA_ALIAS_ENTRIES } = require("../line/sora_alias");
+const { buildRenderMap, resolvePrimaryKey, attachOutputs } = require("./stories_render");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -242,66 +243,15 @@ function createStoriesRouter(deps = {}) {
       // --------------------
       // render only what is requested (NO collateral failures)
       // --------------------
-      const renderMap = {
-        line: () => renderers.renderLine(story),
-        sora: () => renderers.renderSoraLine(story),
-        sora_all: () => renderers.renderSoraAllLine(story),
-        sora_ura: () => renderers.renderSoraUraLine(story),
-        sora_ura_silent: () => renderers.renderSoraUraSilentLine(story),
-        sora_ura_rare: () => renderers.renderSoraUraRareLine(story),
-        sora_ura_harmony: () => renderers.renderSoraUraHarmonyLine(story),
-        anshin: () => renderers.renderAnshinLine({ story, meta: story?.meta, natal_cache: anshinNatalCache || null }),
-        natal: () => renderers.renderNatalListFromcache(natalCache || null),
-        x: () => renderers.renderX(story),
-        ig: () => renderers.renderIG(story),
-        threads: () => renderers.renderThreads(story),
-      };
+      const renderMap = buildRenderMap({ renderers, story, anshinNatalCache, natalCache });
 
-      // format/channel → primary output key
-      const wantKey =
-        format === "line" ? "line" :
-          format === "x" ? "x" :
-            format === "ig" ? "ig" :
-              format === "threads" ? "threads" :
-                (format === "text" && ch === "x") ? "x" :
-                  (format === "text" && ch === "ig") ? "ig" :
-                    (format === "text" && ch === "threads") ? "threads" :
-                      (format === "text" && ch === "line_sora") ? "sora" :
-                      (format === "text" && ch === "line_sora_all") ? "sora_all" :
-                      (format === "text" && ch === "line_sora_ura") ? "sora_ura" :
-                      (format === "text" && ch === "line_sora_ura_silent") ? "sora_ura_silent" :
-                      (format === "text" && ch === "line_sora_ura_rare") ? "sora_ura_rare" :
-                      (format === "text" && ch === "line_sora_ura_harmony") ? "sora_ura_harmony" :
-                      (format === "text" && ch === "line_anshin") ? "anshin" :
-                      (format === "text" && (ch === "natal" || ch === "line_natal")) ? "natal" :
-                          (format === "text" && (ch === "line" || !ch)) ? "line" :
-                            // default
-                            "line";
+      // format/channel -> primary output key
+      const wantKey = resolvePrimaryKey({ format, channel: ch });
 
       const primaryText = await (renderMap[wantKey] || renderMap.line)();
 
       // outputs: include only if requested (and never break main response)
-      if (includeOutputs) {
-        const outputs = { line: "", sora: "", sora_all: "", sora_ura: "", sora_ura_silent: "", sora_ura_rare: "", sora_ura_harmony: "", anshin: "", natal: "", x: "", ig: "", threads: "" };
-        outputs[wantKey] = primaryText;
-
-        const errors = {};
-        for (const k of Object.keys(outputs)) {
-          if (k === wantKey) continue;
-          try {
-            outputs[k] = await renderMap[k]();
-          } catch (e) {
-            errors[k] = e?.message || String(e);
-          }
-        }
-
-        story.outputs = outputs;
-        if (Object.keys(errors).length) {
-          story.meta.outputs_errors = errors;
-        }
-      } else if (story.outputs) {
-        delete story.outputs;
-      }
+      await attachOutputs({ story, renderMap, primaryKey: wantKey, primaryText, includeOutputs });
 
       // save（※現状 doc_id が日付固定なので “今”を保存すると上書きになる）
       if (save) {

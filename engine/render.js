@@ -248,11 +248,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // DICT
   // --------------------
   const D = dict || require("../dict");
-  const SIGNS_V1 = D?.SIGNS_V1 || D?.signs_v1 || null;
-  const SIGNS_V2 = D?.SIGNS_V2 || D?.signs_v2 || null;
-
-  // V2→V1 fallback
-  const SIGNS_PRIMARY = SIGNS_V2 || SIGNS_V1;
+  const SIGNS = D?.SIGNS || D?.SIGNS_V2 || D?.SIGNS_V1 || D?.signs_v2 || D?.signs_v1 || null;
 
   const ASPECTS_V1 = D?.ASPECTS_V1 || D?.aspects_v1 || null;
   const ASPECTS_V2 = D?.ASPECTS_V2 || D?.aspects_v2 || null;
@@ -268,7 +264,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // SIGN helpers
   // --------------------
-  const { signMeta, signJaFromIndex, signKeyFromIndex, publicSignJa, publicSignKey } = makeSignHelpers(SIGNS_PRIMARY);
+  const { signMeta, signJaFromIndex, signKeyFromIndex, publicSignJa, publicSignKey } = makeSignHelpers(SIGNS);
 
   // --------------------
   // Memo / formatters

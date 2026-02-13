@@ -2,22 +2,22 @@
 
 /**
  * signs.js — sign helpers (v3.3.3)
- * - SIGNS_V1.signs のキー揺れを吸収
+ * - SIGNS.signs のキー揺れを吸収
  * - publicSignJa/publicSignKey は story 直書き or 経度から推定
  */
 
-module.exports = function makeSignHelpers(SIGNS_V1) {
+module.exports = function makeSignHelpers(SIGNS) {
   function signMeta(signKey) {
     const raw = String(signKey || "");
     const lower = raw.toLowerCase();
 
-    const byLower = SIGNS_V1?.signs?.[lower];
+    const byLower = SIGNS?.signs?.[lower];
     if (byLower) return byLower;
 
-    const byRaw = SIGNS_V1?.signs?.[raw];
+    const byRaw = SIGNS?.signs?.[raw];
     if (byRaw) return byRaw;
 
-    const signs = SIGNS_V1?.signs;
+    const signs = SIGNS?.signs;
     if (signs && typeof signs === "object") {
       const hitKey = Object.keys(signs).find((k) => String(k).toLowerCase() === lower);
       if (hitKey) return signs[hitKey];

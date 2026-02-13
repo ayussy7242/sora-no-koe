@@ -757,7 +757,7 @@ function _fallbackDomFromPublicSky(story, dict) {
     [it?.aS || it?.a_sign_key, it?.bS || it?.b_sign_key].forEach((key) => {
       const k = _lowerKey(key);
       if (!k) return;
-      const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+      const s = dict?.SIGNS?.signs?.[k] || dict?.SIGNS?.[k] || null;
       if (!s) return;
       if (s.element) counts.element[s.element] = (counts.element[s.element] || 0) + 1;
       if (s.modality) counts.modality[s.modality] = (counts.modality[s.modality] || 0) + 1;
@@ -1091,10 +1091,8 @@ function _labelBanSet(dict) {
     const s = String(v || "").trim();
     if (s) set.add(s);
   };
-  Object.values(dict?.SIGNS_V2?.signs || {}).forEach((v) => add(v?.label_ja));
-  Object.values(dict?.SIGNS_V1 || {}).forEach((v) => add(v?.label_ja));
-  Object.values(dict?.PLANETS_V2?.bodies || {}).forEach((v) => add(v?.label_ja));
-  Object.values(dict?.PLANETS_V1 || {}).forEach((v) => add(v?.label_ja));
+  Object.values(dict?.SIGNS?.signs || dict?.SIGNS || {}).forEach((v) => add(v?.label_ja));
+  Object.values(dict?.PLANETS?.bodies || dict?.PLANETS || {}).forEach((v) => add(v?.label_ja));
   Object.values(dict?.POINTS_V1?.points || {}).forEach((v) => add(v?.label_ja));
   _LABEL_BAN_CACHE = { dict, set };
   return set;
@@ -1483,10 +1481,7 @@ function _signModifierFromStyle(style, signKey, planetKey, seed, dict) {
   const template = style?.planets?.[k]?.modifier_template || "に寄りやすい";
   const keywords = style?.signs?.[_lowerKey(signKey)]?.keywords || [];
   const picked = _pickMany(keywords, `${seed}|kw|${k}|${signKey}`, 2);
-  const signLabel =
-    dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)]?.label_ja ||
-    dict?.SIGNS_V1?.signs?.[_lowerKey(signKey)]?.label_ja ||
-    signKey;
+  const signLabel = dict?.SIGNS?.signs?.[_lowerKey(signKey)]?.label_ja || signKey;
   const keyPhrase = picked.length ? picked.join("・") : signLabel;
   return template.includes("{sign}")
     ? template.replace("{sign}", keyPhrase)
@@ -1562,23 +1557,23 @@ function _getRole(dict, signKey, planetKey) {
   const pointKey = _lowerKey(planetKey);
   const point = dict?.POINTS_V1?.points?.[pointKey] || null;
   if (point?.core) return String(point.core).replace(/・/g, "と");
-  const p = dict?.PLANETS_V2?.bodies?.[_lowerKey(planetKey)] || null;
+  const p = dict?.PLANETS?.bodies?.[_lowerKey(planetKey)] || null;
   return p?.role || p?.core || "";
 }
 
 function _planetJaLocal(dict, planetKey) {
   const k = _lowerKey(planetKey);
-  return dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.PLANETS_V1?.[k]?.label_ja || planetKey || "";
+  return dict?.PLANETS?.bodies?.[k]?.label_ja || planetKey || "";
 }
 
 function _signJa(dict, signKey) {
   const k = _lowerKey(signKey);
-  return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
+  return dict?.SIGNS?.signs?.[k]?.label_ja || signKey || "";
 }
 
 function _planetMeta(dict, planetKey) {
   const k = _lowerKey(planetKey);
-  const p = dict?.PLANETS_V2?.bodies?.[k] || dict?.PLANETS_V1?.[k] || null;
+  const p = dict?.PLANETS?.bodies?.[k] || null;
   const point = dict?.POINTS_V1?.points?.[k] || null;
   return {
     role: p?.role || p?.core || point?.core || "",
@@ -1589,7 +1584,7 @@ function _planetMeta(dict, planetKey) {
 
 function _signMeta(dict, signKey) {
   const k = _lowerKey(signKey);
-  const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+  const s = dict?.SIGNS?.signs?.[k] || null;
   return {
     label_ja: s?.label_ja || signKey || "",
     texture: Array.isArray(s?.texture) ? s.texture.slice(0, 3) : [],
@@ -1628,9 +1623,8 @@ const _ASPECT_JA_FALLBACK = {
 
 function _aspectMetaFromDict(dict, k) {
   if (!k) return null;
-  const v2 = dict?.ASPECTS_V2 || {};
-  const v1 = dict?.ASPECTS_V1 || {};
-  const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space];
+  const v2 = dict?.ASPECTS || dict?.ASPECTS_V2 || {};
+  const pools = [v2.major, v2.deep_space, v2.craft_space];
   for (const p of pools) {
     if (p && p[k]) return p[k];
   }
@@ -2143,8 +2137,7 @@ function _moonElementKey(story, dict) {
     "";
   const key = _lowerKey(raw);
   return (
-    dict?.SIGNS_V2?.signs?.[key]?.element ||
-    dict?.SIGNS_V1?.signs?.[key]?.element ||
+    dict?.SIGNS?.signs?.[key]?.element ||
     ""
   );
 }

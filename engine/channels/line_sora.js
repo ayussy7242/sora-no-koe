@@ -504,10 +504,8 @@ function _labelBanSet(dict) {
         const s = String(v || "").trim();
         if (s) set.add(s);
     };
-    Object.values(dict?.SIGNS_V2?.signs || {}).forEach((v) => add(v?.label_ja));
-    Object.values(dict?.SIGNS_V1 || {}).forEach((v) => add(v?.label_ja));
-    Object.values(dict?.PLANETS_V2?.bodies || {}).forEach((v) => add(v?.label_ja));
-    Object.values(dict?.PLANETS_V1 || {}).forEach((v) => add(v?.label_ja));
+    Object.values(dict?.SIGNS?.signs || dict?.SIGNS || {}).forEach((v) => add(v?.label_ja));
+    Object.values(dict?.PLANETS?.bodies || dict?.PLANETS || {}).forEach((v) => add(v?.label_ja));
     Object.values(dict?.POINTS_V1?.points || {}).forEach((v) => add(v?.label_ja));
     _LABEL_BAN_CACHE = { dict, set };
     return set;
@@ -813,12 +811,12 @@ function _normalizeAiLabel(raw, dict) {
 
 function _signJa(dict, signKey) {
     const k = _lowerKey(signKey);
-    return dict?.SIGNS_V2?.signs?.[k]?.label_ja || dict?.SIGNS_V1?.[k]?.label_ja || signKey || "";
+    return dict?.SIGNS?.signs?.[k]?.label_ja || signKey || "";
 }
 
 function _planetMeta(dict, planetKey) {
     const k = _lowerKey(planetKey);
-    const p = dict?.PLANETS_V2?.bodies?.[k] || dict?.PLANETS_V1?.[k] || null;
+    const p = dict?.PLANETS?.bodies?.[k] || null;
     const point = dict?.POINTS_V1?.points?.[k] || null;
     return {
         role: p?.role || p?.core || point?.core || "",
@@ -829,7 +827,7 @@ function _planetMeta(dict, planetKey) {
 
 function _signMeta(dict, signKey) {
     const k = _lowerKey(signKey);
-    const s = dict?.SIGNS_V2?.signs?.[k] || dict?.SIGNS_V1?.[k] || null;
+    const s = dict?.SIGNS?.signs?.[k] || null;
     return {
         label_ja: s?.label_ja || signKey || "",
         texture: Array.isArray(s?.texture) ? s.texture.slice(0, 3) : [],
@@ -868,9 +866,8 @@ const _ASPECT_JA_FALLBACK = {
 
 function _aspectMetaFromDict(dict, k) {
     if (!k) return null;
-    const v2 = dict?.ASPECTS_V2 || {};
-    const v1 = dict?.ASPECTS_V1 || {};
-    const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space];
+    const v2 = dict?.ASPECTS || dict?.ASPECTS_V2 || {};
+    const pools = [v2.major, v2.deep_space, v2.craft_space];
     for (const p of pools) {
         if (p && p[k]) return p[k];
     }
@@ -2120,7 +2117,7 @@ function _subjectNoun(dict, planetKey, seed, avoidTokens = []) {
         });
         return _pickOne(filtered.length ? filtered : pool, `${seed}|subj|${k}`);
     }
-    const p = dict?.PLANETS_V2?.bodies?.[k] || null;
+    const p = dict?.PLANETS?.bodies?.[k] || null;
     return p?.role || p?.core || "意志";
 }
 
@@ -2130,10 +2127,7 @@ function _signModifier(dict, signKey, planetKey, seed) {
     const template = style?.planets?.[k]?.modifier_template || "に寄りやすい";
     const keywords = style?.signs?.[_lowerKey(signKey)]?.keywords || [];
     const picked = _pickMany(keywords, `${seed}|kw|${k}|${signKey}`, 2);
-    const signLabel =
-        dict?.SIGNS_V2?.signs?.[_lowerKey(signKey)]?.label_ja ||
-        dict?.SIGNS_V1?.signs?.[_lowerKey(signKey)]?.label_ja ||
-        signKey;
+    const signLabel = dict?.SIGNS?.signs?.[_lowerKey(signKey)]?.label_ja || signKey;
     const keyPhrase = picked.length ? picked.join("・") : signLabel;
     return template.includes("{sign}")
         ? template.replace("{sign}", keyPhrase)
@@ -2318,8 +2312,8 @@ function callBuildFusionSentence(deps, normalizedItem, opts) {
 
     console.log("deps keys", Object.keys(deps || {}));
     console.log("has buildFusionSentence", typeof deps?.buildFusionSentence);
-    console.log("has PLANETS_V1", !!deps?.PLANETS_V1, "has dict.PLANETS_V1", !!deps?.dict?.PLANETS_V1);
-    console.log("has ASPECTS_V1", !!deps?.ASPECTS_V1, "has dict.ASPECTS_V1", !!deps?.dict?.ASPECTS_V1);
+    console.log("has PLANETS_V2", !!deps?.PLANETS_V2, "has dict.PLANETS_V2", !!deps?.dict?.PLANETS_V2);
+    console.log("has ASPECTS_V2", !!deps?.ASPECTS_V2, "has dict.ASPECTS_V2", !!deps?.dict?.ASPECTS_V2);
     console.log("template", opts?.template);
 
     return "";
@@ -2819,7 +2813,7 @@ function renderSoraBase(story, opts = {}, deps = {}) {
 
     if (!trimStr(distLines) || sumCounts(nowCounts) === 0) {
         const dict = deps?.dict || require("../../dict");
-        const signs = dict?.SIGNS_V2?.signs || dict?.SIGNS_V1?.signs || {};
+        const signs = dict?.SIGNS?.signs || {};
         const publicSignKey = deps?.publicSignKey;
 
         const element = { fire: 0, earth: 0, air: 0, water: 0 };
