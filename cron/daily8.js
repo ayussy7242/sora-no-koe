@@ -18,25 +18,17 @@
  */
 
 const { normalizeStoryArgs } = require("../engine/story_args");
-
-function isYYYYMMDD(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-function toDateLocalJST(date = new Date()) {
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
-}
-function asOfIsoFromDateLocalJST(dateLocal) {
-  return `${dateLocal}T03:00:00.000Z`;
-}
-function toSafeText(x, maxLen = 4800) {
-  const s = x == null ? "" : String(x);
-  return s.length > maxLen ? s.slice(0, maxLen) : s;
-}
-function isNonEmptyText(x) {
-  const s = x == null ? "" : String(x);
-  return s.trim().length > 0;
-}
+const {
+  isYYYYMMDD,
+  toDateLocalJST,
+  asOfIsoFromDateLocalJST,
+  toSafeText,
+  isNonEmptyText,
+  pickNum,
+  clamp,
+  getLineUserIdFromUserDoc,
+  pickRenderer,
+} = require("./cron_utils");
 function normalizeOpts(input) {
   if (!input) return {};
   if (typeof input === "object") return input;
@@ -66,13 +58,6 @@ function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
   return `daily8:${dateLocal}:${r}`;
 }
-function pickNum(v, fallback) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
 
 // -------------------- LINE --------------------
 async function linePushText({ accessToken, to, text }) {
@@ -97,11 +82,6 @@ async function linePushText({ accessToken, to, text }) {
     throw new Error(`LINE push error ${res.status} ${t}`);
   }
   return (await res.text().catch(() => "")) || null;
-}
-
-function getLineUserIdFromUserDoc(user) {
-  const a = user?.channels?.line?.line_user_id || user?.channels?.line_user_id || user?.line_user_id || null;
-  return a ? String(a) : null;
 }
 
 function isTargetUser(user) {
@@ -141,15 +121,6 @@ async function writePerUserResult({ db, admin, dateLocal, appUserId, payload }) 
     { app_user_id: appUserId, channel: "line", ...payload, updated_at: admin.firestore.FieldValue.serverTimestamp() },
     { merge: true }
   );
-}
-
-// -------------------- renderer pick --------------------
-function pickRenderer(renderers) {
-  if (typeof renderers?.renderKyou === "function") return renderers.renderKyou.bind(renderers);
-  if (typeof renderers?.renderToday === "function") return renderers.renderToday.bind(renderers);
-  if (typeof renderers?.renderLineToday === "function") return renderers.renderLineToday.bind(renderers);
-  if (typeof renderers?.renderLine === "function") return renderers.renderLine.bind(renderers);
-  return null;
 }
 
 /**

@@ -3,6 +3,7 @@
 
 const express = require("express");
 const { normalizeStoryArgs } = require("../engine/story_args");
+const { SORA_ALIAS_ENTRIES } = require("../line/sora_alias");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -138,31 +139,13 @@ function createStoriesRouter(deps = {}) {
       const reqChannel = String(req.query.channel || "").trim().toLowerCase();
 
       const channelAlias = {
-        sora_line: "line_sora",
-        sora: "line_sora",
-        line_sora: "line_sora",
+        // sora系は共通エイリアス（line/intent と同一）から構築
+        ...(SORA_ALIAS_ENTRIES || []).reduce((acc, e) => {
+          if (e?.alias && e?.channel) acc[e.alias] = e.channel;
+          return acc;
+        }, {}),
 
-        sora_all_line: "line_sora_all",
-        sora_all: "line_sora_all",
-        line_sora_all: "line_sora_all",
-
-        sora_ura_line: "line_sora_ura",
-        sora_ura: "line_sora_ura",
-        line_sora_ura: "line_sora_ura",
-        kyou_no_ura: "line_sora_ura_rare",
-        chinmoku: "line_sora_ura_silent",
-        chimmoku: "line_sora_ura_silent",
-        chouwa: "line_sora_ura_harmony",
-        "きょうのうら": "line_sora_ura_rare",
-        "ちんもく": "line_sora_ura_silent",
-        "ちょうわ": "line_sora_ura_harmony",
-
-        sora_ura_silent: "line_sora_ura_silent",
-        line_sora_ura_silent: "line_sora_ura_silent",
-        sora_ura_rare: "line_sora_ura_rare",
-        line_sora_ura_rare: "line_sora_ura_rare",
-        sora_ura_harmony: "line_sora_ura_harmony",
-        line_sora_ura_harmony: "line_sora_ura_harmony",
+        // anshin / other channels
         anshin: "line_anshin",
         line_anshin: "line_anshin",
 
