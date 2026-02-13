@@ -4,7 +4,7 @@
  * engine/render.js (STABLE / Composition Root) — Unified v3.3.8 (SSOT)
  *
  * ✅ Goal
- * - dict/copy/memo/yoin/formatters をここで集約して channels に DI 注入
+ * - dict/copy/memo/formatters をここで集約して channels に DI 注入
  * - render.js は “配線だけ” (判断しない / 占い化しない)
  * - normalize/seed/fusion-postprocess を SSOT としてここに固定
  *
@@ -22,7 +22,6 @@ const fmt = require("./render_parts/format");
 const dist = require("./render_parts/dist");
 const pickersPublic = require("./render_parts/pickers_public");
 const { pickStable, getUserId } = require("./render_parts/seed");
-const { createYoin: createYoinFactory } = require("./render_parts/yoin");
 
 // channels
 const chLineToday = require("./channels/line_today");
@@ -313,9 +312,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     RENDER_COPY,
   });
 
-  // ============================================================
-  // YOIN (DI instance)
-  // ============================================================
   const getSkyLayers = (story) => story?.personal?.sky_layers || null;
 
   const buildNoContactLine = (story) => {
@@ -324,24 +320,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     if (typeof nc === "string") return nc;
     return "空層：no_contact";
   };
-
-  const yoin = createYoinFactory({
-    getSkyLayers,
-    pickCenterPublicContact: pickersPublic.pickCenterPublicContact,
-    buildNoContactLine,
-    publicSignKey,
-    memoSignMeta: (k) => signMeta(k),
-    normalizeAspectType,
-    aspectCore: (t) => fmtJa.aspectCore(t),
-
-    pickStable,
-    getUserId,
-
-    ASPECTS_META,
-    RENDER_COPY,
-
-    ASPECTS_V1,
-  });
 
   // ============================================================
   // deps(ctx) builder — 全チャンネル共通SSOT
@@ -384,27 +362,19 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     deps.formatSoraSkyLine = fmt.formatSoraSkyLine;
     deps.formatPersonalTPLine = fmt.formatPersonalTPLine;
     deps.formatSkyLineX = fmt.formatSkyLineX;
-    deps.formatYoinForX = fmt.formatYoinForX;
 
     // blocks
     deps.formatPublicSkyBlock = fmt.formatPublicSkyBlock;
     deps.formatPersonalTPBlock = fmt.formatPersonalTPBlock;
 
-    // yoin blocks helper
-    deps.buildYoinBlocks = fmt.buildYoinBlocks;
-
     // pickers
     deps.pickCenterPublicContact = pickersPublic.pickCenterPublicContact;
     deps.pickSecretPublicContact = pickersPublic.pickSecretPublicContact;
 
-    // yoin
+    // yoin (removed) / no-contact still used
     deps.getSkyLayers = getSkyLayers;
     deps.hasPersonal = !!getSkyLayers(story);
-
-    deps.buildNoContactLine = yoin.buildNoContactLine;
-    deps.buildYoinLine = yoin.buildYoinLine;
-    deps.buildYoinGlobal = yoin.buildYoinGlobal;
-    deps.buildYoinCenter = yoin.buildYoinCenter;
+    deps.buildNoContactLine = buildNoContactLine;
 
     // dist
     deps.buildNowModernPlanetCounts = dist.buildNowModernPlanetCounts;
@@ -620,10 +590,6 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     // natal list
     renderNatalListFromcache,
 
-    // yoin builders (compat)
-    buildYoinLine: yoin.buildYoinLine,
-    buildYoinGlobal: yoin.buildYoinGlobal,
-    buildYoinCenter: yoin.buildYoinCenter,
   };
 }
 

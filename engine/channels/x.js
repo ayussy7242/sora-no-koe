@@ -2,13 +2,12 @@
 
 /**
  * channels/x.js
- * - X（短文） v3.3.6 相当：空の配置 + dist(なう惑星) + 余韻 + close
+ * - X（短文） v3.3.6 相当：空の配置 + dist(なう惑星) + close
  *
  * deps:
  * - getUserId, pickStable
- * - fmt(formatSkyLineX/formatYoinForX/buildYoinBlocks)
+ * - fmt(formatSkyLineX)
  * - pickCenterPublicContact, pickSecretPublicContact
- * - buildYoinLine, buildYoinGlobal
  * - buildNowModernPlanetCounts, buildDistLinesFromcounts
  * - pickCloseLines
  * - RENDER_COPY
