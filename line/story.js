@@ -13,6 +13,7 @@
 
 const { LINE_COPY } = require("../copy");
 const { normalizeStoryArgs } = require("../engine/story_args");
+const { ymdInTimeZone, asOfIsoFromDateLocalJST } = require("../engine/time_utils");
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -39,25 +40,10 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return x.length > MAX_LINE_TEXT ? x.slice(0, MAX_LINE_TEXT) : x;
   }
 
-  function ymdInTimeZone(date, timeZone) {
-    const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-    return fmt.format(date);
-  }
-
-  function asOfIsoFromDateLocal(dateLocal) {
-    // JST 12:00 == UTC 03:00
-    return `${dateLocal}T03:00:00.000Z`;
-  }
-
   function computeDateLocalAndAsOfISO() {
     const now = new Date();
     const dateLocal = ymdInTimeZone(now, DEFAULT_TZ);
-    const asOfISO = asOfIsoFromDateLocal(dateLocal);
+    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
     return { dateLocal, asOfISO };
   }
 
