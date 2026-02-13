@@ -1748,10 +1748,7 @@ const SORA_AI_BANNED = [];
                 const rawProse = String(it?.prose || "").trim();
                 if (!rawProse) return it;
                 const cleaned = _extractInlineKeywordsAndCleanProse(rawProse);
-                const nextKeywords = (cleaned.inlineKeywords && cleaned.inlineKeywords.length)
-                    ? cleaned.inlineKeywords
-                    : (Array.isArray(it?.keywords) ? it.keywords : []);
-                return { ...it, prose: cleaned.prose, keywords: nextKeywords };
+                return { ...it, prose: cleaned.prose, inline_keywords: cleaned.inlineKeywords };
             });
 
             let hasBad = false;
@@ -1813,8 +1810,10 @@ const SORA_AI_BANNED = [];
             }
         }
         const kwCandidates = Array.isArray(inputPack?.keyword_candidates) ? inputPack.keyword_candidates : [];
+        const kwInline = _filterKwByCandidates(ai.inline_keywords, kwCandidates);
         const kwAi = _filterKwByCandidates(ai.keywords, kwCandidates);
-        const keywordLine = _formatKeywordsLine(kwAi, kwFallback, kwLimitLocal, usedKw);
+        const kwFinal = kwInline.length ? kwInline : kwAi;
+        const keywordLine = _formatKeywordsLine(kwFinal, kwFallback, kwLimitLocal, usedKw);
         const itemLines = [header];
         if (label) itemLines.push(label);
         if (label && structure) itemLines.push("");
@@ -3210,7 +3209,15 @@ async function renderSoraUraSilentLine(story, deps = {}) {
             return a === "chiron" || b === "chiron" || a === "lilith" || b === "lilith";
         })
         .map((x) => x.raw);
-    const listTop = list.slice(0, 3);
+    const seenSilent = new Set();
+    const uniqueList = list.filter((item) => {
+        const sig = _skySignature(item);
+        if (!sig) return true;
+        if (seenSilent.has(sig)) return false;
+        seenSilent.add(sig);
+        return true;
+    });
+    const listTop = uniqueList.slice(0, 3);
 
     if (!listTop.length) {
         return [`🌒 ちんもくのほし｜${dateLabel}`, "今日は沈黙。"].join("\n").trim();

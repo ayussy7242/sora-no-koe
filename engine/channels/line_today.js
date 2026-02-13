@@ -3764,6 +3764,12 @@ async function renderLineAI(story, deps = {}, opts = {}) {
         aiPersonal = parsed.personal || {};
         aiSkyLayer = parsed.sky_layer || {};
         aiPersonalLayer = parsed.personal_layer || {};
+        aiPublic = aiPublic.map((it) => {
+          const rawProse = String(it?.prose || "").trim();
+          if (!rawProse) return it;
+          const cleaned = _extractInlineKeywordsAndCleanProse(rawProse);
+          return { ...it, prose: cleaned.prose, inline_keywords: cleaned.inlineKeywords };
+        });
       }
     } catch (_) {
       // keep empty AI payloads (no throw) to avoid dict fallback
@@ -3907,9 +3913,10 @@ async function renderLineAI(story, deps = {}, opts = {}) {
           const rawProse = String(prose || "").trim();
           const cleaned = _extractInlineKeywordsAndCleanProse(rawProse);
           const nextProse = cleaned.prose;
-          const nextKeywords = (cleaned.inlineKeywords && cleaned.inlineKeywords.length)
-            ? cleaned.inlineKeywords
-            : (Array.isArray(keywordsRaw) ? keywordsRaw : []);
+          const kwCandidates = Array.isArray(input?.keyword_candidates) ? input.keyword_candidates : [];
+          const inlineFiltered = _filterKwByCandidates(cleaned.inlineKeywords, kwCandidates);
+          const aiFiltered = _filterKwByCandidates(Array.isArray(keywordsRaw) ? keywordsRaw : [], kwCandidates);
+          const nextKeywords = inlineFiltered.length ? inlineFiltered : aiFiltered;
           pushAttempt({ attempt: i + 1, ok: true, note: jsonParseError ? "json_parse_error" : undefined });
           if (debug) debug.result = { used: "llm", reason: "ok" };
           return { prose: nextProse, label: labelRaw, keywords: nextKeywords };
@@ -3963,8 +3970,10 @@ async function renderLineAI(story, deps = {}, opts = {}) {
         return ok ? _formatStructureLineProse(prose) : _formatStructureLine(ai?.s1, ai?.s2);
       })();
       const kwCandidates = Array.isArray(inputPack?.keyword_candidates) ? inputPack.keyword_candidates : [];
+      const kwInline = _filterKwByCandidates(ai.inline_keywords, kwCandidates);
       const kwAi = _filterKwByCandidates(ai.keywords, kwCandidates);
-      const keywordLine = _formatKeywordsLine(kwAi, kwFallback, usedKwPublic);
+      const kwFinal = kwInline.length ? kwInline : kwAi;
+      const keywordLine = _formatKeywordsLine(kwFinal, kwFallback, usedKwPublic);
       const itemLines = [header, label];
       if (label && structureLine) itemLines.push("");
       if (structureLine) itemLines.push(structureLine);
