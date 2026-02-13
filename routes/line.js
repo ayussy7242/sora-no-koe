@@ -20,7 +20,6 @@
  */
 
 const express = require("express");
-const crypto = require("crypto");
 const rawBody = require("../middleware/rawBody");
 
 // modules
@@ -28,6 +27,17 @@ const intent = require("../line/intent");
 const userMod = require("../line/user");
 const natalMod = require("../line/natal");
 const storyMod = require("../line/story");
+const { createLineApi } = require("../line/line_api");
+const { processCommand } = require("../line/pipeline");
+const {
+  isNonEmptyText,
+  toSafeText,
+  getReqId,
+  envFlag,
+  getRawBodyBuffer,
+  verifySignature,
+  createMessageDeduper,
+} = require("../line/webhook_utils");
 
 // -------------------- flexible import helper --------------------
 function pickFactory(mod, name) {
@@ -42,75 +52,11 @@ const createLineUser = pickFactory(userMod, "createLineUser");
 const createLineNatal = pickFactory(natalMod, "createLineNatal");
 const createLineStory = pickFactory(storyMod, "createLineStory");
 
-// -------------------- utils --------------------
-function isNonEmptyText(x) {
-  const s = x == null ? "" : String(x);
-  return s.trim().length > 0;
-}
-
-function toSafeText(x, maxLen = 4800) {
-  const s = x == null ? "" : String(x);
-  return s.length > maxLen ? s.slice(0, maxLen) : s;
-}
-
-function getReqId(req) {
-  return (
-    req?.headers?.["x-request-id"] ||
-    req?.headers?.["x-cloud-trace-context"] ||
-    req?.headers?.["x-amzn-trace-id"] ||
-    null
-  );
-}
-
-function envFlag(v, defaultOn = true) {
-  if (v === undefined || v === null || v === "") return defaultOn;
-  const s = String(v).trim().toLowerCase();
-  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
-}
-
 // -------------------- messageId dedupe (in-memory) --------------------
-const LINE_DEDUPE_TTL_MS = Number(process.env.LINE_DEDUPE_TTL_MS || 10 * 60 * 1000);
-const LINE_DEDUPE_MAX = Number(process.env.LINE_DEDUPE_MAX || 5000);
-const seenMessageIds = new Map(); // messageId -> timestamp
-
-function cleanupMessageIdCache(nowTs) {
-  const now = nowTs || Date.now();
-  for (const [id, ts] of seenMessageIds.entries()) {
-    if (now - ts > LINE_DEDUPE_TTL_MS) seenMessageIds.delete(id);
-  }
-  if (seenMessageIds.size <= LINE_DEDUPE_MAX) return;
-  // prune oldest
-  const entries = Array.from(seenMessageIds.entries()).sort((a, b) => a[1] - b[1]);
-  const overflow = entries.length - LINE_DEDUPE_MAX;
-  for (let i = 0; i < overflow; i++) {
-    seenMessageIds.delete(entries[i][0]);
-  }
-}
-
-function isDuplicateMessageId(messageId) {
-  if (!messageId) return false;
-  const now = Date.now();
-  cleanupMessageIdCache(now);
-  if (seenMessageIds.has(messageId)) return true;
-  seenMessageIds.set(messageId, now);
-  return false;
-}
-
-function normalizeCmdLoose(s) {
-  return String(s || "").trim().toLowerCase().replace(/\s+/g, "");
-}
-
-function pickSoraMode(text) {
-  const t = normalizeCmdLoose(text);
-  if (t === "そらぜんぶ" || t === "そら全部" || t === "soraall" || t === "sora_all") return "sora_all";
-  if (t === "うらがわ") return "sora_all";
-  if (t === "そらのうら" || t === "ソラのうら" || t === "うらこまんど" || t === "うらコマンド" || t === "うら") return "sora_ura";
-  if (t === "沈黙のほし" || t === "沈黙" || t === "ちんもく" || t === "ちんもくのほし") return "sora_ura_silent";
-  if (t === "裏共鳴" || t === "うら共鳴" || t === "裏きょうめい" || t === "きょうのうら") return "sora_ura_rare";
-  if (t === "調和層" || t === "調和" || t === "ちょうわ層" || t === "ちょうわ") return "sora_ura_harmony";
-  if (t === "そら" || t === "sora") return "sora_top";
-  return null;
-}
+const messageDeduper = createMessageDeduper({
+  ttlMs: Number(process.env.LINE_DEDUPE_TTL_MS || 10 * 60 * 1000),
+  max: Number(process.env.LINE_DEDUPE_MAX || 5000),
+});
 
 // deps補完（inject優先）
 function resolveDeps(req, initialDeps) {
@@ -150,101 +96,6 @@ function buildModules(d, env) {
   const natal = createLineNatal({ db: d.db, admin: d.admin, geocoder: d.geocoder, renderers: d.renderers, config: env });
   const story = createLineStory({ db: d.db, storyService: d.storyService, renderers: d.renderers, natal, config: env });
   return { user, natal, story };
-}
-
-/**
- * ✅ 統一: コマンド処理パイプライン
- * - webhook / debug の両方が同じ順序で流れる
- * - 返すのは { text } を想定（各モジュールに委譲）
- */
-async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers }) {
-  const { natal, story } = modules;
-
-  // 0) SORA (public固定)
-  const soraMode = pickSoraMode(cmd);
-  if (soraMode) {
-    let hasPersonal = false;
-    try {
-      hasPersonal = await natal.hasNatal(appUserId);
-    } catch (_) {
-      hasPersonal = false;
-    }
-    // "ちんもく" は登録済みなら personal を返す
-    const usePersonalSilent = soraMode === "sora_ura_silent" && hasPersonal;
-    const { story: storyJson } = usePersonalSilent
-      ? await story.buildToday({ appUserId })
-      : await story.buildSky();
-    const text = storyJson
-      ? await (usePersonalSilent ? renderers.renderSoraUraSilentPersonalLine(storyJson)
-        : soraMode === "sora_all" ? renderers.renderSoraAllLine(storyJson)
-        : soraMode === "sora_ura" ? renderers.renderSoraUraLine(storyJson)
-        : soraMode === "sora_ura_silent" ? renderers.renderSoraUraSilentLine(storyJson)
-        : soraMode === "sora_ura_rare" ? renderers.renderSoraUraRareLine(storyJson)
-        : soraMode === "sora_ura_harmony" ? renderers.renderSoraUraHarmonyLine(storyJson)
-        : renderers.renderSoraLine(storyJson))
-      : "（そらのデータがまだなかった🙏）";
-    if (soraMode === "sora_ura_silent" && !usePersonalSilent) {
-      const tail =
-        "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
-      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
-    }
-    if (!hasPersonal) {
-      const tail = "──\nあなたの星も、静かに待っています。\n「はじめる」と送ると登録できます。🌌";
-      return { text: `${text}\n\n${tail}`, stage: "sora", mode: soraMode };
-    }
-    return { text, stage: "sora", mode: soraMode };
-  }
-
-  // 1) utilities（intentより先）
-  const util = await story.handleUtilities({ cmd, appUserId, lineUserId });
-  if (util?.text != null) return { text: util.text, stage: "utilities" };
-
-  // 2) natal collect（登録中ならここで吸う）
-  if (lineUserId) {
-    const collected = await natal.handleCollect({ lineUserId, appUserId, rawText });
-    if (collected?.text != null) return { text: collected.text, stage: "collect" };
-  }
-
-  // 3) intent（唯一の判定）
-  const intentKey = intent.intentFromcommand(cmd);
-
-  if (intentKey === intent.INTENT.NATAL) {
-    const r = await natal.handleNatalList({ appUserId });
-    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "natal_list" };
-  }
-
-  if (intentKey === intent.INTENT.PUBLIC_SKY) {
-    const r = await story.buildSky();
-    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "public_sky" };
-  }
-
-  if (intentKey === intent.INTENT.PERSONAL_TODAY) {
-    // ✅ ここが最重要：public は guide 付きに統一（debug/webhook 一致）
-    if (!appUserId || appUserId === "public") {
-      const r = await story.buildSkyWithGuide();
-      return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today_no_user" };
-    }
-    const r = await story.buildToday({ appUserId });
-    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today" };
-  }
-
-  if (intentKey === intent.INTENT.ANSHIN) {
-    let hasPersonal = false;
-    try {
-      hasPersonal = await natal.hasNatal(appUserId);
-    } catch (_) {
-      hasPersonal = false;
-    }
-    if (!hasPersonal) {
-      const r = await story.buildAnshinPublic();
-      const tail = "──\nあなたのあんしんも、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🫧";
-      return { text: `${r?.text || story.renderFallback() || "（返す文が空だった🙏）"}\n\n${tail}`, stage: "anshin_public" };
-    }
-    const r = await story.buildAnshin({ appUserId });
-    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "anshin" };
-  }
-
-  return { text: story.renderFallback() || "コマンドがわからなかった🌌", stage: "fallback" };
 }
 
 // -------------------- router factory --------------------
@@ -375,71 +226,10 @@ function createLineRouter(deps = {}) {
 
       requireDeps(d);
 
-      function getRawBodyBuffer(req0) {
-        if (Buffer.isBuffer(req0.rawBody)) return req0.rawBody;
-        if (typeof req0.rawBody === "string") return Buffer.from(req0.rawBody, "utf8");
-        return null;
-      }
-
-      function verifySignature({ rawBodyBuf, signature }) {
-        if (!LINE_CHANNEL_SECRET) return { ok: false, reason: "secret missing" };
-        if (!signature) return { ok: false, reason: "signature missing" };
-        if (!rawBodyBuf) return { ok: false, reason: "raw body missing" };
-
-        const computed = crypto.createHmac("sha256", LINE_CHANNEL_SECRET).update(rawBodyBuf).digest("base64");
-
-        const a = Buffer.from(computed);
-        const b = Buffer.from(String(signature));
-
-        if (a.length !== b.length) return { ok: false, reason: "length mismatch" };
-        const ok = crypto.timingSafeEqual(a, b);
-        return { ok, reason: ok ? "ok" : "mismatch" };
-      }
-
-      async function lineApi(path, { method = "POST", body = null } = {}) {
-        if (typeof fetch !== "function") throw new Error("fetch is not available (Node18+ required)");
-
-        const r = await fetch(`https://api.line.me${path}`, {
-          method,
-          headers: {
-            Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-            ...(body ? { "Content-Type": "application/json" } : {}),
-          },
-          body: body ? JSON.stringify(body) : undefined,
-        });
-
-        if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          throw new Error(`LINE API error ${r.status} ${t}`);
-        }
-
-        const txt = await r.text().catch(() => "");
-        try {
-          return txt ? JSON.parse(txt) : null;
-        } catch {
-          return null;
-        }
-      }
-
-      async function replyText(replyToken, text) {
-        if (!replyToken) return;
-        const safe = toSafeText(text, MAX_LINE_TEXT);
-        if (!isNonEmptyText(safe)) return;
-
-        await lineApi("/v2/bot/message/reply", {
-          method: "POST",
-          body: { replyToken, messages: [{ type: "text", text: safe }] },
-        });
-      }
-
-      async function getLineProfile(lineUserId) {
-        if (!lineUserId) return null;
-        const r = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(lineUserId)}`, {
-          headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
-        });
-        if (!r.ok) return null;
-        return await r.json();
-      }
+      const lineApiClient = createLineApi({
+        accessToken: LINE_CHANNEL_ACCESS_TOKEN,
+        maxText: MAX_LINE_TEXT,
+      });
 
       function safeEventText(event) {
         if (event?.message?.type !== "text") return "";
@@ -455,7 +245,7 @@ function createLineRouter(deps = {}) {
       const sig = req.header("x-line-signature");
 
       if (rawBuf) {
-        const ver = verifySignature({ rawBodyBuf: rawBuf, signature: sig });
+        const ver = verifySignature({ rawBodyBuf: rawBuf, signature: sig, secret: LINE_CHANNEL_SECRET });
         if (!ver.ok) {
           console.log("[line:webhook] signature NG", {
             request_id: requestId,
@@ -508,7 +298,7 @@ function createLineRouter(deps = {}) {
         replied.add(replyToken);
 
         try {
-          await replyText(replyToken, safe);
+          await lineApiClient.replyText(replyToken, safe, { toSafeText, isNonEmptyText });
           if (DEBUG_LOG_EVENTS) console.log("[line:reply] sent", { request_id: requestId, ...meta });
         } catch (e) {
           console.log("[line:reply] failed:", e?.message || String(e), { request_id: requestId, ...meta });
@@ -530,7 +320,7 @@ function createLineRouter(deps = {}) {
             line_user_id: lineUserId || null,
           });
 
-          if (messageId && isDuplicateMessageId(messageId)) {
+          if (messageId && messageDeduper.isDuplicate(messageId)) {
             if (DEBUG_LOG_EVENTS) {
               console.log("[line:event] duplicate messageId skipped", {
                 request_id: requestId,
@@ -552,7 +342,7 @@ function createLineRouter(deps = {}) {
 
           // follow
           if (event?.type === "follow" && lineUserId) {
-            const profile = await getLineProfile(lineUserId);
+            const profile = await lineApiClient.getProfile(lineUserId);
             const appUserId = await user.getOrCreateAppUserId({
               lineUserId,
               lineProfile: profile,
@@ -574,7 +364,7 @@ function createLineRouter(deps = {}) {
             const rawText = safeEventText(event);
             const cmd = intent.normalizeForCommand(rawText);
 
-            const profile = lineUserId ? await getLineProfile(lineUserId) : null;
+            const profile = lineUserId ? await lineApiClient.getProfile(lineUserId) : null;
             const appUserId = lineUserId
               ? await user.getOrCreateAppUserId({
                   lineUserId,
