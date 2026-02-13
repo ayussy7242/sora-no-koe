@@ -27,9 +27,10 @@ function renderThreads(story, deps = {}) {
         RENDER_COPY,
         fmt,
     } = deps || {};
+    const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/channel_common");
 
-    const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
-    const moonSignJa = story?.public?.moon?.sign_ja || "";
+    const dateLabel = formatDateLabel(story);
+    const moonSignJa = getMoonSignJa(story);
 
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
@@ -127,7 +128,7 @@ function renderThreads(story, deps = {}) {
     lines.push("");
     lines.push(footer);
 
-    return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    return joinAndTrimLines(lines);
 }
 
 module.exports = { renderThreads };

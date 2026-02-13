@@ -18,6 +18,7 @@
 function renderX(story, deps = {}) {
   const { buildNowModernPlanetCounts, fmtAnyJa, publicSignJa, fmtAspectJa } = deps || {};
   const dict = deps?.dict || require("../../dict");
+  const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../render_parts/channel_common");
 
   const isFiniteNum = (n) => Number.isFinite(n);
 
@@ -51,13 +52,11 @@ function renderX(story, deps = {}) {
     return { name: names[idx], emoji: emojis[idx] };
   };
 
-  const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
+  const dateLabel = formatDateLabel(story);
   const sunSign =
     story?.public?.transit_signs?.sun?.sign_ja ||
     (typeof publicSignJa === "function" ? publicSignJa(story, "sun") : "");
-  const moonSign =
-    story?.public?.moon?.sign_ja ||
-    (typeof publicSignJa === "function" ? publicSignJa(story, "moon") : "");
+  const moonSign = getMoonSignJa(story, publicSignJa);
   const phase = moonPhaseInfo();
   const sunLine = sunSign ? `☀️太陽：${sunSign}` : "";
   const moonLine = moonSign ? `🌙月：${moonSign}${phase?.name ? `（${phase.name}）` : ""}` : "";
@@ -279,7 +278,7 @@ function renderX(story, deps = {}) {
   if (tags.length) {
     lines.push(tags.join(" "));
   }
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return joinAndTrimLines(lines);
 }
 
 module.exports = { renderX };

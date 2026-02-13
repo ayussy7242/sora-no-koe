@@ -33,9 +33,10 @@ function renderIG(story, deps = {}) {
     RENDER_COPY,
     FUSION_CTX,
   } = deps || {};
+  const { formatDateLabel, getMoonSignJa } = require("../render_parts/channel_common");
 
-  const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".");
-  const moonSign = story?.public?.moon?.sign_ja || null;
+  const dateLabel = formatDateLabel(story);
+  const moonSign = getMoonSignJa(story, publicSignJa) || null;
 
   const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
