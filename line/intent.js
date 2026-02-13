@@ -58,6 +58,15 @@ const INTENT = Object.freeze({
   TEST: "test",
 });
 
+const SORA_MODE = Object.freeze({
+  SORA_TOP: "sora_top",
+  SORA_ALL: "sora_all",
+  SORA_URA: "sora_ura",
+  SORA_URA_SILENT: "sora_ura_silent",
+  SORA_URA_RARE: "sora_ura_rare",
+  SORA_URA_HARMONY: "sora_ura_harmony",
+});
+
 const MAP = new Map([
   // START / 登録導線
   ["はじめる", INTENT.START],
@@ -136,10 +145,48 @@ const MAP = new Map([
   ["テスト", INTENT.TEST],
 ]);
 
+const SORA_MAP = new Map([
+  ["そらぜんぶ", SORA_MODE.SORA_ALL],
+  ["そら全部", SORA_MODE.SORA_ALL],
+  ["soraall", SORA_MODE.SORA_ALL],
+  ["sora_all", SORA_MODE.SORA_ALL],
+  ["うらがわ", SORA_MODE.SORA_ALL],
+
+  ["そらのうら", SORA_MODE.SORA_URA],
+  ["ソラのうら", SORA_MODE.SORA_URA],
+  ["うらこまんど", SORA_MODE.SORA_URA],
+  ["うらコマンド", SORA_MODE.SORA_URA],
+  ["うら", SORA_MODE.SORA_URA],
+
+  ["沈黙のほし", SORA_MODE.SORA_URA_SILENT],
+  ["沈黙", SORA_MODE.SORA_URA_SILENT],
+  ["ちんもく", SORA_MODE.SORA_URA_SILENT],
+  ["ちんもくのほし", SORA_MODE.SORA_URA_SILENT],
+
+  ["裏共鳴", SORA_MODE.SORA_URA_RARE],
+  ["うら共鳴", SORA_MODE.SORA_URA_RARE],
+  ["裏きょうめい", SORA_MODE.SORA_URA_RARE],
+  ["きょうのうら", SORA_MODE.SORA_URA_RARE],
+
+  ["調和層", SORA_MODE.SORA_URA_HARMONY],
+  ["調和", SORA_MODE.SORA_URA_HARMONY],
+  ["ちょうわ層", SORA_MODE.SORA_URA_HARMONY],
+  ["ちょうわ", SORA_MODE.SORA_URA_HARMONY],
+
+  ["そら", SORA_MODE.SORA_TOP],
+  ["sora", SORA_MODE.SORA_TOP],
+]);
+
 function intentFromcommand(rawText) {
   const key = normalizeForCommand(rawText);
   if (!key) return null;
   return MAP.get(key) || null;
+}
+
+function soraModeFromCommand(rawText) {
+  const key = normalizeForCommand(rawText);
+  if (!key) return null;
+  return SORA_MAP.get(key) || null;
 }
 
 function isunknown(text) {
@@ -149,8 +196,10 @@ function isunknown(text) {
 
 module.exports = {
   INTENT,
+  SORA_MODE,
   normalizeText,
   normalizeForCommand,
   intentFromcommand,
+  soraModeFromCommand,
   isunknown,
 };
