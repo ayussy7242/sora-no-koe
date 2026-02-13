@@ -560,6 +560,13 @@ function _collectKeywordAAnshin(dict, signKey, planetKey) {
   return _uniq(picked);
 }
 
+function _collectCoreRoleTextAnshin(dict, signKey, planetKey) {
+  const { by } = _getSignFlavor(dict, signKey, planetKey);
+  const role = _normalizePiece(by?.role || "", 24);
+  const core = _normalizePiece(by?.core || "", 24);
+  return { role, core };
+}
+
 function _collectAspectPackAnshin(dict, aspectKey, orb) {
   const style = dict?.SOAR_STYLE_V1 || require("../../dict/soar_style.v1").SOAR_STYLE_V1;
   const key = String(aspectKey || "");
@@ -1033,11 +1040,14 @@ async function renderAnshinLine(payload, deps = {}) {
     const emoji = (ANSHIN?.planet_emoji && ANSHIN.planet_emoji[planetKey]) || "🪐";
     const signPhrase = (ANSHIN?.sign_phrase && ANSHIN.sign_phrase[_lowerKey(signKey)]) || "";
     const residue = (ANSHIN?.planet_residue && ANSHIN.planet_residue[planetKey]) || "";
+    const { role: roleText, core: coreText } = _collectCoreRoleTextAnshin(dict, signKey, planetKey);
     const isoPhrase = _pickOne(ANSHIN?.isolated_phrases, `${seed}|iso`) || "絡みの薄い場所に残る。";
     const corePieces = _collectCoreMeaningAnshin(dict, signKey, planetKey);
     const keywordCandidates = _collectKeywordAAnshin(dict, signKey, planetKey);
     const input = {
       date_local: dateLabel,
+      role_text: roleText,
+      core_text: coreText,
       planet_simple: residue,
       sign_simple: signPhrase,
       sign_flavor: corePieces,
@@ -1049,9 +1059,9 @@ async function renderAnshinLine(payload, deps = {}) {
     };
 
     const ai = await generateAnshinLines(input);
-    const fallbackLine1 = signPhrase && residue
-      ? `${signPhrase}の中に、${residue}。`
-      : (residue ? `${residue}。` : "他と絡まれずに残っている。");
+    const fallbackLine1 = roleText && coreText
+      ? `${roleText}に、${coreText}。`
+      : (roleText ? `${roleText}。` : (coreText ? `${coreText}。` : (residue ? `${residue}。` : "他と絡まれずに残っている。")));
     const fallbackLine2 = isoPhrase;
     const lines = ai?.lines?.length >= 2 ? ai.lines.slice(0, 2) : [fallbackLine1, fallbackLine2];
     const kwFromAi = _filterKwByCandidates(ai?.keywords || [], keywordCandidates);
