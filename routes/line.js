@@ -328,10 +328,8 @@ function createLineRouter(deps = {}) {
         const { profile, appUserId } = await buildProfileAndAppUser({ lineUserId, eventType: "follow" });
         if (profile?.displayName) await user.syncUserDisplayName(appUserId, profile.displayName);
         if (profile) await user.syncLineProfile({ lineUserId, lineProfile: profile, eventType: "follow" });
-        await safeReply(replyToken, story.renderWelcome(profile), {
-          stage: "follow",
-          app_user_id: appUserId,
-        });
+        // LINE側の自動あいさつに統一するため、アプリ側WELCOMEは送らない
+        if (DEBUG_LOG_EVENTS) console.log("[line] welcome skipped (follow)", { request_id: requestId, app_user_id: appUserId });
       }
 
       async function handleMessageEvent({ event, replyToken, lineUserId }) {
@@ -345,12 +343,9 @@ function createLineRouter(deps = {}) {
           const active = await user.getLineUserActive(lineUserId);
           if (active === false) {
             await user.reactivateLineUser(lineUserId, appUserId);
-            await safeReply(replyToken, story.renderWelcome(profile), {
-              stage: "reactivated_welcome",
-              cmd,
-              app_user_id: appUserId,
-            });
-            return;
+            // LINE側の自動あいさつに統一するため、アプリ側WELCOMEは送らない
+            if (DEBUG_LOG_EVENTS) console.log("[line] welcome skipped (reactivated)", { request_id: requestId, cmd, app_user_id: appUserId });
+            // continue to normal pipeline
           }
         }
 
