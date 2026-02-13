@@ -68,6 +68,34 @@ function envFlag(v, defaultOn = true) {
   return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
 }
 
+// -------------------- messageId dedupe (in-memory) --------------------
+const LINE_DEDUPE_TTL_MS = Number(process.env.LINE_DEDUPE_TTL_MS || 10 * 60 * 1000);
+const LINE_DEDUPE_MAX = Number(process.env.LINE_DEDUPE_MAX || 5000);
+const seenMessageIds = new Map(); // messageId -> timestamp
+
+function cleanupMessageIdCache(nowTs) {
+  const now = nowTs || Date.now();
+  for (const [id, ts] of seenMessageIds.entries()) {
+    if (now - ts > LINE_DEDUPE_TTL_MS) seenMessageIds.delete(id);
+  }
+  if (seenMessageIds.size <= LINE_DEDUPE_MAX) return;
+  // prune oldest
+  const entries = Array.from(seenMessageIds.entries()).sort((a, b) => a[1] - b[1]);
+  const overflow = entries.length - LINE_DEDUPE_MAX;
+  for (let i = 0; i < overflow; i++) {
+    seenMessageIds.delete(entries[i][0]);
+  }
+}
+
+function isDuplicateMessageId(messageId) {
+  if (!messageId) return false;
+  const now = Date.now();
+  cleanupMessageIdCache(now);
+  if (seenMessageIds.has(messageId)) return true;
+  seenMessageIds.set(messageId, now);
+  return false;
+}
+
 function normalizeCmdLoose(s) {
   return String(s || "").trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -491,6 +519,7 @@ function createLineRouter(deps = {}) {
         try {
           const replyToken = event?.replyToken || null;
           const lineUserId = event?.source?.userId || null;
+          const messageId = event?.message?.id || null;
 
           console.log("[line:event] in", {
             request_id: requestId,
@@ -500,6 +529,17 @@ function createLineRouter(deps = {}) {
             text: event?.message?.text || null,
             line_user_id: lineUserId || null,
           });
+
+          if (messageId && isDuplicateMessageId(messageId)) {
+            if (DEBUG_LOG_EVENTS) {
+              console.log("[line:event] duplicate messageId skipped", {
+                request_id: requestId,
+                messageId,
+                redelivery: event?.deliveryContext?.isRedelivery || false,
+              });
+            }
+            continue;
+          }
 
           // unfollow
           if (event?.type === "unfollow") {
