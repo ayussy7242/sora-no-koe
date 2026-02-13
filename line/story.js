@@ -60,9 +60,8 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return { dateLocal, asOfISO };
   }
 
-  async function buildStory({ appUserId, mode, renderer }) {
+  async function buildStoryBase({ appUserId, mode }) {
     const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
-
     const story = await storyService.buildStoryForUser({
       appUserId,
       mode, // "public" | "auto"
@@ -71,9 +70,17 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       orbMaxDeg: ORB_MAX_DEG,
       precisionDeg: PRECISION_DEG,
     });
+    return { story, dateLocal, asOfISO };
+  }
 
+  async function renderStoryText(story, renderer) {
     const fn = typeof renderer === "function" ? renderer : renderers.renderLine;
-    const text = safeText(await fn(story));
+    return safeText(await fn(story));
+  }
+
+  async function buildStory({ appUserId, mode, renderer }) {
+    const { story } = await buildStoryBase({ appUserId, mode });
+    const text = await renderStoryText(story, renderer);
     return { story, text };
   }
 
@@ -89,15 +96,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   // ---- anshin (natal-based)
   async function buildAnshin({ appUserId }) {
-    const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
-    const story = await storyService.buildStoryForUser({
-      appUserId,
-      mode: "auto",
-      dateLocal,
-      asOfISO,
-      orbMaxDeg: ORB_MAX_DEG,
-      precisionDeg: PRECISION_DEG,
-    });
+    const { story, dateLocal } = await buildStoryBase({ appUserId, mode: "auto" });
     const snap = await db.collection("natal_cache").doc(appUserId).get();
     const natalCache = snap.exists ? snap.data() : null;
     const payload = {
@@ -109,7 +108,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       },
       natal_cache: natalCache,
     };
-    const text = safeText(await renderers.renderAnshinLine(payload));
+    const text = await renderStoryText(payload, renderers.renderAnshinLine);
     return { payload, text };
   }
 
@@ -132,6 +131,23 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
       "登録は「はじめる」）";
 
     return { story, text: safeText(text + guide) };
+  }
+
+  function appendTail(text, tail) {
+    if (!tail) return safeText(text);
+    return safeText(`${text}\n\n${tail}`);
+  }
+
+  function tailSoraSilentNoPersonal() {
+    return "──\nあなたの沈黙も、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🌒";
+  }
+
+  function tailSoraNoPersonal() {
+    return "──\nあなたの星も、静かに待っています。\n「はじめる」と送ると登録できます。🌌";
+  }
+
+  function tailAnshinNoPersonal() {
+    return "──\nあなたのあんしんも、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🫧";
   }
   function renderFallback() {
     return LINE_COPY.FALLBACK;
@@ -189,6 +205,10 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     renderFallback,
     renderWelcome,
     handleUtilities,
+    appendTail,
+    tailSoraSilentNoPersonal,
+    tailSoraNoPersonal,
+    tailAnshinNoPersonal,
   };
 }
 

@@ -305,6 +305,76 @@ function createLineRouter(deps = {}) {
         }
       };
 
+      async function buildProfileAndAppUser({ lineUserId, eventType }) {
+        const profile = lineUserId ? await lineApiClient.getProfile(lineUserId) : null;
+        const appUserId = lineUserId
+          ? await user.getOrCreateAppUserId({
+              lineUserId,
+              lineProfile: profile,
+              eventType,
+            })
+          : null;
+        return { profile, appUserId };
+      }
+
+      async function handleUnfollowEvent({ lineUserId }) {
+        if (lineUserId && user?.markInactiveLineUser) {
+          await user.markInactiveLineUser(lineUserId);
+          console.log("[line] marked inactive (unfollow)", { request_id: requestId, line_user_id: lineUserId });
+        }
+      }
+
+      async function handleFollowEvent({ replyToken, lineUserId }) {
+        const { profile, appUserId } = await buildProfileAndAppUser({ lineUserId, eventType: "follow" });
+        if (profile?.displayName) await user.syncUserDisplayName(appUserId, profile.displayName);
+        if (profile) await user.syncLineProfile({ lineUserId, lineProfile: profile, eventType: "follow" });
+        await safeReply(replyToken, story.renderWelcome(profile), {
+          stage: "follow",
+          app_user_id: appUserId,
+        });
+      }
+
+      async function handleMessageEvent({ event, replyToken, lineUserId }) {
+        const rawText = safeEventText(event);
+        const cmd = intent.normalizeForCommand(rawText);
+
+        const { profile, appUserId } = await buildProfileAndAppUser({ lineUserId, eventType: "message" });
+
+        // reactivate（is_active=falseなら復帰）
+        if (lineUserId && user?.getLineUserActive && user?.reactivateLineUser) {
+          const active = await user.getLineUserActive(lineUserId);
+          if (active === false) {
+            await user.reactivateLineUser(lineUserId, appUserId);
+            await safeReply(replyToken, story.renderWelcome(profile), {
+              stage: "reactivated_welcome",
+              cmd,
+              app_user_id: appUserId,
+            });
+            return;
+          }
+        }
+
+        // sync profile/display name（毎回安全に）
+        if (profile && lineUserId) await user.syncLineProfile({ lineUserId, lineProfile: profile, eventType: "message" });
+        if (profile?.displayName && appUserId) await user.syncUserDisplayName(appUserId, profile.displayName);
+
+        // ✅ 統一パイプライン
+        const result = await processCommand({
+          rawText,
+          cmd,
+          appUserId,
+          lineUserId,
+          modules,
+          renderers: d.renderers,
+        });
+
+        await safeReply(replyToken, result?.text || story.renderFallback() || "（返す文が空だった🙏）", {
+          stage: result?.stage || "unknown",
+          cmd,
+          app_user_id: appUserId,
+        });
+      }
+
       for (const event of events) {
         try {
           const replyToken = event?.replyToken || null;
@@ -333,79 +403,19 @@ function createLineRouter(deps = {}) {
 
           // unfollow
           if (event?.type === "unfollow") {
-            if (lineUserId && user?.markInactiveLineUser) {
-              await user.markInactiveLineUser(lineUserId);
-              console.log("[line] marked inactive (unfollow)", { request_id: requestId, line_user_id: lineUserId });
-            }
+            await handleUnfollowEvent({ lineUserId });
             continue;
           }
 
           // follow
           if (event?.type === "follow" && lineUserId) {
-            const profile = await lineApiClient.getProfile(lineUserId);
-            const appUserId = await user.getOrCreateAppUserId({
-              lineUserId,
-              lineProfile: profile,
-              eventType: "follow",
-            });
-
-            if (profile?.displayName) await user.syncUserDisplayName(appUserId, profile.displayName);
-            if (profile) await user.syncLineProfile({ lineUserId, lineProfile: profile, eventType: "follow" });
-
-            await safeReply(replyToken, story.renderWelcome(profile), {
-              stage: "follow",
-              app_user_id: appUserId,
-            });
+            await handleFollowEvent({ replyToken, lineUserId });
             continue;
           }
 
           // message:text
           if (event?.type === "message" && event?.message?.type === "text") {
-            const rawText = safeEventText(event);
-            const cmd = intent.normalizeForCommand(rawText);
-
-            const profile = lineUserId ? await lineApiClient.getProfile(lineUserId) : null;
-            const appUserId = lineUserId
-              ? await user.getOrCreateAppUserId({
-                  lineUserId,
-                  lineProfile: profile,
-                  eventType: "message",
-                })
-              : null;
-
-            // reactivate（is_active=falseなら復帰）
-            if (lineUserId && user?.getLineUserActive && user?.reactivateLineUser) {
-              const active = await user.getLineUserActive(lineUserId);
-              if (active === false) {
-                await user.reactivateLineUser(lineUserId, appUserId);
-                await safeReply(replyToken, story.renderWelcome(profile), {
-                  stage: "reactivated_welcome",
-                  cmd,
-                  app_user_id: appUserId,
-                });
-                continue;
-              }
-            }
-
-            // sync profile/display name（毎回安全に）
-            if (profile && lineUserId) await user.syncLineProfile({ lineUserId, lineProfile: profile, eventType: "message" });
-            if (profile?.displayName && appUserId) await user.syncUserDisplayName(appUserId, profile.displayName);
-
-            // ✅ 統一パイプライン
-            const result = await processCommand({
-              rawText,
-              cmd,
-              appUserId,
-              lineUserId,
-              modules,
-              renderers: d.renderers,
-            });
-
-            await safeReply(replyToken, result?.text || story.renderFallback() || "（返す文が空だった🙏）", {
-              stage: result?.stage || "unknown",
-              cmd,
-              app_user_id: appUserId,
-            });
+            await handleMessageEvent({ event, replyToken, lineUserId });
 
             continue;
           }
