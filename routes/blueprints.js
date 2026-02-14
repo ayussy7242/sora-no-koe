@@ -3,7 +3,6 @@
 const express = require("express");
 const { createBlueprintLightService } = require("../engine/blueprint_light");
 const { createLineApi } = require("../line/line_api");
-const { LINE_COPY } = require("../copy");
 const dict = require("../dict");
 
 function requireTasksCaller(env, req) {
@@ -75,7 +74,7 @@ function createBlueprintsRouter(deps = {}) {
       };
 
       await lineApiClient.pushMessages(lineUserId, templateMessage);
-      return res.json({ ok: true, skipped: !!gen?.skipped });
+      return res.json({ ok: true, code: gen?.skipped ? "already_exists" : "generated" });
     } catch (e) {
       console.log("[blueprint] generate failed:", e?.message || String(e));
       return res.status(500).json({ ok: false, error: e?.message || String(e) });

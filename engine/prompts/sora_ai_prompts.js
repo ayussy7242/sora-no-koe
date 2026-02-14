@@ -21,6 +21,18 @@ const SORA_AI_SYSTEM_PROMPT_COMMON = `
 断片で終わらない。
 `.trim();
 
+const SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT = `
+${SORA_AI_SYSTEM_PROMPT_COMMON}
+
+【BLUEPRINT LIGHT 例外】
+この出力は「商品PDF用の構造文」。
+以下は本文に出してよい：
+- 天体名（太陽/月…）、感受点（リリス/キロン/ノード）、軸（ASC/MC/IC/DC）
+- 星座名
+- 度数（例：獅子座 0°59’）
+※ただし未来予測・助言・指示・吉凶・断定は引き続き禁止。
+`.trim();
+
 // --------------------
 // Shared rule blocks (SSOT)
 // --------------------
@@ -45,6 +57,14 @@ prose条件:
 - 判断・方向づけ語は使わない（求められる／難しい／問われる／示唆／形成される／〜が見える 等）。
 - 入力語彙の直引用は避ける（丸めて言い換える）。
 - 入力語彙をそのまま連結・列挙しない。
+`.trim();
+
+const RULES_BLUEPRINT_LIGHT_PROSE = `
+- 未来断定/助言/指示は禁止
+- 読者を主語にしない（あなた/きみ禁止）
+- 因果の講義にしない（〜なので/〜の影響で 連発禁止）
+- 断片で終わらない（述語で閉じる）
+- ただし 天体名/星座名/度数/軸 は出してよい（商品仕様）
 `.trim();
 
 /**
@@ -204,12 +224,83 @@ INPUTからブログ本文を生成。
 ${RULES_MELT_SUMMARY}
 `.trim();
 
+const SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT = `
+INPUT（ネイタル構造データ）から「魂の設計図（LIGHT）」の本文を生成する。
+占いではない。未来断定、助言、指示、吉凶判断は禁止。
+
+出力は JSON のみ。文章や説明を外に漏らさない。
+
+出力JSON（固定）:
+{
+  "version":"blueprint_light_v1",
+  "title":"魂の設計図（LIGHT）",
+  "subtitle":"ネイタル構造マップ｜300縁",
+  "sections":[
+    {
+      "id":"natal_list",
+      "heading":"① ネイタル一覧（構造データ）",
+      "lines":[ "...(1行=1天体)" ]
+    },
+    {
+      "id":"summary",
+      "heading":"② 全体構造サマリー（ひとこと構造）",
+      "blocks":[
+        {"subheading":"惑星属性の配置","stats":"...","text":"..."},
+        {"subheading":"三区分の配置","stats":"...","text":"..."}
+      ]
+    },
+    {
+      "id":"bodies",
+      "heading":"③ 各天体の構造記述（度数を含む）",
+      "items":[
+        {"key":"sun","title":"☉ 太陽｜獅子座 0°59’","text":"..."}
+      ]
+    },
+    {"id":"chiron","heading":"④ ⚷ キロン｜...","text":"..."},
+    {"id":"lilith","heading":"⑤ ⚸ リリス｜...","text":"..."},
+    {
+      "id":"nodes",
+      "heading":"⑥ ☊ ノースノード｜... / ☋ サウスノード｜...",
+      "blocks":[
+        {"subheading":"☋ ...（慣れた反応）","text":"..."},
+        {"subheading":"☊ ...（触れ続ける方向）","text":"..."}
+      ]
+    },
+    {
+      "id":"angles",
+      "heading":"⑦ 軸（ASC / MC / IC / DC）",
+      "items":[
+        {"key":"asc","title":"ASC｜...","text":"..."},
+        {"key":"mc","title":"MC｜...","text":"..."},
+        {"key":"ic","title":"IC｜...","text":"..."},
+        {"key":"dc","title":"DC｜...","text":"..."}
+      ]
+    }
+  ],
+  "footer":{"echo":"解釈は、あなたのもの。","note":"ソラのこえ / BLUEPRINT LIGHT v1"}
+}
+
+文章ルール:
+- 文体はサンプルの温度（構造記述 / 断定しない / 指示しない）
+- 「〜になる」「〜が起きる」禁止
+- 「〜すべき」「〜しよう」禁止
+- 不安煽り禁止（危険/最悪/注意 など）
+- 説明文（一般論/講義/占星術解説）にしない
+- セクション③〜⑦は 2〜4文程度の短い段落でよい（長文にしない）
+- 文字は「たまに読み返すPDF」になる密度。詩に逃げすぎない。
+
+${RULES_BLUEPRINT_LIGHT_PROSE}
+`.trim();
+
 module.exports = Object.freeze({
   SORA_AI_SYSTEM_PROMPT_COMMON,
+  SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT,
   SORA_AI_USER_GUIDE_SORA,
   SORA_AI_USER_GUIDE_ITEM,
   SORA_AI_USER_GUIDE_PERSONAL,
   SORA_AI_USER_GUIDE_ANSHIN,
   SORA_AI_USER_GUIDE_LAYER,
   SORA_AI_USER_GUIDE_BLOG,
+  SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
+  RULES_BLUEPRINT_LIGHT_PROSE,
 });
