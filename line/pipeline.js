@@ -179,6 +179,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PURCHASE) {
+    console.log("[purchase] start", { line_user_id: lineUserId || null, app_user_id: appUserId || null });
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "purchase" };
     }
@@ -206,10 +207,18 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     let checkout = null;
     try {
       checkout = await createCheckoutUrlForLight({ token });
-    } catch (_) {
+    } catch (e) {
+      console.log("[purchase] checkout error", { message: e?.message || String(e) });
       checkout = null;
     }
-    if (!checkout.ok || !checkout.url) {
+    console.log("[purchase] checkout", {
+      line_user_id: lineUserId,
+      token_tail: token.slice(-4),
+      ok: !!checkout?.ok,
+      mode: checkout?.mode || null,
+      has_url: !!checkout?.url,
+    });
+    if (!checkout || !checkout.ok || !checkout.url) {
       return { text: LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE || "いま購入導線の準備中だよ。", stage: "purchase" };
     }
 
