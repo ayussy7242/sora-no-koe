@@ -100,17 +100,17 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
-const BODY_TEXT_MIN_CHARS = 220;
+const BODY_TEXT_MIN_CHARS = 200;
 const BODY_TEXT_FILLERS = [
   "輪郭は静かに保たれ、質感が先に立つ。",
-  "語られる前に、構造として置かれる。",
+  "語られる前に、まとまりとして置かれる。",
 ];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
 ];
-const LINE_GAP_BODY = 6;
-const LINE_GAP_SUMMARY = 5;
+const LINE_GAP_BODY = 8;
+const LINE_GAP_SUMMARY = 8;
 const SECTION_GAP = 12;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
@@ -217,16 +217,6 @@ function formatSignPipe(meta) {
   if (!meta) return "";
   const mm = String(meta.min).padStart(2, "0");
   return `${meta.sign_ja}｜${meta.deg}°${mm}’`;
-}
-
-function degreeHint(meta) {
-  if (!meta || typeof meta.deg !== "number") return "";
-  const d = meta.deg;
-  if (d <= 2) return "始まりの度数";
-  if (d <= 9) return "前半度数";
-  if (d <= 19) return "中盤度数";
-  if (d <= 27) return "後半度数";
-  return "最終度数";
 }
 
 function formatNatalListLineText(row) {
@@ -355,11 +345,14 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
   ensurePageSpace(doc, layout, fontSize * 2);
   const symbolFont = pickSymbolFontName(doc, glyph);
   doc.fillColor(COLORS.textMainDark);
-  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, { lineBreak: false });
-  const symW = doc.widthOfString(glyph);
-  doc.font("bold").fontSize(fontSize).text(rest, layout.x + symW + gap, layout.y, {
-    width: contentWidth(doc) - symW - gap,
-    align: "left",
+  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, {
+    continued: true,
+    lineBreak: false,
+    baseline: "alphabetic",
+  });
+  doc.font("bold").fontSize(fontSize).text(rest, {
+    baseline: "alphabetic",
+    lineBreak: false,
   });
   layout.y = doc.y;
 }
@@ -381,7 +374,7 @@ function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize 
   layout.y = doc.y + LINE_GAP_BODY;
 }
 
-function drawSymbolValueLine(doc, layout, segments, { fontSize = 11, lineGap = LINE_GAP_SUMMARY } = {}) {
+function drawSymbolValueLine(doc, layout, segments, { fontSize = 15, lineGap = LINE_GAP_SUMMARY } = {}) {
   if (!Array.isArray(segments) || segments.length === 0) return;
   ensurePageSpace(doc, layout, fontSize * 2);
   let x = layout.x;
@@ -389,9 +382,15 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 11, lineGap = L
   doc.fillColor(COLORS.textMainDark);
   segments.forEach((seg, idx) => {
     const symbolFont = pickSymbolFontName(doc, seg.symbol);
-    doc.font(symbolFont).fontSize(fontSize).text(seg.symbol, x, y, { lineBreak: false });
+    doc.font(symbolFont).fontSize(fontSize).text(seg.symbol, x, y, {
+      lineBreak: false,
+      baseline: "alphabetic",
+    });
     x += doc.widthOfString(seg.symbol) + 4;
-    doc.font("body").fontSize(fontSize).text(`${seg.label} ${seg.value}`, x, y, { lineBreak: false });
+    doc.font("body").fontSize(fontSize).text(`${seg.label} ${seg.value}`, x, y, {
+      lineBreak: false,
+      baseline: "alphabetic",
+    });
     x += doc.widthOfString(`${seg.label} ${seg.value}`);
     if (idx < segments.length - 1) {
       doc.font("body").fontSize(fontSize).text(" / ", x, y, { lineBreak: false });
@@ -404,14 +403,6 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 11, lineGap = L
 function ensureBodyText(text) {
   let out = String(text || "").trim();
   let i = 0;
-  if (out && !out.includes("\n\n")) {
-    const idx = out.indexOf("。");
-    if (idx >= 0 && idx < out.length - 1) {
-      out = `${out.slice(0, idx + 1)}\n\n${out.slice(idx + 1).trim()}`;
-    } else {
-      out = `${out}\n\n`;
-    }
-  }
   while (out.length < BODY_TEXT_MIN_CHARS && i < BODY_TEXT_FILLERS.length) {
     out = `${out}${out ? "\n" : ""}${BODY_TEXT_FILLERS[i]}`;
     i += 1;
@@ -439,16 +430,16 @@ function ensureSpace(doc, neededHeight = 40) {
 }
 
 function drawSectionTitle(doc, layout, title) {
-  ensurePageSpace(doc, layout, TITLE_PAD + 46 + TITLE_PAD);
+  ensurePageSpace(doc, layout, TITLE_PAD + 54 + TITLE_PAD);
   layout.y += TITLE_PAD;
   const x = layout.x;
   const w = contentWidth(doc);
-  const h = 30;
+  const h = 34;
   const y = layout.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
-  doc.fillColor(COLORS.textMainLight).font("title").fontSize(18).text(title, x + 10, y + 6, { lineBreak: false });
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(20).text(title, x + 10, y + 7, { lineBreak: false });
   doc.restore();
 
   layout.y = y + h + TITLE_PAD;
@@ -508,7 +499,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
   drawSectionTitle(doc, layout, "② 全体構造サマリー");
   drawTextBlock(doc, layout, "属性 / 三区分の分布は以下の通りです。", {
     font: "body",
-    size: 13.5,
+    size: 15,
     lineGap: LINE_GAP_SUMMARY,
     marginAfter: 6,
   });
@@ -518,12 +509,12 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "✷", label: "地", value: element.earth },
     { symbol: "✹", label: "風", value: element.air },
     { symbol: "✦", label: "水", value: element.water },
-  ], { fontSize: 14, lineGap: LINE_GAP_SUMMARY });
+  ], { fontSize: 15, lineGap: LINE_GAP_SUMMARY });
 
   if (summary?.element?.text) {
     drawTextBlock(doc, layout, ensureSummaryText(summary.element.text), {
       font: "body",
-      size: 13.5,
+      size: 15,
       lineGap: LINE_GAP_SUMMARY,
       marginAfter: 6,
     });
@@ -533,12 +524,12 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "☍", label: "活動", value: modality.cardinal },
     { symbol: "☌", label: "不動", value: modality.fixed },
     { symbol: "△", label: "柔軟", value: modality.mutable },
-  ], { fontSize: 14, lineGap: LINE_GAP_SUMMARY });
+  ], { fontSize: 15, lineGap: LINE_GAP_SUMMARY });
 
   if (summary?.modality?.text) {
     drawTextBlock(doc, layout, ensureSummaryText(summary.modality.text), {
       font: "body",
-      size: 13.5,
+      size: 15,
       lineGap: LINE_GAP_SUMMARY,
       marginAfter: SECTION_GAP,
     });
@@ -572,7 +563,7 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
   if (universalFont) {
     const glyphText = glyphLines.join("\n");
     const restText = textLines.join("\n");
-    const fontSize = 14;
+    const fontSize = 15;
     const gap = 8;
     const glyphWidth = doc.font(universalFont).fontSize(fontSize).widthOfString("☉");
     const colW = Math.max(glyphWidth, 12) + gap;
@@ -621,7 +612,7 @@ function renderNarratives({ doc, layout, rows, title }) {
     layout.y += 10;
     drawTextBlock(doc, layout, ensureBodyText(row.text) || "（本文は準備中）", {
       font: "body",
-      size: 14,
+      size: 15,
       lineGap: LINE_GAP_BODY,
       marginAfter: SECTION_GAP,
     });
@@ -653,7 +644,6 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
     degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
-    degree_hint: row.meta ? degreeHint(row.meta) : "",
     sign_flavor: row.meta?.flavor || "",
     line: formatRowTitle(row),
   }));
@@ -665,7 +655,6 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
     degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
-    degree_hint: row.meta ? degreeHint(row.meta) : "",
     line: formatRowTitle(row),
   }));
 
@@ -677,7 +666,6 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
     degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
-    degree_hint: row.meta ? degreeHint(row.meta) : "",
     line: formatRowTitle(row),
   }));
 
@@ -883,7 +871,7 @@ async function renderPdfBuffer({
 
   drawTextBlock(doc, layout, "魂の設計図（LIGHT）", {
     font: "title",
-    size: 18,
+    size: 28,
     lineGap: LINE_GAP_BODY,
     marginAfter: 6,
   });
