@@ -43,11 +43,6 @@ function createSkyService({
       .slice(0, n);
   }
 
-  function getPlanetWeight(body) {
-    const w = PLANET_WEIGHT?.[body];
-    return Number.isFinite(w) ? w : 1;
-  }
-
   function computeSkyStrataFromTransits(transitSigns) {
     const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
     const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
@@ -66,13 +61,12 @@ function createSkyService({
       const meta = getSignMetaByKey(signKey);
       const e = meta?.element || "unknown";
       const m = meta?.modality || "unknown";
-      const w = getPlanetWeight(body);
 
-      if (E[e] === undefined) E.unknown += w;
-      else E[e] += w;
+      if (E[e] === undefined) E.unknown += 1;
+      else E[e] += 1;
 
-      if (M[m] === undefined) M.unknown += w;
-      else M[m] += w;
+      if (M[m] === undefined) M.unknown += 1;
+      else M[m] += 1;
     }
 
     const topKey = (obj) => {
@@ -83,7 +77,7 @@ function createSkyService({
     };
 
     return {
-      method: "weighted_modern",
+      method: "equal_count_modern",
       bodies_counted: 10,
       element_count: E,
       modality_count: M,
