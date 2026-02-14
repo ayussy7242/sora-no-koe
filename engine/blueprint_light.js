@@ -88,6 +88,7 @@ const COLORS = Object.freeze({
 const ASSET_ROOT = path.join(__dirname, "..", "assets");
 const FONT_DIR = path.join(ASSET_ROOT, "fonts");
 const LOGO_SHAPE_PATH = path.join(ASSET_ROOT, "img", "logo", "sora-no-koe-logo.jpg");
+const SYMBOLS_FONT_PATH = path.resolve(process.cwd(), "assets", "fonts", "NotoSansSymbols2-Regular.ttf");
 
 const FONT_FILES = Object.freeze({
   title: path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"),
@@ -95,6 +96,7 @@ const FONT_FILES = Object.freeze({
   bold: path.join(FONT_DIR, "ShipporiMincho-Bold.ttf"),
   note: path.join(FONT_DIR, "KleeOne-Regular.ttf"),
   noteBold: path.join(FONT_DIR, "KleeOne-SemiBold.ttf"),
+  symbols: SYMBOLS_FONT_PATH,
 });
 
 function norm360(x) {
@@ -155,10 +157,18 @@ function formatSignPipe(meta) {
   return `${meta.sign_ja}｜${meta.deg}°${mm}’`;
 }
 
-function formatNatalListLine(row) {
+function formatNatalListLineText(row) {
   if (!row) return "";
   const prefix = row.glyph ? `${row.glyph}${row.label}` : `${row.label}`;
   return `${prefix}：${row.value}`;
+}
+
+function formatNatalListLineParts(row) {
+  if (!row) return null;
+  return {
+    glyph: row.glyph || "",
+    rest: `${row.label}：${row.value}`,
+  };
 }
 
 function buildBirthText(birth) {
@@ -189,6 +199,35 @@ function trackedText(doc, text, x, y, tracking, options = {}) {
     cursor += w + tracking;
   }
   return cursor;
+}
+
+function applyFont(doc, name, fallback) {
+  try {
+    doc.font(name);
+    return name;
+  } catch (_) {
+    if (fallback) {
+      try {
+        doc.font(fallback);
+        return fallback;
+      } catch {
+        return fallback;
+      }
+    }
+    return fallback;
+  }
+}
+
+function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", options = {} }) {
+  if (glyph) {
+    applyFont(doc, "symbols", textFont);
+    doc.text(glyph, { continued: true, lineBreak: false });
+    applyFont(doc, textFont);
+    doc.text(`${gap}${rest}`, options);
+    return;
+  }
+  applyFont(doc, textFont);
+  doc.text(rest, options);
 }
 
 function ensureSpace(doc, neededHeight = 40) {
@@ -291,7 +330,11 @@ function renderBodyList({ doc, title, rows, lines }) {
   if (Array.isArray(lines) && lines.length) {
     lines.forEach((line) => {
       ensureSpace(doc, 18);
-      doc.text(line);
+      if (line && typeof line === "object") {
+        drawGlyphAndText(doc, { glyph: line.glyph, rest: line.rest, textFont: "body" });
+      } else {
+        doc.text(line);
+      }
     });
     doc.moveDown(0.6);
     drawDivider(doc);
@@ -317,9 +360,18 @@ function renderNarratives({ doc, rows, title }) {
   drawSectionTitle(doc, title);
   rows.forEach((row) => {
     ensureSpace(doc, 40);
-    const heading = row.title || `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
-    doc.font("bold").fontSize(11).fillColor(COLORS.textMainDark)
-      .text(heading);
+    const headingParts = row.titleParts || null;
+    const headingRest =
+      headingParts?.rest ||
+      row.title ||
+      `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
+    doc.font("bold").fontSize(11).fillColor(COLORS.textMainDark);
+    drawGlyphAndText(doc, {
+      glyph: headingParts?.glyph,
+      rest: headingRest,
+      gap: headingParts?.glyph ? " " : "",
+      textFont: "bold",
+    });
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark)
       .text(row.text || "（本文は準備中）", { lineGap: 3 });
     doc.moveDown(0.4);
@@ -374,9 +426,9 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
   }, {});
   const fixedTitles = {
     natal_list: [
-      ...rowsMain.map(formatNatalListLine),
-      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLine),
-      ...rowsAngles.map(formatNatalListLine),
+      ...rowsMain.map(formatNatalListLineText),
+      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLineText),
+      ...rowsAngles.map(formatNatalListLineText),
     ],
     bodies: rowsMain.reduce((acc, row) => {
       acc[row.key] = { title: row.title };
@@ -490,6 +542,12 @@ function mapAiContent(ai) {
     footerEcho,
 }) {
   const doc = new PDFDocument({ size: "A4", margin: 56, autoFirstPage: false });
+  console.log("[pdf] symbols font path", SYMBOLS_FONT_PATH);
+  const symbolsExists = safeExists(SYMBOLS_FONT_PATH);
+  console.log("[pdf] symbols font exists", symbolsExists);
+  if (!symbolsExists) {
+    throw new Error(`symbols font missing: ${SYMBOLS_FONT_PATH}`);
+  }
   registerFonts(doc);
 
   const chunks = [];
@@ -497,6 +555,14 @@ function mapAiContent(ai) {
 
   renderCover({ doc, displayName });
   doc.addPage({ margins: { top: 56, bottom: 56, left: 56, right: 56 } });
+
+  const debugSymbols = String(process.env.BLUEPRINT_DEBUG_SYMBOLS || "") === "1";
+  if (debugSymbols) {
+    doc.fillColor(COLORS.textMainDark);
+    applyFont(doc, "symbols", "body");
+    doc.fontSize(18).text("☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+    doc.moveDown(0.6);
+  }
 
   doc.fillColor(COLORS.textMainDark).font("title").fontSize(14).text("魂の設計図（LIGHT）");
   doc.font("note").fontSize(9).fillColor(COLORS.textSub)
@@ -663,14 +729,30 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       return `${prefix}｜${row.value}`;
     };
 
+    const titlePartsForRow = (row) => {
+      if (!row) return { glyph: "", rest: "" };
+      if (row.key === "south_node" || row.key === "north_node") {
+        const signTitle = formatSignPipe(row.meta);
+        const suffix = row.key === "south_node" ? "（慣れた反応）" : "（触れ続ける方向）";
+        return { glyph: row.glyph || "", rest: `${signTitle}${suffix}` };
+      }
+      if (row.key === "asc" || row.key === "mc" || row.key === "ic" || row.key === "dc") {
+        return { glyph: "", rest: `${row.label}｜${row.value}` };
+      }
+      return { glyph: row.glyph || "", rest: `${row.label}｜${row.value}` };
+    };
+
     rowsMain.forEach((row) => {
       row.title = titleForRow(row);
+      row.titleParts = titlePartsForRow(row);
     });
     rowsExtra.forEach((row) => {
       row.title = titleForRow(row);
+      row.titleParts = titlePartsForRow(row);
     });
     rowsAngles.forEach((row) => {
       row.title = titleForRow(row);
+      row.titleParts = titlePartsForRow(row);
     });
 
     const birthText = buildBirthText(natalCache?.birth || {});
@@ -747,9 +829,9 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       return acc;
     }, {});
     const natalLines = [
-      ...rowsMain.map(formatNatalListLine),
-      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLine),
-      ...rowsAngles.map(formatNatalListLine),
+      ...rowsMain.map(formatNatalListLineParts),
+      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLineParts),
+      ...rowsAngles.map(formatNatalListLineParts),
     ];
 
     const pdfBuffer = await renderPdfBuffer({
