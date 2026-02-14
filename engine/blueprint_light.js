@@ -239,7 +239,9 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const snap = await db.collection("line_users").doc(lineUserId).get();
     if (!snap.exists) return false;
     const data = snap.data() || {};
-    return data?.purchases?.blueprint_light?.purchased === true;
+    const purchased = data?.purchases?.blueprint_light?.purchased === true;
+    console.log("[blueprint] purchase_lookup", { line_user_id: lineUserId, purchased });
+    return purchased;
   }
 
   async function getLineUserProfile(lineUserId) {
@@ -262,6 +264,11 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const filePath = `blueprints/light/${lineUserId}/v1.pdf`;
     const file = bucket.file(filePath);
     const [exists] = await file.exists();
+    console.log("[blueprint] gcs", {
+      bucket_set: !!bucketName,
+      file_path: filePath,
+      object_exists: !!exists,
+    });
 
     if (!exists) {
       const cache = await natalService.loadNatalFromcache(resolvedAppUserId);
@@ -342,6 +349,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       version: "v4",
     });
 
+    console.log("[blueprint] signed_url", { ok: !!url });
     return { ok: true, url };
   }
 
