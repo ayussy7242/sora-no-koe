@@ -6,29 +6,12 @@ const { createLineApi } = require("../line/line_api");
 const { LINE_COPY } = require("../copy");
 const dict = require("../dict");
 
-function normalizeEmailHeader(value) {
-  if (!value) return null;
-  const s = String(value);
-  const parts = s.split(":");
-  return parts.length > 1 ? parts[1] : s;
-}
-
 function requireTasksCaller(env, req) {
   const tokenExpected = env?.INTERNAL_TASKS_TOKEN || null;
-  if (tokenExpected) {
-    const token = String(req.header("x-internal-tasks-token") || "").trim();
-    if (!token || token !== tokenExpected) {
-      return { ok: false, status: 403, error: "invalid token" };
-    }
-    return { ok: true };
-  }
-
-  const expected = env?.TASKS_CALLER_SA_EMAIL || null;
-  if (!expected) return { ok: false, status: 500, error: "TASKS_CALLER_SA_EMAIL not set" };
-  const header = req.header("x-goog-authenticated-user-email");
-  const email = normalizeEmailHeader(header);
-  if (!email || email !== expected) {
-    return { ok: false, status: 401, error: "unauthorized" };
+  if (!tokenExpected) return { ok: false, status: 500, error: "INTERNAL_TASKS_TOKEN not set" };
+  const token = String(req.header("x-internal-tasks-token") || "").trim();
+  if (!token || token !== tokenExpected) {
+    return { ok: false, status: 403, error: "invalid token" };
   }
   return { ok: true };
 }
@@ -55,9 +38,14 @@ function createBlueprintsRouter(deps = {}) {
     const lineUserId = String(req.body?.line_user_id || "").trim();
     if (!lineUserId) return res.status(400).json({ ok: false, error: "line_user_id required" });
 
+    const userSnap = await db.collection("line_users").doc(lineUserId).get();
+    if (!userSnap.exists) {
+      return res.status(202).json({ ok: true, code: "skipped_user_not_found" });
+    }
+
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     try {
-      await blueprint.generateAndStore({ lineUserId });
+      const gen = await blueprint.generateAndStore({ lineUserId });
 
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
       if (!signed?.ok || !signed?.url) {
@@ -87,7 +75,7 @@ function createBlueprintsRouter(deps = {}) {
       };
 
       await lineApiClient.pushMessages(lineUserId, templateMessage);
-      return res.json({ ok: true });
+      return res.json({ ok: true, skipped: !!gen?.skipped });
     } catch (e) {
       console.log("[blueprint] generate failed:", e?.message || String(e));
       return res.status(500).json({ ok: false, error: e?.message || String(e) });
