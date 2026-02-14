@@ -374,7 +374,7 @@ function createLineRouter(deps = {}) {
           storage: d.storage || null,
         });
 
-        await safeReply(replyToken, result?.message ?? result?.text || story.renderFallback() || "（返す文が空だった🙏）", {
+        await safeReply(replyToken, (result?.message ?? result?.text) || story.renderFallback() || "（返す文が空だった🙏）", {
           stage: result?.stage || "unknown",
           cmd,
           app_user_id: appUserId,
