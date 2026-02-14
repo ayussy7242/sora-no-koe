@@ -234,6 +234,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.BLUEPRINT_LIGHT) {
+    console.log("[blueprint] start", { line_user_id: lineUserId || null, app_user_id: appUserId || null });
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "blueprint_light" };
     }
@@ -256,9 +257,15 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     let result = null;
     try {
       result = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId });
-    } catch (_) {
+    } catch (e) {
+      console.log("[blueprint] error", { message: e?.message || String(e) });
       result = null;
     }
+    console.log("[blueprint] result", {
+      ok: !!result?.ok,
+      code: result?.code || null,
+      has_url: !!result?.url,
+    });
     if (!result || !result.ok) {
       const msg =
         result?.code === "not_purchased"
