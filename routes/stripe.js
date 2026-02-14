@@ -71,7 +71,11 @@ function createStripeRouter(deps = {}) {
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { product: "blueprint_light" },
+        metadata: {
+          product: "blueprint_light",
+          token,
+          line_user_id: tokenDoc.data?.line_user_id || "",
+        },
       });
 
       return res.json({ ok: true, url: session.url, session_id: session.id, mode: "checkout_session" });
@@ -102,9 +106,37 @@ function createStripeRouter(deps = {}) {
       }
 
       const session = event.data?.object || {};
-      const token = String(session.client_reference_id || "").trim();
+      const meta = session.metadata || {};
+      const tokenFromMeta = String(meta.token || "").trim();
+      const token = String(session.client_reference_id || tokenFromMeta || "").trim();
+      const lineUserIdFromMeta = String(meta.line_user_id || "").trim();
+      const tokenSource = session.client_reference_id ? "client_reference_id" : (tokenFromMeta ? "metadata" : "none");
+
+      console.log("[stripe] checkout.session.completed", {
+        token_source: tokenSource,
+        token_tail: token ? token.slice(-4) : null,
+        has_line_user_id: !!lineUserIdFromMeta,
+        session_id: session.id || null,
+      });
+
       if (!token) {
-        return res.json({ ok: true, received: true, ignored: true, reason: "missing client_reference_id" });
+        if (!lineUserIdFromMeta) {
+          return res.json({ ok: true, received: true, ignored: true, reason: "missing client_reference_id" });
+        }
+        // fallback: token無しでも line_user_id があれば購入フラグを書く
+        await db.collection("line_users").doc(lineUserIdFromMeta).set(
+          {
+            purchases: {
+              blueprint_light: {
+                purchased: true,
+                purchased_at: admin.firestore.FieldValue.serverTimestamp(),
+                stripe_session_id: session.id || null,
+              },
+            },
+          },
+          { merge: true }
+        );
+        return res.json({ ok: true, received: true, fallback: "line_user_id_only" });
       }
 
       const tokenDoc = await getPurchaseToken({ db, token });
@@ -120,7 +152,7 @@ function createStripeRouter(deps = {}) {
         return res.json({ ok: true, received: true, ignored: true, reason: "product mismatch" });
       }
 
-      const lineUserId = tokenData.line_user_id || null;
+      const lineUserId = tokenData.line_user_id || lineUserIdFromMeta || null;
       if (!lineUserId) {
         return res.json({ ok: true, received: true, ignored: true, reason: "missing line_user_id" });
       }
