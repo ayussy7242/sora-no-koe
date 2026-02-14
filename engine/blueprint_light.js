@@ -313,6 +313,7 @@ function ensurePageSpace(doc, layout, minHeight = 0) {
   const bottom = doc.page.height - PAGE_PAD_BOTTOM - SAFE_FOOTER;
   if (layout.y + minHeight > bottom) {
     doc.addPage({
+      size: "A4",
       margins: {
         top: PAGE_PAD_TOP,
         bottom: PAGE_PAD_BOTTOM,
@@ -327,12 +328,19 @@ function ensurePageSpace(doc, layout, minHeight = 0) {
 
 function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, color } = {}) {
   if (!text) return;
-  ensurePageSpace(doc, layout, size ? size * 2 : 24);
-  doc.fillColor(color || COLORS.textMainDark).font(font || "body").fontSize(size || 11);
+  const effectiveSize = size || 11;
+  const effectiveLineGap = lineGap ?? LINE_GAP_BODY;
+  doc.fillColor(color || COLORS.textMainDark).font(font || "body").fontSize(effectiveSize);
+  const blockHeight = doc.heightOfString(text, {
+    width: contentWidth(doc),
+    align: "left",
+    lineGap: effectiveLineGap,
+  });
+  ensurePageSpace(doc, layout, blockHeight + (marginAfter ?? SECTION_GAP));
   doc.text(text, layout.x, layout.y, {
     width: contentWidth(doc),
     align: "left",
-    lineGap: lineGap ?? LINE_GAP_BODY,
+    lineGap: effectiveLineGap,
   });
   layout.y = doc.y + (marginAfter ?? SECTION_GAP);
 }
@@ -423,7 +431,7 @@ function ensureSummaryText(text) {
 function ensureSpace(doc, neededHeight = 40) {
   const bottom = doc.page.height - doc.page.margins.bottom;
   if (doc.y + neededHeight > bottom) {
-    doc.addPage();
+    doc.addPage({ size: "A4" });
     return true;
   }
   return false;
