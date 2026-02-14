@@ -88,7 +88,18 @@ const COLORS = Object.freeze({
 const ASSET_ROOT = path.join(__dirname, "..", "assets");
 const FONT_DIR = path.join(ASSET_ROOT, "fonts");
 const LOGO_SHAPE_PATH = path.join(ASSET_ROOT, "img", "logo", "sora-no-koe-logo.jpg");
-const SYMBOLS_FONT_PATH = path.resolve(process.cwd(), "assets", "fonts", "NotoSansSymbols2-Regular.ttf");
+const SYMBOLS_FONT_PRIMARY_PATH = path.resolve(
+  process.cwd(),
+  "assets",
+  "fonts",
+  "NotoSansSymbols-Regular.ttf"
+);
+const SYMBOLS_FONT_SECONDARY_PATH = path.resolve(
+  process.cwd(),
+  "assets",
+  "fonts",
+  "NotoSansSymbols2-Regular.ttf"
+);
 
 const FONT_FILES = Object.freeze({
   title: path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"),
@@ -96,7 +107,8 @@ const FONT_FILES = Object.freeze({
   bold: path.join(FONT_DIR, "ShipporiMincho-Bold.ttf"),
   note: path.join(FONT_DIR, "KleeOne-Regular.ttf"),
   noteBold: path.join(FONT_DIR, "KleeOne-SemiBold.ttf"),
-  symbols: SYMBOLS_FONT_PATH,
+  symbolsPrimary: SYMBOLS_FONT_PRIMARY_PATH,
+  symbolsSecondary: SYMBOLS_FONT_SECONDARY_PATH,
 });
 
 function norm360(x) {
@@ -220,7 +232,8 @@ function applyFont(doc, name, fallback) {
 
 function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", options = {} }) {
   if (glyph) {
-    applyFont(doc, "symbols", textFont);
+    const symbolFont = doc._symbolFontName || "symbolsPrimary";
+    applyFont(doc, symbolFont, textFont);
     doc.text(glyph, { continued: true, lineBreak: false });
     applyFont(doc, textFont);
     doc.text(`${gap}${rest}`, options);
@@ -542,12 +555,16 @@ function mapAiContent(ai) {
     footerEcho,
 }) {
   const doc = new PDFDocument({ size: "A4", margin: 56, autoFirstPage: false });
-  console.log("[pdf] symbols font path", SYMBOLS_FONT_PATH);
-  const symbolsExists = safeExists(SYMBOLS_FONT_PATH);
-  console.log("[pdf] symbols font exists", symbolsExists);
-  if (!symbolsExists) {
-    throw new Error(`symbols font missing: ${SYMBOLS_FONT_PATH}`);
+  console.log("[pdf] symbols font primary path", SYMBOLS_FONT_PRIMARY_PATH);
+  const symbolsPrimaryExists = safeExists(SYMBOLS_FONT_PRIMARY_PATH);
+  console.log("[pdf] symbols font primary exists", symbolsPrimaryExists);
+  console.log("[pdf] symbols font secondary path", SYMBOLS_FONT_SECONDARY_PATH);
+  const symbolsSecondaryExists = safeExists(SYMBOLS_FONT_SECONDARY_PATH);
+  console.log("[pdf] symbols font secondary exists", symbolsSecondaryExists);
+  if (!symbolsPrimaryExists && !symbolsSecondaryExists) {
+    throw new Error(`symbols font missing: ${SYMBOLS_FONT_PRIMARY_PATH}`);
   }
+  doc._symbolFontName = symbolsPrimaryExists ? "symbolsPrimary" : "symbolsSecondary";
   registerFonts(doc);
 
   const chunks = [];
@@ -559,8 +576,14 @@ function mapAiContent(ai) {
   const debugSymbols = String(process.env.BLUEPRINT_DEBUG_SYMBOLS || "") === "1";
   if (debugSymbols) {
     doc.fillColor(COLORS.textMainDark);
-    applyFont(doc, "symbols", "body");
-    doc.fontSize(18).text("☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+    if (symbolsPrimaryExists) {
+      applyFont(doc, "symbolsPrimary", "body");
+      doc.fontSize(18).text("primary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+    }
+    if (symbolsSecondaryExists) {
+      applyFont(doc, "symbolsSecondary", "body");
+      doc.fontSize(18).text("secondary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+    }
     doc.moveDown(0.6);
   }
 
