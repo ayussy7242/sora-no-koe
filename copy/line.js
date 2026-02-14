@@ -210,6 +210,9 @@ const LINE_COPY = Object.freeze({
     "魂の設計図（LIGHT）はこちら👇\n" +
     `${url}\n\n` +
     "必要なら、また「設計図」で出せるよ。",
+  BLUEPRINT_PREPARING_PUSH:
+    "🌌 LIGHT：設計図の準備を開始しました。\n" +
+    "整い次第、このトークに「設計図を開く」ボタンが届きます。",
 
 });
 

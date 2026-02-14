@@ -4,6 +4,9 @@ const express = require("express");
 const Stripe = require("stripe");
 const rawBody = require("../middleware/rawBody");
 const { getPurchaseToken } = require("../engine/purchase_tokens");
+const { enqueueBlueprintGenerate } = require("../engine/tasks_queue");
+const { createLineApi } = require("../line/line_api");
+const { LINE_COPY } = require("../copy");
 
 function createStripeClient(env) {
   if (!env?.STRIPE_SECRET_KEY) {
@@ -187,6 +190,29 @@ function createStripeRouter(deps = {}) {
       );
 
       await batch.commit();
+
+      // 1) LINE push: preparing message
+      try {
+        if (env.LINE_CHANNEL_ACCESS_TOKEN && lineUserId) {
+          const lineApiClient = createLineApi({
+            accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+            maxText: Number(env.MAX_LINE_TEXT || 4800),
+          });
+          const msg = LINE_COPY?.BLUEPRINT_PREPARING_PUSH ||
+            "🌌 LIGHT：設計図の準備を開始しました。整い次第、このトークに『設計図を開く』ボタンが届きます。";
+          await lineApiClient.pushMessages(lineUserId, { type: "text", text: msg });
+        }
+      } catch (e) {
+        console.log("[stripe] push preparing failed:", e?.message || String(e));
+      }
+
+      // 2) Cloud Tasks enqueue (async generate)
+      try {
+        await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" });
+      } catch (e) {
+        console.log("[stripe] enqueue generate failed:", e?.message || String(e));
+      }
+
       return res.json({ ok: true, received: true });
     } catch (e) {
       console.error("[stripe] webhook failed:", e);

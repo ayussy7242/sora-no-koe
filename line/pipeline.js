@@ -270,7 +270,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       const msg =
         result?.code === "not_purchased"
           ? LINE_COPY.BLUEPRINT_NEED_PURCHASE
-          : result?.code === "natal_not_ready"
+          : result?.code === "natal_not_ready" || result?.code === "not_ready"
             ? LINE_COPY.BLUEPRINT_NOT_READY
             : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
       return { text: msg || "設計図の準備中だよ。", stage: "blueprint_light" };

@@ -13,6 +13,7 @@ const { createCronRouter } = require("./routes/cron");
 const { createDebugRouter } = require("./routes/debug");
 const { createJobsRouter } = require("./routes/jobs");
 const { createStripeRouter } = require("./routes/stripe");
+const { createBlueprintsRouter } = require("./routes/blueprints");
 
 // -------------------- helpers --------------------
 function createReqId() {
@@ -138,6 +139,7 @@ function createApp(deps = {}) {
   // Stripe webhook: /api/stripe (primary) + /stripe (legacy)
   app.use("/api/stripe", createStripeRouter(deps));
   app.use("/stripe", createStripeRouter(deps));
+  app.use("/internal/blueprints", createBlueprintsRouter(deps));
   app.use("/debug", createDebugRouter(deps));
   app.use("/jobs", createJobsRouter(deps));
 
