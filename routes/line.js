@@ -186,6 +186,9 @@ function createLineRouter(deps = {}) {
         lineUserId: null, // debugではLINEユーザー扱いしない（collectも動かさない）
         modules,
         renderers,
+        db: d.db,
+        admin: d.admin,
+        storage: d.storage || null,
       });
 
       return res.json({
@@ -361,6 +364,9 @@ function createLineRouter(deps = {}) {
           lineUserId,
           modules,
           renderers: d.renderers,
+          db: d.db,
+          admin: d.admin,
+          storage: d.storage || null,
         });
 
         await safeReply(replyToken, result?.text || story.renderFallback() || "（返す文が空だった🙏）", {

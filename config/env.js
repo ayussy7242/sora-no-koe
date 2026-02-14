@@ -188,6 +188,23 @@ const OPENAI_API_KEY = getEnv("OPENAI_API_KEY", { defaultValue: null });
 const OPENAI_BASE_URL = getEnv("OPENAI_BASE_URL", { defaultValue: "https://api.openai.com/v1" });
 const OPENAI_MODEL = getEnv("OPENAI_MODEL", { defaultValue: "gpt-4.1" });
 
+// --------------------
+// Stripe / Payments
+// --------------------
+const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY", { defaultValue: null });
+const STRIPE_WEBHOOK_SECRET = getEnv("STRIPE_WEBHOOK_SECRET", { defaultValue: null });
+const STRIPE_PRICE_ID_LIGHT = getEnv("STRIPE_PRICE_ID_LIGHT", { defaultValue: null });
+const STRIPE_PAYMENT_LINK_LIGHT = getEnv("STRIPE_PAYMENT_LINK_LIGHT", { defaultValue: null });
+const STRIPE_SUCCESS_URL = getEnv("STRIPE_SUCCESS_URL", { defaultValue: null });
+const STRIPE_CANCEL_URL = getEnv("STRIPE_CANCEL_URL", { defaultValue: null });
+
+// --------------------
+// Public URL / GCS
+// --------------------
+const PUBLIC_BASE_URL = getEnv("PUBLIC_BASE_URL", { defaultValue: null });
+const GCS_BUCKET_BLUEPRINTS = getEnv("GCS_BUCKET_BLUEPRINTS", { defaultValue: null });
+const BLUEPRINT_URL_EXPIRES_DAYS = numEnv("BLUEPRINT_URL_EXPIRES_DAYS", 7);
+
 
 // --------------------
 // export
@@ -273,5 +290,18 @@ module.exports = {
   // OpenAI
   OPENAI_API_KEY,
   OPENAI_BASE_URL,
-  OPENAI_MODEL
+  OPENAI_MODEL,
+
+  // Stripe / Payments
+  STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET,
+  STRIPE_PRICE_ID_LIGHT,
+  STRIPE_PAYMENT_LINK_LIGHT,
+  STRIPE_SUCCESS_URL,
+  STRIPE_CANCEL_URL,
+
+  // Public URL / GCS
+  PUBLIC_BASE_URL,
+  GCS_BUCKET_BLUEPRINTS,
+  BLUEPRINT_URL_EXPIRES_DAYS
 };
