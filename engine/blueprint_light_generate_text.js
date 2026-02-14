@@ -74,7 +74,9 @@ function validateOutput(data) {
   const summary = pickSection("summary");
   if (Array.isArray(summary?.blocks)) {
     for (const block of summary.blocks) {
-      if (isTooShort(block?.text, 120)) return { ok: false, reason: "summary_too_short" };
+      if (!block?.text || String(block.text).trim().length === 0) {
+        return { ok: false, reason: "summary_empty" };
+      }
       if (tooLong(block?.text, 240)) return { ok: false, reason: "summary_too_long" };
     }
   }

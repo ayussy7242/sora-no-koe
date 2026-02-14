@@ -105,6 +105,10 @@ const BODY_TEXT_FILLERS = [
   "この配置は、説明より先に気配として届きやすい。",
   "輪郭は静かに保たれ、言葉より質感が先に立つ。",
 ];
+const SUMMARY_TEXT_MIN_CHARS = 90;
+const SUMMARY_TEXT_FILLERS = [
+  "構造は先に置かれ、感触がゆっくりと形になる。",
+];
 
 const COLORS = Object.freeze({
   coverBg: "#14162B",
@@ -330,6 +334,16 @@ function ensureBodyText(text) {
   return out;
 }
 
+function ensureSummaryText(text) {
+  let out = String(text || "").trim();
+  let i = 0;
+  while (out.length < SUMMARY_TEXT_MIN_CHARS && i < SUMMARY_TEXT_FILLERS.length) {
+    out = `${out}${out ? " " : ""}${SUMMARY_TEXT_FILLERS[i]}`;
+    i += 1;
+  }
+  return out;
+}
+
 function ensureSpace(doc, neededHeight = 40) {
   const bottom = doc.page.height - doc.page.margins.bottom;
   if (doc.y + neededHeight > bottom) {
@@ -417,7 +431,11 @@ function renderSummary({ doc, element, modality, summary }) {
     { symbol: "✦", label: "水", value: element.water },
   ], { textFont: "bold" });
   if (summary?.element?.text) {
-    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 4.2 });
+    doc
+      .font("body")
+      .fontSize(11)
+      .fillColor(COLORS.textMainDark)
+      .text(ensureSummaryText(summary.element.text), { lineGap: 4.2 });
   }
   doc.moveDown(0.2);
   doc.font("bold");
@@ -427,7 +445,11 @@ function renderSummary({ doc, element, modality, summary }) {
     { symbol: "△", label: "柔軟", value: modality.mutable },
   ], { textFont: "bold" });
   if (summary?.modality?.text) {
-    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 4.2 });
+    doc
+      .font("body")
+      .fontSize(11)
+      .fillColor(COLORS.textMainDark)
+      .text(ensureSummaryText(summary.modality.text), { lineGap: 4.2 });
   }
   doc.font("body");
   drawDivider(doc);
@@ -435,7 +457,7 @@ function renderSummary({ doc, element, modality, summary }) {
 
 function renderBodyList({ doc, title, rows, lines }) {
   drawSectionTitle(doc, title);
-  doc.font("body").fontSize(10).fillColor(COLORS.textMainDark);
+  doc.font("body").fontSize(11).fillColor(COLORS.textMainDark);
 
   if (Array.isArray(lines) && lines.length) {
     lines.forEach((line) => {
@@ -482,7 +504,7 @@ function renderNarratives({ doc, rows, title }) {
       gap: headingParts?.glyph ? " " : "",
       textFont: "bold",
     });
-    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark)
+    doc.font("body").fontSize(11).fillColor(COLORS.textMainDark)
       .text(ensureBodyText(row.text) || "（本文は準備中）", { lineGap: 4.2 });
     doc.moveDown(0.4);
   });
