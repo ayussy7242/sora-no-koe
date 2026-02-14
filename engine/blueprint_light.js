@@ -109,6 +109,12 @@ const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
 ];
+const LINE_GAP_BODY = 4.6;
+const LINE_GAP_SUMMARY = 4.2;
+const SECTION_GAP = 1.2;
+const PAGE_PAD_X = 44;
+const PAGE_PAD_Y = 48;
+const SAFE_FOOTER = 80;
 
 const COLORS = Object.freeze({
   coverBg: "#14162B",
@@ -211,6 +217,16 @@ function formatSignPipe(meta) {
   return `${meta.sign_ja}｜${meta.deg}°${mm}’`;
 }
 
+function degreeHint(meta) {
+  if (!meta || typeof meta.deg !== "number") return "";
+  const d = meta.deg;
+  if (d <= 2) return "始まりの度数";
+  if (d <= 9) return "前半度数";
+  if (d <= 19) return "中盤度数";
+  if (d <= 27) return "後半度数";
+  return "最終度数";
+}
+
 function formatNatalListLineText(row) {
   if (!row) return "";
   const prefix = row.glyph ? `${row.glyph}${row.label}` : `${row.label}`;
@@ -297,31 +313,90 @@ function hasGlyph(font, glyph) {
   return font.hasGlyphForCodePoint(codePoint);
 }
 
-function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", options = {} }) {
-  if (glyph) {
-    const picked = pickSymbolFontName(doc, glyph);
-    applyFont(doc, picked, textFont);
-    doc.text(glyph, { continued: true, lineBreak: false });
-    applyFont(doc, textFont);
-    doc.text(`${gap}${rest}`, options);
-    return;
-  }
-  applyFont(doc, textFont);
-  doc.text(rest, options);
+function contentWidth(doc) {
+  return doc.page.width - PAGE_PAD_X * 2;
 }
 
-function drawInlineSymbolCounts(doc, items, { textFont = "body" } = {}) {
-  if (!Array.isArray(items) || items.length === 0) return;
-  items.forEach((item, idx) => {
-    const symbolFont = pickSymbolFontName(doc, item.symbol);
-    applyFont(doc, symbolFont, textFont);
-    doc.text(item.symbol, { continued: true, lineBreak: false });
-    applyFont(doc, textFont);
-    doc.text(` ${item.label} ${item.value}`, { continued: idx < items.length - 1, lineBreak: false });
-    if (idx < items.length - 1) {
-      doc.text(" / ", { continued: true, lineBreak: false });
+function ensurePageSpace(doc, layout, minHeight = 0) {
+  const bottom = doc.page.height - PAGE_PAD_Y - SAFE_FOOTER;
+  if (layout.y + minHeight > bottom) {
+    doc.addPage({
+      margins: {
+        top: PAGE_PAD_Y,
+        bottom: PAGE_PAD_Y,
+        left: PAGE_PAD_X,
+        right: PAGE_PAD_X,
+      },
+    });
+    layout.x = PAGE_PAD_X;
+    layout.y = PAGE_PAD_Y;
+  }
+}
+
+function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, color } = {}) {
+  if (!text) return;
+  ensurePageSpace(doc, layout, size ? size * 2 : 24);
+  doc.fillColor(color || COLORS.textMainDark).font(font || "body").fontSize(size || 11);
+  doc.text(text, layout.x, layout.y, {
+    width: contentWidth(doc),
+    align: "left",
+    lineGap: lineGap ?? LINE_GAP_BODY,
+  });
+  layout.y = doc.y + (marginAfter ?? SECTION_GAP);
+}
+
+function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 12, gap = 6 }) {
+  if (!glyph) {
+    drawTextBlock(doc, layout, rest, { font: "bold", size: fontSize, marginAfter: 0 });
+    return;
+  }
+  ensurePageSpace(doc, layout, fontSize * 2);
+  const symbolFont = pickSymbolFontName(doc, glyph);
+  doc.fillColor(COLORS.textMainDark);
+  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, { lineBreak: false });
+  const symW = doc.widthOfString(glyph);
+  doc.font("bold").fontSize(fontSize).text(rest, layout.x + symW + gap, layout.y, {
+    width: contentWidth(doc) - symW - gap,
+    align: "left",
+  });
+  layout.y = doc.y;
+}
+
+function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 11, gap = 6 }) {
+  if (!glyph) {
+    drawTextBlock(doc, layout, rest, { font, size: fontSize, marginAfter: 0 });
+    return;
+  }
+  ensurePageSpace(doc, layout, fontSize * 2);
+  const symbolFont = pickSymbolFontName(doc, glyph);
+  doc.fillColor(COLORS.textMainDark);
+  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, { lineBreak: false });
+  const symW = doc.widthOfString(glyph);
+  doc.font(font).fontSize(fontSize).text(rest, layout.x + symW + gap, layout.y, {
+    width: contentWidth(doc) - symW - gap,
+    align: "left",
+  });
+  layout.y = doc.y + LINE_GAP_BODY;
+}
+
+function drawSymbolValueLine(doc, layout, segments, { fontSize = 11, lineGap = LINE_GAP_SUMMARY } = {}) {
+  if (!Array.isArray(segments) || segments.length === 0) return;
+  ensurePageSpace(doc, layout, fontSize * 2);
+  let x = layout.x;
+  const y = layout.y;
+  doc.fillColor(COLORS.textMainDark);
+  segments.forEach((seg, idx) => {
+    const symbolFont = pickSymbolFontName(doc, seg.symbol);
+    doc.font(symbolFont).fontSize(fontSize).text(seg.symbol, x, y, { lineBreak: false });
+    x += doc.widthOfString(seg.symbol) + 4;
+    doc.font("body").fontSize(fontSize).text(`${seg.label} ${seg.value}`, x, y, { lineBreak: false });
+    x += doc.widthOfString(`${seg.label} ${seg.value}`);
+    if (idx < segments.length - 1) {
+      doc.font("body").fontSize(fontSize).text(" / ", x, y, { lineBreak: false });
+      x += doc.widthOfString(" / ");
     }
   });
+  layout.y = y + doc.currentLineHeight(true) + lineGap;
 }
 
 function ensureBodyText(text) {
@@ -353,29 +428,30 @@ function ensureSpace(doc, neededHeight = 40) {
   return false;
 }
 
-function drawSectionTitle(doc, title) {
-  ensureSpace(doc, 40);
-  const x = doc.page.margins.left;
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+function drawSectionTitle(doc, layout, title) {
+  ensurePageSpace(doc, layout, 40);
+  const x = layout.x;
+  const w = contentWidth(doc);
   const h = 26;
-  const y = doc.y;
+  const y = layout.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
   doc.fillColor(COLORS.textMainLight).font("title").fontSize(14).text(title, x + 8, y + 6, { lineBreak: false });
   doc.restore();
 
-  doc.moveDown(1.6);
+  layout.y = y + h + SECTION_GAP;
 }
 
-function drawDivider(doc) {
-  const x = doc.page.margins.left;
-  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+function drawDivider(doc, layout) {
+  ensurePageSpace(doc, layout, 20);
+  const x = layout.x;
+  const w = contentWidth(doc);
   doc.save();
   doc.strokeColor(COLORS.border).strokeOpacity(0.25).lineWidth(1);
-  doc.moveTo(x, doc.y).lineTo(x + w, doc.y).stroke();
+  doc.moveTo(x, layout.y).lineTo(x + w, layout.y).stroke();
   doc.restore();
-  doc.moveDown(0.9);
+  layout.y += SECTION_GAP;
 }
 
 function renderCover({ doc, displayName }) {
@@ -417,103 +493,139 @@ function renderCover({ doc, displayName }) {
   doc.text(`${displayName || "あなた"}さん`, 0, ty + 40, { align: "center" });
 }
 
-function renderSummary({ doc, element, modality, summary }) {
-  drawSectionTitle(doc, "② 全体構造サマリー");
-  doc.fillColor(COLORS.textMainDark).font("body").fontSize(11);
-  doc.text("属性 / 三区分の分布は以下の通りです。", { lineGap: 5 });
-  doc.moveDown(0.4);
+function renderSummary({ doc, layout, element, modality, summary }) {
+  drawSectionTitle(doc, layout, "② 全体構造サマリー");
+  drawTextBlock(doc, layout, "属性 / 三区分の分布は以下の通りです。", {
+    font: "body",
+    size: 11,
+    lineGap: LINE_GAP_SUMMARY,
+    marginAfter: 6,
+  });
 
-  doc.font("bold");
-  drawInlineSymbolCounts(doc, [
+  drawSymbolValueLine(doc, layout, [
     { symbol: "✶", label: "火", value: element.fire },
     { symbol: "✷", label: "地", value: element.earth },
     { symbol: "✹", label: "風", value: element.air },
     { symbol: "✦", label: "水", value: element.water },
-  ], { textFont: "bold" });
+  ], { fontSize: 11, lineGap: LINE_GAP_SUMMARY });
+
   if (summary?.element?.text) {
-    doc
-      .font("body")
-      .fontSize(11)
-      .fillColor(COLORS.textMainDark)
-      .text(ensureSummaryText(summary.element.text), { lineGap: 4.2 });
+    drawTextBlock(doc, layout, ensureSummaryText(summary.element.text), {
+      font: "body",
+      size: 11,
+      lineGap: LINE_GAP_SUMMARY,
+      marginAfter: 6,
+    });
   }
-  doc.moveDown(0.2);
-  doc.font("bold");
-  drawInlineSymbolCounts(doc, [
+
+  drawSymbolValueLine(doc, layout, [
     { symbol: "☍", label: "活動", value: modality.cardinal },
     { symbol: "☌", label: "不動", value: modality.fixed },
     { symbol: "△", label: "柔軟", value: modality.mutable },
-  ], { textFont: "bold" });
+  ], { fontSize: 11, lineGap: LINE_GAP_SUMMARY });
+
   if (summary?.modality?.text) {
-    doc
-      .font("body")
-      .fontSize(11)
-      .fillColor(COLORS.textMainDark)
-      .text(ensureSummaryText(summary.modality.text), { lineGap: 4.2 });
+    drawTextBlock(doc, layout, ensureSummaryText(summary.modality.text), {
+      font: "body",
+      size: 11,
+      lineGap: LINE_GAP_SUMMARY,
+      marginAfter: SECTION_GAP,
+    });
   }
-  doc.font("body");
-  drawDivider(doc);
+
+  drawDivider(doc, layout);
 }
 
-function renderBodyList({ doc, title, rows, lines }) {
-  drawSectionTitle(doc, title);
-  doc.font("body").fontSize(11).fillColor(COLORS.textMainDark);
+function renderBodyList({ doc, layout, title, rows, lines }) {
+  drawSectionTitle(doc, layout, title);
 
-  if (Array.isArray(lines) && lines.length) {
-    lines.forEach((line) => {
-      ensureSpace(doc, 18);
-      if (line && typeof line === "object") {
-        drawGlyphAndText(doc, { glyph: line.glyph, rest: line.rest, textFont: "body" });
-      } else {
-        doc.text(line);
-      }
-    });
-    doc.moveDown(0.6);
-    drawDivider(doc);
+  const listLines =
+    Array.isArray(lines) && lines.length
+      ? lines
+      : Array.isArray(rows) && rows.length
+        ? rows.map((row) => ({
+            glyph: row.glyph || "",
+            rest: `${row.label}：${row.value}`,
+          }))
+        : [];
+
+  if (!listLines.length) {
+    drawDivider(doc, layout);
     return;
   }
 
-  const xGlyph = doc.page.margins.left;
-  const xLabel = xGlyph + 20;
-  const xValue = xLabel + 84;
+  const textLines = listLines.map((line) => (line && typeof line === "object" ? line.rest : String(line || "")));
+  const glyphLines = listLines.map((line) => (line && typeof line === "object" ? line.glyph || "" : ""));
 
-  rows.forEach((row) => {
-    ensureSpace(doc, 20);
-    const y = doc.y;
-    doc.text(row.glyph || "", xGlyph, y, { lineBreak: false });
-    doc.font("bold").text(row.label, xLabel, y, { lineBreak: false });
-    doc.font("body").text(row.value, xValue, y);
-  });
-  doc.moveDown(0.6);
-  drawDivider(doc);
+  const universalFont = doc._symbolUniversalFontName || null;
+  if (universalFont) {
+    const glyphText = glyphLines.join("\n");
+    const restText = textLines.join("\n");
+    const fontSize = 11;
+    const gap = 8;
+    const glyphWidth = doc.font(universalFont).fontSize(fontSize).widthOfString("☉");
+    const colW = Math.max(glyphWidth, 12) + gap;
+
+    ensurePageSpace(doc, layout, listLines.length * (fontSize + LINE_GAP_BODY) + 12);
+    doc.fillColor(COLORS.textMainDark);
+    doc.font(universalFont).fontSize(fontSize).text(glyphText, layout.x, layout.y, {
+      width: colW,
+      align: "left",
+      lineGap: LINE_GAP_BODY,
+    });
+    doc.font("body").fontSize(fontSize).text(restText, layout.x + colW, layout.y, {
+      width: contentWidth(doc) - colW,
+      align: "left",
+      lineGap: LINE_GAP_BODY,
+    });
+    layout.y = doc.y + SECTION_GAP;
+  } else {
+    listLines.forEach((line) => {
+      if (line && typeof line === "object") {
+        drawSymbolTextLine(doc, layout, { glyph: line.glyph, rest: line.rest, font: "body", fontSize: 11 });
+      } else {
+        drawTextBlock(doc, layout, String(line || ""), { font: "body", size: 11, marginAfter: 0 });
+      }
+    });
+    layout.y += SECTION_GAP;
+  }
+
+  drawDivider(doc, layout);
 }
 
-function renderNarratives({ doc, rows, title }) {
-  drawSectionTitle(doc, title);
+function renderNarratives({ doc, layout, rows, title }) {
+  drawSectionTitle(doc, layout, title);
   rows.forEach((row) => {
-    ensureSpace(doc, 40);
     const headingParts = row.titleParts || null;
     const headingRest =
       headingParts?.rest ||
       row.title ||
       `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
-    doc.font("bold").fontSize(12).fillColor(COLORS.textMainDark);
-    drawGlyphAndText(doc, {
+    drawSymbolHeading(doc, layout, {
       glyph: headingParts?.glyph,
       rest: headingRest,
-      gap: headingParts?.glyph ? " " : "",
-      textFont: "bold",
+      fontSize: 12,
+      gap: 6,
     });
-    doc.font("body").fontSize(11).fillColor(COLORS.textMainDark)
-      .text(ensureBodyText(row.text) || "（本文は準備中）", { lineGap: 4.2 });
-    doc.moveDown(0.4);
+    layout.y += 4;
+    drawTextBlock(doc, layout, ensureBodyText(row.text) || "（本文は準備中）", {
+      font: "body",
+      size: 11,
+      lineGap: LINE_GAP_BODY,
+      marginAfter: SECTION_GAP,
+    });
   });
-  drawDivider(doc);
+  drawDivider(doc, layout);
 }
 
-function renderFooterEcho(doc, text) {
-  ensureSpace(doc, 40);
-  doc.font("note").fontSize(11).fillColor(COLORS.textSub).text(text, { align: "right" });
+function renderFooterEcho(doc, layout, text) {
+  drawTextBlock(doc, layout, text, {
+    font: "note",
+    size: 11,
+    lineGap: LINE_GAP_BODY,
+    marginAfter: 0,
+    color: COLORS.textSub,
+  });
 }
 
 function formatRowTitle(row) {
@@ -529,6 +641,9 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     sign: row.meta?.sign_ja || "",
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
+    degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
+    degree_hint: row.meta ? degreeHint(row.meta) : "",
+    sign_flavor: row.meta?.flavor || "",
     line: formatRowTitle(row),
   }));
 
@@ -538,6 +653,8 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     sign: row.meta?.sign_ja || "",
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
+    degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
+    degree_hint: row.meta ? degreeHint(row.meta) : "",
     line: formatRowTitle(row),
   }));
 
@@ -548,6 +665,8 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     sign: row.meta?.sign_ja || "",
     deg: row.meta?.deg ?? null,
     min: row.meta?.min ?? null,
+    degree_value: row.meta ? row.meta.deg + (row.meta.min || 0) / 60 : null,
+    degree_hint: row.meta ? degreeHint(row.meta) : "",
     line: formatRowTitle(row),
   }));
 
@@ -660,18 +779,18 @@ function mapAiContent(ai) {
   };
 }
 
-  async function renderPdfBuffer({
-    displayName,
-    birthText,
-    rowsMain,
-    rowsAngles,
-    rowsExtra,
-    natalLines,
-    narratives,
-    summary,
-    element,
-    modality,
-    footerEcho,
+async function renderPdfBuffer({
+  displayName,
+  birthText,
+  rowsMain,
+  rowsAngles,
+  rowsExtra,
+  natalLines,
+  narratives,
+  summary,
+  element,
+  modality,
+  footerEcho,
 }) {
   const doc = new PDFDocument({ size: "A4", margin: 56, autoFirstPage: false });
   console.log("[pdf] symbols font primary path", SYMBOLS_FONT_PRIMARY_PATH);
@@ -705,6 +824,8 @@ function mapAiContent(ai) {
     }
     return symbolFonts[0]?.name || null;
   };
+  doc._symbolUniversalFontName =
+    symbolFonts.find((entry) => entry.font && ASTRO_GLYPHS.every((g) => hasGlyph(entry.font, g)))?.name || null;
   const missingSymbols = ASTRO_GLYPHS.filter((g) => !doc._symbolFontPicker(g));
   if (missingSymbols.length) {
     console.log("[pdf] symbols missing glyphs", missingSymbols.join(""));
@@ -716,44 +837,64 @@ function mapAiContent(ai) {
   doc.on("data", (d) => chunks.push(d));
 
   renderCover({ doc, displayName });
-  doc.addPage({ margins: { top: 56, bottom: 56, left: 56, right: 56 } });
+  doc.addPage({ margins: { top: PAGE_PAD_Y, bottom: PAGE_PAD_Y, left: PAGE_PAD_X, right: PAGE_PAD_X } });
+  const layout = { x: PAGE_PAD_X, y: PAGE_PAD_Y };
 
   const debugSymbols = String(process.env.BLUEPRINT_DEBUG_SYMBOLS || "") === "1";
   if (debugSymbols) {
-    doc.fillColor(COLORS.textMainDark);
     if (symbolsPrimaryExists) {
-      applyFont(doc, "symbolsPrimary", "body");
-      doc.fontSize(18).text("primary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
+      drawTextBlock(doc, layout, "primary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △", {
+        font: "symbolsPrimary",
+        size: 18,
+        lineGap: LINE_GAP_BODY,
+        marginAfter: SECTION_GAP,
+      });
     }
     if (symbolsSecondaryExists) {
-      applyFont(doc, "symbolsSecondary", "body");
-      doc.fontSize(18).text("secondary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
+      drawTextBlock(doc, layout, "secondary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △", {
+        font: "symbolsSecondary",
+        size: 18,
+        lineGap: LINE_GAP_BODY,
+        marginAfter: SECTION_GAP,
+      });
     }
     if (symbolsTertiaryExists) {
-      applyFont(doc, "symbolsTertiary", "body");
-      doc.fontSize(18).text("tertiary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
+      drawTextBlock(doc, layout, "tertiary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △", {
+        font: "symbolsTertiary",
+        size: 18,
+        lineGap: LINE_GAP_BODY,
+        marginAfter: SECTION_GAP,
+      });
     }
-    doc.moveDown(0.6);
   }
 
-  doc.fillColor(COLORS.textMainDark).font("title").fontSize(16).text("魂の設計図（LIGHT）");
-  doc.font("note").fontSize(9).fillColor(COLORS.textSub)
-    .text(`生成日 ${formatDateJst(new Date())}`);
-  if (birthText) {
-    doc.font("note").fontSize(9).fillColor(COLORS.textSub).text(birthText);
-  }
-  drawDivider(doc);
+  drawTextBlock(doc, layout, "魂の設計図（LIGHT）", {
+    font: "title",
+    size: 16,
+    lineGap: LINE_GAP_BODY,
+    marginAfter: 6,
+  });
+  const noteLines = [`生成日 ${formatDateJst(new Date())}`];
+  if (birthText) noteLines.push(birthText);
+  drawTextBlock(doc, layout, noteLines.join("\n"), {
+    font: "note",
+    size: 9,
+    lineGap: 3.6,
+    marginAfter: SECTION_GAP,
+    color: COLORS.textSub,
+  });
+  drawDivider(doc, layout);
 
-  renderBodyList({ doc, title: "① ネイタル一覧（構造データ）", lines: natalLines, rows: rowsMain });
-  renderSummary({ doc, element, modality, summary });
+  renderBodyList({ doc, layout, title: "① ネイタル一覧（構造データ）", lines: natalLines, rows: rowsMain });
+  renderSummary({ doc, layout, element, modality, summary });
 
-  renderNarratives({ doc, title: "③ 各天体の構造記述", rows: narratives.main });
-  renderNarratives({ doc, title: "④ キロン", rows: narratives.chiron });
-  renderNarratives({ doc, title: "⑤ リリス", rows: narratives.lilith });
-  renderNarratives({ doc, title: "⑥ ノード", rows: narratives.nodes });
-  renderNarratives({ doc, title: "⑦ 軸", rows: narratives.axes });
+  renderNarratives({ doc, layout, title: "③ 各天体の構造記述", rows: narratives.main });
+  renderNarratives({ doc, layout, title: "④ キロン", rows: narratives.chiron });
+  renderNarratives({ doc, layout, title: "⑤ リリス", rows: narratives.lilith });
+  renderNarratives({ doc, layout, title: "⑥ ノード", rows: narratives.nodes });
+  renderNarratives({ doc, layout, title: "⑦ 軸", rows: narratives.axes });
 
-  renderFooterEcho(doc, footerEcho || "解釈は、あなたのもの。");
+  renderFooterEcho(doc, layout, footerEcho || "解釈は、あなたのもの。");
 
   doc.end();
   await new Promise((resolve, reject) => {
