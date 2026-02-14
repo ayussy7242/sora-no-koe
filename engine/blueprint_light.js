@@ -115,6 +115,7 @@ const SECTION_GAP = 12;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
 const PAGE_PAD_BOTTOM = 44;
+const TITLE_PAD = 12;
 const SAFE_FOOTER = 80;
 
 const COLORS = Object.freeze({
@@ -438,7 +439,8 @@ function ensureSpace(doc, neededHeight = 40) {
 }
 
 function drawSectionTitle(doc, layout, title) {
-  ensurePageSpace(doc, layout, 46);
+  ensurePageSpace(doc, layout, TITLE_PAD + 46 + TITLE_PAD);
+  layout.y += TITLE_PAD;
   const x = layout.x;
   const w = contentWidth(doc);
   const h = 30;
@@ -449,7 +451,7 @@ function drawSectionTitle(doc, layout, title) {
   doc.fillColor(COLORS.textMainLight).font("title").fontSize(18).text(title, x + 10, y + 6, { lineBreak: false });
   doc.restore();
 
-  layout.y = y + h + 10;
+  layout.y = y + h + TITLE_PAD;
 }
 
 function drawDivider(doc, layout) {
