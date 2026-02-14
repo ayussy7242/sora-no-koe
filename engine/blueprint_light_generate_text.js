@@ -19,9 +19,12 @@ const BANNED_PATTERNS = [
   /当てる/g,
   /起きる/g,
   /になる/g,
+  /この配置は/g,
+  /に位置し/g,
+  /説明より先に気配として届きやすい/g,
 ];
 
-const MIN_BODY_CHARS = 180;
+const MIN_BODY_CHARS = 220;
 
 function extractJson(text) {
   if (!text) return null;
@@ -50,6 +53,10 @@ function isTooShort(text, minChars = MIN_BODY_CHARS) {
 
 function isEmptyText(text) {
   return !text || String(text).trim().length === 0;
+}
+
+function hasParagraphBreak(text) {
+  return typeof text === "string" && text.includes("\n\n");
 }
 
 function validateOutput(data) {
@@ -89,27 +96,33 @@ function validateOutput(data) {
   if (Array.isArray(bodies?.items)) {
     for (const item of bodies.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "bodies_empty" };
-      if (tooLong(item?.text, 240)) return { ok: false, reason: "bodies_too_long" };
+      if (!hasParagraphBreak(item?.text)) return { ok: false, reason: "bodies_no_paragraph" };
+      if (tooLong(item?.text, 360)) return { ok: false, reason: "bodies_too_long" };
     }
   }
 
   const chiron = pickSection("chiron");
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
-  if (tooLong(chiron?.text, 260)) return { ok: false, reason: "chiron_too_long" };
+  if (!hasParagraphBreak(chiron?.text)) return { ok: false, reason: "chiron_no_paragraph" };
+  if (tooLong(chiron?.text, 360)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
-  if (tooLong(lilith?.text, 260)) return { ok: false, reason: "lilith_too_long" };
+  if (!hasParagraphBreak(lilith?.text)) return { ok: false, reason: "lilith_no_paragraph" };
+  if (tooLong(lilith?.text, 360)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
   if (nodes?.south || nodes?.north) {
     if (isEmptyText(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_empty" };
     if (isEmptyText(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_empty" };
-    if (tooLong(nodes?.south?.text || nodes?.south, 260)) return { ok: false, reason: "nodes_south_too_long" };
-    if (tooLong(nodes?.north?.text || nodes?.north, 260)) return { ok: false, reason: "nodes_north_too_long" };
+    if (!hasParagraphBreak(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_no_paragraph" };
+    if (!hasParagraphBreak(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_no_paragraph" };
+    if (tooLong(nodes?.south?.text || nodes?.south, 360)) return { ok: false, reason: "nodes_south_too_long" };
+    if (tooLong(nodes?.north?.text || nodes?.north, 360)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
-      if (tooLong(block?.text, 260)) return { ok: false, reason: "nodes_too_long" };
+      if (!hasParagraphBreak(block?.text)) return { ok: false, reason: "nodes_no_paragraph" };
+      if (tooLong(block?.text, 360)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
     return { ok: false, reason: "nodes_missing" };
@@ -119,7 +132,8 @@ function validateOutput(data) {
   if (Array.isArray(angles?.items)) {
     for (const item of angles.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
-      if (tooLong(item?.text, 260)) return { ok: false, reason: "angles_too_long" };
+      if (!hasParagraphBreak(item?.text)) return { ok: false, reason: "angles_no_paragraph" };
+      if (tooLong(item?.text, 360)) return { ok: false, reason: "angles_too_long" };
     }
   }
 
