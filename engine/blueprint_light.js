@@ -1,8 +1,10 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 const PDFDocument = require("pdfkit");
 const { createNatalService } = require("./story_natal");
+const { generateBlueprintLightText } = require("./blueprint_light_generate_text");
 
 const SIGN_KEYS = [
   "aries",
@@ -32,7 +34,7 @@ const BODY_ORDER_MAIN = [
   "pluto",
 ];
 
-const BODY_ORDER_EXTRA = ["lilith", "chiron", "north_node", "south_node", "vertex"];
+const BODY_ORDER_EXTRA = ["chiron", "lilith", "north_node", "south_node"];
 
 const BODY_LABEL = {
   sun: "太陽",
@@ -73,29 +75,52 @@ const BODY_GLYPH = {
   south_node: "☋",
 };
 
+const COLORS = Object.freeze({
+  coverBg: "#14162B",
+  subBg: "#1C1F3A",
+  textMainDark: "#14162B",
+  textMainLight: "#EDEEFF",
+  textSub: "#B9BDD9",
+  logoWhite: "#FFFFFF",
+  border: "#EDEEFF",
+});
+
+const ASSET_ROOT = path.join(__dirname, "..", "assets");
+const FONT_DIR = path.join(ASSET_ROOT, "fonts");
+const LOGO_SHAPE_PATH = path.join(ASSET_ROOT, "img", "logo", "sora-no-koe-logo.jpg");
+
+const FONT_FILES = Object.freeze({
+  title: path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"),
+  body: path.join(FONT_DIR, "ShipporiMincho-Regular.ttf"),
+  bold: path.join(FONT_DIR, "ShipporiMincho-Bold.ttf"),
+  note: path.join(FONT_DIR, "KleeOne-Regular.ttf"),
+  noteBold: path.join(FONT_DIR, "KleeOne-SemiBold.ttf"),
+});
+
 function norm360(x) {
   const n = Number(x);
   if (!Number.isFinite(n)) return null;
   return ((n % 360) + 360) % 360;
 }
 
-function pickFontPath() {
-  const candidates = [
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansJP-Regular.otf",
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.otf",
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-    "/Library/Fonts/Arial Unicode.ttf",
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return p;
-    } catch (_) {
-      // ignore
+function safeExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch (_) {
+    return false;
+  }
+}
+
+function registerFonts(doc) {
+  for (const [key, fp] of Object.entries(FONT_FILES)) {
+    if (safeExists(fp)) {
+      try {
+        doc.registerFont(key, fp);
+      } catch (_) {
+        // ignore
+      }
     }
   }
-  return null;
 }
 
 function toSignMeta(dict, lon) {
@@ -114,6 +139,7 @@ function toSignMeta(dict, lon) {
     modality: sign?.modality || null,
     deg,
     min,
+    flavor: sign?.flavor || sign?.sora_short || "",
   };
 }
 
@@ -140,62 +166,286 @@ function formatDateJst(date = new Date()) {
   const y = jst.getUTCFullYear();
   const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
   const d = String(jst.getUTCDate()).padStart(2, "0");
-  const hh = String(jst.getUTCHours()).padStart(2, "0");
-  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
-  return `${y}.${m}.${d} ${hh}:${mm} JST`;
+  return `${y}.${m}.${d}`;
 }
 
-async function renderPdfBuffer({ displayName, birthText, rowsMain, rowsAngles, rowsExtra, element, modality }) {
-  const doc = new PDFDocument({ size: "A4", margin: 48 });
-  const fontPath = pickFontPath();
-  if (fontPath) {
+function trackedText(doc, text, x, y, tracking, options = {}) {
+  let cursor = x;
+  for (const ch of String(text)) {
+    doc.text(ch, cursor, y, { lineBreak: false, ...options });
+    const w = doc.widthOfString(ch);
+    cursor += w + tracking;
+  }
+  return cursor;
+}
+
+function ensureSpace(doc, neededHeight = 40) {
+  const bottom = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + neededHeight > bottom) {
+    doc.addPage();
+    return true;
+  }
+  return false;
+}
+
+function drawSectionTitle(doc, title) {
+  ensureSpace(doc, 40);
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const h = 22;
+  const y = doc.y;
+
+  doc.save();
+  doc.rect(x, y, w, h).fill(COLORS.subBg);
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(12).text(title, x + 8, y + 5, { lineBreak: false });
+  doc.restore();
+
+  doc.moveDown(1.4);
+}
+
+function drawDivider(doc) {
+  const x = doc.page.margins.left;
+  const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc.save();
+  doc.strokeColor(COLORS.border).strokeOpacity(0.25).lineWidth(1);
+  doc.moveTo(x, doc.y).lineTo(x + w, doc.y).stroke();
+  doc.restore();
+  doc.moveDown(0.6);
+}
+
+function renderCover({ doc, displayName }) {
+  doc.addPage({ margins: { top: 60, bottom: 60, left: 60, right: 60 } });
+  const { width, height } = doc.page;
+
+  doc.save();
+  doc.rect(0, 0, width, height).fill(COLORS.coverBg);
+  doc.restore();
+
+  if (safeExists(LOGO_SHAPE_PATH)) {
+    const logoWidth = width * 0.22;
+    const x = (width - logoWidth) / 2;
+    const y = height * 0.16;
     try {
-      doc.font(fontPath);
+      doc.image(LOGO_SHAPE_PATH, x, y, { width: logoWidth });
     } catch (_) {
-      // fallback to default
+      // ignore
     }
   }
+
+  const brand = "ソラのこえ";
+  doc.fillColor(COLORS.textSub).font("title").fontSize(12);
+  const brandTracking = 12 * 0.08;
+  const brandWidth = doc.widthOfString(brand) + brandTracking * (brand.length - 1);
+  const bx = (width - brandWidth) / 2;
+  const by = height * 0.28;
+  trackedText(doc, brand, bx, by, brandTracking);
+
+  const title = "魂の設計図（LIGHT）";
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(22);
+  const tracking = 22 * 0.08;
+  const titleWidth = doc.widthOfString(title) + tracking * (title.length - 1);
+  const tx = (width - titleWidth) / 2;
+  const ty = height * 0.38;
+  trackedText(doc, title, tx, ty, tracking);
+
+  doc.fontSize(12).fillColor(COLORS.textSub);
+  doc.text(`${displayName || "あなた"}さん`, 0, ty + 40, { align: "center" });
+}
+
+function renderSummary({ doc, element, modality, summary }) {
+  drawSectionTitle(doc, "② 全体構造サマリー");
+  doc.fillColor(COLORS.textMainDark).font("body").fontSize(11);
+  doc.text("属性 / 三区分の分布は以下の通りです。", { lineGap: 4 });
+  doc.moveDown(0.4);
+
+  doc.font("bold");
+  doc.text(`火 ${element.fire}  地 ${element.earth}  風 ${element.air}  水 ${element.water}`);
+  if (summary?.element?.text) {
+    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 3 });
+  }
+  doc.moveDown(0.2);
+  doc.text(`活動 ${modality.cardinal}  不動 ${modality.fixed}  柔軟 ${modality.mutable}`);
+  if (summary?.modality?.text) {
+    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 3 });
+  }
+  doc.font("body");
+  drawDivider(doc);
+}
+
+function renderBodyList({ doc, title, rows }) {
+  drawSectionTitle(doc, title);
+  doc.font("body").fontSize(10).fillColor(COLORS.textMainDark);
+
+  const xGlyph = doc.page.margins.left;
+  const xLabel = xGlyph + 20;
+  const xValue = xLabel + 84;
+
+  rows.forEach((row) => {
+    ensureSpace(doc, 20);
+    const y = doc.y;
+    doc.text(row.glyph || "", xGlyph, y, { lineBreak: false });
+    doc.font("bold").text(row.label, xLabel, y, { lineBreak: false });
+    doc.font("body").text(row.value, xValue, y);
+  });
+  doc.moveDown(0.6);
+  drawDivider(doc);
+}
+
+function renderNarratives({ doc, rows, title }) {
+  drawSectionTitle(doc, title);
+  rows.forEach((row) => {
+    ensureSpace(doc, 40);
+    doc.font("bold").fontSize(11).fillColor(COLORS.textMainDark)
+      .text(`${row.glyph || ""} ${row.label}  ${row.value}`);
+    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark)
+      .text(row.text || "（本文は準備中）", { lineGap: 3 });
+    doc.moveDown(0.4);
+  });
+  drawDivider(doc);
+}
+
+function renderFooterEcho(doc, text) {
+  ensureSpace(doc, 40);
+  doc.font("note").fontSize(11).fillColor(COLORS.textSub).text(text, { align: "right" });
+}
+
+function formatRowTitle(row) {
+  const g = row.glyph ? `${row.glyph} ` : "";
+  return `${g}${row.label}｜${row.value}`.trim();
+}
+
+function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality }) {
+  const bodies = rowsMain.map((row) => ({
+    key: row.key,
+    glyph: row.glyph,
+    label: row.label,
+    sign: row.meta?.sign_ja || "",
+    deg: row.meta?.deg ?? null,
+    min: row.meta?.min ?? null,
+    line: formatRowTitle(row),
+  }));
+
+  const angles = rowsAngles.map((row) => ({
+    key: row.key,
+    label: row.label,
+    sign: row.meta?.sign_ja || "",
+    deg: row.meta?.deg ?? null,
+    min: row.meta?.min ?? null,
+    line: formatRowTitle(row),
+  }));
+
+  const extras = rowsExtra.map((row) => ({
+    key: row.key,
+    glyph: row.glyph,
+    label: row.label,
+    sign: row.meta?.sign_ja || "",
+    deg: row.meta?.deg ?? null,
+    min: row.meta?.min ?? null,
+    line: formatRowTitle(row),
+  }));
+
+  return {
+    product: "blueprint_light_v1",
+    tone: "静か・誠実・やわらかいが曖昧すぎない",
+    rules: {
+      no_prediction: true,
+      no_advice: true,
+      no_commands: true,
+      no_fear: true,
+      no_fortune: true,
+    },
+    user: {
+      display_name: displayName || "あなた",
+    },
+    natal: {
+      bodies,
+      angles,
+      extras,
+      element_balance: { ...element },
+      modality_balance: { ...modality },
+    },
+  };
+}
+
+function mapAiContent(ai) {
+  const sections = Array.isArray(ai?.sections) ? ai.sections : [];
+  const pickSection = (id) => sections.find((s) => s?.id === id) || null;
+
+  const summary = pickSection("summary");
+  const summaryBlocks = Array.isArray(summary?.blocks) ? summary.blocks : [];
+  const summaryOut = {
+    element: summaryBlocks[0] ? { text: summaryBlocks[0].text || "" } : null,
+    modality: summaryBlocks[1] ? { text: summaryBlocks[1].text || "" } : null,
+  };
+
+  const bodies = pickSection("bodies");
+  const bodyItems = Array.isArray(bodies?.items) ? bodies.items : [];
+  const bodyTextByKey = new Map(bodyItems.map((i) => [i?.key, i?.text]));
+
+  const angles = pickSection("angles");
+  const angleItems = Array.isArray(angles?.items) ? angles.items : [];
+  const angleTextByKey = new Map(angleItems.map((i) => [i?.key, i?.text]));
+
+  const chiron = pickSection("chiron");
+  const lilith = pickSection("lilith");
+
+  const nodes = pickSection("nodes");
+  const nodeBlocks = Array.isArray(nodes?.blocks) ? nodes.blocks : [];
+  const nodeText = {
+    south: nodeBlocks.find((b) => String(b?.subheading || "").includes("☋"))?.text || nodeBlocks[0]?.text || "",
+    north: nodeBlocks.find((b) => String(b?.subheading || "").includes("☊"))?.text || nodeBlocks[1]?.text || "",
+  };
+
+  return {
+    summary: summaryOut,
+    bodyTextByKey,
+    angleTextByKey,
+    chironText: chiron?.text || "",
+    lilithText: lilith?.text || "",
+    nodeText,
+    footerEcho: ai?.footer?.echo || "",
+  };
+}
+
+async function renderPdfBuffer({
+  displayName,
+  birthText,
+  rowsMain,
+  rowsAngles,
+  rowsExtra,
+  narratives,
+  summary,
+  element,
+  modality,
+  footerEcho,
+}) {
+  const doc = new PDFDocument({ size: "A4", margin: 56, autoFirstPage: false });
+  registerFonts(doc);
 
   const chunks = [];
   doc.on("data", (d) => chunks.push(d));
 
-  doc.fontSize(20).text("魂の設計図（LIGHT）");
-  doc.fontSize(10).fillColor("#666").text("出生図の主要構造をまとめたPDF");
-  doc.moveDown(0.6);
+  renderCover({ doc, displayName });
+  doc.addPage({ margins: { top: 56, bottom: 56, left: 56, right: 56 } });
 
-  doc.fillColor("#111").fontSize(12).text(`${displayName || "あなた"}さん`);
-  if (birthText) doc.fontSize(10).text(birthText);
-  doc.fontSize(9).fillColor("#777").text(`生成: ${formatDateJst(new Date())}`);
-  doc.moveDown(0.8);
+  doc.fillColor(COLORS.textMainDark).font("title").fontSize(14).text("魂の設計図（LIGHT）");
+  doc.font("note").fontSize(9).fillColor(COLORS.textSub)
+    .text(`生成日 ${formatDateJst(new Date())}`);
+  if (birthText) {
+    doc.font("note").fontSize(9).fillColor(COLORS.textSub).text(birthText);
+  }
+  drawDivider(doc);
 
-  const drawSection = (title, rows) => {
-    doc.fillColor("#111").fontSize(12).text(title);
-    doc.moveDown(0.2);
+  renderBodyList({ doc, title: "① ネイタル一覧（構造データ）", rows: rowsMain });
+  renderSummary({ doc, element, modality, summary });
 
-    const xGlyph = doc.page.margins.left;
-    const xLabel = xGlyph + 20;
-    const xValue = xLabel + 80;
+  renderNarratives({ doc, title: "③ 各天体の構造記述", rows: narratives.main });
+  renderNarratives({ doc, title: "④ キロン", rows: narratives.chiron });
+  renderNarratives({ doc, title: "⑤ リリス", rows: narratives.lilith });
+  renderNarratives({ doc, title: "⑥ ノード", rows: narratives.nodes });
+  renderNarratives({ doc, title: "⑦ 軸", rows: narratives.axes });
 
-    doc.fontSize(10);
-    rows.forEach((row) => {
-      const y = doc.y;
-      const glyph = row.glyph || "";
-      doc.text(glyph, xGlyph, y, { lineBreak: false });
-      doc.text(row.label, xLabel, y, { lineBreak: false });
-      doc.text(row.value, xValue, y);
-    });
-    doc.moveDown(0.4);
-  };
-
-  drawSection("主要天体", rowsMain);
-  drawSection("角度", rowsAngles);
-  drawSection("補足天体", rowsExtra);
-
-  doc.fillColor("#111").fontSize(12).text("属性バランス");
-  doc.moveDown(0.2);
-  doc.fontSize(10);
-  doc.text(`火 ${element.fire}  地 ${element.earth}  風 ${element.air}  水 ${element.water}`);
-  doc.text(`活動 ${modality.cardinal}  不動 ${modality.fixed}  柔軟 ${modality.mutable}`);
+  renderFooterEcho(doc, footerEcho || "解釈は、あなたのもの。");
 
   doc.end();
   await new Promise((resolve, reject) => {
@@ -265,18 +515,22 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     if (!lineUserId) throw new Error("lineUserId is required");
     if (!bucketName || !bucket) throw new Error("bucket not configured");
 
+    const filePath = `blueprints/light/${lineUserId}/v1.pdf`;
+    const jsonPath = `blueprints/light/${lineUserId}/v1.json`;
+    const file = bucket.file(filePath);
+    const jsonFile = bucket.file(jsonPath);
+    const [pdfExists] = await file.exists();
+    const [jsonExists] = await jsonFile.exists();
+
+    if (pdfExists && jsonExists) {
+      console.log("[blueprint] generate skip (exists)", { file_path: filePath });
+      return { ok: true, filePath, skipped: true };
+    }
+
     const lineUser = await getLineUser(lineUserId);
     if (!lineUser) throw new Error("line user not found");
     const appUserId = lineUser.app_user_id || null;
     if (!appUserId) throw new Error("app_user_id missing");
-
-    const filePath = `blueprints/light/${lineUserId}/v1.pdf`;
-    const file = bucket.file(filePath);
-    const [exists] = await file.exists();
-    if (exists) {
-      console.log("[blueprint] generate skip (exists)", { file_path: filePath });
-      return { ok: true, filePath, skipped: true };
-    }
 
     const natalCache = await natalService.loadNatalFromcache(appUserId);
     if (!natalCache) throw new Error("natal_cache missing");
@@ -285,8 +539,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     if (!ok) throw new Error("natal_cache invalid");
 
     const rowsMain = [];
-    const rowsExtra = [];
     const rowsAngles = [];
+    const rowsExtra = [];
     const element = { fire: 0, earth: 0, air: 0, water: 0 };
     const modality = { cardinal: 0, fixed: 0, mutable: 0 };
 
@@ -298,6 +552,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
         glyph: BODY_GLYPH[key] || "",
         label: BODY_LABEL[key] || key,
         value: formatSignText(meta),
+        meta,
       });
       if (count) {
         if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
@@ -326,14 +581,78 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
     const birthText = buildBirthText(natalCache?.birth || {});
     const displayName = lineUser?.line_profile?.display_name || "あなた";
+
+    let aiData = null;
+    if (jsonExists) {
+      try {
+        const [buf] = await jsonFile.download();
+        aiData = JSON.parse(String(buf || ""));
+      } catch (e) {
+        throw new Error(`json_parse_failed: ${e?.message || String(e)}`);
+      }
+    } else {
+      const aiInput = buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality });
+      const aiRes = await generateBlueprintLightText({ env, input: aiInput });
+      if (!aiRes?.ok) {
+        throw new Error(`ai_failed:${aiRes?.reason || "unknown"}`);
+      }
+      aiData = aiRes.data;
+      await jsonFile.save(JSON.stringify(aiData, null, 2), {
+        contentType: "application/json",
+        resumable: false,
+      });
+    }
+
+    const mapped = aiData ? mapAiContent(aiData) : null;
+    const summary = mapped?.summary || null;
+
+    if (pdfExists) {
+      console.log("[blueprint] generate skip (exists)", { file_path: filePath });
+      return { ok: true, filePath, skipped: true };
+    }
+
+    const narratives = {
+      main: rowsMain.map((row) => ({
+        ...row,
+        text:
+          mapped?.bodyTextByKey?.get(row.key) ||
+          row.meta?.flavor ||
+          "構造の質感が静かに立ち上がる配置。",
+      })),
+      chiron: rowsExtra.filter((r) => r.key === "chiron").map((row) => ({
+        ...row,
+        text: mapped?.chironText || row.meta?.flavor || "傷と回復の入口に、構造的な輪郭が生まれやすい。",
+      })),
+      lilith: rowsExtra.filter((r) => r.key === "lilith").map((row) => ({
+        ...row,
+        text: mapped?.lilithText || row.meta?.flavor || "境界の深い層に、静かな緊張が触れやすい。",
+      })),
+      nodes: rowsExtra.filter((r) => r.key === "north_node" || r.key === "south_node").map((row) => ({
+        ...row,
+        text:
+          row.key === "south_node"
+            ? mapped?.nodeText?.south || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。"
+            : mapped?.nodeText?.north || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。",
+      })),
+      axes: rowsAngles.map((row) => ({
+        ...row,
+        text:
+          mapped?.angleTextByKey?.get(row.key) ||
+          row.meta?.flavor ||
+          "視点の入口として、構造の基準になる。",
+      })),
+    };
     const pdfBuffer = await renderPdfBuffer({
       displayName,
       birthText,
       rowsMain,
       rowsAngles,
       rowsExtra,
+      narratives,
+      summary,
       element,
       modality,
+      footerEcho: mapped?.footerEcho,
     });
 
     await file.save(pdfBuffer, {
