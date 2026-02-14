@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const PDFDocument = require("pdfkit");
 const { createNatalService } = require("./story_natal");
 
 const SIGN_KEYS = [
@@ -74,8 +76,26 @@ const BODY_GLYPH = {
 function norm360(x) {
   const n = Number(x);
   if (!Number.isFinite(n)) return null;
-  const v = ((n % 360) + 360) % 360;
-  return v;
+  return ((n % 360) + 360) % 360;
+}
+
+function pickFontPath() {
+  const candidates = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansJP-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.otf",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/Library/Fonts/Arial Unicode.ttf",
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (_) {
+      // ignore
+    }
+  }
+  return null;
 }
 
 function toSignMeta(dict, lon) {
@@ -103,94 +123,6 @@ function formatSignText(meta) {
   return `${meta.sign_ja} ${meta.deg}°${mm}’`;
 }
 
-function buildHtml({ title, subtitle, userLabel, birthText, rowsMain, rowsExtra, rowsAngles, element, modality, generatedAt }) {
-  const rowToTr = (row) => (
-    `<tr>
-      <td class="glyph">${row.glyph || ""}</td>
-      <td class="label">${row.label}</td>
-      <td class="value">${row.value}</td>
-    </tr>`
-  );
-
-  const blockTable = (rows) => (
-    rows.length
-      ? `<table class="tbl"><tbody>${rows.map(rowToTr).join("")}</tbody></table>`
-      : `<div class="empty">-</div>`
-  );
-
-  return `<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8"/>
-  <title>${title}</title>
-  <style>
-    @page { size: A4; margin: 20mm 18mm; }
-    body {
-      font-family: "Noto Serif JP", "Noto Sans JP", "Noto Sans Symbols2", "Noto Sans Symbols", "Segoe UI Symbol", serif;
-      color: #111;
-      line-height: 1.6;
-      font-size: 12.5px;
-      letter-spacing: 0.02em;
-    }
-    h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: 0.08em; }
-    h2 { font-size: 13px; margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #ddd; }
-    .subtitle { font-size: 11px; color: #666; margin-bottom: 10px; }
-    .meta { font-size: 11px; color: #555; margin-bottom: 8px; }
-    .divider { margin: 10px 0 12px; border-top: 1px solid #eee; }
-    .tbl { width: 100%; border-collapse: collapse; }
-    .tbl td { padding: 6px 4px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
-    .glyph { width: 18px; text-align: center; }
-    .label { width: 90px; }
-    .value { width: auto; }
-    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 10px; margin-right: 6px; }
-    .small { font-size: 11px; color: #666; }
-    .footer { margin-top: 18px; font-size: 10px; color: #777; }
-  </style>
-</head>
-<body>
-  <h1>${title}</h1>
-  <div class="subtitle">${subtitle || ""}</div>
-  <div class="meta">${userLabel || ""}</div>
-  ${birthText ? `<div class="meta">${birthText}</div>` : ""}
-  <div class="divider"></div>
-
-  <h2>主要天体</h2>
-  ${blockTable(rowsMain)}
-
-  <h2>角度</h2>
-  ${blockTable(rowsAngles)}
-
-  <h2>補足天体</h2>
-  ${blockTable(rowsExtra)}
-
-  <h2>属性バランス</h2>
-  <div class="small">
-    <span class="pill">火 ${element.fire}</span>
-    <span class="pill">地 ${element.earth}</span>
-    <span class="pill">風 ${element.air}</span>
-    <span class="pill">水 ${element.water}</span>
-  </div>
-  <div class="small" style="margin-top:6px;">
-    <span class="pill">活動 ${modality.cardinal}</span>
-    <span class="pill">不動 ${modality.fixed}</span>
-    <span class="pill">柔軟 ${modality.mutable}</span>
-  </div>
-
-  <div class="footer">生成: ${generatedAt}</div>
-</body>
-</html>`;
-}
-
-function formatDateJst(date = new Date()) {
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const y = jst.getUTCFullYear();
-  const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(jst.getUTCDate()).padStart(2, "0");
-  const hh = String(jst.getUTCHours()).padStart(2, "0");
-  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
-  return `${y}.${m}.${d} ${hh}:${mm} JST`;
-}
-
 function buildBirthText(birth) {
   if (!birth) return "";
   const date = birth.date_local ? String(birth.date_local) : "";
@@ -203,23 +135,74 @@ function buildBirthText(birth) {
   return parts.length ? `出生: ${parts.join(" / ")}` : "";
 }
 
-async function renderPdfBuffer(html) {
-  const puppeteer = require("puppeteer");
-  const browser = await puppeteer.launch({
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", right: "18mm", bottom: "20mm", left: "18mm" },
-    });
-    return pdf;
-  } finally {
-    await browser.close();
+function formatDateJst(date = new Date()) {
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const y = jst.getUTCFullYear();
+  const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(jst.getUTCDate()).padStart(2, "0");
+  const hh = String(jst.getUTCHours()).padStart(2, "0");
+  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
+  return `${y}.${m}.${d} ${hh}:${mm} JST`;
+}
+
+async function renderPdfBuffer({ displayName, birthText, rowsMain, rowsAngles, rowsExtra, element, modality }) {
+  const doc = new PDFDocument({ size: "A4", margin: 48 });
+  const fontPath = pickFontPath();
+  if (fontPath) {
+    try {
+      doc.font(fontPath);
+    } catch (_) {
+      // fallback to default
+    }
   }
+
+  const chunks = [];
+  doc.on("data", (d) => chunks.push(d));
+
+  doc.fontSize(20).text("魂の設計図（LIGHT）");
+  doc.fontSize(10).fillColor("#666").text("出生図の主要構造をまとめたPDF");
+  doc.moveDown(0.6);
+
+  doc.fillColor("#111").fontSize(12).text(`${displayName || "あなた"}さん`);
+  if (birthText) doc.fontSize(10).text(birthText);
+  doc.fontSize(9).fillColor("#777").text(`生成: ${formatDateJst(new Date())}`);
+  doc.moveDown(0.8);
+
+  const drawSection = (title, rows) => {
+    doc.fillColor("#111").fontSize(12).text(title);
+    doc.moveDown(0.2);
+
+    const xGlyph = doc.page.margins.left;
+    const xLabel = xGlyph + 20;
+    const xValue = xLabel + 80;
+
+    doc.fontSize(10);
+    rows.forEach((row) => {
+      const y = doc.y;
+      const glyph = row.glyph || "";
+      doc.text(glyph, xGlyph, y, { lineBreak: false });
+      doc.text(row.label, xLabel, y, { lineBreak: false });
+      doc.text(row.value, xValue, y);
+    });
+    doc.moveDown(0.4);
+  };
+
+  drawSection("主要天体", rowsMain);
+  drawSection("角度", rowsAngles);
+  drawSection("補足天体", rowsExtra);
+
+  doc.fillColor("#111").fontSize(12).text("属性バランス");
+  doc.moveDown(0.2);
+  doc.fontSize(10);
+  doc.text(`火 ${element.fire}  地 ${element.earth}  風 ${element.air}  水 ${element.water}`);
+  doc.text(`活動 ${modality.cardinal}  不動 ${modality.fixed}  柔軟 ${modality.mutable}`);
+
+  doc.end();
+  await new Promise((resolve, reject) => {
+    doc.on("end", resolve);
+    doc.on("error", reject);
+  });
+  return Buffer.concat(chunks);
 }
 
 function createBlueprintLightService({ db, admin, storage, env, dict }) {
@@ -227,11 +210,10 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   if (!admin) throw new Error("admin is required");
   if (!storage) throw new Error("storage is required");
 
-  const bucketName = env?.GCS_BUCKET_BLUEPRINTS;
-  if (!bucketName) throw new Error("GCS_BUCKET_BLUEPRINTS is not set");
-
+  const bucketName = env?.GCS_BUCKET_BLUEPRINTS || null;
   const urlExpireDays = Number(env?.BLUEPRINT_URL_EXPIRES_DAYS || 7);
-  const bucket = storage.bucket(bucketName);
+
+  const bucket = bucketName ? storage.bucket(bucketName) : null;
   const natalService = createNatalService({ db, norm360 });
 
   async function hasPurchase(lineUserId) {
@@ -244,22 +226,18 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     return purchased;
   }
 
-  async function getLineUserProfile(lineUserId) {
+  async function getLineUser(lineUserId) {
     if (!lineUserId) return null;
     const snap = await db.collection("line_users").doc(lineUserId).get();
-    if (!snap.exists) return null;
-    return snap.data() || null;
+    return snap.exists ? snap.data() || null : null;
   }
 
-  async function getOrCreateSignedUrl({ lineUserId, appUserId }) {
+  async function getOrCreateSignedUrl({ lineUserId }) {
     if (!lineUserId) return { ok: false, code: "missing_line_user" };
+    if (!bucketName || !bucket) return { ok: false, code: "config_missing" };
 
     const purchased = await hasPurchase(lineUserId);
     if (!purchased) return { ok: false, code: "not_purchased" };
-
-    const lineProfile = await getLineUserProfile(lineUserId);
-    const resolvedAppUserId = appUserId || lineProfile?.app_user_id || null;
-    if (!resolvedAppUserId) return { ok: false, code: "missing_app_user" };
 
     const filePath = `blueprints/light/${lineUserId}/v1.pdf`;
     const file = bucket.file(filePath);
@@ -270,77 +248,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       object_exists: !!exists,
     });
 
-    if (!exists) {
-      const cache = await natalService.loadNatalFromcache(resolvedAppUserId);
-      if (!cache) return { ok: false, code: "natal_not_ready" };
-
-      const { ok, longitudes } = natalService.extractNatalLongitudes(cache);
-      if (!ok) return { ok: false, code: "natal_not_ready" };
-
-      const rowsMain = [];
-      const rowsExtra = [];
-      const rowsAngles = [];
-
-      const element = { fire: 0, earth: 0, air: 0, water: 0 };
-      const modality = { cardinal: 0, fixed: 0, mutable: 0 };
-
-      const pushRow = (rows, key, lon, { count = false } = {}) => {
-        const meta = toSignMeta(dict, lon);
-        if (!meta) return;
-        rows.push({
-          key,
-          glyph: BODY_GLYPH[key] || "",
-          label: BODY_LABEL[key] || key,
-          value: formatSignText(meta),
-        });
-        if (count) {
-          if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
-          if (meta.modality && modality[meta.modality] !== undefined) modality[meta.modality] += 1;
-        }
-      };
-
-      BODY_ORDER_MAIN.forEach((k) => {
-        const lon = longitudes[k];
-        if (Number.isFinite(Number(lon))) pushRow(rowsMain, k, lon, { count: true });
-      });
-
-      // angles (ASC / MC / IC / DC)
-      const asc = longitudes.asc;
-      const mc = longitudes.mc;
-      const ic = Number.isFinite(Number(mc)) ? norm360(Number(mc) + 180) : null;
-      const dc = Number.isFinite(Number(asc)) ? norm360(Number(asc) + 180) : null;
-      if (Number.isFinite(Number(asc))) pushRow(rowsAngles, "asc", asc);
-      if (Number.isFinite(Number(mc))) pushRow(rowsAngles, "mc", mc);
-      if (Number.isFinite(Number(ic))) pushRow(rowsAngles, "ic", ic);
-      if (Number.isFinite(Number(dc))) pushRow(rowsAngles, "dc", dc);
-
-      BODY_ORDER_EXTRA.forEach((k) => {
-        const lon = longitudes[k];
-        if (Number.isFinite(Number(lon))) pushRow(rowsExtra, k, lon);
-      });
-
-      const name = lineProfile?.line_profile?.display_name || "あなた";
-      const birthText = buildBirthText(cache?.birth);
-      const html = buildHtml({
-        title: "魂の設計図（LIGHT）",
-        subtitle: "出生図の主要構造をまとめたPDF",
-        userLabel: `${name}さん`,
-        birthText,
-        rowsMain,
-        rowsExtra,
-        rowsAngles,
-        element,
-        modality,
-        generatedAt: formatDateJst(new Date()),
-      });
-
-      const pdf = await renderPdfBuffer(html);
-      await file.save(pdf, {
-        contentType: "application/pdf",
-        resumable: false,
-        metadata: { cacheControl: "private, max-age=0, no-transform" },
-      });
-    }
+    if (!exists) return { ok: false, code: "not_ready" };
 
     const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
     const [url] = await file.getSignedUrl({
@@ -353,9 +261,95 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     return { ok: true, url };
   }
 
+  async function generateAndStore({ lineUserId }) {
+    if (!lineUserId) throw new Error("lineUserId is required");
+    if (!bucketName || !bucket) throw new Error("bucket not configured");
+
+    const lineUser = await getLineUser(lineUserId);
+    if (!lineUser) throw new Error("line user not found");
+    const appUserId = lineUser.app_user_id || null;
+    if (!appUserId) throw new Error("app_user_id missing");
+
+    const filePath = `blueprints/light/${lineUserId}/v1.pdf`;
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    if (exists) {
+      console.log("[blueprint] generate skip (exists)", { file_path: filePath });
+      return { ok: true, filePath, skipped: true };
+    }
+
+    const natalCache = await natalService.loadNatalFromcache(appUserId);
+    if (!natalCache) throw new Error("natal_cache missing");
+
+    const { ok, longitudes } = natalService.extractNatalLongitudes(natalCache);
+    if (!ok) throw new Error("natal_cache invalid");
+
+    const rowsMain = [];
+    const rowsExtra = [];
+    const rowsAngles = [];
+    const element = { fire: 0, earth: 0, air: 0, water: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+
+    const pushRow = (rows, key, lon, { count = false } = {}) => {
+      const meta = toSignMeta(dict, lon);
+      if (!meta) return;
+      rows.push({
+        key,
+        glyph: BODY_GLYPH[key] || "",
+        label: BODY_LABEL[key] || key,
+        value: formatSignText(meta),
+      });
+      if (count) {
+        if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
+        if (meta.modality && modality[meta.modality] !== undefined) modality[meta.modality] += 1;
+      }
+    };
+
+    BODY_ORDER_MAIN.forEach((k) => {
+      const lon = longitudes[k];
+      if (Number.isFinite(Number(lon))) pushRow(rowsMain, k, lon, { count: true });
+    });
+
+    const asc = longitudes.asc;
+    const mc = longitudes.mc;
+    const ic = Number.isFinite(Number(mc)) ? norm360(Number(mc) + 180) : null;
+    const dc = Number.isFinite(Number(asc)) ? norm360(Number(asc) + 180) : null;
+    if (Number.isFinite(Number(asc))) pushRow(rowsAngles, "asc", asc);
+    if (Number.isFinite(Number(mc))) pushRow(rowsAngles, "mc", mc);
+    if (Number.isFinite(Number(ic))) pushRow(rowsAngles, "ic", ic);
+    if (Number.isFinite(Number(dc))) pushRow(rowsAngles, "dc", dc);
+
+    BODY_ORDER_EXTRA.forEach((k) => {
+      const lon = longitudes[k];
+      if (Number.isFinite(Number(lon))) pushRow(rowsExtra, k, lon);
+    });
+
+    const birthText = buildBirthText(natalCache?.birth || {});
+    const displayName = lineUser?.line_profile?.display_name || "あなた";
+    const pdfBuffer = await renderPdfBuffer({
+      displayName,
+      birthText,
+      rowsMain,
+      rowsAngles,
+      rowsExtra,
+      element,
+      modality,
+    });
+
+    await file.save(pdfBuffer, {
+      contentType: "application/pdf",
+      resumable: false,
+      metadata: { cacheControl: "private, max-age=0, no-transform" },
+    });
+
+    console.log("[blueprint] generate stored", { file_path: filePath });
+    return { ok: true, filePath, skipped: false };
+  }
+
   return {
     hasPurchase,
     getOrCreateSignedUrl,
+    generateAndStore,
   };
 }
 

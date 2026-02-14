@@ -3,11 +3,7 @@ FROM node:20-slim
 # swisseph(node-gyp) build deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ ca-certificates \
-    fonts-noto-cjk fonts-noto-color-emoji fonts-noto-mono \
-    libnss3 libatk-bridge2.0-0 libatk1.0-0 libdrm2 libxkbcommon0 libgbm1 \
-    libxcomposite1 libxdamage1 libxrandr2 libxss1 libasound2 \
-    libpangocairo-1.0-0 libgtk-3-0 libx11-xcb1 libxfixes3 libx11-6 \
-    libxcb1 libxext6 libxrender1 libxshmfence1 libglib2.0-0 \
+    fonts-noto-cjk \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app

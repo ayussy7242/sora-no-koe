@@ -56,6 +56,23 @@ function createLineApi({ accessToken, maxText = 4800 } = {}) {
     });
   }
 
+  async function pushMessages(to, messages, { toSafeText } = {}) {
+    if (!to) return;
+    const arr = Array.isArray(messages) ? messages : [messages];
+    const normalized = arr.map((m) => {
+      if (!m || typeof m !== "object") return m;
+      if (m.type === "text" && toSafeText) {
+        return { ...m, text: toSafeText(m.text, maxText) };
+      }
+      return m;
+    });
+
+    await lineApi("/v2/bot/message/push", {
+      method: "POST",
+      body: { to, messages: normalized },
+    });
+  }
+
   async function getProfile(lineUserId) {
     if (!lineUserId) return null;
     const r = await fetch(`https://api.line.me/v2/bot/profile/${encodeURIComponent(lineUserId)}`, {
@@ -65,7 +82,7 @@ function createLineApi({ accessToken, maxText = 4800 } = {}) {
     return await r.json();
   }
 
-  return { lineApi, replyText, replyMessages, getProfile };
+  return { lineApi, replyText, replyMessages, pushMessages, getProfile };
 }
 
 module.exports = { createLineApi };

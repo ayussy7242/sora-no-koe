@@ -205,6 +205,16 @@ const PUBLIC_BASE_URL = getEnv("PUBLIC_BASE_URL", { defaultValue: null });
 const GCS_BUCKET_BLUEPRINTS = getEnv("GCS_BUCKET_BLUEPRINTS", { defaultValue: null });
 const BLUEPRINT_URL_EXPIRES_DAYS = numEnv("BLUEPRINT_URL_EXPIRES_DAYS", 7);
 
+// --------------------
+// Cloud Tasks (Blueprint)
+// --------------------
+const CLOUD_TASKS_PROJECT = getEnv("CLOUD_TASKS_PROJECT", { defaultValue: null });
+const CLOUD_TASKS_LOCATION = getEnv("CLOUD_TASKS_LOCATION", { defaultValue: null });
+const CLOUD_TASKS_QUEUE = getEnv("CLOUD_TASKS_QUEUE", { defaultValue: "blueprint-generate" });
+const BLUEPRINT_GENERATE_URL = getEnv("BLUEPRINT_GENERATE_URL", { defaultValue: null });
+const TASKS_CALLER_SA_EMAIL = getEnv("TASKS_CALLER_SA_EMAIL", { defaultValue: null });
+const INTERNAL_TASKS_TOKEN = getEnv("INTERNAL_TASKS_TOKEN", { defaultValue: null });
+
 
 // --------------------
 // export
@@ -303,5 +313,13 @@ module.exports = {
   // Public URL / GCS
   PUBLIC_BASE_URL,
   GCS_BUCKET_BLUEPRINTS,
-  BLUEPRINT_URL_EXPIRES_DAYS
+  BLUEPRINT_URL_EXPIRES_DAYS,
+
+  // Cloud Tasks (Blueprint)
+  CLOUD_TASKS_PROJECT,
+  CLOUD_TASKS_LOCATION,
+  CLOUD_TASKS_QUEUE,
+  BLUEPRINT_GENERATE_URL,
+  TASKS_CALLER_SA_EMAIL,
+  INTERNAL_TASKS_TOKEN
 };
