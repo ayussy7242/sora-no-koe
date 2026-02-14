@@ -100,20 +100,21 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
-const BODY_TEXT_MIN_CHARS = 180;
+const BODY_TEXT_MIN_CHARS = 220;
 const BODY_TEXT_FILLERS = [
-  "この配置は、説明より先に気配として届きやすい。",
-  "輪郭は静かに保たれ、言葉より質感が先に立つ。",
+  "輪郭は静かに保たれ、質感が先に立つ。",
+  "語られる前に、構造として置かれる。",
 ];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
 ];
-const LINE_GAP_BODY = 4.6;
-const LINE_GAP_SUMMARY = 4.2;
-const SECTION_GAP = 1.2;
-const PAGE_PAD_X = 44;
-const PAGE_PAD_Y = 48;
+const LINE_GAP_BODY = 6;
+const LINE_GAP_SUMMARY = 5;
+const SECTION_GAP = 12;
+const PAGE_PAD_X = 40;
+const PAGE_PAD_TOP = 36;
+const PAGE_PAD_BOTTOM = 44;
 const SAFE_FOOTER = 80;
 
 const COLORS = Object.freeze({
@@ -318,18 +319,18 @@ function contentWidth(doc) {
 }
 
 function ensurePageSpace(doc, layout, minHeight = 0) {
-  const bottom = doc.page.height - PAGE_PAD_Y - SAFE_FOOTER;
+  const bottom = doc.page.height - PAGE_PAD_BOTTOM - SAFE_FOOTER;
   if (layout.y + minHeight > bottom) {
     doc.addPage({
       margins: {
-        top: PAGE_PAD_Y,
-        bottom: PAGE_PAD_Y,
+        top: PAGE_PAD_TOP,
+        bottom: PAGE_PAD_BOTTOM,
         left: PAGE_PAD_X,
         right: PAGE_PAD_X,
       },
     });
     layout.x = PAGE_PAD_X;
-    layout.y = PAGE_PAD_Y;
+    layout.y = PAGE_PAD_TOP;
   }
 }
 
@@ -345,7 +346,7 @@ function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, co
   layout.y = doc.y + (marginAfter ?? SECTION_GAP);
 }
 
-function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 12, gap = 6 }) {
+function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 }) {
   if (!glyph) {
     drawTextBlock(doc, layout, rest, { font: "bold", size: fontSize, marginAfter: 0 });
     return;
@@ -362,7 +363,7 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 12, gap = 6 })
   layout.y = doc.y;
 }
 
-function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 11, gap = 6 }) {
+function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 14, gap = 6 }) {
   if (!glyph) {
     drawTextBlock(doc, layout, rest, { font, size: fontSize, marginAfter: 0 });
     return;
@@ -402,6 +403,14 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 11, lineGap = L
 function ensureBodyText(text) {
   let out = String(text || "").trim();
   let i = 0;
+  if (out && !out.includes("\n\n")) {
+    const idx = out.indexOf("。");
+    if (idx >= 0 && idx < out.length - 1) {
+      out = `${out.slice(0, idx + 1)}\n\n${out.slice(idx + 1).trim()}`;
+    } else {
+      out = `${out}\n\n`;
+    }
+  }
   while (out.length < BODY_TEXT_MIN_CHARS && i < BODY_TEXT_FILLERS.length) {
     out = `${out}${out ? "\n" : ""}${BODY_TEXT_FILLERS[i]}`;
     i += 1;
@@ -429,18 +438,18 @@ function ensureSpace(doc, neededHeight = 40) {
 }
 
 function drawSectionTitle(doc, layout, title) {
-  ensurePageSpace(doc, layout, 40);
+  ensurePageSpace(doc, layout, 46);
   const x = layout.x;
   const w = contentWidth(doc);
-  const h = 26;
+  const h = 30;
   const y = layout.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
-  doc.fillColor(COLORS.textMainLight).font("title").fontSize(14).text(title, x + 8, y + 6, { lineBreak: false });
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(18).text(title, x + 10, y + 6, { lineBreak: false });
   doc.restore();
 
-  layout.y = y + h + SECTION_GAP;
+  layout.y = y + h + 10;
 }
 
 function drawDivider(doc, layout) {
@@ -497,7 +506,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
   drawSectionTitle(doc, layout, "② 全体構造サマリー");
   drawTextBlock(doc, layout, "属性 / 三区分の分布は以下の通りです。", {
     font: "body",
-    size: 11,
+    size: 13.5,
     lineGap: LINE_GAP_SUMMARY,
     marginAfter: 6,
   });
@@ -507,12 +516,12 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "✷", label: "地", value: element.earth },
     { symbol: "✹", label: "風", value: element.air },
     { symbol: "✦", label: "水", value: element.water },
-  ], { fontSize: 11, lineGap: LINE_GAP_SUMMARY });
+  ], { fontSize: 14, lineGap: LINE_GAP_SUMMARY });
 
   if (summary?.element?.text) {
     drawTextBlock(doc, layout, ensureSummaryText(summary.element.text), {
       font: "body",
-      size: 11,
+      size: 13.5,
       lineGap: LINE_GAP_SUMMARY,
       marginAfter: 6,
     });
@@ -522,12 +531,12 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "☍", label: "活動", value: modality.cardinal },
     { symbol: "☌", label: "不動", value: modality.fixed },
     { symbol: "△", label: "柔軟", value: modality.mutable },
-  ], { fontSize: 11, lineGap: LINE_GAP_SUMMARY });
+  ], { fontSize: 14, lineGap: LINE_GAP_SUMMARY });
 
   if (summary?.modality?.text) {
     drawTextBlock(doc, layout, ensureSummaryText(summary.modality.text), {
       font: "body",
-      size: 11,
+      size: 13.5,
       lineGap: LINE_GAP_SUMMARY,
       marginAfter: SECTION_GAP,
     });
@@ -561,7 +570,7 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
   if (universalFont) {
     const glyphText = glyphLines.join("\n");
     const restText = textLines.join("\n");
-    const fontSize = 11;
+    const fontSize = 14;
     const gap = 8;
     const glyphWidth = doc.font(universalFont).fontSize(fontSize).widthOfString("☉");
     const colW = Math.max(glyphWidth, 12) + gap;
@@ -604,13 +613,13 @@ function renderNarratives({ doc, layout, rows, title }) {
     drawSymbolHeading(doc, layout, {
       glyph: headingParts?.glyph,
       rest: headingRest,
-      fontSize: 12,
+      fontSize: 16,
       gap: 6,
     });
-    layout.y += 4;
+    layout.y += 10;
     drawTextBlock(doc, layout, ensureBodyText(row.text) || "（本文は準備中）", {
       font: "body",
-      size: 11,
+      size: 14,
       lineGap: LINE_GAP_BODY,
       marginAfter: SECTION_GAP,
     });
@@ -825,7 +834,9 @@ async function renderPdfBuffer({
     return symbolFonts[0]?.name || null;
   };
   doc._symbolUniversalFontName =
-    symbolFonts.find((entry) => entry.font && ASTRO_GLYPHS.every((g) => hasGlyph(entry.font, g)))?.name || null;
+    symbolFonts.find((entry) => entry.name === "symbolsTertiary" && entry.font)?.name ||
+    symbolFonts.find((entry) => entry.font && ASTRO_GLYPHS.every((g) => hasGlyph(entry.font, g)))?.name ||
+    null;
   const missingSymbols = ASTRO_GLYPHS.filter((g) => !doc._symbolFontPicker(g));
   if (missingSymbols.length) {
     console.log("[pdf] symbols missing glyphs", missingSymbols.join(""));
@@ -837,8 +848,8 @@ async function renderPdfBuffer({
   doc.on("data", (d) => chunks.push(d));
 
   renderCover({ doc, displayName });
-  doc.addPage({ margins: { top: PAGE_PAD_Y, bottom: PAGE_PAD_Y, left: PAGE_PAD_X, right: PAGE_PAD_X } });
-  const layout = { x: PAGE_PAD_X, y: PAGE_PAD_Y };
+  doc.addPage({ margins: { top: PAGE_PAD_TOP, bottom: PAGE_PAD_BOTTOM, left: PAGE_PAD_X, right: PAGE_PAD_X } });
+  const layout = { x: PAGE_PAD_X, y: PAGE_PAD_TOP };
 
   const debugSymbols = String(process.env.BLUEPRINT_DEBUG_SYMBOLS || "") === "1";
   if (debugSymbols) {
@@ -870,7 +881,7 @@ async function renderPdfBuffer({
 
   drawTextBlock(doc, layout, "魂の設計図（LIGHT）", {
     font: "title",
-    size: 16,
+    size: 18,
     lineGap: LINE_GAP_BODY,
     marginAfter: 6,
   });
