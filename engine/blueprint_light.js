@@ -91,6 +91,13 @@ const ASTRO_GLYPHS = [
   "⚸",
   "☊",
   "☋",
+  "✶",
+  "✷",
+  "✹",
+  "✦",
+  "☍",
+  "☌",
+  "△",
 ];
 
 const COLORS = Object.freeze({
@@ -118,6 +125,12 @@ const SYMBOLS_FONT_SECONDARY_PATH = path.resolve(
   "fonts",
   "NotoSansSymbols2-Regular.ttf"
 );
+const SYMBOLS_FONT_TERTIARY_PATH = path.resolve(
+  process.cwd(),
+  "assets",
+  "fonts",
+  "Symbola_hint.ttf"
+);
 
 const FONT_FILES = Object.freeze({
   title: path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"),
@@ -127,6 +140,7 @@ const FONT_FILES = Object.freeze({
   noteBold: path.join(FONT_DIR, "KleeOne-SemiBold.ttf"),
   symbolsPrimary: SYMBOLS_FONT_PRIMARY_PATH,
   symbolsSecondary: SYMBOLS_FONT_SECONDARY_PATH,
+  symbolsTertiary: SYMBOLS_FONT_TERTIARY_PATH,
 });
 
 function norm360(x) {
@@ -248,6 +262,15 @@ function applyFont(doc, name, fallback) {
   }
 }
 
+function pickSymbolFontName(doc, glyph) {
+  const picker = doc._symbolFontPicker;
+  const picked = typeof picker === "function" ? picker(glyph) : doc._symbolFontName;
+  if (!picked) {
+    throw new Error(`symbol glyph missing: ${glyph}`);
+  }
+  return picked;
+}
+
 function loadFontKitFont(fontPath) {
   try {
     return fontkit.openSync(fontPath);
@@ -266,11 +289,7 @@ function hasGlyph(font, glyph) {
 
 function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", options = {} }) {
   if (glyph) {
-    const picker = doc._symbolFontPicker;
-    const picked = typeof picker === "function" ? picker(glyph) : doc._symbolFontName;
-    if (!picked) {
-      throw new Error(`symbol glyph missing: ${glyph}`);
-    }
+    const picked = pickSymbolFontName(doc, glyph);
     applyFont(doc, picked, textFont);
     doc.text(glyph, { continued: true, lineBreak: false });
     applyFont(doc, textFont);
@@ -279,6 +298,20 @@ function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", optio
   }
   applyFont(doc, textFont);
   doc.text(rest, options);
+}
+
+function drawInlineSymbolCounts(doc, items, { textFont = "body" } = {}) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  items.forEach((item, idx) => {
+    const symbolFont = pickSymbolFontName(doc, item.symbol);
+    applyFont(doc, symbolFont, textFont);
+    doc.text(item.symbol, { continued: true, lineBreak: false });
+    applyFont(doc, textFont);
+    doc.text(` ${item.label} ${item.value}`, { continued: idx < items.length - 1, lineBreak: false });
+    if (idx < items.length - 1) {
+      doc.text(" / ", { continued: true, lineBreak: false });
+    }
+  });
 }
 
 function ensureSpace(doc, neededHeight = 40) {
@@ -361,12 +394,22 @@ function renderSummary({ doc, element, modality, summary }) {
   doc.moveDown(0.4);
 
   doc.font("bold");
-  doc.text(`🔥 火 ${element.fire} / 🪨 地 ${element.earth} / 💨 風 ${element.air} / 💧 水 ${element.water}`);
+  drawInlineSymbolCounts(doc, [
+    { symbol: "✶", label: "火", value: element.fire },
+    { symbol: "✷", label: "地", value: element.earth },
+    { symbol: "✹", label: "風", value: element.air },
+    { symbol: "✦", label: "水", value: element.water },
+  ], { textFont: "bold" });
   if (summary?.element?.text) {
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 3 });
   }
   doc.moveDown(0.2);
-  doc.text(`🏃 活動 ${modality.cardinal} / 🧱 不動 ${modality.fixed} / 🌿 柔軟 ${modality.mutable}`);
+  doc.font("bold");
+  drawInlineSymbolCounts(doc, [
+    { symbol: "☍", label: "活動", value: modality.cardinal },
+    { symbol: "☌", label: "不動", value: modality.fixed },
+    { symbol: "△", label: "柔軟", value: modality.mutable },
+  ], { textFont: "bold" });
   if (summary?.modality?.text) {
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 3 });
   }
@@ -599,7 +642,10 @@ function mapAiContent(ai) {
   console.log("[pdf] symbols font secondary path", SYMBOLS_FONT_SECONDARY_PATH);
   const symbolsSecondaryExists = safeExists(SYMBOLS_FONT_SECONDARY_PATH);
   console.log("[pdf] symbols font secondary exists", symbolsSecondaryExists);
-  if (!symbolsPrimaryExists && !symbolsSecondaryExists) {
+  console.log("[pdf] symbols font tertiary path", SYMBOLS_FONT_TERTIARY_PATH);
+  const symbolsTertiaryExists = safeExists(SYMBOLS_FONT_TERTIARY_PATH);
+  console.log("[pdf] symbols font tertiary exists", symbolsTertiaryExists);
+  if (!symbolsPrimaryExists && !symbolsSecondaryExists && !symbolsTertiaryExists) {
     throw new Error(`symbols font missing: ${SYMBOLS_FONT_PRIMARY_PATH}`);
   }
   const symbolFonts = [];
@@ -610,6 +656,10 @@ function mapAiContent(ai) {
   if (symbolsSecondaryExists) {
     const font = loadFontKitFont(SYMBOLS_FONT_SECONDARY_PATH);
     symbolFonts.push({ name: "symbolsSecondary", font });
+  }
+  if (symbolsTertiaryExists) {
+    const font = loadFontKitFont(SYMBOLS_FONT_TERTIARY_PATH);
+    symbolFonts.push({ name: "symbolsTertiary", font });
   }
   doc._symbolFontPicker = (glyph) => {
     for (const entry of symbolFonts) {
@@ -635,11 +685,15 @@ function mapAiContent(ai) {
     doc.fillColor(COLORS.textMainDark);
     if (symbolsPrimaryExists) {
       applyFont(doc, "symbolsPrimary", "body");
-      doc.fontSize(18).text("primary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+      doc.fontSize(18).text("primary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
     }
     if (symbolsSecondaryExists) {
       applyFont(doc, "symbolsSecondary", "body");
-      doc.fontSize(18).text("secondary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋");
+      doc.fontSize(18).text("secondary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
+    }
+    if (symbolsTertiaryExists) {
+      applyFont(doc, "symbolsTertiary", "body");
+      doc.fontSize(18).text("tertiary: ☉ ☽ ☿ ♀ ♂ ♃ ♄ ♅ ♆ ♇ ⚷ ⚸ ☊ ☋ ✶ ✷ ✹ ✦ ☍ ☌ △");
     }
     doc.moveDown(0.6);
   }
