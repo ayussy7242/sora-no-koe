@@ -7,7 +7,7 @@ const { LINE_COPY } = require("../copy");
 const PAID_SORA_MODES = new Set(env.PAID_SORA_MODES || []);
 const PAID_INTENTS = new Set(env.PAID_INTENTS || []);
 
-function isPaidAllowed({ appUserId, lineUserId }) {
+async function isPaidAllowed({ appUserId, lineUserId, modules }) {
   if (!env.PAID_MODE_ENABLED) return true;
 
   if (env.PAID_ALLOW_OWNER) {
@@ -17,6 +17,11 @@ function isPaidAllowed({ appUserId, lineUserId }) {
 
   if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
   if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
+
+  if (lineUserId && modules?.user?.getLineUserDeepMode) {
+    const deep = await modules.user.getLineUserDeepMode(lineUserId);
+    if (deep === true) return true;
+  }
 
   return false;
 }
@@ -33,7 +38,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   const soraMode = intent.soraModeFromCommand(rawText || cmd);
   if (soraMode) {
     if (env.PAID_MODE_ENABLED && PAID_SORA_MODES.has(soraMode)) {
-      if (!isPaidAllowed({ appUserId, lineUserId })) {
+      if (!(await isPaidAllowed({ appUserId, lineUserId, modules }))) {
         return { text: paidOnlyMessage(soraMode), stage: "paid_only", mode: soraMode };
       }
     }
@@ -101,7 +106,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
 
   if (intentKey === intent.INTENT.ANSHIN) {
     if (env.PAID_MODE_ENABLED && PAID_INTENTS.has(intentKey)) {
-      if (!isPaidAllowed({ appUserId, lineUserId })) {
+      if (!(await isPaidAllowed({ appUserId, lineUserId, modules }))) {
         return { text: paidOnlyMessage(intentKey), stage: "paid_only", mode: intentKey };
       }
     }

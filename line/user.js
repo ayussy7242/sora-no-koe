@@ -94,6 +94,10 @@ function createLineUser({ db, admin, config = {} }) {
 
           state: existing?.state ?? FLOW_STATE.PENDING_BIRTH_DATE,
           is_active: existing?.is_active ?? true,
+          membership: {
+            deep_mode: existing?.membership?.deep_mode ?? false,
+            updated_at: existing?.membership?.updated_at ?? now,
+          },
 
           created_at: existing?.created_at ?? now,
           updated_at: now,
@@ -174,6 +178,14 @@ function createLineUser({ db, admin, config = {} }) {
     return typeof d.is_active === "boolean" ? d.is_active : null;
   }
 
+  async function getLineUserDeepMode(lineUserId) {
+    if (!lineUserId) return null;
+    const snap = await db.collection("line_users").doc(lineUserId).get();
+    if (!snap.exists) return null;
+    const d = snap.data() || {};
+    return typeof d?.membership?.deep_mode === "boolean" ? d.membership.deep_mode : null;
+  }
+
   async function getLineUserState(lineUserId) {
     if (!lineUserId) return null;
     const snap = await db.collection("line_users").doc(lineUserId).get();
@@ -217,6 +229,7 @@ function createLineUser({ db, admin, config = {} }) {
     syncUserDisplayName,
     markInactiveLineUser,
     getLineUserActive,
+    getLineUserDeepMode,
     getLineUserState,
     setLineUserState,
     reactivateLineUser,
