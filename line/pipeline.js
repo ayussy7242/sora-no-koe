@@ -40,7 +40,7 @@ function pickUrl(envObj, key, fallback) {
   return v && String(v).trim() ? String(v).trim() : fallback;
 }
 
-async function createCheckoutUrlForLight({ token }) {
+async function createCheckoutUrlForLight({ token, lineUserId }) {
   const priceId = env.STRIPE_PRICE_ID_LIGHT || null;
   const paymentLink = env.STRIPE_PAYMENT_LINK_LIGHT || null;
 
@@ -71,7 +71,11 @@ async function createCheckoutUrlForLight({ token }) {
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
-    metadata: { product: "blueprint_light" },
+    metadata: {
+      product: "blueprint_light",
+      token,
+      line_user_id: lineUserId || "",
+    },
   });
 
   return { ok: true, url: session.url, mode: "checkout_session" };
@@ -206,7 +210,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
 
     let checkout = null;
     try {
-      checkout = await createCheckoutUrlForLight({ token });
+      checkout = await createCheckoutUrlForLight({ token, lineUserId });
     } catch (e) {
       console.log("[purchase] checkout error", { message: e?.message || String(e) });
       checkout = null;
