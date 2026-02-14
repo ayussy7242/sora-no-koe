@@ -2550,7 +2550,8 @@ function _isMajorAspectType(raw) {
         k === "sextile" ||
         k === "square" ||
         k === "trine" ||
-        k === "opposition"
+        k === "opposition" ||
+        k === "quincunx_150"
     );
 }
 
@@ -2962,7 +2963,7 @@ async function renderSoraLine(story, deps = {}) {
 
     const headerLine = `🌌 今日のソラ｜そら｜${dateLabel}`;
     const listTitleAll = "【今日のソラの配置｜一覧】";
-    const listTitleAspect = "【今日の共鳴（アスペクト 上位3件｜major only｜orb≤6°）】";
+    const listTitleAspect = "【今日の共鳴（主要角度｜orb≤6°）】";
 
     const pub = story?.public || {};
     const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
