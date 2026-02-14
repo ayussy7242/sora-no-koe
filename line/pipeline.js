@@ -276,11 +276,24 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       return { text: msg || "設計図の準備中だよ。", stage: "blueprint_light" };
     }
 
-    const text =
-      typeof LINE_COPY.BLUEPRINT_URL === "function"
-        ? LINE_COPY.BLUEPRINT_URL(result.url)
-        : `設計図はこちら\n${result.url}`;
-    return { text, stage: "blueprint_light" };
+    const signedUrl = result.url;
+    const templateMessage = {
+      type: "template",
+      altText: "魂の設計図（LIGHT）はこちら",
+      template: {
+        type: "buttons",
+        title: "魂の設計図（LIGHT）",
+        text: "あなた専用の設計図です🌌",
+        actions: [
+          {
+            type: "uri",
+            label: "設計図を開く",
+            uri: signedUrl,
+          },
+        ],
+      },
+    };
+    return { message: templateMessage, stage: "blueprint_light" };
   }
 
   return { text: story.renderFallback() || "コマンドがわからなかった🌌", stage: "fallback" };
