@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
+const fontkit = require("fontkit");
 const { createNatalService } = require("./story_natal");
 const { generateBlueprintLightText } = require("./blueprint_light_generate_text");
 
@@ -74,6 +75,23 @@ const BODY_GLYPH = {
   north_node: "☊",
   south_node: "☋",
 };
+
+const ASTRO_GLYPHS = [
+  "☉",
+  "☽",
+  "☿",
+  "♀",
+  "♂",
+  "♃",
+  "♄",
+  "♅",
+  "♆",
+  "♇",
+  "⚷",
+  "⚸",
+  "☊",
+  "☋",
+];
 
 const COLORS = Object.freeze({
   coverBg: "#14162B",
@@ -230,10 +248,30 @@ function applyFont(doc, name, fallback) {
   }
 }
 
+function loadFontKitFont(fontPath) {
+  try {
+    return fontkit.openSync(fontPath);
+  } catch (_) {
+    return null;
+  }
+}
+
+function hasGlyph(font, glyph) {
+  if (!font || !glyph) return false;
+  const codePoint = glyph.codePointAt(0);
+  if (!codePoint) return false;
+  if (typeof font.hasGlyphForCodePoint !== "function") return false;
+  return font.hasGlyphForCodePoint(codePoint);
+}
+
 function drawGlyphAndText(doc, { glyph, rest, gap = "", textFont = "body", options = {} }) {
   if (glyph) {
-    const symbolFont = doc._symbolFontName || "symbolsPrimary";
-    applyFont(doc, symbolFont, textFont);
+    const picker = doc._symbolFontPicker;
+    const picked = typeof picker === "function" ? picker(glyph) : doc._symbolFontName;
+    if (!picked) {
+      throw new Error(`symbol glyph missing: ${glyph}`);
+    }
+    applyFont(doc, picked, textFont);
     doc.text(glyph, { continued: true, lineBreak: false });
     applyFont(doc, textFont);
     doc.text(`${gap}${rest}`, options);
@@ -564,7 +602,26 @@ function mapAiContent(ai) {
   if (!symbolsPrimaryExists && !symbolsSecondaryExists) {
     throw new Error(`symbols font missing: ${SYMBOLS_FONT_PRIMARY_PATH}`);
   }
-  doc._symbolFontName = symbolsPrimaryExists ? "symbolsPrimary" : "symbolsSecondary";
+  const symbolFonts = [];
+  if (symbolsPrimaryExists) {
+    const font = loadFontKitFont(SYMBOLS_FONT_PRIMARY_PATH);
+    symbolFonts.push({ name: "symbolsPrimary", font });
+  }
+  if (symbolsSecondaryExists) {
+    const font = loadFontKitFont(SYMBOLS_FONT_SECONDARY_PATH);
+    symbolFonts.push({ name: "symbolsSecondary", font });
+  }
+  doc._symbolFontPicker = (glyph) => {
+    for (const entry of symbolFonts) {
+      if (hasGlyph(entry.font, glyph)) return entry.name;
+    }
+    return symbolFonts[0]?.name || null;
+  };
+  const missingSymbols = ASTRO_GLYPHS.filter((g) => !doc._symbolFontPicker(g));
+  if (missingSymbols.length) {
+    console.log("[pdf] symbols missing glyphs", missingSymbols.join(""));
+    throw new Error(`symbols glyph missing: ${missingSymbols.join("")}`);
+  }
   registerFonts(doc);
 
   const chunks = [];
