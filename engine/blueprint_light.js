@@ -100,6 +100,12 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
+const BODY_TEXT_MIN_CHARS = 180;
+const BODY_TEXT_FILLERS = [
+  "この配置は、説明より先に気配として届きやすい。",
+  "輪郭は静かに保たれ、言葉より質感が先に立つ。",
+];
+
 const COLORS = Object.freeze({
   coverBg: "#14162B",
   subBg: "#1C1F3A",
@@ -314,6 +320,16 @@ function drawInlineSymbolCounts(doc, items, { textFont = "body" } = {}) {
   });
 }
 
+function ensureBodyText(text) {
+  let out = String(text || "").trim();
+  let i = 0;
+  while (out.length < BODY_TEXT_MIN_CHARS && i < BODY_TEXT_FILLERS.length) {
+    out = `${out}${out ? "\n" : ""}${BODY_TEXT_FILLERS[i]}`;
+    i += 1;
+  }
+  return out;
+}
+
 function ensureSpace(doc, neededHeight = 40) {
   const bottom = doc.page.height - doc.page.margins.bottom;
   if (doc.y + neededHeight > bottom) {
@@ -327,15 +343,15 @@ function drawSectionTitle(doc, title) {
   ensureSpace(doc, 40);
   const x = doc.page.margins.left;
   const w = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const h = 22;
+  const h = 26;
   const y = doc.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
-  doc.fillColor(COLORS.textMainLight).font("title").fontSize(12).text(title, x + 8, y + 5, { lineBreak: false });
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(14).text(title, x + 8, y + 6, { lineBreak: false });
   doc.restore();
 
-  doc.moveDown(1.4);
+  doc.moveDown(1.6);
 }
 
 function drawDivider(doc) {
@@ -345,7 +361,7 @@ function drawDivider(doc) {
   doc.strokeColor(COLORS.border).strokeOpacity(0.25).lineWidth(1);
   doc.moveTo(x, doc.y).lineTo(x + w, doc.y).stroke();
   doc.restore();
-  doc.moveDown(0.6);
+  doc.moveDown(0.9);
 }
 
 function renderCover({ doc, displayName }) {
@@ -390,7 +406,7 @@ function renderCover({ doc, displayName }) {
 function renderSummary({ doc, element, modality, summary }) {
   drawSectionTitle(doc, "② 全体構造サマリー");
   doc.fillColor(COLORS.textMainDark).font("body").fontSize(11);
-  doc.text("属性 / 三区分の分布は以下の通りです。", { lineGap: 4 });
+  doc.text("属性 / 三区分の分布は以下の通りです。", { lineGap: 5 });
   doc.moveDown(0.4);
 
   doc.font("bold");
@@ -401,7 +417,7 @@ function renderSummary({ doc, element, modality, summary }) {
     { symbol: "✦", label: "水", value: element.water },
   ], { textFont: "bold" });
   if (summary?.element?.text) {
-    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 3 });
+    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 4.2 });
   }
   doc.moveDown(0.2);
   doc.font("bold");
@@ -411,7 +427,7 @@ function renderSummary({ doc, element, modality, summary }) {
     { symbol: "△", label: "柔軟", value: modality.mutable },
   ], { textFont: "bold" });
   if (summary?.modality?.text) {
-    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 3 });
+    doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 4.2 });
   }
   doc.font("body");
   drawDivider(doc);
@@ -459,7 +475,7 @@ function renderNarratives({ doc, rows, title }) {
       headingParts?.rest ||
       row.title ||
       `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
-    doc.font("bold").fontSize(11).fillColor(COLORS.textMainDark);
+    doc.font("bold").fontSize(12).fillColor(COLORS.textMainDark);
     drawGlyphAndText(doc, {
       glyph: headingParts?.glyph,
       rest: headingRest,
@@ -467,7 +483,7 @@ function renderNarratives({ doc, rows, title }) {
       textFont: "bold",
     });
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark)
-      .text(row.text || "（本文は準備中）", { lineGap: 3 });
+      .text(ensureBodyText(row.text) || "（本文は準備中）", { lineGap: 4.2 });
     doc.moveDown(0.4);
   });
   drawDivider(doc);
@@ -698,7 +714,7 @@ function mapAiContent(ai) {
     doc.moveDown(0.6);
   }
 
-  doc.fillColor(COLORS.textMainDark).font("title").fontSize(14).text("魂の設計図（LIGHT）");
+  doc.fillColor(COLORS.textMainDark).font("title").fontSize(16).text("魂の設計図（LIGHT）");
   doc.font("note").fontSize(9).fillColor(COLORS.textSub)
     .text(`生成日 ${formatDateJst(new Date())}`);
   if (birthText) {

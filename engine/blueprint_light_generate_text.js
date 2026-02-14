@@ -21,6 +21,8 @@ const BANNED_PATTERNS = [
   /になる/g,
 ];
 
+const MIN_BODY_CHARS = 180;
+
 function extractJson(text) {
   if (!text) return null;
   const trimmed = String(text).trim();
@@ -39,6 +41,11 @@ function countText(obj) {
     return Object.values(obj).map(countText).join(" ");
   }
   return "";
+}
+
+function isTooShort(text, minChars = MIN_BODY_CHARS) {
+  if (typeof text !== "string") return true;
+  return text.trim().length < minChars;
 }
 
 function validateOutput(data) {
@@ -67,6 +74,7 @@ function validateOutput(data) {
   const summary = pickSection("summary");
   if (Array.isArray(summary?.blocks)) {
     for (const block of summary.blocks) {
+      if (isTooShort(block?.text, 120)) return { ok: false, reason: "summary_too_short" };
       if (tooLong(block?.text, 240)) return { ok: false, reason: "summary_too_long" };
     }
   }
@@ -74,21 +82,27 @@ function validateOutput(data) {
   const bodies = pickSection("bodies");
   if (Array.isArray(bodies?.items)) {
     for (const item of bodies.items) {
+      if (isTooShort(item?.text)) return { ok: false, reason: "bodies_too_short" };
       if (tooLong(item?.text, 240)) return { ok: false, reason: "bodies_too_long" };
     }
   }
 
   const chiron = pickSection("chiron");
+  if (isTooShort(chiron?.text)) return { ok: false, reason: "chiron_too_short" };
   if (tooLong(chiron?.text, 260)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
+  if (isTooShort(lilith?.text)) return { ok: false, reason: "lilith_too_short" };
   if (tooLong(lilith?.text, 260)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
   if (nodes?.south || nodes?.north) {
+    if (isTooShort(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_too_short" };
+    if (isTooShort(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_too_short" };
     if (tooLong(nodes?.south?.text || nodes?.south, 260)) return { ok: false, reason: "nodes_south_too_long" };
     if (tooLong(nodes?.north?.text || nodes?.north, 260)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
+      if (isTooShort(block?.text)) return { ok: false, reason: "nodes_too_short" };
       if (tooLong(block?.text, 260)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
@@ -98,6 +112,7 @@ function validateOutput(data) {
   const angles = pickSection("angles");
   if (Array.isArray(angles?.items)) {
     for (const item of angles.items) {
+      if (isTooShort(item?.text)) return { ok: false, reason: "angles_too_short" };
       if (tooLong(item?.text, 260)) return { ok: false, reason: "angles_too_long" };
     }
   }
@@ -120,6 +135,8 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
   let lastError = null;
   for (let i = 0; i < 2; i += 1) {
     try {
+      const attemptMaxTokens = i === 0 ? maxTokens : Math.max(maxTokens, 2600);
+      const attemptTemperature = i === 0 ? 0.6 : 0.7;
       const content = await createChatCompletion({
         apiKey,
         baseUrl,
@@ -128,8 +145,8 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
           { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.6,
-        maxTokens,
+        temperature: attemptTemperature,
+        maxTokens: attemptMaxTokens,
       });
 
       const jsonText = extractJson(content);
