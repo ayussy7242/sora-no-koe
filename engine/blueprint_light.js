@@ -101,17 +101,16 @@ const ASTRO_GLYPHS = [
 ];
 
 const BODY_TEXT_MIN_CHARS = 200;
-const BODY_TEXT_FILLERS = [
-  "輪郭は静かに保たれ、質感が先に立つ。",
-  "語られる前に、まとまりとして置かれる。",
-];
+const BODY_TEXT_FILLERS = [];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
 ];
 const LINE_GAP_BODY = 8;
 const LINE_GAP_SUMMARY = 8;
-const SECTION_GAP = 12;
+const SECTION_GAP = 14;
+const PLANET_BLOCK_GAP_BEFORE = 12;
+const PLANET_TITLE_GAP_AFTER = 6;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
 const PAGE_PAD_BOTTOM = 44;
@@ -351,18 +350,46 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
     return;
   }
   ensurePageSpace(doc, layout, fontSize * 2);
+  const x = layout.x;
+  const y = layout.y;
   const symbolFont = pickSymbolFontName(doc, glyph);
   doc.fillColor(COLORS.textMainDark);
-  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, {
-    continued: true,
+  doc.font(symbolFont).fontSize(fontSize).text(glyph, x, y, {
     lineBreak: false,
     baseline: "alphabetic",
   });
-  doc.font("bold").fontSize(fontSize).text(rest, {
-    baseline: "alphabetic",
-    lineBreak: false,
-  });
-  layout.y = doc.y;
+  let cursor = x + doc.widthOfString(glyph) + gap;
+  const sep = "｜";
+  const sepIndex = rest ? rest.indexOf(sep) : -1;
+  if (sepIndex >= 0) {
+    const before = rest.slice(0, sepIndex);
+    const after = rest.slice(sepIndex + 1);
+    if (before) {
+      doc.font("bold").fontSize(fontSize).text(before, cursor, y, {
+        lineBreak: false,
+        baseline: "alphabetic",
+      });
+      cursor += doc.widthOfString(before);
+    }
+    doc.font("body").fontSize(fontSize).text(sep, cursor, y, {
+      lineBreak: false,
+      baseline: "alphabetic",
+    });
+    cursor += doc.widthOfString(sep);
+    if (after) {
+      doc.font("bold").fontSize(fontSize).text(after, cursor, y, {
+        lineBreak: false,
+        baseline: "alphabetic",
+      });
+    }
+  } else {
+    doc.font("bold").fontSize(fontSize).text(rest, cursor, y, {
+      lineBreak: false,
+      baseline: "alphabetic",
+    });
+  }
+  doc.font("bold").fontSize(fontSize);
+  layout.y = y + doc.currentLineHeight(true);
 }
 
 function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 14, gap = 6 }) {
@@ -409,13 +436,7 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 15, lineGap = L
 }
 
 function ensureBodyText(text) {
-  let out = String(text || "").trim();
-  let i = 0;
-  while (out.length < BODY_TEXT_MIN_CHARS && i < BODY_TEXT_FILLERS.length) {
-    out = `${out}${out ? "\n" : ""}${BODY_TEXT_FILLERS[i]}`;
-    i += 1;
-  }
-  return out;
+  return String(text || "").trim();
 }
 
 function ensureSummaryText(text) {
@@ -606,6 +627,7 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
 function renderNarratives({ doc, layout, rows, title }) {
   drawSectionTitle(doc, layout, title);
   rows.forEach((row) => {
+    layout.y += PLANET_BLOCK_GAP_BEFORE;
     const headingParts = row.titleParts || null;
     const headingRest =
       headingParts?.rest ||
@@ -617,7 +639,7 @@ function renderNarratives({ doc, layout, rows, title }) {
       fontSize: 16,
       gap: 6,
     });
-    layout.y += 10;
+    layout.y += PLANET_TITLE_GAP_AFTER;
     drawTextBlock(doc, layout, ensureBodyText(row.text) || "（本文は準備中）", {
       font: "body",
       size: 15,
