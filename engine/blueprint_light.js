@@ -149,6 +149,18 @@ function formatSignText(meta) {
   return `${meta.sign_ja} ${meta.deg}°${mm}’`;
 }
 
+function formatSignPipe(meta) {
+  if (!meta) return "";
+  const mm = String(meta.min).padStart(2, "0");
+  return `${meta.sign_ja}｜${meta.deg}°${mm}’`;
+}
+
+function formatNatalListLine(row) {
+  if (!row) return "";
+  const prefix = row.glyph ? `${row.glyph}${row.label}` : `${row.label}`;
+  return `${prefix}：${row.value}`;
+}
+
 function buildBirthText(birth) {
   if (!birth) return "";
   const date = birth.date_local ? String(birth.date_local) : "";
@@ -259,12 +271,12 @@ function renderSummary({ doc, element, modality, summary }) {
   doc.moveDown(0.4);
 
   doc.font("bold");
-  doc.text(`火 ${element.fire}  地 ${element.earth}  風 ${element.air}  水 ${element.water}`);
+  doc.text(`🔥 火 ${element.fire} / 🪨 地 ${element.earth} / 💨 風 ${element.air} / 💧 水 ${element.water}`);
   if (summary?.element?.text) {
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.element.text, { lineGap: 3 });
   }
   doc.moveDown(0.2);
-  doc.text(`活動 ${modality.cardinal}  不動 ${modality.fixed}  柔軟 ${modality.mutable}`);
+  doc.text(`🏃 活動 ${modality.cardinal} / 🧱 不動 ${modality.fixed} / 🌿 柔軟 ${modality.mutable}`);
   if (summary?.modality?.text) {
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark).text(summary.modality.text, { lineGap: 3 });
   }
@@ -272,9 +284,19 @@ function renderSummary({ doc, element, modality, summary }) {
   drawDivider(doc);
 }
 
-function renderBodyList({ doc, title, rows }) {
+function renderBodyList({ doc, title, rows, lines }) {
   drawSectionTitle(doc, title);
   doc.font("body").fontSize(10).fillColor(COLORS.textMainDark);
+
+  if (Array.isArray(lines) && lines.length) {
+    lines.forEach((line) => {
+      ensureSpace(doc, 18);
+      doc.text(line);
+    });
+    doc.moveDown(0.6);
+    drawDivider(doc);
+    return;
+  }
 
   const xGlyph = doc.page.margins.left;
   const xLabel = xGlyph + 20;
@@ -295,8 +317,9 @@ function renderNarratives({ doc, rows, title }) {
   drawSectionTitle(doc, title);
   rows.forEach((row) => {
     ensureSpace(doc, 40);
+    const heading = row.title || `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
     doc.font("bold").fontSize(11).fillColor(COLORS.textMainDark)
-      .text(`${row.glyph || ""} ${row.label}  ${row.value}`);
+      .text(heading);
     doc.font("body").fontSize(10).fillColor(COLORS.textMainDark)
       .text(row.text || "（本文は準備中）", { lineGap: 3 });
     doc.moveDown(0.4);
@@ -344,6 +367,39 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
     line: formatRowTitle(row),
   }));
 
+  const listExtraOrder = ["lilith", "chiron", "north_node", "south_node"];
+  const extraMap = rowsExtra.reduce((acc, row) => {
+    acc[row.key] = row;
+    return acc;
+  }, {});
+  const fixedTitles = {
+    natal_list: [
+      ...rowsMain.map(formatNatalListLine),
+      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLine),
+      ...rowsAngles.map(formatNatalListLine),
+    ],
+    bodies: rowsMain.reduce((acc, row) => {
+      acc[row.key] = { title: row.title };
+      return acc;
+    }, {}),
+    chiron: {
+      title: rowsExtra.find((r) => r.key === "chiron")?.title || "",
+    },
+    lilith: {
+      title: rowsExtra.find((r) => r.key === "lilith")?.title || "",
+    },
+    nodes: {
+      south: { title: rowsExtra.find((r) => r.key === "south_node")?.title || "" },
+      north: { title: rowsExtra.find((r) => r.key === "north_node")?.title || "" },
+    },
+    angles: {
+      asc: { title: rowsAngles.find((r) => r.key === "asc")?.title || "" },
+      mc: { title: rowsAngles.find((r) => r.key === "mc")?.title || "" },
+      ic: { title: rowsAngles.find((r) => r.key === "ic")?.title || "" },
+      dc: { title: rowsAngles.find((r) => r.key === "dc")?.title || "" },
+    },
+  };
+
   return {
     product: "blueprint_light_v1",
     tone: "静か・誠実・やわらかいが曖昧すぎない",
@@ -364,6 +420,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
       element_balance: { ...element },
       modality_balance: { ...modality },
     },
+    fixed_titles: fixedTitles,
   };
 }
 
@@ -389,11 +446,23 @@ function mapAiContent(ai) {
   const chiron = pickSection("chiron");
   const lilith = pickSection("lilith");
 
-  const nodes = pickSection("nodes");
+  const nodes = pickSection("nodes") || {};
   const nodeBlocks = Array.isArray(nodes?.blocks) ? nodes.blocks : [];
   const nodeText = {
-    south: nodeBlocks.find((b) => String(b?.subheading || "").includes("☋"))?.text || nodeBlocks[0]?.text || "",
-    north: nodeBlocks.find((b) => String(b?.subheading || "").includes("☊"))?.text || nodeBlocks[1]?.text || "",
+    south:
+      nodes?.south?.text ||
+      nodes?.south ||
+      nodeBlocks.find((b) => b?.key === "south")?.text ||
+      nodeBlocks.find((b) => String(b?.subheading || "").includes("☋"))?.text ||
+      nodeBlocks[0]?.text ||
+      "",
+    north:
+      nodes?.north?.text ||
+      nodes?.north ||
+      nodeBlocks.find((b) => b?.key === "north")?.text ||
+      nodeBlocks.find((b) => String(b?.subheading || "").includes("☊"))?.text ||
+      nodeBlocks[1]?.text ||
+      "",
   };
 
   return {
@@ -407,17 +476,18 @@ function mapAiContent(ai) {
   };
 }
 
-async function renderPdfBuffer({
-  displayName,
-  birthText,
-  rowsMain,
-  rowsAngles,
-  rowsExtra,
-  narratives,
-  summary,
-  element,
-  modality,
-  footerEcho,
+  async function renderPdfBuffer({
+    displayName,
+    birthText,
+    rowsMain,
+    rowsAngles,
+    rowsExtra,
+    natalLines,
+    narratives,
+    summary,
+    element,
+    modality,
+    footerEcho,
 }) {
   const doc = new PDFDocument({ size: "A4", margin: 56, autoFirstPage: false });
   registerFonts(doc);
@@ -436,7 +506,7 @@ async function renderPdfBuffer({
   }
   drawDivider(doc);
 
-  renderBodyList({ doc, title: "① ネイタル一覧（構造データ）", rows: rowsMain });
+  renderBodyList({ doc, title: "① ネイタル一覧（構造データ）", lines: natalLines, rows: rowsMain });
   renderSummary({ doc, element, modality, summary });
 
   renderNarratives({ doc, title: "③ 各天体の構造記述", rows: narratives.main });
@@ -579,6 +649,30 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       if (Number.isFinite(Number(lon))) pushRow(rowsExtra, k, lon);
     });
 
+    const titleForRow = (row) => {
+      if (!row) return "";
+      if (row.key === "south_node" || row.key === "north_node") {
+        const signTitle = formatSignPipe(row.meta);
+        const suffix = row.key === "south_node" ? "（慣れた反応）" : "（触れ続ける方向）";
+        return `${row.glyph} ${signTitle}${suffix}`;
+      }
+      if (row.key === "asc" || row.key === "mc" || row.key === "ic" || row.key === "dc") {
+        return `${row.label}｜${row.value}`;
+      }
+      const prefix = row.glyph ? `${row.glyph} ${row.label}` : `${row.label}`;
+      return `${prefix}｜${row.value}`;
+    };
+
+    rowsMain.forEach((row) => {
+      row.title = titleForRow(row);
+    });
+    rowsExtra.forEach((row) => {
+      row.title = titleForRow(row);
+    });
+    rowsAngles.forEach((row) => {
+      row.title = titleForRow(row);
+    });
+
     const birthText = buildBirthText(natalCache?.birth || {});
     const displayName = lineUser?.line_profile?.display_name || "あなた";
 
@@ -627,13 +721,18 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
         ...row,
         text: mapped?.lilithText || row.meta?.flavor || "境界の深い層に、静かな緊張が触れやすい。",
       })),
-      nodes: rowsExtra.filter((r) => r.key === "north_node" || r.key === "south_node").map((row) => ({
-        ...row,
-        text:
-          row.key === "south_node"
-            ? mapped?.nodeText?.south || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。"
-            : mapped?.nodeText?.north || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。",
-      })),
+      nodes: [
+        rowsExtra.find((r) => r.key === "south_node"),
+        rowsExtra.find((r) => r.key === "north_node"),
+      ]
+        .filter(Boolean)
+        .map((row) => ({
+          ...row,
+          text:
+            row.key === "south_node"
+              ? mapped?.nodeText?.south || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。"
+              : mapped?.nodeText?.north || row.meta?.flavor || "方向性の軸が、配置として浮かびやすい。",
+        })),
       axes: rowsAngles.map((row) => ({
         ...row,
         text:
@@ -642,12 +741,24 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
           "視点の入口として、構造の基準になる。",
       })),
     };
+    const listExtraOrder = ["lilith", "chiron", "north_node", "south_node"];
+    const extraMap = rowsExtra.reduce((acc, row) => {
+      acc[row.key] = row;
+      return acc;
+    }, {});
+    const natalLines = [
+      ...rowsMain.map(formatNatalListLine),
+      ...listExtraOrder.map((key) => extraMap[key]).filter(Boolean).map(formatNatalListLine),
+      ...rowsAngles.map(formatNatalListLine),
+    ];
+
     const pdfBuffer = await renderPdfBuffer({
       displayName,
       birthText,
       rowsMain,
       rowsAngles,
       rowsExtra,
+      natalLines,
       narratives,
       summary,
       element,

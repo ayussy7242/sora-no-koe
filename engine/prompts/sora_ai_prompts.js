@@ -228,52 +228,50 @@ const SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT = `
 INPUT（ネイタル構造データ）から「魂の設計図（LIGHT）」の本文を生成する。
 占いではない。未来断定、助言、指示、吉凶判断は禁止。
 
+INPUTには fixed_titles が含まれる。
+これは「確定見出し」なので、AIは編集・生成・改変しない。
+AIが書くのは text だけ。
+
+fixed_titles 必須キー:
+- fixed_titles.natal_list[]（ネイタル一覧の行テキスト）
+- fixed_titles.bodies[{key}].title
+- fixed_titles.chiron.title / fixed_titles.lilith.title
+- fixed_titles.nodes.south.title / fixed_titles.nodes.north.title
+- fixed_titles.angles.asc.title / mc / ic / dc
+
 出力は JSON のみ。文章や説明を外に漏らさない。
 
 出力JSON（固定）:
 {
   "version":"blueprint_light_v1",
-  "title":"魂の設計図（LIGHT）",
-  "subtitle":"ネイタル構造マップ｜300縁",
   "sections":[
     {
-      "id":"natal_list",
-      "heading":"① ネイタル一覧（構造データ）",
-      "lines":[ "...(1行=1天体)" ]
-    },
-    {
       "id":"summary",
-      "heading":"② 全体構造サマリー（ひとこと構造）",
       "blocks":[
-        {"subheading":"惑星属性の配置","stats":"...","text":"..."},
-        {"subheading":"三区分の配置","stats":"...","text":"..."}
+        {"id":"element","text":"..."},
+        {"id":"modality","text":"..."}
       ]
     },
     {
       "id":"bodies",
-      "heading":"③ 各天体の構造記述（度数を含む）",
       "items":[
-        {"key":"sun","title":"☉ 太陽｜獅子座 0°59’","text":"..."}
+        {"key":"sun","text":"..."}
       ]
     },
-    {"id":"chiron","heading":"④ ⚷ キロン｜...","text":"..."},
-    {"id":"lilith","heading":"⑤ ⚸ リリス｜...","text":"..."},
+    {"id":"chiron","text":"..."},
+    {"id":"lilith","text":"..."},
     {
       "id":"nodes",
-      "heading":"⑥ ☊ ノースノード｜... / ☋ サウスノード｜...",
-      "blocks":[
-        {"subheading":"☋ ...（慣れた反応）","text":"..."},
-        {"subheading":"☊ ...（触れ続ける方向）","text":"..."}
-      ]
+      "south":{"text":"..."},
+      "north":{"text":"..."}
     },
     {
       "id":"angles",
-      "heading":"⑦ 軸（ASC / MC / IC / DC）",
       "items":[
-        {"key":"asc","title":"ASC｜...","text":"..."},
-        {"key":"mc","title":"MC｜...","text":"..."},
-        {"key":"ic","title":"IC｜...","text":"..."},
-        {"key":"dc","title":"DC｜...","text":"..."}
+        {"key":"asc","text":"..."},
+        {"key":"mc","text":"..."},
+        {"key":"ic","text":"..."},
+        {"key":"dc","text":"..."}
       ]
     }
   ],

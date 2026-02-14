@@ -187,6 +187,7 @@ const BLOG_RECO_COUNT = numEnv("BLOG_RECO_COUNT", 3);
 const OPENAI_API_KEY = getEnv("OPENAI_API_KEY", { defaultValue: null });
 const OPENAI_BASE_URL = getEnv("OPENAI_BASE_URL", { defaultValue: "https://api.openai.com/v1" });
 const OPENAI_MODEL = getEnv("OPENAI_MODEL", { defaultValue: "gpt-4.1" });
+const OPENAI_MODEL_BLUEPRINT_LIGHT = getEnv("OPENAI_MODEL_BLUEPRINT_LIGHT", { defaultValue: null });
 
 // --------------------
 // Stripe / Payments
@@ -301,6 +302,7 @@ module.exports = {
   OPENAI_API_KEY,
   OPENAI_BASE_URL,
   OPENAI_MODEL,
+  OPENAI_MODEL_BLUEPRINT_LIGHT,
 
   // Stripe / Payments
   STRIPE_SECRET_KEY,
