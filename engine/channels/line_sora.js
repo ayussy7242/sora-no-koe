@@ -2543,6 +2543,17 @@ function normalizeAspectType(raw) {
     return map[base] || base; // majorはここでそのまま帰る
 }
 
+function _isMajorAspectType(raw) {
+    const k = normalizeAspectType(raw);
+    return (
+        k === "conjunction" ||
+        k === "sextile" ||
+        k === "square" ||
+        k === "trine" ||
+        k === "opposition"
+    );
+}
+
 /* =========================
  * normalize for sky fusion（✅flavorの鍵 / SSOT）
  * - buildFusionSentence が拾える “キー形式” に寄せる
@@ -2951,12 +2962,13 @@ async function renderSoraLine(story, deps = {}) {
 
     const headerLine = `🌌 今日のソラ｜そら｜${dateLabel}`;
     const listTitleAll = "【今日のソラの配置｜一覧】";
-    const listTitleAspect = "【今日の共鳴（アスペクト 上位3件｜orb≤6°）】";
+    const listTitleAspect = "【今日の共鳴（アスペクト 上位3件｜major only｜orb≤6°）】";
 
     const pub = story?.public || {};
     const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
     const sorted = skyAll
         .filter((r) => isFiniteNum(r?.orb_deg))
+        .filter((r) => _isMajorAspectType(r?.type))
         .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
     const top3 = sorted.slice(0, 3);
 
