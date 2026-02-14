@@ -46,7 +46,7 @@ function validateOutput(data) {
   if (!Array.isArray(data.sections)) return { ok: false, reason: "sections_missing" };
 
   const ids = new Set(data.sections.map((s) => s?.id));
-  const required = ["natal_list", "summary", "bodies", "chiron", "lilith", "nodes", "angles"];
+  const required = ["summary", "bodies", "chiron", "lilith", "nodes", "angles"];
   for (const id of required) {
     if (!ids.has(id)) return { ok: false, reason: `section_missing:${id}` };
   }
@@ -84,10 +84,15 @@ function validateOutput(data) {
   if (tooLong(lilith?.text, 260)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
-  if (Array.isArray(nodes?.blocks)) {
+  if (nodes?.south || nodes?.north) {
+    if (tooLong(nodes?.south?.text || nodes?.south, 260)) return { ok: false, reason: "nodes_south_too_long" };
+    if (tooLong(nodes?.north?.text || nodes?.north, 260)) return { ok: false, reason: "nodes_north_too_long" };
+  } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
       if (tooLong(block?.text, 260)) return { ok: false, reason: "nodes_too_long" };
     }
+  } else {
+    return { ok: false, reason: "nodes_missing" };
   }
 
   const angles = pickSection("angles");
