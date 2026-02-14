@@ -108,9 +108,9 @@ const SUMMARY_TEXT_FILLERS = [
 ];
 const LINE_GAP_BODY = 8;
 const LINE_GAP_SUMMARY = 8;
-const SECTION_GAP = 14;
-const PLANET_BLOCK_GAP_BEFORE = 12;
-const PLANET_TITLE_GAP_AFTER = 6;
+const SECTION_GAP = 16;
+const PLANET_BLOCK_GAP_BEFORE = 18;
+const PLANET_TITLE_GAP_AFTER = 10;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
 const PAGE_PAD_BOTTOM = 44;
@@ -402,7 +402,7 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
     });
   }
   doc.font(headingFont).fontSize(fontSize);
-  layout.y = y + doc.currentLineHeight(true);
+  layout.y = y + doc.currentLineHeight(true) + 2;
 }
 
 function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 14, gap = 6 }) {
@@ -474,7 +474,15 @@ function ensureSummaryText(text) {
 function ensureSpace(doc, neededHeight = 40) {
   const bottom = doc.page.height - doc.page.margins.bottom;
   if (doc.y + neededHeight > bottom) {
-    doc.addPage({ size: "A4" });
+    doc.addPage({
+      size: "A4",
+      margins: {
+        top: PAGE_PAD_TOP,
+        bottom: PAGE_PAD_BOTTOM,
+        left: PAGE_PAD_X,
+        right: PAGE_PAD_X,
+      },
+    });
     return true;
   }
   return false;
@@ -485,12 +493,12 @@ function drawSectionTitle(doc, layout, title) {
   layout.y += TITLE_PAD;
   const x = layout.x;
   const w = contentWidth(doc);
-  const h = 34;
+  const h = 38;
   const y = layout.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
-  doc.fillColor(COLORS.textMainLight).font("title").fontSize(20).text(title, x + 10, y + 7, { lineBreak: false });
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(20).text(title, x + 10, y + 8, { lineBreak: false });
   doc.restore();
 
   layout.y = y + h + TITLE_PAD;
@@ -508,7 +516,7 @@ function drawDivider(doc, layout) {
 }
 
 function renderCover({ doc, displayName }) {
-  doc.addPage({ margins: { top: 60, bottom: 60, left: 60, right: 60 } });
+  doc.addPage({ size: "A4", margins: { top: 60, bottom: 60, left: 60, right: 60 } });
   const { width, height } = doc.page;
 
   doc.save();
@@ -890,7 +898,10 @@ async function renderPdfBuffer({
   doc.on("data", (d) => chunks.push(d));
 
   renderCover({ doc, displayName });
-  doc.addPage({ margins: { top: PAGE_PAD_TOP, bottom: PAGE_PAD_BOTTOM, left: PAGE_PAD_X, right: PAGE_PAD_X } });
+  doc.addPage({
+    size: "A4",
+    margins: { top: PAGE_PAD_TOP, bottom: PAGE_PAD_BOTTOM, left: PAGE_PAD_X, right: PAGE_PAD_X },
+  });
   const layout = { x: PAGE_PAD_X, y: PAGE_PAD_TOP };
 
   const debugSymbols = String(process.env.BLUEPRINT_DEBUG_SYMBOLS || "") === "1";

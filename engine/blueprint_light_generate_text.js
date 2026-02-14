@@ -12,6 +12,10 @@ const BANNED_PATTERNS = [
   /君/g,
   /すべき/g,
   /しよう/g,
+  /すると良い/g,
+  /するとよい/g,
+  /必ず/g,
+  /確実/g,
   /が起きる/g,
   /になる/g,
 ];
@@ -68,6 +72,7 @@ function validateOutput(data) {
   }
 
   const tooLong = (s, max) => typeof s === "string" && s.length > max;
+  const MAX_BODY_CHARS = 380;
   const pickSection = (id) => data.sections.find((s) => s?.id === id) || null;
 
   const summary = pickSection("summary");
@@ -84,27 +89,27 @@ function validateOutput(data) {
   if (Array.isArray(bodies?.items)) {
     for (const item of bodies.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "bodies_empty" };
-      if (tooLong(item?.text, 350)) return { ok: false, reason: "bodies_too_long" };
+      if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "bodies_too_long" };
     }
   }
 
   const chiron = pickSection("chiron");
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
-  if (tooLong(chiron?.text, 350)) return { ok: false, reason: "chiron_too_long" };
+  if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
-  if (tooLong(lilith?.text, 350)) return { ok: false, reason: "lilith_too_long" };
+  if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
   if (nodes?.south || nodes?.north) {
     if (isEmptyText(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_empty" };
     if (isEmptyText(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_empty" };
-    if (tooLong(nodes?.south?.text || nodes?.south, 350)) return { ok: false, reason: "nodes_south_too_long" };
-    if (tooLong(nodes?.north?.text || nodes?.north, 350)) return { ok: false, reason: "nodes_north_too_long" };
+    if (tooLong(nodes?.south?.text || nodes?.south, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_south_too_long" };
+    if (tooLong(nodes?.north?.text || nodes?.north, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
-      if (tooLong(block?.text, 350)) return { ok: false, reason: "nodes_too_long" };
+      if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
     return { ok: false, reason: "nodes_missing" };
@@ -114,7 +119,7 @@ function validateOutput(data) {
   if (Array.isArray(angles?.items)) {
     for (const item of angles.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
-      if (tooLong(item?.text, 350)) return { ok: false, reason: "angles_too_long" };
+      if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
 
