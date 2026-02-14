@@ -46,6 +46,7 @@ const geocoder = createGeocoder({
 const { createStoryService } = require("./engine/story");
 const { createRenderers } = require("./engine/render");
 const { buildResonanceBullets } = require("./engine/resonance");
+const { Storage } = require("@google-cloud/storage");
 
 // -------------------- Helpers (minimal / for storyService) --------------------
 // aspects list (major) — V2 primary, stable fallback for safety
@@ -104,6 +105,9 @@ const storyService = createStoryService({
 // -------------------- renderers (DICT FIRST / NO LEGACY FALLBACK) --------------------
 const renderers = createRenderers({ dict });
 
+// -------------------- Storage (GCS) --------------------
+const storage = new Storage();
+
 // ---- tiny boot log (helps confirm “dict is actually used”) ----
 // ※うるさくしたくないので最小限。必要なら後で env でON/OFFできる。
 if (process.env.DEBUG_BOOT === "1") {
@@ -124,6 +128,7 @@ const deps = {
   storyService,
   renderers,
   geocoder,
+  storage,
   dict, // ←必要なら routes/debug で参照できる
 };
 

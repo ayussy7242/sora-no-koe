@@ -50,6 +50,8 @@ const INTENT = Object.freeze({
   PERSONAL_TODAY: "personal_today",
   NATAL: "natal_list",
   ANSHIN: "anshin",
+  BLUEPRINT_LIGHT: "blueprint_light",
+  PURCHASE: "purchase",
 
   HELP: "help",
   RESET: "reset",
@@ -117,6 +119,22 @@ const MAP = new Map([
   ["私の安心", INTENT.ANSHIN],
   ["あんしんねいたる", INTENT.ANSHIN],
   ["安心ネイタル", INTENT.ANSHIN],
+
+  // BLUEPRINT (LIGHT)
+  ["設計図", INTENT.BLUEPRINT_LIGHT],
+  ["魂の設計図", INTENT.BLUEPRINT_LIGHT],
+  ["せっけいず", INTENT.BLUEPRINT_LIGHT],
+  ["ブループリント", INTENT.BLUEPRINT_LIGHT],
+  ["blueprint", INTENT.BLUEPRINT_LIGHT],
+  ["natalpdf", INTENT.BLUEPRINT_LIGHT],
+
+  // PURCHASE
+  ["購入", INTENT.PURCHASE],
+  ["こうにゅう", INTENT.PURCHASE],
+  ["買う", INTENT.PURCHASE],
+  ["購入する", INTENT.PURCHASE],
+  ["支払い", INTENT.PURCHASE],
+  ["buy", INTENT.PURCHASE],
 
   // HELP
   ["help", INTENT.HELP],

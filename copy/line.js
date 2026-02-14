@@ -183,6 +183,34 @@ const LINE_COPY = Object.freeze({
       "深層モードの詳細は、プロフィール／お知らせをご覧ください。",
   },
 
+  // ---- blueprint (LIGHT) ----
+  BLUEPRINT_NEED_LINE: "この操作はLINEから使ってね🕊️",
+  BLUEPRINT_NEED_NATAL:
+    "魂の設計図（LIGHT）は登録済みの人向け🌌\n" +
+    "先に「はじめる」で登録してね。",
+  BLUEPRINT_NEED_PURCHASE:
+    "魂の設計図（LIGHT）は単発300円🌌\n" +
+    "購入するなら「購入」と送ってね。",
+  BLUEPRINT_ALREADY_PURCHASED:
+    "購入済みだよ🌌\n" +
+    "「設計図」と送るとURLを返すね。",
+  BLUEPRINT_NOT_READY:
+    "設計図の準備中だよ🌌\n" +
+    "計算が終わったら、もう一度「設計図」と送ってね。",
+  BLUEPRINT_PURCHASE_UNAVAILABLE:
+    "いま購入導線の準備中だよ🌌\n" +
+    "少し待ってからもう一度送ってね。",
+  BLUEPRINT_PURCHASE_READY: (url) =>
+    "魂の設計図（LIGHT）\n" +
+    "単発300円・永久DL🌌\n\n" +
+    "購入はこちら👇\n" +
+    `${url}\n\n` +
+    "決済が終わったら「設計図」と送ってね。",
+  BLUEPRINT_URL: (url) =>
+    "魂の設計図（LIGHT）はこちら👇\n" +
+    `${url}\n\n` +
+    "必要なら、また「設計図」で出せるよ。",
+
 });
 
 module.exports = { LINE_COPY };

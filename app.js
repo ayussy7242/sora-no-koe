@@ -12,15 +12,24 @@ const { createLineRouter } = require("./routes/line");
 const { createCronRouter } = require("./routes/cron");
 const { createDebugRouter } = require("./routes/debug");
 const { createJobsRouter } = require("./routes/jobs");
+const { createStripeRouter } = require("./routes/stripe");
 
 // -------------------- helpers --------------------
 function createReqId() {
   return crypto.randomBytes(8).toString("hex");
 }
 
-function isLineWebhookPath(req) {
-  // /line/webhook と、その配下（将来拡張）を全部除外
-  return req?.originalUrl?.startsWith("/line/webhook");
+function isRawBodyPath(req) {
+  // rawBody が必要な webhook は body parser から完全除外
+  // - /line/webhook
+  // - /api/stripe/webhook
+  // - /stripe/webhook (legacy)
+  const url = req?.originalUrl || "";
+  return (
+    url.startsWith("/line/webhook") ||
+    url.startsWith("/api/stripe/webhook") ||
+    url.startsWith("/stripe/webhook")
+  );
 }
 
 /**
@@ -33,7 +42,7 @@ function safeBodyParsers() {
   const urlencoded = express.urlencoded({ extended: true, limit: "2mb" });
 
   return (req, res, next) => {
-    if (isLineWebhookPath(req)) return next();
+    if (isRawBodyPath(req)) return next();
 
     json(req, res, (err) => {
       if (err) return next(err);
@@ -126,6 +135,9 @@ function createApp(deps = {}) {
   app.use("/stories", createStoriesRouter(deps));
   app.use("/line", createLineRouter(deps));
   app.use("/cron", createCronRouter(deps));
+  // Stripe webhook: /api/stripe (primary) + /stripe (legacy)
+  app.use("/api/stripe", createStripeRouter(deps));
+  app.use("/stripe", createStripeRouter(deps));
   app.use("/debug", createDebugRouter(deps));
   app.use("/jobs", createJobsRouter(deps));
 
