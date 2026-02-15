@@ -724,7 +724,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     font: "body",
     size: 15,
     lineGap: LINE_GAP_SUMMARY,
-    marginAfter: 6,
+    marginAfter: 12,
   });
 
   drawSymbolValueLine(doc, layout, [
@@ -774,6 +774,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "☌", label: "不動", value: modality.fixed },
     { symbol: "△", label: "柔軟", value: modality.mutable },
   ], { fontSize: 15, lineGap: LINE_GAP_SUMMARY });
+  layout.y += 6;
 
   if (modalityText) {
     drawTextBlock(doc, layout, modalityText, {
@@ -826,20 +827,44 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
 function renderNarratives({ doc, layout, rows, title }) {
   drawSectionTitle(doc, layout, title);
   rows.forEach((row) => {
-    layout.y += PLANET_BLOCK_GAP_BEFORE;
     const headingParts = row.titleParts || null;
     const headingRest =
       headingParts?.rest ||
       row.title ||
       `${row.glyph || ""} ${row.label}  ${row.value}`.trim();
+    const bodyText = ensureBodyText(row.text, { heading: headingRest }) || "（本文は準備中）";
+    const split = splitHeadingRest(headingRest);
+    const headingFontSize = 16;
+    const headingLineHeight = doc.font("bold").fontSize(headingFontSize).currentLineHeight(true);
+    const headingHeight = split.hasSep
+      ? headingLineHeight
+      : doc.heightOfString(headingRest || "", {
+          width: contentWidth(doc),
+          align: "left",
+          lineGap: LINE_GAP_BODY,
+        });
+    const bodyHeight = doc.font("body").fontSize(15).heightOfString(bodyText, {
+      width: contentWidth(doc),
+      align: "left",
+      lineGap: LINE_GAP_BODY,
+    });
+    const blockHeight =
+      PLANET_BLOCK_GAP_BEFORE +
+      headingHeight +
+      2 +
+      PLANET_TITLE_GAP_AFTER +
+      bodyHeight +
+      SECTION_GAP;
+    ensurePageSpace(doc, layout, blockHeight);
+    layout.y += PLANET_BLOCK_GAP_BEFORE;
     drawSymbolHeading(doc, layout, {
       glyph: headingParts?.glyph,
       rest: headingRest,
-      fontSize: 16,
+      fontSize: headingFontSize,
       gap: 6,
     });
     layout.y += PLANET_TITLE_GAP_AFTER;
-    drawTextBlock(doc, layout, ensureBodyText(row.text, { heading: headingRest }) || "（本文は準備中）", {
+    drawTextBlock(doc, layout, bodyText, {
       font: "body",
       size: 15,
       lineGap: LINE_GAP_BODY,
