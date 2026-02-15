@@ -387,6 +387,8 @@ function escapeNewlinesInJsonStrings(text) {
 async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
+  const debugAngles =
+    env?.DEBUG_BLUEPRINT_LIGHT === "1" || process.env.DEBUG_BLUEPRINT_LIGHT === "1";
 
   const model =
     env?.OPENAI_MODEL_BLUEPRINT_LIGHT ||
@@ -478,6 +480,20 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           }
           return item;
         });
+      }
+      if (debugAngles) {
+        const anglesDbg = pickSectionById(parsed, "angles");
+        const count = Array.isArray(anglesDbg?.items) ? anglesDbg.items.length : null;
+        console.log("[dbg] angles hit", Boolean(anglesDbg), "items", count);
+        const sample = anglesDbg?.items?.[0]?.text;
+        if (sample) {
+          console.log(
+            "[dbg] angles[0].len",
+            String(sample).length,
+            "hasBreak",
+            String(sample).includes("\n")
+          );
+        }
       }
       let v = validateOutput(parsed);
       if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
