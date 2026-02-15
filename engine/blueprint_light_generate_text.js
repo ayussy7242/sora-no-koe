@@ -6,15 +6,12 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 120;
-const MIN_SHADOW_CHARS = 120;
-const MIN_NODE_CHARS = 60;
-const MIN_ANGLE_CHARS = 60;
+const MIN_BODY_CHARS = 100;
+const MIN_SHADOW_CHARS = 100;
+const MIN_NODE_CHARS = 100;
+const MIN_ANGLE_CHARS = 100;
 const BODY_TEXT_FILLERS = [];
-const SHADOW_TEXT_FILLERS = [
-  "境界・影・拒否の輪郭が、短い文でも立ち上がる場合がある。",
-  "痛みの位置は、説明より先に“反応”として残ることがある。",
-];
+const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
   "sun",
   "moon",
@@ -51,7 +48,8 @@ function countText(obj) {
 
 function isTooShort(text, minChars = MIN_BODY_CHARS) {
   if (typeof text !== "string") return true;
-  return text.trim().length < minChars;
+  const normalized = Array.from(text.replace(/\s/g, "")).length;
+  return normalized < minChars;
 }
 
 function isEmptyText(text) {
@@ -85,6 +83,9 @@ const BANNED_PATTERNS = [
   /になる/,
 ];
 
+const SENTENCE_COUNT_MIN = 3;
+const SENTENCE_COUNT_MAX = 5;
+
 function stripBannedTerms(text) {
   let out = String(text || "");
   for (const entry of BANNED_REPLACEMENTS) {
@@ -113,9 +114,11 @@ function ensureTwoParagraphsText(text, fallbackLine = "") {
   if (raw.includes("\n")) return raw;
   const parts = raw.split("。").map((s) => s.trim()).filter(Boolean);
   if (parts.length >= 2) {
-    const first = parts.shift();
-    const rest = parts.join("。");
-    return `${first}。\n${rest}。`.trim();
+    const firstCount = parts.length >= 3 ? 2 : 1;
+    const first = parts.slice(0, firstCount).join("。");
+    const rest = parts.slice(firstCount).join("。");
+    if (rest) return `${first}。\n${rest}。`.trim();
+    return `${first}。`.trim();
   }
   if (!fallbackLine) return `${raw}${raw.endsWith("。") ? "" : "。"}`.trim();
   return `${raw}${raw.endsWith("。") ? "" : "。"}\n${fallbackLine}`.trim();
@@ -155,8 +158,10 @@ function padShortBodyItems(items) {
 }
 
 function padShadowSectionText(text) {
-  if (!isTooShort(text, MIN_SHADOW_CHARS)) return text;
-  return padShortText(text, MIN_SHADOW_CHARS, SHADOW_TEXT_FILLERS);
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  const out = ensureTwoParagraphsText(raw, "");
+  return ensureHasBreak(out, "");
 }
 
 function forceLineBreak(text) {
@@ -182,6 +187,21 @@ function ensureHasBreak(text, fallbackLine) {
   const tail = fallbackLine || "";
   if (tail) return `${raw}\n${tail}`.trim();
   return forceLineBreak(raw);
+}
+
+function splitSentences(text) {
+  return String(text || "")
+    .split(/[。！？]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function validateSentenceShape(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_COUNT_MAX } = {}) {
+  const raw = String(text || "").trim();
+  if (!raw) return { ok: false, reason: "empty" };
+  const all = splitSentences(raw);
+  if (all.length < min || all.length > max) return { ok: false, reason: "count" };
+  return { ok: true };
 }
 
 function padNodeSectionText(text) {
@@ -246,6 +266,8 @@ function validateOutput(data) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "bodies_empty" };
       if (isTooShort(item?.text)) return { ok: false, reason: "bodies_too_short" };
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "bodies_no_break" };
+      const shape = validateSentenceShape(item?.text);
+      if (!shape.ok) return { ok: false, reason: `bodies_sentence_shape:${shape.reason}` };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "bodies_too_long" };
     }
   }
@@ -254,11 +276,15 @@ function validateOutput(data) {
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
   if (isTooShort(chiron?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "chiron_too_short" };
   if (!String(chiron?.text || "").includes("\n")) return { ok: false, reason: "chiron_no_break" };
+  const chironShape = validateSentenceShape(chiron?.text);
+  if (!chironShape.ok) return { ok: false, reason: `chiron_sentence_shape:${chironShape.reason}` };
   if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
   if (isTooShort(lilith?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "lilith_too_short" };
   if (!String(lilith?.text || "").includes("\n")) return { ok: false, reason: "lilith_no_break" };
+  const lilithShape = validateSentenceShape(lilith?.text);
+  if (!lilithShape.ok) return { ok: false, reason: `lilith_sentence_shape:${lilithShape.reason}` };
   if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
@@ -277,6 +303,10 @@ function validateOutput(data) {
     if (!String(nodes?.north?.text || nodes?.north || "").includes("\n")) {
       return { ok: false, reason: "nodes_north_no_break" };
     }
+    const southShape = validateSentenceShape(nodes?.south?.text || nodes?.south);
+    if (!southShape.ok) return { ok: false, reason: `nodes_south_sentence_shape:${southShape.reason}` };
+    const northShape = validateSentenceShape(nodes?.north?.text || nodes?.north);
+    if (!northShape.ok) return { ok: false, reason: `nodes_north_sentence_shape:${northShape.reason}` };
     if (tooLong(nodes?.south?.text || nodes?.south, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_south_too_long" };
     if (tooLong(nodes?.north?.text || nodes?.north, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
@@ -284,6 +314,8 @@ function validateOutput(data) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
       if (isTooShort(block?.text, MIN_NODE_CHARS)) return { ok: false, reason: "nodes_too_short" };
       if (!String(block?.text || "").includes("\n")) return { ok: false, reason: "nodes_no_break" };
+      const blockShape = validateSentenceShape(block?.text);
+      if (!blockShape.ok) return { ok: false, reason: `nodes_sentence_shape:${blockShape.reason}` };
       if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
@@ -301,6 +333,8 @@ function validateOutput(data) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
       if (isTooShort(item?.text, MIN_ANGLE_CHARS)) return { ok: false, reason: "angles_too_short" };
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
+      const angleShape = validateSentenceShape(item?.text);
+      if (!angleShape.ok) return { ok: false, reason: `angles_sentence_shape:${angleShape.reason}` };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
@@ -321,16 +355,16 @@ function buildRetryNote(reason) {
     return "出力は厳密なJSONのみ。文字列内の改行は\\nで表現し、ダブルクォートは必ずエスケープすること。";
   }
   if (reason === "bodies_too_short") {
-    return "bodies.items の各 text は最低120字。2段落（改行1つ）で、各段落2〜3文を書くこと。";
+    return "bodies.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (reason === "chiron_too_short" || reason === "lilith_too_short") {
-    return "chiron/lilith の text は最低120字。2段落（改行1つ）で書くこと。";
+    return "chiron/lilith の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (reason === "nodes_south_too_short" || reason === "nodes_north_too_short") {
-    return "nodes の text は最低60字。2段落（改行1つ）で書くこと。";
+    return "nodes の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (reason === "angles_too_short") {
-    return "angles.items の各 text は最低60字。2段落（改行1つ）で書くこと。";
+    return "angles.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -338,11 +372,14 @@ function buildRetryNote(reason) {
   if (reason === "angles_count" || reason === "angles_keys") {
     return "angles.items は asc/mc/ic/dc の4件を順序通りに出すこと。";
   }
+  if (String(reason).includes("_sentence_shape")) {
+    return "各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
+  }
   if (String(reason).endsWith("_no_break")) {
     return "各 text に改行を1つ入れて2段落にすること。";
   }
   if (String(reason).endsWith("_too_short")) {
-    return "各 text は最低180字にすること。";
+    return "各 text は3〜5文、合計100字前後で書くこと。";
   }
   return "";
 }
