@@ -67,7 +67,19 @@ const BANNED_REPLACEMENTS = [
   { pattern: /きみ/g, replace: "この人物" },
   { pattern: /君/g, replace: "この人物" },
 ];
-const BANNED_PATTERNS = BANNED_REPLACEMENTS.map((entry) => new RegExp(entry.pattern.source));
+const BANNED_PATTERNS = [
+  /あなた/,
+  /きみ/,
+  /君/,
+  /すべき/,
+  /しよう/,
+  /すると良い/,
+  /するとよい/,
+  /必ず/,
+  /確実/,
+  /が起きる/,
+  /になる/,
+];
 
 function stripBannedTerms(text) {
   let out = String(text || "");
