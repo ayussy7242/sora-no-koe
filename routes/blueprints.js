@@ -105,6 +105,7 @@ function createBlueprintsRouter(deps = {}) {
           status: "queued",
           line_user_id: lineUserId,
           product: "blueprint_light_v1",
+          error: null,
           updated_at: now,
           created_at: job?.created_at || now,
           lease_until: null,
@@ -190,7 +191,7 @@ function createBlueprintsRouter(deps = {}) {
       ok: true,
       status: job.status || "queued",
       signed_url: job.signed_url || null,
-      error: job.error || null,
+      error: job.status === "failed" ? job.error || null : null,
     });
   });
 
@@ -234,6 +235,7 @@ function createBlueprintsRouter(deps = {}) {
         jobRef,
         {
           status: "running",
+          error: null,
           updated_at: now,
           lease_until: nextLeaseMs(nowMs),
         },
