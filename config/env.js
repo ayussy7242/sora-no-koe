@@ -213,6 +213,7 @@ const CLOUD_TASKS_PROJECT = getEnv("CLOUD_TASKS_PROJECT", { defaultValue: null }
 const CLOUD_TASKS_LOCATION = getEnv("CLOUD_TASKS_LOCATION", { defaultValue: null });
 const CLOUD_TASKS_QUEUE = getEnv("CLOUD_TASKS_QUEUE", { defaultValue: "blueprint-generate" });
 const BLUEPRINT_GENERATE_URL = getEnv("BLUEPRINT_GENERATE_URL", { defaultValue: null });
+const BLUEPRINT_WORKER_URL = getEnv("BLUEPRINT_WORKER_URL", { defaultValue: null });
 const TASKS_CALLER_SA_EMAIL = getEnv("TASKS_CALLER_SA_EMAIL", { defaultValue: null });
 const INTERNAL_TASKS_TOKEN = getEnv("INTERNAL_TASKS_TOKEN", { defaultValue: null });
 
@@ -322,6 +323,7 @@ module.exports = {
   CLOUD_TASKS_LOCATION,
   CLOUD_TASKS_QUEUE,
   BLUEPRINT_GENERATE_URL,
+  BLUEPRINT_WORKER_URL,
   TASKS_CALLER_SA_EMAIL,
   INTERNAL_TASKS_TOKEN
 };

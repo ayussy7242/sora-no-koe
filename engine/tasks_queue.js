@@ -10,7 +10,7 @@ function requireTasksEnv(env) {
   const project = env?.CLOUD_TASKS_PROJECT || null;
   const location = env?.CLOUD_TASKS_LOCATION || null;
   const queue = env?.CLOUD_TASKS_QUEUE || null;
-  const url = env?.BLUEPRINT_GENERATE_URL || null;
+  const url = env?.BLUEPRINT_WORKER_URL || env?.BLUEPRINT_GENERATE_URL || null;
   const saEmail = env?.TASKS_CALLER_SA_EMAIL || null;
   const token = env?.INTERNAL_TASKS_TOKEN || null;
 

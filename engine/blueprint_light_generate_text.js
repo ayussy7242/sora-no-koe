@@ -146,83 +146,6 @@ function pickSectionById(data, id) {
   return sections.find((s) => s?.id === id) || null;
 }
 
-async function expandShortBodyItems({ apiKey, baseUrl, model, input, parsed }) {
-  const bodiesSection = pickSectionById(parsed, "bodies");
-  const bodyItems = Array.isArray(bodiesSection?.items) ? bodiesSection.items : [];
-  const shortKeys = bodyItems
-    .filter((item) => isTooShort(item?.text))
-    .map((item) => String(item?.key || "").toLowerCase())
-    .filter(Boolean);
-  if (!shortKeys.length) return null;
-
-  const natalBodies = Array.isArray(input?.natal?.bodies) ? input.natal.bodies : [];
-  const targetBodies = natalBodies.filter((b) => shortKeys.includes(String(b?.key || "").toLowerCase()));
-  const currentTexts = bodyItems
-    .filter((item) => shortKeys.includes(String(item?.key || "").toLowerCase()))
-    .map((item) => ({ key: item?.key, text: item?.text }));
-
-  const expandOne = async (target, currentText, attempt) => {
-    const expandPrompt = `
-短い本文を「増補」して、2段落（改行1つ）・各180字以上に整える。
-各段落は2〜3文。
-未来断定/助言/指示/読者主語は禁止。
-記号（☋☊⚷⚸☉など）は本文に使わない。
-天体名・星座名・度数は本文に出してよい。
-文字列内の改行は \\n で表現する。
-出力は JSON のみ。
-
-出力JSON:
-{ "key":"${target?.key}", "text":"..." }
-
-入力（対象データ）:
-${JSON.stringify({ body: target, current_text: currentText }, null, 2)}
-`.trim();
-
-    const content = await createChatCompletion({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
-        { role: "user", content: expandPrompt },
-      ],
-      temperature: attempt === 0 ? 0.6 : 0.65,
-      maxTokens: 1200,
-    });
-
-    const jsonText = extractJson(content);
-    if (!jsonText) return null;
-    let parsedExpand = null;
-    try {
-      parsedExpand = JSON.parse(jsonText);
-    } catch {
-      try {
-        parsedExpand = JSON.parse(escapeNewlinesInJsonStrings(jsonText));
-      } catch {
-        return null;
-      }
-    }
-    if (!parsedExpand?.text) return null;
-    const text = String(parsedExpand.text).trim();
-    if (!text) return null;
-    return { key: parsedExpand.key || target?.key, text };
-  };
-
-  const results = [];
-  for (const key of shortKeys) {
-    const target = targetBodies.find((b) => String(b?.key || "").toLowerCase() === key);
-    const currentText = currentTexts.find((t) => String(t?.key || "").toLowerCase() === key)?.text || "";
-    let expanded = null;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      expanded = await expandOne(target, currentText, attempt);
-      if (expanded && !isTooShort(expanded.text) && String(expanded.text).includes("\n")) break;
-    }
-    if (expanded) results.push(expanded);
-  }
-
-  return results.length ? results : null;
-}
-
 function validateOutput(data) {
   if (!data || typeof data !== "object") return { ok: false, reason: "not_object" };
   if (!Array.isArray(data.sections)) return { ok: false, reason: "sections_missing" };
@@ -411,11 +334,11 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
 
   let lastError = null;
   let retryNote = "";
-  const maxAttempts = 4;
+  const maxAttempts = 2;
   for (let i = 0; i < maxAttempts; i += 1) {
     try {
       const attemptMaxTokens = Math.max(maxTokens, 3200 + i * 200);
-      const attemptTemperature = i === 0 ? 0.6 : i === 1 ? 0.7 : 0.75;
+      const attemptTemperature = i === 0 ? 0.6 : 0.7;
       const userPrompt = retryNote
         ? `${SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT}\n\n【直前の修正】${retryNote}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`
         : baseUserPrompt;
@@ -449,23 +372,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
       }
       parsed = { ...parsed, sections: sanitizeSections(parsed.sections) };
       let v = validateOutput(parsed);
-      if (!v.ok && v.reason === "bodies_too_short") {
-        const expandedItems = await expandShortBodyItems({ apiKey, baseUrl, model, input, parsed });
-        if (expandedItems && expandedItems.length) {
-          const bodiesSection = pickSectionById(parsed, "bodies");
-          const items = Array.isArray(bodiesSection?.items) ? bodiesSection.items : [];
-          const expandedMap = new Map(expandedItems.map((item) => [String(item?.key || "").toLowerCase(), item?.text]));
-          const mergedItems = items.map((item) => {
-            const key = String(item?.key || "").toLowerCase();
-            if (expandedMap.has(key)) {
-              return { ...item, text: expandedMap.get(key) };
-            }
-            return item;
-          });
-          if (bodiesSection) bodiesSection.items = mergedItems;
-          v = validateOutput(parsed);
-          if (v.ok) return { ok: true, data: parsed };
-        }
+      if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
         const bodiesSection = pickSectionById(parsed, "bodies");
         if (bodiesSection && Array.isArray(bodiesSection.items)) {
           bodiesSection.items = padShortBodyItems(bodiesSection.items);
