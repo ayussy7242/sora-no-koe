@@ -159,12 +159,29 @@ function padShadowSectionText(text) {
   return padShortText(text, MIN_SHADOW_CHARS, SHADOW_TEXT_FILLERS);
 }
 
+function forceLineBreak(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  if (raw.includes("\n")) return raw;
+  const idx = raw.indexOf("。");
+  if (idx > 0 && idx < raw.length - 1) {
+    return `${raw.slice(0, idx + 1)}\n${raw.slice(idx + 1).trim()}`.trim();
+  }
+  const idx2 = raw.indexOf("、");
+  if (idx2 > 0 && idx2 < raw.length - 1) {
+    return `${raw.slice(0, idx2 + 1)}\n${raw.slice(idx2 + 1).trim()}`.trim();
+  }
+  const mid = Math.max(1, Math.floor(raw.length / 2));
+  return `${raw.slice(0, mid)}\n${raw.slice(mid).trim()}`.trim();
+}
+
 function ensureHasBreak(text, fallbackLine) {
   const raw = String(text || "").trim();
   if (!raw) return raw;
   if (raw.includes("\n")) return raw;
   const tail = fallbackLine || "";
-  return `${raw}\n${tail}`.trim();
+  if (tail) return `${raw}\n${tail}`.trim();
+  return forceLineBreak(raw);
 }
 
 function padNodeSectionText(text) {
