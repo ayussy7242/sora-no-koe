@@ -20,7 +20,20 @@ const BANNED_PATTERNS = [
   /になる/g,
 ];
 
-const MIN_BODY_CHARS = 200;
+const MIN_BODY_CHARS = 180;
+const REQUIRED_BODY_KEYS = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+];
+const REQUIRED_ANGLE_KEYS = ["asc", "mc", "ic", "dc"];
 
 function extractJson(text) {
   if (!text) return null;
@@ -85,30 +98,52 @@ function validateOutput(data) {
     }
   }
 
+  const normalizeKey = (key) => String(key || "").trim().toLowerCase();
   const bodies = pickSection("bodies");
   if (Array.isArray(bodies?.items)) {
+    if (bodies.items.length !== REQUIRED_BODY_KEYS.length) return { ok: false, reason: "bodies_count" };
+    const bodyKeys = bodies.items.map((item) => normalizeKey(item?.key));
+    for (let i = 0; i < REQUIRED_BODY_KEYS.length; i += 1) {
+      if (bodyKeys[i] !== REQUIRED_BODY_KEYS[i]) return { ok: false, reason: "bodies_keys" };
+    }
     for (const item of bodies.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "bodies_empty" };
+      if (isTooShort(item?.text)) return { ok: false, reason: "bodies_too_short" };
+      if (!String(item?.text).includes("\n")) return { ok: false, reason: "bodies_no_break" };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "bodies_too_long" };
     }
   }
 
   const chiron = pickSection("chiron");
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
+  if (isTooShort(chiron?.text)) return { ok: false, reason: "chiron_too_short" };
+  if (!String(chiron?.text || "").includes("\n")) return { ok: false, reason: "chiron_no_break" };
   if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
+  if (isTooShort(lilith?.text)) return { ok: false, reason: "lilith_too_short" };
+  if (!String(lilith?.text || "").includes("\n")) return { ok: false, reason: "lilith_no_break" };
   if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
   if (nodes?.south || nodes?.north) {
     if (isEmptyText(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_empty" };
     if (isEmptyText(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_empty" };
+    if (isTooShort(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_too_short" };
+    if (isTooShort(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_too_short" };
+    if (!String(nodes?.south?.text || nodes?.south || "").includes("\n")) {
+      return { ok: false, reason: "nodes_south_no_break" };
+    }
+    if (!String(nodes?.north?.text || nodes?.north || "").includes("\n")) {
+      return { ok: false, reason: "nodes_north_no_break" };
+    }
     if (tooLong(nodes?.south?.text || nodes?.south, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_south_too_long" };
     if (tooLong(nodes?.north?.text || nodes?.north, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
+      if (isTooShort(block?.text)) return { ok: false, reason: "nodes_too_short" };
+      if (!String(block?.text || "").includes("\n")) return { ok: false, reason: "nodes_no_break" };
       if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
@@ -117,8 +152,15 @@ function validateOutput(data) {
 
   const angles = pickSection("angles");
   if (Array.isArray(angles?.items)) {
+    if (angles.items.length !== REQUIRED_ANGLE_KEYS.length) return { ok: false, reason: "angles_count" };
+    const angleKeys = angles.items.map((item) => normalizeKey(item?.key));
+    for (let i = 0; i < REQUIRED_ANGLE_KEYS.length; i += 1) {
+      if (angleKeys[i] !== REQUIRED_ANGLE_KEYS[i]) return { ok: false, reason: "angles_keys" };
+    }
     for (const item of angles.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
+      if (isTooShort(item?.text)) return { ok: false, reason: "angles_too_short" };
+      if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
