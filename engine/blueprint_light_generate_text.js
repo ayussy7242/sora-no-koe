@@ -299,6 +299,9 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       continue;
     }
     text = stripBannedTerms(text);
+    if (!text.includes("\n")) {
+      text = ensureHasBreak(text, "");
+    }
     const check = isValidBodyText(text);
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
