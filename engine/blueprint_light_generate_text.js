@@ -6,10 +6,10 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 90;
-const MIN_SHADOW_CHARS = 90;
-const MIN_NODE_CHARS = 90;
-const MIN_ANGLE_CHARS = 90;
+const MIN_BODY_CHARS = 100;
+const MIN_SHADOW_CHARS = 100;
+const MIN_NODE_CHARS = 100;
+const MIN_ANGLE_CHARS = 100;
 const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
@@ -112,6 +112,23 @@ function sanitizeSections(value) {
   return value;
 }
 
+function cleanupPlainText(text) {
+  let out = String(text || "").trim();
+  if (!out) return "";
+  if (out.startsWith("```")) {
+    out = out.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim();
+  }
+  if (out.startsWith("{") && out.includes("}")) {
+    try {
+      const parsed = JSON.parse(out);
+      if (parsed && typeof parsed.text === "string") return String(parsed.text).trim();
+    } catch (_e) {
+      // fall through
+    }
+  }
+  return out;
+}
+
 function ensureTwoParagraphsText(text, fallbackLine = "") {
   const raw = String(text || "").trim();
   if (!raw) return "";
@@ -208,6 +225,17 @@ function validateSentenceShape(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_
   return { ok: true };
 }
 
+function isValidBodyText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return { ok: false, reason: "empty" };
+  if (!raw.includes("\n")) return { ok: false, reason: "no_break" };
+  const len = normalizedLength(raw);
+  if (len < MIN_BODY_CHARS) return { ok: false, reason: "too_short" };
+  const shape = validateSentenceShape(raw);
+  if (!shape.ok) return { ok: false, reason: `sentence_shape:${shape.reason}` };
+  return { ok: true, len };
+}
+
 function padNodeSectionText(text) {
   const raw = String(text || "").trim();
   if (!raw) return raw;
@@ -225,6 +253,57 @@ function padAngleSectionText(text) {
 function pickSectionById(data, id) {
   const sections = Array.isArray(data?.sections) ? data.sections : [];
   return sections.find((s) => s?.id === id) || null;
+}
+
+function buildBodyItemPrompt({ input, body, retryNote = "" }) {
+  const header = `
+以下のINPUT（単一天体）から本文のみ生成する。
+出力は text のみ（JSON禁止）。
+改行を1つ以上入れて2段落以上にする。
+文は3〜5文。
+合計100〜160字（空白除去後）を目安にする。
+文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
+抽象 → 構造 → 感覚 の流れを含める。
+助言/指示/吉凶/未来断定/読者主語は禁止。
+天体名・星座名・度数・軸は本文に出してよい。
+記号（☉☽☿等）は使わない。
+条件を満たせない場合は __RETRY__ だけ返す。
+`.trim();
+  const note = retryNote ? `\n\n【直前の修正】${retryNote}\n` : "";
+  return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
+}
+
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 3 }) {
+  let lastReason = "";
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const retryNote = lastReason
+      ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
+      : "";
+    const prompt = buildBodyItemPrompt({ input, body, retryNote });
+    const content = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      messages: [
+        { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.6,
+      maxTokens: 600,
+    });
+    let text = cleanupPlainText(content);
+    if (text === "__RETRY__") {
+      lastReason = "retry_token";
+      continue;
+    }
+    text = stripBannedTerms(text);
+    const check = isValidBodyText(text);
+    if (check.ok) return text;
+    lastReason = check.reason || "invalid";
+  }
+  const err = new Error(`bodies_item_failed:${body?.key || ""}`);
+  err.validationReason = "bodies_item_failed";
+  throw err;
 }
 
 function validateOutput(data) {
@@ -356,28 +435,35 @@ function extractBannedTerm(reason) {
 
 function buildRetryNote(reason) {
   if (!reason) return "";
+  const baseReason = String(reason).split(":")[0];
   const banned = extractBannedTerm(reason);
   if (banned) return `禁止語「${banned}」を使わないこと。`;
   if (reason === "json_parse") {
     return "出力は厳密なJSONのみ。文字列内の改行は\\nで表現し、ダブルクォートは必ずエスケープすること。";
   }
-  if (reason === "bodies_too_short") {
-    return "bodies.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
+  if (baseReason === "bodies_too_short") {
+    const parts = String(reason).split(":");
+    const key = parts[1] || "";
+    const len = parts[2] || "";
+    return `bodies.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
-  if (reason === "chiron_too_short" || reason === "lilith_too_short") {
+  if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
     return "chiron/lilith の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
-  if (reason === "nodes_south_too_short" || reason === "nodes_north_too_short") {
+  if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
     return "nodes の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
-  if (reason === "angles_too_short") {
+  if (baseReason === "angles_too_short") {
     return "angles.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
-  if (reason === "bodies_count" || reason === "bodies_keys") {
+  if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
   }
-  if (reason === "angles_count" || reason === "angles_keys") {
+  if (baseReason === "angles_count" || baseReason === "angles_keys") {
     return "angles.items は asc/mc/ic/dc の4件を順序通りに出すこと。";
+  }
+  if (baseReason === "bodies_item_failed") {
+    return "bodies の各 text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。";
   }
   if (String(reason).includes("_sentence_shape")) {
     return "各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
@@ -487,6 +573,17 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
       }
       parsed = { ...parsed, sections: sanitizeSections(parsed.sections) };
+
+      const bodiesSection = pickSectionById(parsed, "bodies");
+      const natalBodies = Array.isArray(input?.natal?.bodies) ? input.natal.bodies : [];
+      if (bodiesSection && Array.isArray(bodiesSection.items) && natalBodies.length) {
+        const generatedItems = [];
+        for (const body of natalBodies) {
+          const text = await generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts: 3 });
+          generatedItems.push({ key: body.key, text });
+        }
+        bodiesSection.items = generatedItems;
+      }
       const chironSection = pickSectionById(parsed, "chiron");
       if (chironSection && typeof chironSection.text === "string") {
         chironSection.text = padShadowSectionText(chironSection.text);
@@ -546,7 +643,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
       }
       let v = validateOutput(parsed);
-      if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
+      if (!v.ok && String(v.reason).startsWith("bodies_too_short") && i === maxAttempts - 1) {
         const bodiesSection = pickSectionById(parsed, "bodies");
         if (bodiesSection && Array.isArray(bodiesSection.items)) {
           bodiesSection.items = padShortBodyItems(bodiesSection.items);
