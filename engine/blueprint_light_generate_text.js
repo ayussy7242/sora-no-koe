@@ -180,6 +180,9 @@ function buildRetryNote(reason) {
   if (reason === "json_parse") {
     return "出力は厳密なJSONのみ。文字列内の改行は\\nで表現し、ダブルクォートは必ずエスケープすること。";
   }
+  if (reason === "bodies_too_short") {
+    return "bodies.items の各 text は最低180字。2段落（改行1つ）で、各段落2〜3文を書くこと。";
+  }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
   }
@@ -238,7 +241,7 @@ function escapeNewlinesInJsonStrings(text) {
   return out;
 }
 
-async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
+async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
 
@@ -252,11 +255,11 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
 
   let lastError = null;
   let retryNote = "";
-  const maxAttempts = 3;
+  const maxAttempts = 4;
   for (let i = 0; i < maxAttempts; i += 1) {
     try {
-      const attemptMaxTokens = i === 0 ? maxTokens : Math.max(maxTokens, 2600);
-      const attemptTemperature = i === 0 ? 0.6 : 0.7;
+      const attemptMaxTokens = Math.max(maxTokens, 3200 + i * 200);
+      const attemptTemperature = i === 0 ? 0.6 : i === 1 ? 0.7 : 0.75;
       const userPrompt = retryNote
         ? `${SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT}\n\n【直前の修正】${retryNote}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`
         : baseUserPrompt;
