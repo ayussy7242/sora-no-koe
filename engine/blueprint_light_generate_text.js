@@ -195,6 +195,49 @@ function buildRetryNote(reason) {
   return "";
 }
 
+function escapeNewlinesInJsonStrings(text) {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        out += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === "\"") {
+        out += ch;
+        inString = false;
+        continue;
+      }
+      if (ch === "\n") {
+        out += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        continue;
+      }
+      out += ch;
+      continue;
+    }
+
+    if (ch === "\"") {
+      out += ch;
+      inString = true;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
@@ -236,9 +279,14 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
       try {
         parsed = JSON.parse(jsonText);
       } catch (err) {
-        const parseErr = new Error(`json_parse_failed:${err?.message || "unknown"}`);
-        parseErr.validationReason = "json_parse";
-        throw parseErr;
+        try {
+          const repaired = escapeNewlinesInJsonStrings(jsonText);
+          parsed = JSON.parse(repaired);
+        } catch (err2) {
+          const parseErr = new Error(`json_parse_failed:${err2?.message || err?.message || "unknown"}`);
+          parseErr.validationReason = "json_parse";
+          throw parseErr;
+        }
       }
       const v = validateOutput(parsed);
       if (!v.ok) {
