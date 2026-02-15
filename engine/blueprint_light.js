@@ -109,8 +109,8 @@ const SUMMARY_TEXT_FILLERS = [
 const LINE_GAP_BODY = 8;
 const LINE_GAP_SUMMARY = 8;
 const SECTION_GAP = 16;
-const PLANET_BLOCK_GAP_BEFORE = 18;
-const PLANET_TITLE_GAP_AFTER = 10;
+const PLANET_BLOCK_GAP_BEFORE = 22;
+const PLANET_TITLE_GAP_AFTER = 12;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
 const PAGE_PAD_BOTTOM = 44;
@@ -280,11 +280,6 @@ function applyFont(doc, name, fallback) {
 }
 
 function pickSymbolFontName(doc, glyph) {
-  const universalName = doc._symbolUniversalFontName;
-  const universalFont = doc._symbolFontsByName?.get(universalName) || null;
-  if (universalName && universalFont && hasGlyph(universalFont, glyph)) {
-    return universalName;
-  }
   const picker = doc._symbolFontPicker;
   const picked = typeof picker === "function" ? picker(glyph) : doc._symbolFontName;
   if (!picked) {
@@ -382,29 +377,43 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
   ensurePageSpace(doc, layout, headingHeight + LINE_GAP_BODY);
   if (!glyph) {
     if (!split.hasSep) {
-      drawTextBlock(doc, layout, rest, { font: headingFont, size: fontSize, marginAfter: 0 });
+      const x = layout.x;
+      const y = layout.y;
+      doc.fillColor(COLORS.textMainDark);
+      doc.font(headingFont).fontSize(fontSize).text(rest || "", x, y, {
+        lineBreak: false,
+        baseline: "alphabetic",
+        width: contentWidth(doc),
+      });
+      layout.y = y + doc.currentLineHeight(true) + 2;
       return;
     }
     const x = layout.x;
     const y = layout.y;
     let cursor = x;
     doc.fillColor(COLORS.textMainDark);
+    const beforeWidth = split.before ? doc.font(headingFont).fontSize(fontSize).widthOfString(split.before) : 0;
+    const sepWidth = doc.font(separatorFont).fontSize(fontSize).widthOfString(split.sep);
+    const afterWidth = Math.max(contentWidth(doc) - beforeWidth - sepWidth, 4);
     if (split.before) {
       doc.font(headingFont).fontSize(fontSize).text(split.before, cursor, y, {
         lineBreak: false,
         baseline: "alphabetic",
+        width: Math.max(beforeWidth, 4),
       });
       cursor += doc.widthOfString(split.before);
     }
     doc.font(separatorFont).fontSize(fontSize).text(split.sep, cursor, y, {
       lineBreak: false,
       baseline: "alphabetic",
+      width: Math.max(sepWidth, 4),
     });
     cursor += doc.widthOfString(split.sep);
     if (split.after) {
       doc.font(headingFont).fontSize(fontSize).text(split.after, cursor, y, {
         lineBreak: false,
         baseline: "alphabetic",
+        width: afterWidth,
       });
     }
     doc.font(headingFont).fontSize(fontSize);
@@ -424,28 +433,35 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
   });
   let cursor = x + symbolWidth + gap;
   if (split.hasSep) {
+    const beforeWidth = split.before ? doc.font(headingFont).fontSize(fontSize).widthOfString(split.before) : 0;
+    const sepWidth = doc.font(separatorFont).fontSize(fontSize).widthOfString(split.sep);
+    const afterWidth = Math.max(availableWidth - beforeWidth - sepWidth, 4);
     if (split.before) {
       doc.font(headingFont).fontSize(fontSize).text(split.before, cursor, y, {
         lineBreak: false,
         baseline: "alphabetic",
+        width: Math.max(beforeWidth, 4),
       });
       cursor += doc.widthOfString(split.before);
     }
     doc.font(separatorFont).fontSize(fontSize).text(split.sep, cursor, y, {
       lineBreak: false,
       baseline: "alphabetic",
+      width: Math.max(sepWidth, 4),
     });
     cursor += doc.widthOfString(split.sep);
     if (split.after) {
       doc.font(headingFont).fontSize(fontSize).text(split.after, cursor, y, {
         lineBreak: false,
         baseline: "alphabetic",
+        width: afterWidth,
       });
     }
   } else {
     doc.font(headingFont).fontSize(fontSize).text(rest, cursor, y, {
       lineBreak: false,
       baseline: "alphabetic",
+      width: Math.max(availableWidth, 4),
     });
   }
   doc.font(headingFont).fontSize(fontSize);
@@ -462,11 +478,12 @@ function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize 
   const symbolWidth = doc.widthOfString(glyph);
   const availableWidth = contentWidth(doc) - symbolWidth - gap;
   doc.font(font).fontSize(fontSize);
-  const lineHeight = doc.heightOfString(rest || "", {
+  const textHeight = doc.heightOfString(rest || " ", {
     width: availableWidth,
     align: "left",
     lineGap: LINE_GAP_BODY,
   });
+  const lineHeight = Math.max(textHeight, doc.currentLineHeight(true));
   ensurePageSpace(doc, layout, lineHeight + LINE_GAP_BODY);
   doc.fillColor(COLORS.textMainDark);
   doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, { lineBreak: false });
@@ -480,13 +497,22 @@ function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize 
 
 function drawSymbolValueLine(doc, layout, segments, { fontSize = 15, lineGap = LINE_GAP_SUMMARY } = {}) {
   if (!Array.isArray(segments) || segments.length === 0) return;
-  ensurePageSpace(doc, layout, fontSize * 2);
-  let x = layout.x;
+  const baseLineHeight = doc.font("body").fontSize(fontSize).currentLineHeight(true);
+  let symbolLineHeight = baseLineHeight;
+  segments.forEach((seg) => {
+    const fontName = pickSymbolFontName(doc, seg?.symbol || "☉");
+    const lh = doc.font(fontName).fontSize(fontSize).currentLineHeight(true);
+    if (lh > symbolLineHeight) symbolLineHeight = lh;
+  });
+  const lineHeight = Math.max(baseLineHeight, symbolLineHeight);
+  ensurePageSpace(doc, layout, lineHeight + lineGap);
   const y = layout.y;
+  const symbolOffset = -1;
+  let x = layout.x;
   doc.fillColor(COLORS.textMainDark);
   segments.forEach((seg, idx) => {
     const symbolFont = pickSymbolFontName(doc, seg.symbol);
-    doc.font(symbolFont).fontSize(fontSize).text(seg.symbol, x, y, {
+    doc.font(symbolFont).fontSize(fontSize).text(seg.symbol, x, y + symbolOffset, {
       lineBreak: false,
       baseline: "alphabetic",
     });
@@ -497,11 +523,11 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 15, lineGap = L
     });
     x += doc.widthOfString(`${seg.label} ${seg.value}`);
     if (idx < segments.length - 1) {
-      doc.font("body").fontSize(fontSize).text(" / ", x, y, { lineBreak: false });
+      doc.font("body").fontSize(fontSize).text(" / ", x, y, { lineBreak: false, baseline: "alphabetic" });
       x += doc.widthOfString(" / ");
     }
   });
-  layout.y = y + doc.currentLineHeight(true) + lineGap;
+  layout.y = y + lineHeight + lineGap;
 }
 
 function ensureBodyText(text) {
@@ -662,41 +688,14 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
     return;
   }
 
-  const textLines = listLines.map((line) => (line && typeof line === "object" ? line.rest : String(line || "")));
-  const glyphLines = listLines.map((line) => (line && typeof line === "object" ? line.glyph || "" : ""));
-
-  const universalFont = doc._symbolUniversalFontName || null;
-  if (universalFont) {
-    const glyphText = glyphLines.join("\n");
-    const restText = textLines.join("\n");
-    const fontSize = 15;
-    const gap = 8;
-    const glyphWidth = doc.font(universalFont).fontSize(fontSize).widthOfString("☉");
-    const colW = Math.max(glyphWidth, 12) + gap;
-
-    ensurePageSpace(doc, layout, listLines.length * (fontSize + LINE_GAP_BODY) + 12);
-    doc.fillColor(COLORS.textMainDark);
-    doc.font(universalFont).fontSize(fontSize).text(glyphText, layout.x, layout.y, {
-      width: colW,
-      align: "left",
-      lineGap: LINE_GAP_BODY,
-    });
-    doc.font("body").fontSize(fontSize).text(restText, layout.x + colW, layout.y, {
-      width: contentWidth(doc) - colW,
-      align: "left",
-      lineGap: LINE_GAP_BODY,
-    });
-    layout.y = doc.y + SECTION_GAP;
-  } else {
-    listLines.forEach((line) => {
-      if (line && typeof line === "object") {
-        drawSymbolTextLine(doc, layout, { glyph: line.glyph, rest: line.rest, font: "body", fontSize: 11 });
-      } else {
-        drawTextBlock(doc, layout, String(line || ""), { font: "body", size: 11, marginAfter: 0 });
-      }
-    });
-    layout.y += SECTION_GAP;
-  }
+  listLines.forEach((line) => {
+    if (line && typeof line === "object") {
+      drawSymbolTextLine(doc, layout, { glyph: line.glyph, rest: line.rest, font: "body", fontSize: 15 });
+    } else {
+      drawTextBlock(doc, layout, String(line || ""), { font: "body", size: 15, marginAfter: 0 });
+    }
+  });
+  layout.y += SECTION_GAP;
 
   drawDivider(doc, layout);
 }
@@ -929,9 +928,8 @@ async function renderPdfBuffer({
     for (const entry of symbolFonts) {
       if (hasGlyph(entry.font, glyph)) return entry.name;
     }
-    return symbolFonts[0]?.name || null;
+    return null;
   };
-  doc._symbolFontsByName = new Map(symbolFonts.map((entry) => [entry.name, entry.font]));
   doc._symbolUniversalFontName =
     symbolFonts.find((entry) => entry.name === "symbolsTertiary" && entry.font)?.name ||
     symbolFonts.find((entry) => entry.font && ASTRO_GLYPHS.every((g) => hasGlyph(entry.font, g)))?.name ||
@@ -991,7 +989,7 @@ async function renderPdfBuffer({
   if (birthText) noteLines.push(birthText);
   drawTextBlock(doc, layout, noteLines.join("\n"), {
     font: "note",
-    size: 9,
+    size: 13,
     lineGap: 3.6,
     marginAfter: SECTION_GAP,
     color: COLORS.textSub,
