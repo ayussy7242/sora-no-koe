@@ -48,8 +48,12 @@ function countText(obj) {
 
 function isTooShort(text, minChars = MIN_BODY_CHARS) {
   if (typeof text !== "string") return true;
-  const normalized = Array.from(text.replace(/\s/g, "")).length;
+  const normalized = normalizedLength(text);
   return normalized < minChars;
+}
+
+function normalizedLength(text) {
+  return Array.from(String(text || "").replace(/\s/g, "")).length;
 }
 
 function isEmptyText(text) {
@@ -264,7 +268,10 @@ function validateOutput(data) {
     }
     for (const item of bodies.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "bodies_empty" };
-      if (isTooShort(item?.text)) return { ok: false, reason: "bodies_too_short" };
+      const bodyLen = normalizedLength(item?.text);
+      if (bodyLen < MIN_BODY_CHARS) {
+        return { ok: false, reason: `bodies_too_short:${item?.key || ""}:${bodyLen}` };
+      }
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "bodies_no_break" };
       const shape = validateSentenceShape(item?.text);
       if (!shape.ok) return { ok: false, reason: `bodies_sentence_shape:${shape.reason}` };
