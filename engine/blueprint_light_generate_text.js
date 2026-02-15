@@ -146,8 +146,13 @@ function padShortText(text, minChars = MIN_BODY_CHARS, fillers = BODY_TEXT_FILLE
 
 function padShortBodyItems(items) {
   return items.map((item) => {
-    if (!isTooShort(item?.text)) return item;
-    return { ...item, text: padShortText(item?.text, MIN_BODY_CHARS, BODY_TEXT_FILLERS) };
+    let text = String(item?.text || "");
+    text = ensureTwoParagraphsText(text, BODY_TEXT_FILLERS[0]);
+    if (isTooShort(text)) {
+      text = padShortText(text, MIN_BODY_CHARS, BODY_TEXT_FILLERS);
+    }
+    text = ensureHasBreak(text, BODY_TEXT_FILLERS[0]);
+    return { ...item, text };
   });
 }
 
@@ -160,14 +165,16 @@ function ensureHasBreak(text, fallbackLine) {
   const raw = String(text || "").trim();
   if (!raw) return raw;
   if (raw.includes("\n")) return raw;
-  const tail = fallbackLine || BODY_TEXT_FILLERS[0] || "";
+  const tail = fallbackLine || "";
   return `${raw}\n${tail}`.trim();
 }
 
 function padNodeSectionText(text) {
-  const padded = isTooShort(text, MIN_NODE_CHARS)
-    ? padShortText(text, MIN_NODE_CHARS, NODE_TEXT_FILLERS)
-    : String(text || "").trim();
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  const padded = isTooShort(raw, MIN_NODE_CHARS)
+    ? padShortText(raw, MIN_NODE_CHARS, NODE_TEXT_FILLERS)
+    : raw;
   return ensureHasBreak(padded, NODE_TEXT_FILLERS[0]);
 }
 
