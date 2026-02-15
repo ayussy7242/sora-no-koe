@@ -177,6 +177,9 @@ function buildRetryNote(reason) {
   if (!reason) return "";
   const banned = extractBannedTerm(reason);
   if (banned) return `禁止語「${banned}」を使わないこと。`;
+  if (reason === "json_parse") {
+    return "出力は厳密なJSONのみ。文字列内の改行は\\nで表現し、ダブルクォートは必ずエスケープすること。";
+  }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
   }
@@ -229,7 +232,14 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
       const jsonText = extractJson(content);
       if (!jsonText) throw new Error("json_extract_failed");
 
-      const parsed = JSON.parse(jsonText);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        const parseErr = new Error(`json_parse_failed:${err?.message || "unknown"}`);
+        parseErr.validationReason = "json_parse";
+        throw parseErr;
+      }
       const v = validateOutput(parsed);
       if (!v.ok) {
         const err = new Error(`validation_failed:${v.reason}`);
