@@ -169,7 +169,7 @@ function validateOutput(data) {
 }
 
 function extractBannedTerm(reason) {
-  const match = String(reason || "").match(/banned:\\/([^/]+)\\/g/);
+  const match = String(reason || "").match(/banned:\/([^/]+)\//);
   return match ? match[1] : null;
 }
 
