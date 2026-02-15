@@ -114,7 +114,8 @@ const PLANET_TITLE_GAP_AFTER = 12;
 const PAGE_PAD_X = 40;
 const PAGE_PAD_TOP = 36;
 const PAGE_PAD_BOTTOM = 44;
-const TITLE_PAD = 12;
+const TITLE_PAD_TOP = 12;
+const TITLE_PAD_BOTTOM = 18;
 const SAFE_FOOTER = 80;
 
 const COLORS = Object.freeze({
@@ -473,6 +474,7 @@ function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize 
     drawTextBlock(doc, layout, rest, { font, size: fontSize, marginAfter: 0 });
     return;
   }
+  const symbolOffset = -1;
   const symbolFont = pickSymbolFontName(doc, glyph);
   doc.font(symbolFont).fontSize(fontSize);
   const symbolWidth = doc.widthOfString(glyph);
@@ -486,7 +488,7 @@ function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize 
   const lineHeight = Math.max(textHeight, doc.currentLineHeight(true));
   ensurePageSpace(doc, layout, lineHeight + LINE_GAP_BODY);
   doc.fillColor(COLORS.textMainDark);
-  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y, { lineBreak: false });
+  doc.font(symbolFont).fontSize(fontSize).text(glyph, layout.x, layout.y + symbolOffset, { lineBreak: false });
   doc.font(font).fontSize(fontSize).text(rest, layout.x + symbolWidth + gap, layout.y, {
     width: availableWidth,
     align: "left",
@@ -562,8 +564,8 @@ function ensureSpace(doc, neededHeight = 40) {
 }
 
 function drawSectionTitle(doc, layout, title) {
-  ensurePageSpace(doc, layout, TITLE_PAD + 54 + TITLE_PAD);
-  layout.y += TITLE_PAD;
+  ensurePageSpace(doc, layout, TITLE_PAD_TOP + 54 + TITLE_PAD_BOTTOM);
+  layout.y += TITLE_PAD_TOP;
   const x = layout.x;
   const w = contentWidth(doc);
   const h = 38;
@@ -574,7 +576,7 @@ function drawSectionTitle(doc, layout, title) {
   doc.fillColor(COLORS.textMainLight).font("title").fontSize(20).text(title, x + 10, y + 8, { lineBreak: false });
   doc.restore();
 
-  layout.y = y + h + TITLE_PAD;
+  layout.y = y + h + TITLE_PAD_BOTTOM;
 }
 
 function drawDivider(doc, layout) {
@@ -651,6 +653,13 @@ function renderSummary({ doc, layout, element, modality, summary }) {
       marginAfter: 6,
     });
   }
+  layout.y += 10;
+  drawTextBlock(doc, layout, "三区分（活動 / 不動 / 柔軟）の分布は以下です。", {
+    font: "body",
+    size: 15,
+    lineGap: LINE_GAP_SUMMARY,
+    marginAfter: 6,
+  });
 
   drawSymbolValueLine(doc, layout, [
     { symbol: "☍", label: "活動", value: modality.cardinal },
@@ -729,7 +738,7 @@ function renderNarratives({ doc, layout, rows, title }) {
 function renderFooterEcho(doc, layout, text) {
   drawTextBlock(doc, layout, text, {
     font: "note",
-    size: 11,
+    size: 13,
     lineGap: LINE_GAP_BODY,
     marginAfter: 0,
     color: COLORS.textSub,
@@ -1000,12 +1009,12 @@ async function renderPdfBuffer({
   renderSummary({ doc, layout, element, modality, summary });
 
   renderNarratives({ doc, layout, title: "③ 各天体の構造記述", rows: narratives.main });
-  renderNarratives({ doc, layout, title: "④ キロン", rows: narratives.chiron });
-  renderNarratives({ doc, layout, title: "⑤ リリス", rows: narratives.lilith });
-  renderNarratives({ doc, layout, title: "⑥ ノード", rows: narratives.nodes });
-  renderNarratives({ doc, layout, title: "⑦ 軸", rows: narratives.axes });
+  renderNarratives({ doc, layout, title: "④ キロン / リリス", rows: [...narratives.chiron, ...narratives.lilith] });
+  renderNarratives({ doc, layout, title: "⑤ ノード", rows: narratives.nodes });
+  renderNarratives({ doc, layout, title: "⑥ 軸", rows: narratives.axes });
 
-  renderFooterEcho(doc, layout, footerEcho || "解釈は、あなたのもの。");
+  const footerText = `${footerEcho || "解釈は、あなたのもの。"}\n出生の瞬間の空は、あなたの輪郭を語る。`;
+  renderFooterEcho(doc, layout, footerText);
 
   doc.end();
   await new Promise((resolve, reject) => {
