@@ -6,25 +6,14 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 180;
+const MIN_BODY_CHARS = 120;
 const MIN_SHADOW_CHARS = 120;
-const MIN_NODE_CHARS = 120;
-const MIN_ANGLE_CHARS = 120;
-const BODY_TEXT_FILLERS = [
-  "輪郭は静かに残り、距離感として息づく。",
-  "言葉にせずとも、感触として留まりやすい。",
-];
+const MIN_NODE_CHARS = 60;
+const MIN_ANGLE_CHARS = 60;
+const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [
   "境界・影・拒否の輪郭が、短い文でも立ち上がる場合がある。",
   "痛みの位置は、説明より先に“反応”として残ることがある。",
-];
-const NODE_TEXT_FILLERS = [
-  "方向性は善悪ではなく、反応の向きとして残りやすい。",
-  "目指す先というより、体の向きが変わるポイントとして現れる。",
-];
-const ANGLE_TEXT_FILLERS = [
-  "社会面と内側の面が、同時に輪郭として立ち上がることがある。",
-  "外側の入口は、場ごとに表情を変えながら残りやすい。",
 ];
 const REQUIRED_BODY_KEYS = [
   "sun",
@@ -118,7 +107,7 @@ function sanitizeSections(value) {
   return value;
 }
 
-function ensureTwoParagraphsText(text, fallbackLine = BODY_TEXT_FILLERS[0]) {
+function ensureTwoParagraphsText(text, fallbackLine = "") {
   const raw = String(text || "").trim();
   if (!raw) return "";
   if (raw.includes("\n")) return raw;
@@ -128,10 +117,14 @@ function ensureTwoParagraphsText(text, fallbackLine = BODY_TEXT_FILLERS[0]) {
     const rest = parts.join("。");
     return `${first}。\n${rest}。`.trim();
   }
+  if (!fallbackLine) return `${raw}${raw.endsWith("。") ? "" : "。"}`.trim();
   return `${raw}${raw.endsWith("。") ? "" : "。"}\n${fallbackLine}`.trim();
 }
 
 function padShortText(text, minChars = MIN_BODY_CHARS, fillers = BODY_TEXT_FILLERS) {
+  if (!fillers || fillers.length === 0) {
+    return ensureTwoParagraphsText(text, "");
+  }
   let out = ensureTwoParagraphsText(text, fillers[0] || "");
   if (!out) return "";
   let [p1, p2] = out.split(/\n+/);
@@ -152,11 +145,11 @@ function padShortText(text, minChars = MIN_BODY_CHARS, fillers = BODY_TEXT_FILLE
 function padShortBodyItems(items) {
   return items.map((item) => {
     let text = String(item?.text || "");
-    text = ensureTwoParagraphsText(text, BODY_TEXT_FILLERS[0]);
+    text = ensureTwoParagraphsText(text, "");
     if (isTooShort(text)) {
       text = padShortText(text, MIN_BODY_CHARS, BODY_TEXT_FILLERS);
     }
-    text = ensureHasBreak(text, BODY_TEXT_FILLERS[0]);
+    text = ensureHasBreak(text, "");
     return { ...item, text };
   });
 }
@@ -177,19 +170,15 @@ function ensureHasBreak(text, fallbackLine) {
 function padNodeSectionText(text) {
   const raw = String(text || "").trim();
   if (!raw) return raw;
-  const padded = isTooShort(raw, MIN_NODE_CHARS)
-    ? padShortText(raw, MIN_NODE_CHARS, NODE_TEXT_FILLERS)
-    : raw;
-  return ensureHasBreak(padded, NODE_TEXT_FILLERS[0]);
+  const out = ensureTwoParagraphsText(raw, "");
+  return ensureHasBreak(out, "");
 }
 
 function padAngleSectionText(text) {
   const raw = String(text || "").trim();
   if (!raw) return raw;
-  const padded = isTooShort(raw, MIN_ANGLE_CHARS)
-    ? padShortText(raw, MIN_ANGLE_CHARS, ANGLE_TEXT_FILLERS)
-    : raw;
-  return ensureHasBreak(padded, ANGLE_TEXT_FILLERS[0]);
+  const out = ensureTwoParagraphsText(raw, "");
+  return ensureHasBreak(out, "");
 }
 
 function pickSectionById(data, id) {
@@ -315,16 +304,16 @@ function buildRetryNote(reason) {
     return "出力は厳密なJSONのみ。文字列内の改行は\\nで表現し、ダブルクォートは必ずエスケープすること。";
   }
   if (reason === "bodies_too_short") {
-    return "bodies.items の各 text は最低180字。2段落（改行1つ）で、各段落2〜3文を書くこと。";
+    return "bodies.items の各 text は最低120字。2段落（改行1つ）で、各段落2〜3文を書くこと。";
   }
   if (reason === "chiron_too_short" || reason === "lilith_too_short") {
     return "chiron/lilith の text は最低120字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "nodes_south_too_short" || reason === "nodes_north_too_short") {
-    return "nodes の text は最低120字。2段落（改行1つ）で書くこと。";
+    return "nodes の text は最低60字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "angles_too_short") {
-    return "angles.items の各 text は最低120字。2段落（改行1つ）で書くこと。";
+    return "angles.items の各 text は最低60字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
