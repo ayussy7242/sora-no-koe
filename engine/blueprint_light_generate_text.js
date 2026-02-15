@@ -8,6 +8,7 @@ const {
 
 const MIN_BODY_CHARS = 180;
 const MIN_SHADOW_CHARS = 120;
+const MIN_NODE_CHARS = 120;
 const BODY_TEXT_FILLERS = [
   "輪郭は静かに残り、距離感として息づく。",
   "言葉にせずとも、感触として留まりやすい。",
@@ -15,6 +16,10 @@ const BODY_TEXT_FILLERS = [
 const SHADOW_TEXT_FILLERS = [
   "境界・影・拒否の輪郭が、短い文でも立ち上がる場合がある。",
   "痛みの位置は、説明より先に“反応”として残ることがある。",
+];
+const NODE_TEXT_FILLERS = [
+  "方向性は善悪ではなく、反応の向きとして残りやすい。",
+  "目指す先というより、体の向きが変わるポイントとして現れる。",
 ];
 const REQUIRED_BODY_KEYS = [
   "sun",
@@ -151,6 +156,11 @@ function padShadowSectionText(text) {
   return padShortText(text, MIN_SHADOW_CHARS, SHADOW_TEXT_FILLERS);
 }
 
+function padNodeSectionText(text) {
+  if (!isTooShort(text, MIN_NODE_CHARS)) return text;
+  return padShortText(text, MIN_NODE_CHARS, NODE_TEXT_FILLERS);
+}
+
 function pickSectionById(data, id) {
   const sections = Array.isArray(data?.sections) ? data.sections : [];
   return sections.find((s) => s?.id === id) || null;
@@ -218,8 +228,12 @@ function validateOutput(data) {
   if (nodes?.south || nodes?.north) {
     if (isEmptyText(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_empty" };
     if (isEmptyText(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_empty" };
-    if (isTooShort(nodes?.south?.text || nodes?.south)) return { ok: false, reason: "nodes_south_too_short" };
-    if (isTooShort(nodes?.north?.text || nodes?.north)) return { ok: false, reason: "nodes_north_too_short" };
+    if (isTooShort(nodes?.south?.text || nodes?.south, MIN_NODE_CHARS)) {
+      return { ok: false, reason: "nodes_south_too_short" };
+    }
+    if (isTooShort(nodes?.north?.text || nodes?.north, MIN_NODE_CHARS)) {
+      return { ok: false, reason: "nodes_north_too_short" };
+    }
     if (!String(nodes?.south?.text || nodes?.south || "").includes("\n")) {
       return { ok: false, reason: "nodes_south_no_break" };
     }
@@ -274,6 +288,9 @@ function buildRetryNote(reason) {
   }
   if (reason === "chiron_too_short" || reason === "lilith_too_short") {
     return "chiron/lilith の text は最低120字。2段落（改行1つ）で書くこと。";
+  }
+  if (reason === "nodes_south_too_short" || reason === "nodes_north_too_short") {
+    return "nodes の text は最低120字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -391,6 +408,23 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
       const lilithSection = pickSectionById(parsed, "lilith");
       if (lilithSection && typeof lilithSection.text === "string") {
         lilithSection.text = padShadowSectionText(lilithSection.text);
+      }
+      const nodesSection = pickSectionById(parsed, "nodes");
+      if (nodesSection) {
+        if (nodesSection.south) {
+          if (typeof nodesSection.south === "string") {
+            nodesSection.south = padNodeSectionText(nodesSection.south);
+          } else if (typeof nodesSection.south?.text === "string") {
+            nodesSection.south.text = padNodeSectionText(nodesSection.south.text);
+          }
+        }
+        if (nodesSection.north) {
+          if (typeof nodesSection.north === "string") {
+            nodesSection.north = padNodeSectionText(nodesSection.north);
+          } else if (typeof nodesSection.north?.text === "string") {
+            nodesSection.north.text = padNodeSectionText(nodesSection.north.text);
+          }
+        }
       }
       let v = validateOutput(parsed);
       if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
