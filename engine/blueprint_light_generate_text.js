@@ -9,6 +9,7 @@ const {
 const MIN_BODY_CHARS = 180;
 const MIN_SHADOW_CHARS = 120;
 const MIN_NODE_CHARS = 120;
+const MIN_ANGLE_CHARS = 120;
 const BODY_TEXT_FILLERS = [
   "輪郭は静かに残り、距離感として息づく。",
   "言葉にせずとも、感触として留まりやすい。",
@@ -20,6 +21,10 @@ const SHADOW_TEXT_FILLERS = [
 const NODE_TEXT_FILLERS = [
   "方向性は善悪ではなく、反応の向きとして残りやすい。",
   "目指す先というより、体の向きが変わるポイントとして現れる。",
+];
+const ANGLE_TEXT_FILLERS = [
+  "社会面と内側の面が、同時に輪郭として立ち上がることがある。",
+  "外側の入口は、場ごとに表情を変えながら残りやすい。",
 ];
 const REQUIRED_BODY_KEYS = [
   "sun",
@@ -178,6 +183,15 @@ function padNodeSectionText(text) {
   return ensureHasBreak(padded, NODE_TEXT_FILLERS[0]);
 }
 
+function padAngleSectionText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  const padded = isTooShort(raw, MIN_ANGLE_CHARS)
+    ? padShortText(raw, MIN_ANGLE_CHARS, ANGLE_TEXT_FILLERS)
+    : raw;
+  return ensureHasBreak(padded, ANGLE_TEXT_FILLERS[0]);
+}
+
 function pickSectionById(data, id) {
   const sections = Array.isArray(data?.sections) ? data.sections : [];
   return sections.find((s) => s?.id === id) || null;
@@ -279,7 +293,7 @@ function validateOutput(data) {
     }
     for (const item of angles.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
-      if (isTooShort(item?.text)) return { ok: false, reason: "angles_too_short" };
+      if (isTooShort(item?.text, MIN_ANGLE_CHARS)) return { ok: false, reason: "angles_too_short" };
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
@@ -308,6 +322,9 @@ function buildRetryNote(reason) {
   }
   if (reason === "nodes_south_too_short" || reason === "nodes_north_too_short") {
     return "nodes の text は最低120字。2段落（改行1つ）で書くこと。";
+  }
+  if (reason === "angles_too_short") {
+    return "angles.items の各 text は最低120字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -451,6 +468,16 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             return block;
           });
         }
+      }
+      const anglesSection = pickSectionById(parsed, "angles");
+      if (anglesSection && Array.isArray(anglesSection.items)) {
+        anglesSection.items = anglesSection.items.map((item) => {
+          if (!item || typeof item !== "object") return item;
+          if (typeof item.text === "string") {
+            return { ...item, text: padAngleSectionText(item.text) };
+          }
+          return item;
+        });
       }
       let v = validateOutput(parsed);
       if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
