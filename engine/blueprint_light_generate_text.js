@@ -168,6 +168,30 @@ function validateOutput(data) {
   return { ok: true };
 }
 
+function extractBannedTerm(reason) {
+  const match = String(reason || "").match(/banned:\\/([^/]+)\\/g/);
+  return match ? match[1] : null;
+}
+
+function buildRetryNote(reason) {
+  if (!reason) return "";
+  const banned = extractBannedTerm(reason);
+  if (banned) return `禁止語「${banned}」を使わないこと。`;
+  if (reason === "bodies_count" || reason === "bodies_keys") {
+    return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
+  }
+  if (reason === "angles_count" || reason === "angles_keys") {
+    return "angles.items は asc/mc/ic/dc の4件を順序通りに出すこと。";
+  }
+  if (String(reason).endsWith("_no_break")) {
+    return "各 text に改行を1つ入れて2段落にすること。";
+  }
+  if (String(reason).endsWith("_too_short")) {
+    return "各 text は最低180字にすること。";
+  }
+  return "";
+}
+
 async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
@@ -178,13 +202,18 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
     "gpt-4o";
   const baseUrl = process.env.OPENAI_BASE_URL || env?.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
-  const userPrompt = `${SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`;
+  const baseUserPrompt = `${SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`;
 
   let lastError = null;
-  for (let i = 0; i < 2; i += 1) {
+  let retryNote = "";
+  const maxAttempts = 3;
+  for (let i = 0; i < maxAttempts; i += 1) {
     try {
       const attemptMaxTokens = i === 0 ? maxTokens : Math.max(maxTokens, 2600);
       const attemptTemperature = i === 0 ? 0.6 : 0.7;
+      const userPrompt = retryNote
+        ? `${SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT}\n\n【直前の修正】${retryNote}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`
+        : baseUserPrompt;
       const content = await createChatCompletion({
         apiKey,
         baseUrl,
@@ -202,11 +231,18 @@ async function generateBlueprintLightText({ env, input, maxTokens = 2200 }) {
 
       const parsed = JSON.parse(jsonText);
       const v = validateOutput(parsed);
-      if (!v.ok) throw new Error(`validation_failed:${v.reason}`);
+      if (!v.ok) {
+        const err = new Error(`validation_failed:${v.reason}`);
+        err.validationReason = v.reason;
+        throw err;
+      }
 
       return { ok: true, data: parsed };
     } catch (e) {
       lastError = e;
+      const reason = e?.validationReason || "";
+      const note = buildRetryNote(reason);
+      retryNote = note || "";
     }
   }
 
