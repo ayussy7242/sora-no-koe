@@ -100,7 +100,7 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
-const BODY_TEXT_MIN_CHARS = 100;
+const BODY_TEXT_MIN_CHARS = 90;
 const BODY_TEXT_FILLERS = [];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
