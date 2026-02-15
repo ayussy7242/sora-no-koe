@@ -273,8 +273,9 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
   return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
 }
 
-async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 3 }) {
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 5 }) {
   let lastReason = "";
+  let lastDetail = "";
   for (let i = 0; i < maxAttempts; i += 1) {
     const retryNote = lastReason
       ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
@@ -294,14 +295,18 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
     let text = cleanupPlainText(content);
     if (text === "__RETRY__") {
       lastReason = "retry_token";
+      lastDetail = "retry_token";
       continue;
     }
     text = stripBannedTerms(text);
     const check = isValidBodyText(text);
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
+    lastDetail = check.reason === "too_short"
+      ? `too_short:${check.len ?? normalizedLength(text)}`
+      : check.reason || "invalid";
   }
-  const err = new Error(`bodies_item_failed:${body?.key || ""}`);
+  const err = new Error(`bodies_item_failed:${body?.key || ""}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "bodies_item_failed";
   throw err;
 }
@@ -463,7 +468,10 @@ function buildRetryNote(reason) {
     return "angles.items は asc/mc/ic/dc の4件を順序通りに出すこと。";
   }
   if (baseReason === "bodies_item_failed") {
-    return "bodies の各 text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。";
+    const parts = String(reason).split(":");
+    const key = parts[1] || "";
+    const detail = parts.slice(2).join(":");
+    return `bodies の各 text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).includes("_sentence_shape")) {
     return "各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
