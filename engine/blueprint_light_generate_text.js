@@ -156,9 +156,19 @@ function padShadowSectionText(text) {
   return padShortText(text, MIN_SHADOW_CHARS, SHADOW_TEXT_FILLERS);
 }
 
+function ensureHasBreak(text, fallbackLine) {
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  if (raw.includes("\n")) return raw;
+  const tail = fallbackLine || BODY_TEXT_FILLERS[0] || "";
+  return `${raw}\n${tail}`.trim();
+}
+
 function padNodeSectionText(text) {
-  if (!isTooShort(text, MIN_NODE_CHARS)) return text;
-  return padShortText(text, MIN_NODE_CHARS, NODE_TEXT_FILLERS);
+  const padded = isTooShort(text, MIN_NODE_CHARS)
+    ? padShortText(text, MIN_NODE_CHARS, NODE_TEXT_FILLERS)
+    : String(text || "").trim();
+  return ensureHasBreak(padded, NODE_TEXT_FILLERS[0]);
 }
 
 function pickSectionById(data, id) {
@@ -245,7 +255,7 @@ function validateOutput(data) {
   } else if (Array.isArray(nodes?.blocks)) {
     for (const block of nodes.blocks) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
-      if (isTooShort(block?.text)) return { ok: false, reason: "nodes_too_short" };
+      if (isTooShort(block?.text, MIN_NODE_CHARS)) return { ok: false, reason: "nodes_too_short" };
       if (!String(block?.text || "").includes("\n")) return { ok: false, reason: "nodes_no_break" };
       if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
@@ -424,6 +434,15 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           } else if (typeof nodesSection.north?.text === "string") {
             nodesSection.north.text = padNodeSectionText(nodesSection.north.text);
           }
+        }
+        if (Array.isArray(nodesSection.blocks)) {
+          nodesSection.blocks = nodesSection.blocks.map((block) => {
+            if (!block || typeof block !== "object") return block;
+            if (typeof block.text === "string") {
+              return { ...block, text: padNodeSectionText(block.text) };
+            }
+            return block;
+          });
         }
       }
       let v = validateOutput(parsed);
