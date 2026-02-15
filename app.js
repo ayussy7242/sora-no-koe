@@ -140,6 +140,7 @@ function createApp(deps = {}) {
   app.use("/api/stripe", createStripeRouter(deps));
   app.use("/stripe", createStripeRouter(deps));
   app.use("/internal/blueprints", createBlueprintsRouter(deps));
+  app.use("/internal/tasks/blueprints", createBlueprintsRouter(deps));
   app.use("/debug", createDebugRouter(deps));
   app.use("/jobs", createJobsRouter(deps));
 
