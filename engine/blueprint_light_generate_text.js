@@ -7,9 +7,14 @@ const {
 } = require("./prompts/sora_ai_prompts");
 
 const MIN_BODY_CHARS = 180;
+const MIN_SHADOW_CHARS = 120;
 const BODY_TEXT_FILLERS = [
   "輪郭は静かに残り、距離感として息づく。",
   "言葉にせずとも、感触として留まりやすい。",
+];
+const SHADOW_TEXT_FILLERS = [
+  "境界・影・拒否の輪郭が、短い文でも立ち上がる場合がある。",
+  "痛みの位置は、説明より先に“反応”として残ることがある。",
 ];
 const REQUIRED_BODY_KEYS = [
   "sun",
@@ -103,7 +108,7 @@ function sanitizeSections(value) {
   return value;
 }
 
-function ensureTwoParagraphsText(text) {
+function ensureTwoParagraphsText(text, fallbackLine = BODY_TEXT_FILLERS[0]) {
   const raw = String(text || "").trim();
   if (!raw) return "";
   if (raw.includes("\n")) return raw;
@@ -113,20 +118,20 @@ function ensureTwoParagraphsText(text) {
     const rest = parts.join("。");
     return `${first}。\n${rest}。`.trim();
   }
-  return `${raw}${raw.endsWith("。") ? "" : "。"}\n${BODY_TEXT_FILLERS[0]}`.trim();
+  return `${raw}${raw.endsWith("。") ? "" : "。"}\n${fallbackLine}`.trim();
 }
 
-function padShortText(text, minChars = MIN_BODY_CHARS) {
-  let out = ensureTwoParagraphsText(text);
+function padShortText(text, minChars = MIN_BODY_CHARS, fillers = BODY_TEXT_FILLERS) {
+  let out = ensureTwoParagraphsText(text, fillers[0] || "");
   if (!out) return "";
   let [p1, p2] = out.split(/\n+/);
   p1 = p1?.trim() || "";
   p2 = p2?.trim() || "";
-  if (!p2) p2 = BODY_TEXT_FILLERS[0] || "";
+  if (!p2) p2 = fillers[0] || "";
   let idx = 0;
   let combined = `${p1}\n${p2}`.trim();
-  while (combined.length < minChars && BODY_TEXT_FILLERS.length) {
-    const filler = BODY_TEXT_FILLERS[idx % BODY_TEXT_FILLERS.length];
+  while (combined.length < minChars && fillers.length) {
+    const filler = fillers[idx % fillers.length];
     if (filler) p2 = `${p2}${p2 ? " " : ""}${filler}`.trim();
     combined = `${p1}\n${p2}`.trim();
     idx += 1;
@@ -137,8 +142,13 @@ function padShortText(text, minChars = MIN_BODY_CHARS) {
 function padShortBodyItems(items) {
   return items.map((item) => {
     if (!isTooShort(item?.text)) return item;
-    return { ...item, text: padShortText(item?.text) };
+    return { ...item, text: padShortText(item?.text, MIN_BODY_CHARS, BODY_TEXT_FILLERS) };
   });
+}
+
+function padShadowSectionText(text) {
+  if (!isTooShort(text, MIN_SHADOW_CHARS)) return text;
+  return padShortText(text, MIN_SHADOW_CHARS, SHADOW_TEXT_FILLERS);
 }
 
 function pickSectionById(data, id) {
@@ -195,12 +205,12 @@ function validateOutput(data) {
 
   const chiron = pickSection("chiron");
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
-  if (isTooShort(chiron?.text)) return { ok: false, reason: "chiron_too_short" };
+  if (isTooShort(chiron?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "chiron_too_short" };
   if (!String(chiron?.text || "").includes("\n")) return { ok: false, reason: "chiron_no_break" };
   if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
-  if (isTooShort(lilith?.text)) return { ok: false, reason: "lilith_too_short" };
+  if (isTooShort(lilith?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "lilith_too_short" };
   if (!String(lilith?.text || "").includes("\n")) return { ok: false, reason: "lilith_no_break" };
   if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
@@ -261,6 +271,9 @@ function buildRetryNote(reason) {
   }
   if (reason === "bodies_too_short") {
     return "bodies.items の各 text は最低180字。2段落（改行1つ）で、各段落2〜3文を書くこと。";
+  }
+  if (reason === "chiron_too_short" || reason === "lilith_too_short") {
+    return "chiron/lilith の text は最低120字。2段落（改行1つ）で書くこと。";
   }
   if (reason === "bodies_count" || reason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -371,6 +384,14 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
       }
       parsed = { ...parsed, sections: sanitizeSections(parsed.sections) };
+      const chironSection = pickSectionById(parsed, "chiron");
+      if (chironSection && typeof chironSection.text === "string") {
+        chironSection.text = padShadowSectionText(chironSection.text);
+      }
+      const lilithSection = pickSectionById(parsed, "lilith");
+      if (lilithSection && typeof lilithSection.text === "string") {
+        lilithSection.text = padShadowSectionText(lilithSection.text);
+      }
       let v = validateOutput(parsed);
       if (!v.ok && v.reason === "bodies_too_short" && i === maxAttempts - 1) {
         const bodiesSection = pickSectionById(parsed, "bodies");
