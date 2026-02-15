@@ -100,11 +100,8 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
-const BODY_TEXT_MIN_CHARS = 180;
-const BODY_TEXT_FILLERS = [
-  "輪郭は静かに残り、距離感として息づく。",
-  "言葉にせずとも、感触として留まりやすい。",
-];
+const BODY_TEXT_MIN_CHARS = 100;
+const BODY_TEXT_FILLERS = [];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
@@ -347,7 +344,7 @@ function ensurePageSpace(doc, layout, minHeight = 0) {
   }
 }
 
-function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, color } = {}) {
+function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, color, ensure = true } = {}) {
   if (!text) return;
   const effectiveSize = size || 11;
   const effectiveLineGap = lineGap ?? LINE_GAP_BODY;
@@ -357,7 +354,9 @@ function drawTextBlock(doc, layout, text, { font, size, lineGap, marginAfter, co
     align: "left",
     lineGap: effectiveLineGap,
   });
-  ensurePageSpace(doc, layout, blockHeight + (marginAfter ?? SECTION_GAP));
+  if (ensure) {
+    ensurePageSpace(doc, layout, blockHeight + (marginAfter ?? SECTION_GAP));
+  }
   doc.text(text, layout.x, layout.y, {
     width: contentWidth(doc),
     align: "left",
@@ -724,7 +723,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     font: "body",
     size: 15,
     lineGap: LINE_GAP_SUMMARY,
-    marginAfter: 12,
+    marginAfter: 16,
   });
 
   drawSymbolValueLine(doc, layout, [
@@ -774,7 +773,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "☌", label: "不動", value: modality.fixed },
     { symbol: "△", label: "柔軟", value: modality.mutable },
   ], { fontSize: 15, lineGap: LINE_GAP_SUMMARY });
-  layout.y += 6;
+  layout.y += 12;
 
   if (modalityText) {
     drawTextBlock(doc, layout, modalityText, {
@@ -869,6 +868,7 @@ function renderNarratives({ doc, layout, rows, title }) {
       size: 15,
       lineGap: LINE_GAP_BODY,
       marginAfter: SECTION_GAP,
+      ensure: false,
     });
   });
   drawDivider(doc, layout);
