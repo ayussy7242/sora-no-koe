@@ -100,8 +100,11 @@ const ASTRO_GLYPHS = [
   "△",
 ];
 
-const BODY_TEXT_MIN_CHARS = 200;
-const BODY_TEXT_FILLERS = [];
+const BODY_TEXT_MIN_CHARS = 180;
+const BODY_TEXT_FILLERS = [
+  "輪郭は静かに残り、距離感として息づく。",
+  "言葉にせずとも、感触として留まりやすい。",
+];
 const SUMMARY_TEXT_MIN_CHARS = 90;
 const SUMMARY_TEXT_FILLERS = [
   "構造は先に置かれ、感触がゆっくりと形になる。",
@@ -469,12 +472,15 @@ function drawSymbolHeading(doc, layout, { glyph, rest, fontSize = 16, gap = 6 })
   layout.y = y + doc.currentLineHeight(true) + 2;
 }
 
-function drawSymbolTextLine(doc, layout, { glyph, rest, font = "body", fontSize = 14, gap = 6 }) {
+function drawSymbolTextLine(
+  doc,
+  layout,
+  { glyph, rest, font = "body", fontSize = 14, gap = 6, symbolOffset = -1 }
+) {
   if (!glyph) {
     drawTextBlock(doc, layout, rest, { font, size: fontSize, marginAfter: 0 });
     return;
   }
-  const symbolOffset = -1;
   const symbolFont = pickSymbolFontName(doc, glyph);
   doc.font(symbolFont).fontSize(fontSize);
   const symbolWidth = doc.widthOfString(glyph);
@@ -532,8 +538,87 @@ function drawSymbolValueLine(doc, layout, segments, { fontSize = 15, lineGap = L
   layout.y = y + lineHeight + lineGap;
 }
 
-function ensureBodyText(text) {
-  return String(text || "").trim();
+const ASTRO_GLYPHS_REGEX = (() => {
+  const escaped = ASTRO_GLYPHS.map((g) => String(g).replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")).join("");
+  return new RegExp(`[${escaped}]`, "g");
+})();
+const TOFU_REGEX = /[□■☒�]/g;
+
+function normalizeHeadingText(text) {
+  return String(text || "")
+    .replace(/\s+/g, "")
+    .replace(/[｜|]/g, "|");
+}
+
+function stripHeadingEcho(text, headingRest) {
+  if (!headingRest) return text;
+  const lines = String(text || "").split(/\r?\n/);
+  if (!lines.length) return text;
+  const first = lines[0].trim();
+  if (!first) return text;
+  const normFirst = normalizeHeadingText(first);
+  const normHeading = normalizeHeadingText(headingRest);
+  if (normHeading && normFirst.startsWith(normHeading)) {
+    return lines.slice(1).join("\n").trim();
+  }
+  return text;
+}
+
+function sanitizeNarrativeText(text, headingRest) {
+  let out = String(text || "");
+  out = stripHeadingEcho(out, headingRest);
+  out = out.replace(ASTRO_GLYPHS_REGEX, "");
+  out = out.replace(TOFU_REGEX, "");
+  out = out.replace(/[|]/g, "｜");
+  out = out.replace(/[ \t]+\n/g, "\n");
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.trim();
+}
+
+function ensureBodyText(text, { heading, minChars = BODY_TEXT_MIN_CHARS } = {}) {
+  let out = sanitizeNarrativeText(text, heading);
+  if (!out) return "";
+
+  let paragraphs = out.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length <= 1) {
+    const sentencePool = String(paragraphs[0] || "")
+      .split("。")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (sentencePool.length >= 2) {
+      const first = sentencePool.shift();
+      const second = sentencePool.join("。");
+      paragraphs = [`${first}。`, second ? `${second}。` : ""];
+    } else if (sentencePool.length === 1) {
+      const base = sentencePool[0];
+      paragraphs = [`${base}${base.endsWith("。") ? "" : "。"}`, ""];
+    } else {
+      paragraphs = [out, ""];
+    }
+  } else {
+    paragraphs = [paragraphs[0], paragraphs.slice(1).join(" ").trim()];
+  }
+
+  let p1 = paragraphs[0] || "";
+  let p2 = paragraphs[1] || "";
+  if (!p2) {
+    p2 = BODY_TEXT_FILLERS[0] || "";
+  }
+
+  let idx = 0;
+  let combined = `${p1}\n${p2}`.trim();
+  while (combined.length < minChars) {
+    const filler = BODY_TEXT_FILLERS[idx % BODY_TEXT_FILLERS.length] || "";
+    if (filler) {
+      p2 = `${p2}${p2 ? " " : ""}${filler}`;
+    } else {
+      break;
+    }
+    combined = `${p1}\n${p2}`.trim();
+    idx += 1;
+  }
+
+  return `${p1}\n${p2}`.trim();
 }
 
 function ensureSummaryText(text) {
@@ -564,16 +649,20 @@ function ensureSpace(doc, neededHeight = 40) {
 }
 
 function drawSectionTitle(doc, layout, title) {
-  ensurePageSpace(doc, layout, TITLE_PAD_TOP + 54 + TITLE_PAD_BOTTOM);
+  const h = 44;
+  const fontSize = 20;
+  ensurePageSpace(doc, layout, TITLE_PAD_TOP + h + TITLE_PAD_BOTTOM);
   layout.y += TITLE_PAD_TOP;
   const x = layout.x;
   const w = contentWidth(doc);
-  const h = 38;
   const y = layout.y;
 
   doc.save();
   doc.rect(x, y, w, h).fill(COLORS.subBg);
-  doc.fillColor(COLORS.textMainLight).font("title").fontSize(20).text(title, x + 10, y + 8, { lineBreak: false });
+  doc.fillColor(COLORS.textMainLight).font("title").fontSize(fontSize);
+  const textHeight = doc.currentLineHeight(true);
+  const textY = y + Math.max((h - textHeight) / 2, 0);
+  doc.text(title, x + 10, textY, { lineBreak: false });
   doc.restore();
 
   layout.y = y + h + TITLE_PAD_BOTTOM;
@@ -654,12 +743,31 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     });
   }
   layout.y += 10;
-  drawTextBlock(doc, layout, "三区分（活動 / 不動 / 柔軟）の分布は以下です。", {
-    font: "body",
-    size: 15,
-    lineGap: LINE_GAP_SUMMARY,
-    marginAfter: 6,
-  });
+
+  const modalityLineHeight = (() => {
+    const fontSize = 15;
+    const baseLineHeight = doc.font("body").fontSize(fontSize).currentLineHeight(true);
+    let symbolLineHeight = baseLineHeight;
+    ["☍", "☌", "△"].forEach((symbol) => {
+      const fontName = pickSymbolFontName(doc, symbol);
+      const lh = doc.font(fontName).fontSize(fontSize).currentLineHeight(true);
+      if (lh > symbolLineHeight) symbolLineHeight = lh;
+    });
+    return Math.max(baseLineHeight, symbolLineHeight);
+  })();
+  const modalityText = summary?.modality?.text ? ensureSummaryText(summary.modality.text) : "";
+  const modalityTextHeight = modalityText
+    ? doc.font("body").fontSize(15).heightOfString(modalityText, {
+        width: contentWidth(doc),
+        align: "left",
+        lineGap: LINE_GAP_SUMMARY,
+      })
+    : 0;
+  const modalityBlockHeight =
+    modalityLineHeight +
+    LINE_GAP_SUMMARY +
+    (modalityText ? modalityTextHeight + SECTION_GAP : 0);
+  ensurePageSpace(doc, layout, modalityBlockHeight);
 
   drawSymbolValueLine(doc, layout, [
     { symbol: "☍", label: "活動", value: modality.cardinal },
@@ -667,8 +775,8 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     { symbol: "△", label: "柔軟", value: modality.mutable },
   ], { fontSize: 15, lineGap: LINE_GAP_SUMMARY });
 
-  if (summary?.modality?.text) {
-    drawTextBlock(doc, layout, ensureSummaryText(summary.modality.text), {
+  if (modalityText) {
+    drawTextBlock(doc, layout, modalityText, {
       font: "body",
       size: 15,
       lineGap: LINE_GAP_SUMMARY,
@@ -699,7 +807,13 @@ function renderBodyList({ doc, layout, title, rows, lines }) {
 
   listLines.forEach((line) => {
     if (line && typeof line === "object") {
-      drawSymbolTextLine(doc, layout, { glyph: line.glyph, rest: line.rest, font: "body", fontSize: 15 });
+      drawSymbolTextLine(doc, layout, {
+        glyph: line.glyph,
+        rest: line.rest,
+        font: "body",
+        fontSize: 15,
+        symbolOffset: -2,
+      });
     } else {
       drawTextBlock(doc, layout, String(line || ""), { font: "body", size: 15, marginAfter: 0 });
     }
@@ -725,7 +839,7 @@ function renderNarratives({ doc, layout, rows, title }) {
       gap: 6,
     });
     layout.y += PLANET_TITLE_GAP_AFTER;
-    drawTextBlock(doc, layout, ensureBodyText(row.text) || "（本文は準備中）", {
+    drawTextBlock(doc, layout, ensureBodyText(row.text, { heading: headingRest }) || "（本文は準備中）", {
       font: "body",
       size: 15,
       lineGap: LINE_GAP_BODY,
@@ -1090,8 +1204,9 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const jsonFile = bucket.file(jsonPath);
     const [pdfExists] = await file.exists();
     const [jsonExists] = await jsonFile.exists();
+    const forceRegen = String(env?.BLUEPRINT_REGEN || process.env.BLUEPRINT_REGEN || "") === "1";
 
-    if (pdfExists && jsonExists) {
+    if (pdfExists && jsonExists && !forceRegen) {
       console.log("[blueprint] generate skip (exists)", { file_path: filePath });
       return { ok: true, filePath, skipped: true };
     }
@@ -1192,7 +1307,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const displayName = lineUser?.line_profile?.display_name || "あなた";
 
     let aiData = null;
-    if (jsonExists) {
+    if (jsonExists && !forceRegen) {
       try {
         const [buf] = await jsonFile.download();
         aiData = JSON.parse(String(buf || ""));
