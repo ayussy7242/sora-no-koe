@@ -16,6 +16,21 @@ function requireTasksCaller(env, req) {
   return { ok: true };
 }
 
+async function markFailed_(db, admin, lineUserId, { stage, error, extra } = {}) {
+  if (!lineUserId) return;
+  const ref = getJobRef(db, lineUserId);
+  await ref.set(
+    {
+      status: "failed",
+      stage: stage || "worker",
+      error: String(error || "unknown_error"),
+      extra: extra || null,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
 function getJobRef(db, lineUserId) {
   return db.collection("jobs").doc("blueprint_light").collection("items").doc(lineUserId);
 }
@@ -168,10 +183,24 @@ function createBlueprintsRouter(deps = {}) {
 
   const workerHandler = async (req, res) => {
     const auth = requireTasksCaller(env, req);
-    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!auth.ok) {
+      const maybeLineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
+      await markFailed_(db, admin, maybeLineUserId, {
+        stage: "auth",
+        error: auth.error || "invalid_auth",
+      }).catch(() => {});
+      return res.status(200).json({ ok: false, nonRetry: true, error: auth.error });
+    }
 
-    const lineUserId = String(req.body?.line_user_id || "").trim();
-    if (!lineUserId) return res.status(400).json({ ok: false, error: "line_user_id required" });
+    const lineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
+    if (!lineUserId) {
+      await markFailed_(db, admin, null, {
+        stage: "validate_input",
+        error: "missing_line_user_id",
+        extra: { bodyKeys: Object.keys(req.body || {}) },
+      }).catch(() => {});
+      return res.status(200).json({ ok: false, nonRetry: true, error: "missing_line_user_id" });
+    }
 
     const jobRef = getJobRef(db, lineUserId);
     const nowMs = getNowMillis();
@@ -246,18 +275,35 @@ function createBlueprintsRouter(deps = {}) {
       );
       return res.json({ ok: true, code: gen?.skipped ? "already_exists" : "generated" });
     } catch (e) {
-      console.log("[blueprint] worker failed:", e?.message || String(e));
+      const message = String(e?.message || e || "");
+      const code = String(e?.code || "");
+      const nonRetry =
+        message.includes("ai_failed:") ||
+        message.includes("validation_failed:") ||
+        message.includes("json_parse_failed:") ||
+        message.includes("line user not found") ||
+        message.includes("missing_") ||
+        message.includes("token") ||
+        code === "UNAUTHENTICATED" ||
+        code === "PERMISSION_DENIED";
+
+      console.log("[blueprint] worker failed:", message);
+
+      if (nonRetry) {
+        await markFailed_(db, admin, lineUserId, { stage: "worker", error: message }).catch(() => {});
+        await jobRef.set(
+          { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
+          { merge: true }
+        );
+        return res.status(200).json({ ok: false, nonRetry: true, error: message });
+      }
+
+      await markFailed_(db, admin, lineUserId, { stage: "worker_unhandled", error: message }).catch(() => {});
       await jobRef.set(
-        {
-          status: "failed",
-          error: e?.message || String(e),
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-          finished_at: admin.firestore.FieldValue.serverTimestamp(),
-          lease_until: null,
-        },
+        { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
         { merge: true }
       );
-      return res.status(500).json({ ok: false, error: e?.message || String(e) });
+      return res.status(500).json({ ok: false, error: "internal_error" });
     }
   };
 
