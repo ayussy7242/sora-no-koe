@@ -153,6 +153,19 @@ function createBlueprintsRouter(deps = {}) {
       return res.status(200).json({ ok: true, status: "not_ready" });
     }
     const job = snap.data() || {};
+    const nowMs = getNowMillis();
+    if (job.status === "running" && job.error && !isLeaseActive(job, nowMs)) {
+      await jobRef.set(
+        {
+          status: "failed",
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          finished_at: admin.firestore.FieldValue.serverTimestamp(),
+          lease_until: null,
+        },
+        { merge: true }
+      );
+      job.status = "failed";
+    }
     if (job.status === "done") {
       const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
