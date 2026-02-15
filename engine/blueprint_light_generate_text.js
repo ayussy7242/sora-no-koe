@@ -64,6 +64,28 @@ function isEmptyText(text) {
   return !text || String(text).trim().length === 0;
 }
 
+function stripBannedTerms(text) {
+  let out = String(text || "");
+  for (const re of BANNED_PATTERNS) {
+    out = out.replace(re, "");
+  }
+  return out.replace(/\s{2,}/g, " ").trim();
+}
+
+function sanitizeSections(value) {
+  if (value == null) return value;
+  if (typeof value === "string") return stripBannedTerms(value);
+  if (Array.isArray(value)) return value.map((v) => sanitizeSections(v));
+  if (typeof value === "object") {
+    const out = Array.isArray(value) ? [] : {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = sanitizeSections(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 function validateOutput(data) {
   if (!data || typeof data !== "object") return { ok: false, reason: "not_object" };
   if (!Array.isArray(data.sections)) return { ok: false, reason: "sections_missing" };
@@ -291,7 +313,12 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           throw parseErr;
         }
       }
-      const v = validateOutput(parsed);
+      let v = validateOutput(parsed);
+      if (!v.ok && String(v.reason || "").startsWith("banned:")) {
+        const sanitized = { ...parsed, sections: sanitizeSections(parsed.sections) };
+        v = validateOutput(sanitized);
+        if (v.ok) return { ok: true, data: sanitized };
+      }
       if (!v.ok) {
         const err = new Error(`validation_failed:${v.reason}`);
         err.validationReason = v.reason;
