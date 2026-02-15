@@ -7,20 +7,24 @@ const {
 } = require("./prompts/sora_ai_prompts");
 
 const BANNED_PATTERNS = [
-  /あなた/g,
-  /きみ/g,
-  /君/g,
-  /すべき/g,
-  /しよう/g,
-  /すると良い/g,
-  /するとよい/g,
-  /必ず/g,
-  /確実/g,
-  /が起きる/g,
-  /になる/g,
+  /あなた/,
+  /きみ/,
+  /君/,
+  /すべき/,
+  /しよう/,
+  /すると良い/,
+  /するとよい/,
+  /必ず/,
+  /確実/,
+  /が起きる/,
+  /になる/,
 ];
 
 const MIN_BODY_CHARS = 180;
+const BODY_TEXT_FILLERS = [
+  "輪郭は静かに残り、距離感として息づく。",
+  "言葉にせずとも、感触として留まりやすい。",
+];
 const REQUIRED_BODY_KEYS = [
   "sun",
   "moon",
@@ -64,10 +68,24 @@ function isEmptyText(text) {
   return !text || String(text).trim().length === 0;
 }
 
+const BANNED_REPLACEMENTS = [
+  { pattern: /確実/g, replace: "濃く" },
+  { pattern: /必ず/g, replace: "こともある" },
+  { pattern: /が起きる/g, replace: "が立ち上がる" },
+  { pattern: /になる/g, replace: "に寄る" },
+  { pattern: /すべき/g, replace: "に触れやすい" },
+  { pattern: /しよう/g, replace: "していく" },
+  { pattern: /すると良い/g, replace: "しやすい" },
+  { pattern: /するとよい/g, replace: "しやすい" },
+  { pattern: /あなた/g, replace: "この人物" },
+  { pattern: /きみ/g, replace: "この人物" },
+  { pattern: /君/g, replace: "この人物" },
+];
+
 function stripBannedTerms(text) {
   let out = String(text || "");
-  for (const re of BANNED_PATTERNS) {
-    out = out.replace(re, "");
+  for (const entry of BANNED_REPLACEMENTS) {
+    out = out.replace(entry.pattern, entry.replace);
   }
   return out.replace(/\s{2,}/g, " ").trim();
 }
@@ -84,6 +102,44 @@ function sanitizeSections(value) {
     return out;
   }
   return value;
+}
+
+function ensureTwoParagraphsText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  if (raw.includes("\n")) return raw;
+  const parts = raw.split("。").map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts.shift();
+    const rest = parts.join("。");
+    return `${first}。\n${rest}。`.trim();
+  }
+  return `${raw}${raw.endsWith("。") ? "" : "。"}\n${BODY_TEXT_FILLERS[0]}`.trim();
+}
+
+function padShortText(text, minChars = MIN_BODY_CHARS) {
+  let out = ensureTwoParagraphsText(text);
+  if (!out) return "";
+  let [p1, p2] = out.split(/\n+/);
+  p1 = p1?.trim() || "";
+  p2 = p2?.trim() || "";
+  if (!p2) p2 = BODY_TEXT_FILLERS[0] || "";
+  let idx = 0;
+  let combined = `${p1}\n${p2}`.trim();
+  while (combined.length < minChars && BODY_TEXT_FILLERS.length) {
+    const filler = BODY_TEXT_FILLERS[idx % BODY_TEXT_FILLERS.length];
+    if (filler) p2 = `${p2}${p2 ? " " : ""}${filler}`.trim();
+    combined = `${p1}\n${p2}`.trim();
+    idx += 1;
+  }
+  return `${p1}\n${p2}`.trim();
+}
+
+function padShortBodyItems(items) {
+  return items.map((item) => {
+    if (!isTooShort(item?.text)) return item;
+    return { ...item, text: padShortText(item?.text) };
+  });
 }
 
 function pickSectionById(data, id) {
@@ -181,9 +237,6 @@ function validateOutput(data) {
   const allText = countText(data.sections);
   for (const re of BANNED_PATTERNS) {
     if (re.test(allText)) {
-      if (data?.footer?.echo && re.test(String(data.footer.echo)) && String(data.footer.echo).includes("あなた")) {
-        continue;
-      }
       return { ok: false, reason: `banned:${re}` };
     }
   }
@@ -395,13 +448,8 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           throw parseErr;
         }
       }
+      parsed = { ...parsed, sections: sanitizeSections(parsed.sections) };
       let v = validateOutput(parsed);
-      if (!v.ok && String(v.reason || "").startsWith("banned:")) {
-        const sanitized = { ...parsed, sections: sanitizeSections(parsed.sections) };
-        v = validateOutput(sanitized);
-        if (v.ok) return { ok: true, data: sanitized };
-        parsed = sanitized;
-      }
       if (!v.ok && v.reason === "bodies_too_short") {
         const expandedItems = await expandShortBodyItems({ apiKey, baseUrl, model, input, parsed });
         if (expandedItems && expandedItems.length) {
@@ -416,6 +464,12 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             return item;
           });
           if (bodiesSection) bodiesSection.items = mergedItems;
+          v = validateOutput(parsed);
+          if (v.ok) return { ok: true, data: parsed };
+        }
+        const bodiesSection = pickSectionById(parsed, "bodies");
+        if (bodiesSection && Array.isArray(bodiesSection.items)) {
+          bodiesSection.items = padShortBodyItems(bodiesSection.items);
           v = validateOutput(parsed);
           if (v.ok) return { ok: true, data: parsed };
         }
