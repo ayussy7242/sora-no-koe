@@ -6,20 +6,6 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const BANNED_PATTERNS = [
-  /あなた/,
-  /きみ/,
-  /君/,
-  /すべき/,
-  /しよう/,
-  /すると良い/,
-  /するとよい/,
-  /必ず/,
-  /確実/,
-  /が起きる/,
-  /になる/,
-];
-
 const MIN_BODY_CHARS = 180;
 const BODY_TEXT_FILLERS = [
   "輪郭は静かに残り、距離感として息づく。",
@@ -81,6 +67,7 @@ const BANNED_REPLACEMENTS = [
   { pattern: /きみ/g, replace: "この人物" },
   { pattern: /君/g, replace: "この人物" },
 ];
+const BANNED_PATTERNS = BANNED_REPLACEMENTS.map((entry) => new RegExp(entry.pattern.source));
 
 function stripBannedTerms(text) {
   let out = String(text || "");
