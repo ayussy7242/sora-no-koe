@@ -286,12 +286,12 @@ function normalizeSentenceCount(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE
 }
 
 
-function isValidBodyText(text) {
+function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
   if (!raw.includes("\n")) return { ok: false, reason: "no_break" };
   const len = normalizedLength(raw);
-  if (len < MIN_BODY_CHARS) return { ok: false, reason: "too_short" };
+  if (len < minChars) return { ok: false, reason: "too_short" };
   const shape = validateSentenceShape(raw);
   if (!shape.ok) return { ok: false, reason: `sentence_shape:${shape.reason}` };
   return { ok: true, len };
@@ -383,7 +383,7 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       text = ensureHasBreak(text, "");
     }
     text = normalizeSentenceCount(text);
-    const check = isValidBodyText(text);
+    const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
@@ -425,7 +425,7 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       text = ensureHasBreak(text, "");
     }
     text = normalizeSentenceCount(text);
-    const check = isValidBodyText(text);
+    const check = isValidSectionText(text, { minChars: MIN_SHADOW_CHARS });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
