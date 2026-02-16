@@ -95,6 +95,15 @@ function cleanupPlainText(text) {
   return out;
 }
 
+function findBannedTerm(text) {
+  const raw = String(text || "");
+  for (const re of BANNED_PATTERNS) {
+    const match = raw.match(re);
+    if (match && match[0]) return match[0];
+  }
+  return null;
+}
+
 
 
 function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
@@ -125,6 +134,7 @@ ${sentenceRule}
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
+「確実」「必ず」「〜になる」「〜が起きる」は使わない。
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
@@ -147,6 +157,7 @@ ${sentenceRule}
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
+「確実」「必ず」「〜になる」「〜が起きる」は使わない。
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
@@ -183,6 +194,13 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       continue;
     }
     const len = normalizedLength(text);
+    const banned = findBannedTerm(text);
+    if (banned) {
+      lastReason = `banned:${banned}`;
+      lastDetail = `banned:${banned}`;
+      lastLen = normalizedLength(text);
+      continue;
+    }
     const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
@@ -227,6 +245,13 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       continue;
     }
     const len = normalizedLength(text);
+    const banned = findBannedTerm(text);
+    if (banned) {
+      lastReason = `banned:${banned}`;
+      lastDetail = `banned:${banned}`;
+      lastLen = normalizedLength(text);
+      continue;
+    }
     const check = isValidSectionText(text, { minChars });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
