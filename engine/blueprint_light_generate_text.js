@@ -6,10 +6,10 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 100;
-const MIN_SHADOW_CHARS = 100;
-const MIN_NODE_CHARS = 100;
-const MIN_ANGLE_CHARS = 100;
+const MIN_BODY_CHARS = 160;
+const MIN_SHADOW_CHARS = 160;
+const MIN_NODE_CHARS = 160;
+const MIN_ANGLE_CHARS = 160;
 const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
@@ -60,19 +60,7 @@ function isEmptyText(text) {
   return !text || String(text).trim().length === 0;
 }
 
-const BANNED_REPLACEMENTS = [
-  { pattern: /確実/g, replace: "濃く" },
-  { pattern: /必ず/g, replace: "こともある" },
-  { pattern: /が起きる/g, replace: "が立ち上がる" },
-  { pattern: /になる/g, replace: "に寄る" },
-  { pattern: /すべき/g, replace: "に触れやすい" },
-  { pattern: /しよう/g, replace: "していく" },
-  { pattern: /すると良い/g, replace: "しやすい" },
-  { pattern: /するとよい/g, replace: "しやすい" },
-  { pattern: /あなた/g, replace: "この人物" },
-  { pattern: /きみ/g, replace: "この人物" },
-  { pattern: /君/g, replace: "この人物" },
-];
+const BANNED_REPLACEMENTS = [];
 const BANNED_PATTERNS = [
   /あなた/,
   /きみ/,
@@ -85,17 +73,21 @@ const BANNED_PATTERNS = [
   /確実/,
   /が起きる/,
   /になる/,
+  /輪郭は、?静かに/,
+  /言葉にせずとも/,
+  /が立ち上がる/,
 ];
 
 const SENTENCE_COUNT_MIN = 3;
 const SENTENCE_COUNT_MAX = 5;
 
 function stripBannedTerms(text) {
+  if (!BANNED_REPLACEMENTS.length) return String(text || "");
   let out = String(text || "");
   for (const entry of BANNED_REPLACEMENTS) {
     out = out.replace(entry.pattern, entry.replace);
   }
-  return out.replace(/\s{2,}/g, " ").trim();
+  return out;
 }
 
 function sanitizeSections(value) {
@@ -322,7 +314,7 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
 出力は text のみ（JSON禁止）。
 必ず \\n を1つ含める（段落は2つ）。
 文は 。 で終える。合計3〜5文。
-合計100〜160字（空白除去後）を必ず満たす。
+合計160〜240字（空白除去後）を必ず満たす（目安200字前後）。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -339,8 +331,8 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
 以下のINPUT（単一セクション）から本文のみ生成する。
   出力は text のみ（JSON禁止）。
   必ず \\n を1つ含める（段落は2つ）。
-  文は 。 で終える。合計3〜5文。
-合計100〜160字（空白除去後）を必ず満たす。
+文は 。 で終える。合計3〜5文。
+合計160〜240字（空白除去後）を必ず満たす（目安200字前後）。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -597,7 +589,7 @@ function buildRetryNote(reason) {
     return "nodes の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (baseReason === "angles_too_short") {
-    return "angles.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
+    return "angles.items の各 text は3〜5文。合計160〜240字（目安200字前後）で、改行を1つ以上入れて2段落以上にすること。";
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -609,22 +601,22 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は3〜5文・改行1つ以上・合計160〜240字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `各セクションの text は3〜5文・改行1つ以上・合計160〜240字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).includes("_sentence_shape")) {
-    return "各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
+    return "各 text は3〜5文。合計160〜240字（目安200字前後）で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
   }
   if (String(reason).endsWith("_no_break")) {
     return "各 text に改行を1つ入れて2段落にすること。";
   }
   if (String(reason).endsWith("_too_short")) {
-    return "各 text は3〜5文、合計100字前後で書くこと。";
+    return "各 text は3〜5文、合計160〜240字（目安200字前後）で書くこと。";
   }
   return "";
 }
