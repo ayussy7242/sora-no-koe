@@ -225,6 +225,67 @@ function validateSentenceShape(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_
   return { ok: true };
 }
 
+function normalizeSentenceCount(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_COUNT_MAX } = {}) {
+  const raw = String(text || "").trim();
+  if (!raw) return raw;
+  const paragraphs = raw.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  if (!paragraphs.length) return raw;
+  const paraSentences = paragraphs.map((p) => splitSentences(p));
+  let total = paraSentences.reduce((sum, arr) => sum + arr.length, 0);
+  if (total >= min && total <= max) return raw;
+
+  if (total < min) {
+    let changed = true;
+    while (total < min && changed) {
+      changed = false;
+      for (let pi = 0; pi < paraSentences.length && total < min; pi += 1) {
+        for (let si = 0; si < paraSentences[pi].length && total < min; si += 1) {
+          const s = paraSentences[pi][si];
+          const idx = s.indexOf("、");
+          if (idx > 0 && idx < s.length - 1) {
+            const left = s.slice(0, idx + 1).trim();
+            const right = s.slice(idx + 1).trim();
+            paraSentences[pi].splice(si, 1, left, right);
+            total += 1;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (total > max) {
+    let changed = true;
+    while (total > max && changed) {
+      changed = false;
+      for (let pi = 0; pi < paraSentences.length && total > max; pi += 1) {
+        const arr = paraSentences[pi];
+        if (arr.length < 2) continue;
+        let bestIdx = 0;
+        let bestLen = Infinity;
+        for (let i = 0; i < arr.length - 1; i += 1) {
+          const len = arr[i].length + arr[i + 1].length;
+          if (len < bestLen) {
+            bestLen = len;
+            bestIdx = i;
+          }
+        }
+        const merged = `${arr[bestIdx]}、${arr[bestIdx + 1]}`.replace(/、+$/g, "、");
+        arr.splice(bestIdx, 2, merged);
+        total -= 1;
+        changed = true;
+      }
+    }
+  }
+
+  const rebuilt = paraSentences
+    .map((arr) => (arr.length ? `${arr.join("。")}。` : ""))
+    .join("\n")
+    .trim();
+  return rebuilt || raw;
+}
+
+
 function isValidBodyText(text) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
@@ -259,15 +320,15 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
   const header = `
 以下のINPUT（単一天体）から本文のみ生成する。
 出力は text のみ（JSON禁止）。
-改行を1つ以上入れて2段落以上にする。
-文は3〜5文。
+必ず \\n を1つ含める（段落は2つ）。
+文は 。 で終える。合計3〜5文。
 合計100〜160字（空白除去後）を目安にする。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
-条件を満たせない場合は __RETRY__ だけ返す。
+満たせない場合は __RETRY__ のみ返す。
 `.trim();
   const note = retryNote ? `\n\n【直前の修正】${retryNote}\n` : "";
   return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
@@ -302,6 +363,7 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
     if (!text.includes("\n")) {
       text = ensureHasBreak(text, "");
     }
+    text = normalizeSentenceCount(text);
     const check = isValidBodyText(text);
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
@@ -371,14 +433,18 @@ function validateOutput(data) {
   if (isTooShort(chiron?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "chiron_too_short" };
   if (!String(chiron?.text || "").includes("\n")) return { ok: false, reason: "chiron_no_break" };
   const chironShape = validateSentenceShape(chiron?.text);
-  if (!chironShape.ok) return { ok: false, reason: `chiron_sentence_shape:${chironShape.reason}` };
+  if (!chironShape.ok && chironShape.reason !== "count") {
+    return { ok: false, reason: `chiron_sentence_shape:${chironShape.reason}` };
+  }
   if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
   if (isTooShort(lilith?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "lilith_too_short" };
   if (!String(lilith?.text || "").includes("\n")) return { ok: false, reason: "lilith_no_break" };
   const lilithShape = validateSentenceShape(lilith?.text);
-  if (!lilithShape.ok) return { ok: false, reason: `lilith_sentence_shape:${lilithShape.reason}` };
+  if (!lilithShape.ok && lilithShape.reason !== "count") {
+    return { ok: false, reason: `lilith_sentence_shape:${lilithShape.reason}` };
+  }
   if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
@@ -398,9 +464,13 @@ function validateOutput(data) {
       return { ok: false, reason: "nodes_north_no_break" };
     }
     const southShape = validateSentenceShape(nodes?.south?.text || nodes?.south);
-    if (!southShape.ok) return { ok: false, reason: `nodes_south_sentence_shape:${southShape.reason}` };
+    if (!southShape.ok && southShape.reason !== "count") {
+      return { ok: false, reason: `nodes_south_sentence_shape:${southShape.reason}` };
+    }
     const northShape = validateSentenceShape(nodes?.north?.text || nodes?.north);
-    if (!northShape.ok) return { ok: false, reason: `nodes_north_sentence_shape:${northShape.reason}` };
+    if (!northShape.ok && northShape.reason !== "count") {
+      return { ok: false, reason: `nodes_north_sentence_shape:${northShape.reason}` };
+    }
     if (tooLong(nodes?.south?.text || nodes?.south, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_south_too_long" };
     if (tooLong(nodes?.north?.text || nodes?.north, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
@@ -409,7 +479,9 @@ function validateOutput(data) {
       if (isTooShort(block?.text, MIN_NODE_CHARS)) return { ok: false, reason: "nodes_too_short" };
       if (!String(block?.text || "").includes("\n")) return { ok: false, reason: "nodes_no_break" };
       const blockShape = validateSentenceShape(block?.text);
-      if (!blockShape.ok) return { ok: false, reason: `nodes_sentence_shape:${blockShape.reason}` };
+      if (!blockShape.ok && blockShape.reason !== "count") {
+        return { ok: false, reason: `nodes_sentence_shape:${blockShape.reason}` };
+      }
       if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
@@ -428,7 +500,9 @@ function validateOutput(data) {
       if (isTooShort(item?.text, MIN_ANGLE_CHARS)) return { ok: false, reason: "angles_too_short" };
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
       const angleShape = validateSentenceShape(item?.text);
-      if (!angleShape.ok) return { ok: false, reason: `angles_sentence_shape:${angleShape.reason}` };
+      if (!angleShape.ok && angleShape.reason !== "count") {
+        return { ok: false, reason: `angles_sentence_shape:${angleShape.reason}` };
+      }
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
