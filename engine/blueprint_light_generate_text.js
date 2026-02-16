@@ -6,10 +6,10 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 80;
-const MIN_SHADOW_CHARS = 80;
-const MIN_NODE_CHARS = 80;
-const MIN_ANGLE_CHARS = 80;
+const MIN_BODY_CHARS = 160;
+const MIN_SHADOW_CHARS = 160;
+const MIN_NODE_CHARS = 160;
+const MIN_ANGLE_CHARS = 160;
 const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
