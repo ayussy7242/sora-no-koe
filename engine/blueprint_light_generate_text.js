@@ -395,7 +395,7 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
   throw err;
 }
 
-async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, maxAttempts = 5 }) {
+async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 5 }) {
   let lastReason = "";
   let lastDetail = "";
   for (let i = 0; i < maxAttempts; i += 1) {
@@ -425,7 +425,7 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       text = ensureHasBreak(text, "");
     }
     text = normalizeSentenceCount(text);
-    const check = isValidSectionText(text, { minChars: MIN_SHADOW_CHARS });
+    const check = isValidSectionText(text, { minChars });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
@@ -747,6 +747,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "chiron",
           item: chironExtra,
+          minChars: MIN_SHADOW_CHARS,
           maxAttempts: 4,
         });
       } else if (chironSection && typeof chironSection.text === "string") {
@@ -762,6 +763,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "lilith",
           item: lilithExtra,
+          minChars: MIN_SHADOW_CHARS,
           maxAttempts: 4,
         });
       } else if (lilithSection && typeof lilithSection.text === "string") {
@@ -769,14 +771,40 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
       }
       const nodesSection = pickSectionById(parsed, "nodes");
       if (nodesSection) {
-        if (nodesSection.south) {
+        const southNode = extrasList.find((e) => e?.key === "south_node");
+        const northNode = extrasList.find((e) => e?.key === "north_node");
+        if (southNode) {
+          nodesSection.south = nodesSection.south || {};
+          nodesSection.south.text = await generateSectionText({
+            apiKey,
+            baseUrl,
+            model,
+            input,
+            sectionId: "nodes_south",
+            item: southNode,
+            minChars: MIN_NODE_CHARS,
+            maxAttempts: 4,
+          });
+        } else if (nodesSection.south) {
           if (typeof nodesSection.south === "string") {
             nodesSection.south = padNodeSectionText(nodesSection.south);
           } else if (typeof nodesSection.south?.text === "string") {
             nodesSection.south.text = padNodeSectionText(nodesSection.south.text);
           }
         }
-        if (nodesSection.north) {
+        if (northNode) {
+          nodesSection.north = nodesSection.north || {};
+          nodesSection.north.text = await generateSectionText({
+            apiKey,
+            baseUrl,
+            model,
+            input,
+            sectionId: "nodes_north",
+            item: northNode,
+            minChars: MIN_NODE_CHARS,
+            maxAttempts: 4,
+          });
+        } else if (nodesSection.north) {
           if (typeof nodesSection.north === "string") {
             nodesSection.north = padNodeSectionText(nodesSection.north);
           } else if (typeof nodesSection.north?.text === "string") {
@@ -794,7 +822,24 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
       }
       const anglesSection = pickSectionById(parsed, "angles");
-      if (anglesSection && Array.isArray(anglesSection.items)) {
+      const angleList = Array.isArray(input?.natal?.angles) ? input.natal.angles : [];
+      if (anglesSection && angleList.length) {
+        const angleItems = [];
+        for (const angle of angleList) {
+          const text = await generateSectionText({
+            apiKey,
+            baseUrl,
+            model,
+            input,
+            sectionId: "angles",
+            item: angle,
+            minChars: MIN_ANGLE_CHARS,
+            maxAttempts: 4,
+          });
+          angleItems.push({ key: angle.key, text });
+        }
+        anglesSection.items = angleItems;
+      } else if (anglesSection && Array.isArray(anglesSection.items)) {
         anglesSection.items = anglesSection.items.map((item) => {
           if (!item || typeof item !== "object") return item;
           if (typeof item.text === "string") {
