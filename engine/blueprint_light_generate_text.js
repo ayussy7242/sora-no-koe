@@ -315,6 +315,8 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
 必ず \\n を1つ含める（段落は2つ）。
 文は 。 で終える。合計3〜5文。
 空白除去で160文字以上（必須）。200字前後を目安にする。
+160文字未満なら書き直してから出力すること（短くまとめない）。
+出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -333,6 +335,8 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
   必ず \\n を1つ含める（段落は2つ）。
 文は 。 で終える。合計3〜5文。
 空白除去で160文字以上（必須）。200字前後を目安にする。
+160文字未満なら書き直してから出力すること（短くまとめない）。
+出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -362,7 +366,7 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
         { role: "user", content: prompt },
       ],
       temperature: 0.6,
-      maxTokens: 600,
+      maxTokens: 800,
     });
     let text = cleanupPlainText(content);
     if (text === "__RETRY__") {
@@ -399,7 +403,7 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
         { role: "user", content: prompt },
       ],
       temperature: 0.6,
-      maxTokens: 600,
+      maxTokens: 800,
     });
     let text = cleanupPlainText(content);
     if (text === "__RETRY__") {
@@ -570,16 +574,16 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
-    return "chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
+    return "chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
   }
   if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
-    return "nodes の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
+    return "nodes の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
   }
   if (baseReason === "angles_too_short") {
-    return "angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
+    return "angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -591,22 +595,22 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).includes("_sentence_shape")) {
-    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。抽象→構造→感覚の流れを含めること。";
+    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。抽象→構造→感覚の流れを含めること。160未満は出力しない。";
   }
   if (String(reason).endsWith("_no_break")) {
     return "各 text は改行を1つ入れて2段落にすること。文末は「。」で終える。";
   }
   if (String(reason).endsWith("_too_short")) {
-    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。文末は「。」で終える。";
+    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。文末は「。」で終える。160未満は出力しない。";
   }
   return "";
 }
