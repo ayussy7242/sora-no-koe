@@ -6,10 +6,14 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 160;
-const MIN_SHADOW_CHARS = 160;
-const MIN_NODE_CHARS = 160;
-const MIN_ANGLE_CHARS = 160;
+const MIN_BODY_CHARS = 60;
+const MIN_SHADOW_CHARS = 60;
+const MIN_NODE_CHARS = 60;
+const MIN_ANGLE_CHARS = 60;
+const TARGET_BODY_CHARS = 160;
+const TARGET_SHADOW_CHARS = 160;
+const TARGET_NODE_CHARS = 160;
+const TARGET_ANGLE_CHARS = 160;
 const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
@@ -348,6 +352,7 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
 async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 5 }) {
   let lastReason = "";
   let lastDetail = "";
+  let lastText = "";
   for (let i = 0; i < maxAttempts; i += 1) {
     const retryNote = lastReason
       ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
@@ -375,13 +380,15 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       text = ensureHasBreak(text, "");
     }
     text = normalizeSentenceCount(text);
-    const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
+    const check = isValidSectionText(text, { minChars: TARGET_BODY_CHARS });
     if (check.ok) return text;
+    lastText = text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
       ? `too_short:${check.len ?? normalizedLength(text)}`
       : check.reason || "invalid";
   }
+  if (lastReason === "too_short" && lastText) return lastText;
   const err = new Error(`bodies_item_failed:${body?.key || ""}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "bodies_item_failed";
   throw err;
@@ -390,6 +397,7 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
 async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 5 }) {
   let lastReason = "";
   let lastDetail = "";
+  let lastText = "";
   for (let i = 0; i < maxAttempts; i += 1) {
     const retryNote = lastReason
       ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
@@ -419,11 +427,13 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
     text = normalizeSentenceCount(text);
     const check = isValidSectionText(text, { minChars });
     if (check.ok) return text;
+    lastText = text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
       ? `too_short:${check.len ?? normalizedLength(text)}`
       : check.reason || "invalid";
   }
+  if (lastReason === "too_short" && lastText) return lastText;
   const err = new Error(`section_item_failed:${sectionId}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "section_item_failed";
   throw err;
@@ -739,7 +749,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "chiron",
           item: chironExtra,
-          minChars: MIN_SHADOW_CHARS,
+          minChars: TARGET_SHADOW_CHARS,
           maxAttempts: 4,
         });
       } else if (chironSection && typeof chironSection.text === "string") {
@@ -755,7 +765,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "lilith",
           item: lilithExtra,
-          minChars: MIN_SHADOW_CHARS,
+          minChars: TARGET_SHADOW_CHARS,
           maxAttempts: 4,
         });
       } else if (lilithSection && typeof lilithSection.text === "string") {
@@ -774,7 +784,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "nodes_south",
             item: southNode,
-            minChars: MIN_NODE_CHARS,
+            minChars: TARGET_NODE_CHARS,
             maxAttempts: 4,
           });
         } else if (nodesSection.south) {
@@ -793,7 +803,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "nodes_north",
             item: northNode,
-            minChars: MIN_NODE_CHARS,
+            minChars: TARGET_NODE_CHARS,
             maxAttempts: 4,
           });
         } else if (nodesSection.north) {
@@ -825,7 +835,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "angles",
             item: angle,
-            minChars: MIN_ANGLE_CHARS,
+            minChars: TARGET_ANGLE_CHARS,
             maxAttempts: 4,
           });
           angleItems.push({ key: angle.key, text });
