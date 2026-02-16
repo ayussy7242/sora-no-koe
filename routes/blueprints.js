@@ -207,6 +207,7 @@ function createBlueprintsRouter(deps = {}) {
     }
 
     const lineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
+    const forceRun = Boolean(req.body?.force || req.body?.forceRegen || req.body?.forcePush);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
@@ -222,7 +223,7 @@ function createBlueprintsRouter(deps = {}) {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(jobRef);
       const job = snap.exists ? snap.data() : null;
-      if (job?.status === "done") {
+      if (job?.status === "done" && !forceRun) {
         shouldRun = false;
         return;
       }
