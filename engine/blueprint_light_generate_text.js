@@ -79,10 +79,12 @@ const SENTENCE_COUNT_MIN = 3;
 const SENTENCE_COUNT_MAX = 5;
 const STRICT_SENTENCE_MIN = 4;
 const STRICT_SENTENCE_MAX = 4;
-const STRICT_SENTENCE_RULE = "必ず4文。1段落目2文＋改行＋2段落目2文。";
-const RELAXED_SENTENCE_RULE = "3〜5文。段落は2つ。";
+const STRICT_SENTENCE_RULE =
+  "必ず4文。1段落目2文＋改行＋2段落目2文。文数は「。」の数で数える（4文＝「。」4つ）。";
+const RELAXED_SENTENCE_RULE =
+  "3〜5文。段落は2つ。文数は「。」の数で数える（3〜5文＝「。」3〜5つ）。";
 const RETRY_SENTENCE_RULE =
-  "基本は4文（1段落目2文＋改行＋2段落目2文）。難しい場合は3〜5文。";
+  "基本は4文（1段落目2文＋改行＋2段落目2文）。難しい場合は3〜5文。文数は「。」の数で数える。";
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -144,6 +146,8 @@ function buildBodyItemPrompt({ input, body, retryNote = "", sentenceRule = STRIC
 必ず \\n を1つ含める（段落は2つ）。
 ${sentenceRule}
 文末はすべて「。」で終える。
+「。」は文末にのみ使う。文中では使わない。
+「！」や「？」は使わない。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
@@ -165,6 +169,8 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "", sentenceRu
   必ず \\n を1つ含める（段落は2つ）。
 ${sentenceRule}
 文末はすべて「。」で終える。
+「。」は文末にのみ使う。文中では使わない。
+「！」や「？」は使わない。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
@@ -183,14 +189,16 @@ ${sentenceRule}
 async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
+  let lastCount = 0;
+  let lastLen = 0;
   const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
     const isStrict = i < strictAttempts;
     const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
       ? isStrict
-        ? "必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。"
-        : "3〜5文・2段落で書き直すこと。"
+        ? `必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
+        : `3〜5文・2段落で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
       : "";
     const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule });
     const content = await createChatCompletion({
@@ -210,6 +218,8 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       lastDetail = "retry_token";
       continue;
     }
+    const count = splitSentences(text).length;
+    const len = normalizedLength(text);
     const check = isValidSectionText(text, {
       minChars: MIN_BODY_CHARS,
       sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
@@ -217,9 +227,17 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
     });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
-    lastDetail = check.reason === "too_short"
-      ? `too_short:${check.len ?? normalizedLength(text)}`
-      : check.reason || "invalid";
+    lastCount = count;
+    lastLen = len;
+    if (check.reason === "too_short") {
+      lastDetail = `too_short:${len}`;
+    } else if (check.reason?.startsWith("sentence_shape")) {
+      lastDetail = `sentence_shape:count:${count}`;
+    } else if (check.reason === "no_break") {
+      lastDetail = "no_break";
+    } else {
+      lastDetail = check.reason || "invalid";
+    }
   }
   const err = new Error(`bodies_item_failed:${body?.key || ""}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "bodies_item_failed";
@@ -229,14 +247,16 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
 async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
+  let lastCount = 0;
+  let lastLen = 0;
   const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
     const isStrict = i < strictAttempts;
     const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
       ? isStrict
-        ? "必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。"
-        : "3〜5文・2段落で書き直すこと。"
+        ? `必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
+        : `3〜5文・2段落で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
       : "";
     const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule });
     const content = await createChatCompletion({
@@ -256,6 +276,8 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       lastDetail = "retry_token";
       continue;
     }
+    const count = splitSentences(text).length;
+    const len = normalizedLength(text);
     const check = isValidSectionText(text, {
       minChars,
       sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
@@ -263,9 +285,17 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
     });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
-    lastDetail = check.reason === "too_short"
-      ? `too_short:${check.len ?? normalizedLength(text)}`
-      : check.reason || "invalid";
+    lastCount = count;
+    lastLen = len;
+    if (check.reason === "too_short") {
+      lastDetail = `too_short:${len}`;
+    } else if (check.reason?.startsWith("sentence_shape")) {
+      lastDetail = `sentence_shape:count:${count}`;
+    } else if (check.reason === "no_break") {
+      lastDetail = "no_break";
+    } else {
+      lastDetail = check.reason || "invalid";
+    }
   }
   const err = new Error(`section_item_failed:${sectionId}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "section_item_failed";
