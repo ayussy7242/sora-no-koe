@@ -1222,7 +1222,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     return { ok: true, url };
   }
 
-  async function generateAndStore({ lineUserId }) {
+  async function generateAndStore({ lineUserId, forceRegen = false } = {}) {
     if (!lineUserId) throw new Error("lineUserId is required");
     if (!bucketName || !bucket) throw new Error("bucket not configured");
 
@@ -1232,9 +1232,10 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const jsonFile = bucket.file(jsonPath);
     const [pdfExists] = await file.exists();
     const [jsonExists] = await jsonFile.exists();
-    const forceRegen = String(env?.BLUEPRINT_REGEN || process.env.BLUEPRINT_REGEN || "") === "1";
+    const envForceRegen = String(env?.BLUEPRINT_REGEN || process.env.BLUEPRINT_REGEN || "") === "1";
+    const shouldForceRegen = Boolean(forceRegen || envForceRegen);
 
-    if (pdfExists && jsonExists && !forceRegen) {
+    if (pdfExists && jsonExists && !shouldForceRegen) {
       console.log("[blueprint] generate skip (exists)", { file_path: filePath });
       return { ok: true, filePath, skipped: true };
     }
