@@ -75,16 +75,8 @@ const BANNED_PATTERNS = [
   /が立ち上がる/,
 ];
 
-const SENTENCE_COUNT_MIN = 3;
-const SENTENCE_COUNT_MAX = 5;
-const STRICT_SENTENCE_MIN = 4;
-const STRICT_SENTENCE_MAX = 4;
-const STRICT_SENTENCE_RULE =
-  "必ず4文。1段落目2文＋改行＋2段落目2文。文数は「。」の数で数える（4文＝「。」4つ）。";
-const RELAXED_SENTENCE_RULE =
-  "3〜5文。段落は2つ。文数は「。」の数で数える（3〜5文＝「。」3〜5つ）。";
-const RETRY_SENTENCE_RULE =
-  "基本は4文（1段落目2文＋改行＋2段落目2文）。難しい場合は3〜5文。文数は「。」の数で数える。";
+const SENTENCE_GUIDE_RULE =
+  "できれば4文（1段落目2文＋改行＋2段落目2文）。3〜6文でも可。";
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -103,34 +95,14 @@ function cleanupPlainText(text) {
   return out;
 }
 
-function splitSentences(text) {
-  return String(text || "")
-    .split(/[。！？]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function validateSentenceShape(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_COUNT_MAX } = {}) {
-  const raw = String(text || "").trim();
-  if (!raw) return { ok: false, reason: "empty" };
-  const all = splitSentences(raw);
-  if (all.length < min || all.length > max) return { ok: false, reason: "count" };
-  return { ok: true };
-}
 
 
-
-function isValidSectionText(
-  text,
-  { minChars = MIN_BODY_CHARS, sentenceMin = SENTENCE_COUNT_MIN, sentenceMax = SENTENCE_COUNT_MAX } = {}
-) {
+function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
   if (!raw.includes("\n")) return { ok: false, reason: "no_break" };
   const len = normalizedLength(raw);
   if (len < minChars) return { ok: false, reason: "too_short" };
-  const shape = validateSentenceShape(raw, { min: sentenceMin, max: sentenceMax });
-  if (!shape.ok) return { ok: false, reason: `sentence_shape:${shape.reason}` };
   return { ok: true, len };
 }
 
@@ -145,8 +117,7 @@ function buildBodyItemPrompt({ input, body, retryNote = "", sentenceRule = STRIC
 出力は text のみ（JSON禁止）。
 必ず \\n を1つ含める（段落は2つ）。
 ${sentenceRule}
-文末はすべて「。」で終える。
-「。」は文末にのみ使う。文中では使わない。
+文末は「。」で終える。
 「！」や「？」は使わない。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
@@ -168,8 +139,7 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "", sentenceRu
   出力は text のみ（JSON禁止）。
   必ず \\n を1つ含める（段落は2つ）。
 ${sentenceRule}
-文末はすべて「。」で終える。
-「。」は文末にのみ使う。文中では使わない。
+文末は「。」で終える。
 「！」や「？」は使わない。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
@@ -189,18 +159,12 @@ ${sentenceRule}
 async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
-  let lastCount = 0;
   let lastLen = 0;
-  const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
-    const isStrict = i < strictAttempts;
-    const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
-      ? isStrict
-        ? `必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
-        : `3〜5文・2段落で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
+      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。`
       : "";
-    const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule });
+    const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -218,21 +182,13 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       lastDetail = "retry_token";
       continue;
     }
-    const count = splitSentences(text).length;
     const len = normalizedLength(text);
-    const check = isValidSectionText(text, {
-      minChars: MIN_BODY_CHARS,
-      sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
-      sentenceMax: isStrict ? STRICT_SENTENCE_MAX : SENTENCE_COUNT_MAX,
-    });
+    const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
-    lastCount = count;
     lastLen = len;
     if (check.reason === "too_short") {
       lastDetail = `too_short:${len}`;
-    } else if (check.reason?.startsWith("sentence_shape")) {
-      lastDetail = `sentence_shape:count:${count}`;
     } else if (check.reason === "no_break") {
       lastDetail = "no_break";
     } else {
@@ -247,18 +203,12 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
 async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
-  let lastCount = 0;
   let lastLen = 0;
-  const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
-    const isStrict = i < strictAttempts;
-    const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
-      ? isStrict
-        ? `必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
-        : `3〜5文・2段落で書き直すこと。前回は${lastCount || "?"}文、空白除去${lastLen || "?"}文字。`
+      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。`
       : "";
-    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule });
+    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -276,21 +226,13 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       lastDetail = "retry_token";
       continue;
     }
-    const count = splitSentences(text).length;
     const len = normalizedLength(text);
-    const check = isValidSectionText(text, {
-      minChars,
-      sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
-      sentenceMax: isStrict ? STRICT_SENTENCE_MAX : SENTENCE_COUNT_MAX,
-    });
+    const check = isValidSectionText(text, { minChars });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
-    lastCount = count;
     lastLen = len;
     if (check.reason === "too_short") {
       lastDetail = `too_short:${len}`;
-    } else if (check.reason?.startsWith("sentence_shape")) {
-      lastDetail = `sentence_shape:count:${count}`;
     } else if (check.reason === "no_break") {
       lastDetail = "no_break";
     } else {
@@ -348,8 +290,6 @@ function validateOutput(data) {
         return { ok: false, reason: `bodies_too_short:${item?.key || ""}:${bodyLen}` };
       }
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "bodies_no_break" };
-      const shape = validateSentenceShape(item?.text);
-      if (!shape.ok) return { ok: false, reason: `bodies_sentence_shape:${shape.reason}` };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "bodies_too_long" };
     }
   }
@@ -358,19 +298,11 @@ function validateOutput(data) {
   if (isEmptyText(chiron?.text)) return { ok: false, reason: "chiron_empty" };
   if (isTooShort(chiron?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "chiron_too_short" };
   if (!String(chiron?.text || "").includes("\n")) return { ok: false, reason: "chiron_no_break" };
-  const chironShape = validateSentenceShape(chiron?.text);
-  if (!chironShape.ok && chironShape.reason !== "count") {
-    return { ok: false, reason: `chiron_sentence_shape:${chironShape.reason}` };
-  }
   if (tooLong(chiron?.text, MAX_BODY_CHARS)) return { ok: false, reason: "chiron_too_long" };
   const lilith = pickSection("lilith");
   if (isEmptyText(lilith?.text)) return { ok: false, reason: "lilith_empty" };
   if (isTooShort(lilith?.text, MIN_SHADOW_CHARS)) return { ok: false, reason: "lilith_too_short" };
   if (!String(lilith?.text || "").includes("\n")) return { ok: false, reason: "lilith_no_break" };
-  const lilithShape = validateSentenceShape(lilith?.text);
-  if (!lilithShape.ok && lilithShape.reason !== "count") {
-    return { ok: false, reason: `lilith_sentence_shape:${lilithShape.reason}` };
-  }
   if (tooLong(lilith?.text, MAX_BODY_CHARS)) return { ok: false, reason: "lilith_too_long" };
 
   const nodes = pickSection("nodes");
@@ -389,14 +321,7 @@ function validateOutput(data) {
     if (!String(nodes?.north?.text || nodes?.north || "").includes("\n")) {
       return { ok: false, reason: "nodes_north_no_break" };
     }
-    const southShape = validateSentenceShape(nodes?.south?.text || nodes?.south);
-    if (!southShape.ok && southShape.reason !== "count") {
-      return { ok: false, reason: `nodes_south_sentence_shape:${southShape.reason}` };
-    }
-    const northShape = validateSentenceShape(nodes?.north?.text || nodes?.north);
-    if (!northShape.ok && northShape.reason !== "count") {
-      return { ok: false, reason: `nodes_north_sentence_shape:${northShape.reason}` };
-    }
+    // sentence count is guidance only
     if (tooLong(nodes?.south?.text || nodes?.south, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_south_too_long" };
     if (tooLong(nodes?.north?.text || nodes?.north, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_north_too_long" };
   } else if (Array.isArray(nodes?.blocks)) {
@@ -404,10 +329,6 @@ function validateOutput(data) {
       if (isEmptyText(block?.text)) return { ok: false, reason: "nodes_empty" };
       if (isTooShort(block?.text, MIN_NODE_CHARS)) return { ok: false, reason: "nodes_too_short" };
       if (!String(block?.text || "").includes("\n")) return { ok: false, reason: "nodes_no_break" };
-      const blockShape = validateSentenceShape(block?.text);
-      if (!blockShape.ok && blockShape.reason !== "count") {
-        return { ok: false, reason: `nodes_sentence_shape:${blockShape.reason}` };
-      }
       if (tooLong(block?.text, MAX_BODY_CHARS)) return { ok: false, reason: "nodes_too_long" };
     }
   } else {
@@ -425,10 +346,6 @@ function validateOutput(data) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
       if (isTooShort(item?.text, MIN_ANGLE_CHARS)) return { ok: false, reason: "angles_too_short" };
       if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
-      const angleShape = validateSentenceShape(item?.text);
-      if (!angleShape.ok && angleShape.reason !== "count") {
-        return { ok: false, reason: `angles_sentence_shape:${angleShape.reason}` };
-      }
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
@@ -453,16 +370,16 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
-    return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
-    return `nodes の text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `nodes の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "angles_too_short") {
-    return `angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -474,22 +391,19 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
-  }
-  if (String(reason).includes("_sentence_shape")) {
-    return `各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 抽象→構造→感覚の流れを含めること。160未満は出力しない。`;
+    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).endsWith("_no_break")) {
-    return `各 text は${RETRY_SENTENCE_RULE} 文末は「。」で終える。`;
+    return `各 text は${SENTENCE_GUIDE_RULE} 文末は「。」で終える。`;
   }
   if (String(reason).endsWith("_too_short")) {
-    return `各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   return "";
 }
