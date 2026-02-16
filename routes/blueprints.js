@@ -208,6 +208,7 @@ function createBlueprintsRouter(deps = {}) {
 
     const lineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
     const forceRun = Boolean(req.body?.force || req.body?.forceRegen || req.body?.forcePush);
+    const forceRegen = Boolean(req.body?.forceRegen || req.body?.force);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
@@ -249,7 +250,7 @@ function createBlueprintsRouter(deps = {}) {
 
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     try {
-      const gen = await blueprint.generateAndStore({ lineUserId });
+      const gen = await blueprint.generateAndStore({ lineUserId, forceRegen });
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
       if (!signed?.ok || !signed?.url) {
         throw new Error("signed url missing after generate");
