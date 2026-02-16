@@ -334,6 +334,25 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
   return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
 }
 
+function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
+  const header = `
+以下のINPUT（単一セクション）から本文のみ生成する。
+出力は text のみ（JSON禁止）。
+必ず \\n を1つ含める（段落は2つ）。
+文は 。 で終える。合計3〜5文。
+合計100〜160字（空白除去後）を目安にする。
+文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
+抽象 → 構造 → 感覚 の流れを含める。
+助言/指示/吉凶/未来断定/読者主語は禁止。
+天体名・星座名・度数・軸は本文に出してよい。
+記号（☉☽☿等）は使わない。
+満たせない場合は __RETRY__ のみ返す。
+`.trim();
+  const note = retryNote ? `\n\n【直前の修正】${retryNote}\n` : "";
+  const payload = { section: sectionId, item, input };
+  return `${header}${note}\nINPUT:\n${JSON.stringify(payload, null, 2)}`;
+}
+
 async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 5 }) {
   let lastReason = "";
   let lastDetail = "";
@@ -373,6 +392,48 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
   }
   const err = new Error(`bodies_item_failed:${body?.key || ""}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "bodies_item_failed";
+  throw err;
+}
+
+async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, maxAttempts = 5 }) {
+  let lastReason = "";
+  let lastDetail = "";
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const retryNote = lastReason
+      ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
+      : "";
+    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote });
+    const content = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      messages: [
+        { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.6,
+      maxTokens: 600,
+    });
+    let text = cleanupPlainText(content);
+    if (text === "__RETRY__") {
+      lastReason = "retry_token";
+      lastDetail = "retry_token";
+      continue;
+    }
+    text = stripBannedTerms(text);
+    if (!text.includes("\n")) {
+      text = ensureHasBreak(text, "");
+    }
+    text = normalizeSentenceCount(text);
+    const check = isValidBodyText(text);
+    if (check.ok) return text;
+    lastReason = check.reason || "invalid";
+    lastDetail = check.reason === "too_short"
+      ? `too_short:${check.len ?? normalizedLength(text)}`
+      : check.reason || "invalid";
+  }
+  const err = new Error(`section_item_failed:${sectionId}:${lastDetail || lastReason || "invalid"}`);
+  err.validationReason = "section_item_failed";
   throw err;
 }
 
@@ -550,6 +611,12 @@ function buildRetryNote(reason) {
     const detail = parts.slice(2).join(":");
     return `bodies の各 text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
+  if (baseReason === "section_item_failed") {
+    const parts = String(reason).split(":");
+    const key = parts[1] || "";
+    const detail = parts.slice(2).join(":");
+    return `各セクションの text は3〜5文・改行1つ以上・合計100〜160字を満たすまで書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+  }
   if (String(reason).includes("_sentence_shape")) {
     return "各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
   }
@@ -669,12 +736,35 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
         bodiesSection.items = generatedItems;
       }
+      const extrasList = Array.isArray(input?.natal?.extras) ? input.natal.extras : [];
       const chironSection = pickSectionById(parsed, "chiron");
-      if (chironSection && typeof chironSection.text === "string") {
+      const chironExtra = extrasList.find((e) => e?.key === "chiron");
+      if (chironSection && chironExtra) {
+        chironSection.text = await generateSectionText({
+          apiKey,
+          baseUrl,
+          model,
+          input,
+          sectionId: "chiron",
+          item: chironExtra,
+          maxAttempts: 4,
+        });
+      } else if (chironSection && typeof chironSection.text === "string") {
         chironSection.text = padShadowSectionText(chironSection.text);
       }
       const lilithSection = pickSectionById(parsed, "lilith");
-      if (lilithSection && typeof lilithSection.text === "string") {
+      const lilithExtra = extrasList.find((e) => e?.key === "lilith");
+      if (lilithSection && lilithExtra) {
+        lilithSection.text = await generateSectionText({
+          apiKey,
+          baseUrl,
+          model,
+          input,
+          sectionId: "lilith",
+          item: lilithExtra,
+          maxAttempts: 4,
+        });
+      } else if (lilithSection && typeof lilithSection.text === "string") {
         lilithSection.text = padShadowSectionText(lilithSection.text);
       }
       const nodesSection = pickSectionById(parsed, "nodes");
