@@ -10,8 +10,6 @@ const MIN_BODY_CHARS = 160;
 const MIN_SHADOW_CHARS = 160;
 const MIN_NODE_CHARS = 160;
 const MIN_ANGLE_CHARS = 160;
-const BODY_TEXT_FILLERS = [];
-const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
   "sun",
   "moon",
@@ -60,7 +58,6 @@ function isEmptyText(text) {
   return !text || String(text).trim().length === 0;
 }
 
-const BANNED_REPLACEMENTS = [];
 const BANNED_PATTERNS = [
   /あなた/,
   /きみ/,
@@ -80,29 +77,12 @@ const BANNED_PATTERNS = [
 
 const SENTENCE_COUNT_MIN = 3;
 const SENTENCE_COUNT_MAX = 5;
-
-function stripBannedTerms(text) {
-  if (!BANNED_REPLACEMENTS.length) return String(text || "");
-  let out = String(text || "");
-  for (const entry of BANNED_REPLACEMENTS) {
-    out = out.replace(entry.pattern, entry.replace);
-  }
-  return out;
-}
-
-function sanitizeSections(value) {
-  if (value == null) return value;
-  if (typeof value === "string") return stripBannedTerms(value);
-  if (Array.isArray(value)) return value.map((v) => sanitizeSections(v));
-  if (typeof value === "object") {
-    const out = Array.isArray(value) ? [] : {};
-    for (const [k, v] of Object.entries(value)) {
-      out[k] = sanitizeSections(v);
-    }
-    return out;
-  }
-  return value;
-}
+const STRICT_SENTENCE_MIN = 4;
+const STRICT_SENTENCE_MAX = 4;
+const STRICT_SENTENCE_RULE = "必ず4文。1段落目2文＋改行＋2段落目2文。";
+const RELAXED_SENTENCE_RULE = "3〜5文。段落は2つ。";
+const RETRY_SENTENCE_RULE =
+  "基本は4文（1段落目2文＋改行＋2段落目2文）。難しい場合は3〜5文。";
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -121,87 +101,6 @@ function cleanupPlainText(text) {
   return out;
 }
 
-function ensureTwoParagraphsText(text, fallbackLine = "") {
-  const raw = String(text || "").trim();
-  if (!raw) return "";
-  if (raw.includes("\n")) return raw;
-  const parts = raw.split("。").map((s) => s.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    const firstCount = parts.length >= 3 ? 2 : 1;
-    const first = parts.slice(0, firstCount).join("。");
-    const rest = parts.slice(firstCount).join("。");
-    if (rest) return `${first}。\n${rest}。`.trim();
-    return `${first}。`.trim();
-  }
-  if (!fallbackLine) return `${raw}${raw.endsWith("。") ? "" : "。"}`.trim();
-  return `${raw}${raw.endsWith("。") ? "" : "。"}\n${fallbackLine}`.trim();
-}
-
-function padShortText(text, minChars = MIN_BODY_CHARS, fillers = BODY_TEXT_FILLERS) {
-  if (!fillers || fillers.length === 0) {
-    return ensureTwoParagraphsText(text, "");
-  }
-  let out = ensureTwoParagraphsText(text, fillers[0] || "");
-  if (!out) return "";
-  let [p1, p2] = out.split(/\n+/);
-  p1 = p1?.trim() || "";
-  p2 = p2?.trim() || "";
-  if (!p2) p2 = fillers[0] || "";
-  let idx = 0;
-  let combined = `${p1}\n${p2}`.trim();
-  while (combined.length < minChars && fillers.length) {
-    const filler = fillers[idx % fillers.length];
-    if (filler) p2 = `${p2}${p2 ? " " : ""}${filler}`.trim();
-    combined = `${p1}\n${p2}`.trim();
-    idx += 1;
-  }
-  return `${p1}\n${p2}`.trim();
-}
-
-function padShortBodyItems(items) {
-  return items.map((item) => {
-    let text = String(item?.text || "");
-    text = ensureTwoParagraphsText(text, "");
-    if (isTooShort(text)) {
-      text = padShortText(text, MIN_BODY_CHARS, BODY_TEXT_FILLERS);
-    }
-    text = ensureHasBreak(text, "");
-    return { ...item, text };
-  });
-}
-
-function padShadowSectionText(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  const out = ensureTwoParagraphsText(raw, "");
-  return ensureHasBreak(out, "");
-}
-
-function forceLineBreak(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  if (raw.includes("\n")) return raw;
-  const idx = raw.indexOf("。");
-  if (idx > 0 && idx < raw.length - 1) {
-    return `${raw.slice(0, idx + 1)}\n${raw.slice(idx + 1).trim()}`.trim();
-  }
-  const idx2 = raw.indexOf("、");
-  if (idx2 > 0 && idx2 < raw.length - 1) {
-    return `${raw.slice(0, idx2 + 1)}\n${raw.slice(idx2 + 1).trim()}`.trim();
-  }
-  const mid = Math.max(1, Math.floor(raw.length / 2));
-  return `${raw.slice(0, mid)}\n${raw.slice(mid).trim()}`.trim();
-}
-
-function ensureHasBreak(text, fallbackLine) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  if (raw.includes("\n")) return raw;
-  const tail = fallbackLine || "";
-  if (tail) return `${raw}\n${tail}`.trim();
-  return forceLineBreak(raw);
-}
-
 function splitSentences(text) {
   return String(text || "")
     .split(/[。！？]/)
@@ -217,90 +116,20 @@ function validateSentenceShape(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_
   return { ok: true };
 }
 
-function normalizeSentenceCount(text, { min = SENTENCE_COUNT_MIN, max = SENTENCE_COUNT_MAX } = {}) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  const paragraphs = raw.split(/\n+/).map((p) => p.trim()).filter(Boolean);
-  if (!paragraphs.length) return raw;
-  const paraSentences = paragraphs.map((p) => splitSentences(p));
-  let total = paraSentences.reduce((sum, arr) => sum + arr.length, 0);
-  if (total >= min && total <= max) return raw;
-
-  if (total < min) {
-    let changed = true;
-    while (total < min && changed) {
-      changed = false;
-      for (let pi = 0; pi < paraSentences.length && total < min; pi += 1) {
-        for (let si = 0; si < paraSentences[pi].length && total < min; si += 1) {
-          const s = paraSentences[pi][si];
-          const idx = s.indexOf("、");
-          if (idx > 0 && idx < s.length - 1) {
-            const left = s.slice(0, idx + 1).trim();
-            const right = s.slice(idx + 1).trim();
-            paraSentences[pi].splice(si, 1, left, right);
-            total += 1;
-            changed = true;
-          }
-        }
-      }
-    }
-  }
-
-  if (total > max) {
-    let changed = true;
-    while (total > max && changed) {
-      changed = false;
-      for (let pi = 0; pi < paraSentences.length && total > max; pi += 1) {
-        const arr = paraSentences[pi];
-        if (arr.length < 2) continue;
-        let bestIdx = 0;
-        let bestLen = Infinity;
-        for (let i = 0; i < arr.length - 1; i += 1) {
-          const len = arr[i].length + arr[i + 1].length;
-          if (len < bestLen) {
-            bestLen = len;
-            bestIdx = i;
-          }
-        }
-        const merged = `${arr[bestIdx]}、${arr[bestIdx + 1]}`.replace(/、+$/g, "、");
-        arr.splice(bestIdx, 2, merged);
-        total -= 1;
-        changed = true;
-      }
-    }
-  }
-
-  const rebuilt = paraSentences
-    .map((arr) => (arr.length ? `${arr.join("。")}。` : ""))
-    .join("\n")
-    .trim();
-  return rebuilt || raw;
-}
 
 
-function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
+function isValidSectionText(
+  text,
+  { minChars = MIN_BODY_CHARS, sentenceMin = SENTENCE_COUNT_MIN, sentenceMax = SENTENCE_COUNT_MAX } = {}
+) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
   if (!raw.includes("\n")) return { ok: false, reason: "no_break" };
   const len = normalizedLength(raw);
   if (len < minChars) return { ok: false, reason: "too_short" };
-  const shape = validateSentenceShape(raw);
+  const shape = validateSentenceShape(raw, { min: sentenceMin, max: sentenceMax });
   if (!shape.ok) return { ok: false, reason: `sentence_shape:${shape.reason}` };
   return { ok: true, len };
-}
-
-function padNodeSectionText(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  const out = ensureTwoParagraphsText(raw, "");
-  return ensureHasBreak(out, "");
-}
-
-function padAngleSectionText(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return raw;
-  const out = ensureTwoParagraphsText(raw, "");
-  return ensureHasBreak(out, "");
 }
 
 function pickSectionById(data, id) {
@@ -308,12 +137,13 @@ function pickSectionById(data, id) {
   return sections.find((s) => s?.id === id) || null;
 }
 
-function buildBodyItemPrompt({ input, body, retryNote = "" }) {
+function buildBodyItemPrompt({ input, body, retryNote = "", sentenceRule = STRICT_SENTENCE_RULE }) {
   const header = `
 以下のINPUT（単一天体）から本文のみ生成する。
 出力は text のみ（JSON禁止）。
 必ず \\n を1つ含める（段落は2つ）。
-文は 。 で終える。合計3〜5文。
+${sentenceRule}
+文末はすべて「。」で終える。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
@@ -328,12 +158,13 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
   return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
 }
 
-function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
+function buildSectionPrompt({ input, sectionId, item, retryNote = "", sentenceRule = STRICT_SENTENCE_RULE }) {
   const header = `
 以下のINPUT（単一セクション）から本文のみ生成する。
   出力は text のみ（JSON禁止）。
   必ず \\n を1つ含める（段落は2つ）。
-文は 。 で終える。合計3〜5文。
+${sentenceRule}
+文末はすべて「。」で終える。
 空白除去で160文字以上（必須）。200字前後を目安にする。
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
@@ -349,14 +180,19 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
   return `${header}${note}\nINPUT:\n${JSON.stringify(payload, null, 2)}`;
 }
 
-async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 12 }) {
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
+  const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
+    const isStrict = i < strictAttempts;
+    const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
-      ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
+      ? isStrict
+        ? "必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。"
+        : "3〜5文・2段落で書き直すこと。"
       : "";
-    const prompt = buildBodyItemPrompt({ input, body, retryNote });
+    const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule });
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -374,7 +210,11 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       lastDetail = "retry_token";
       continue;
     }
-    const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
+    const check = isValidSectionText(text, {
+      minChars: MIN_BODY_CHARS,
+      sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
+      sentenceMax: isStrict ? STRICT_SENTENCE_MAX : SENTENCE_COUNT_MAX,
+    });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
@@ -386,14 +226,19 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
   throw err;
 }
 
-async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 12 }) {
+async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 10 }) {
   let lastReason = "";
   let lastDetail = "";
+  const strictAttempts = Math.min(6, maxAttempts);
   for (let i = 0; i < maxAttempts; i += 1) {
+    const isStrict = i < strictAttempts;
+    const sentenceRule = isStrict ? STRICT_SENTENCE_RULE : RELAXED_SENTENCE_RULE;
     const retryNote = lastReason
-      ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
+      ? isStrict
+        ? "必ず4文（1段落目2文＋改行＋2段落目2文）で書き直すこと。"
+        : "3〜5文・2段落で書き直すこと。"
       : "";
-    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote });
+    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule });
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -411,7 +256,11 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       lastDetail = "retry_token";
       continue;
     }
-    const check = isValidSectionText(text, { minChars });
+    const check = isValidSectionText(text, {
+      minChars,
+      sentenceMin: isStrict ? STRICT_SENTENCE_MIN : SENTENCE_COUNT_MIN,
+      sentenceMax: isStrict ? STRICT_SENTENCE_MAX : SENTENCE_COUNT_MAX,
+    });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
@@ -574,16 +423,16 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
-    return "chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
+    return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
-    return "nodes の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
+    return `nodes の text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "angles_too_short") {
-    return "angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。160未満は出力しない。";
+    return `angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -595,22 +444,22 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).includes("_sentence_shape")) {
-    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。抽象→構造→感覚の流れを含めること。160未満は出力しない。";
+    return `各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 抽象→構造→感覚の流れを含めること。160未満は出力しない。`;
   }
   if (String(reason).endsWith("_no_break")) {
-    return "各 text は改行を1つ入れて2段落にすること。文末は「。」で終える。";
+    return `各 text は${RETRY_SENTENCE_RULE} 文末は「。」で終える。`;
   }
   if (String(reason).endsWith("_too_short")) {
-    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。文末は「。」で終える。160未満は出力しない。";
+    return `各 text は空白除去160文字以上（必須）・200字前後を目安。${RETRY_SENTENCE_RULE} 文末は「。」で終える。160未満は出力しない。`;
   }
   return "";
 }
@@ -717,7 +566,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
       if (bodiesSection && Array.isArray(bodiesSection.items) && natalBodies.length) {
         const generatedItems = [];
         for (const body of natalBodies) {
-          const text = await generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts: 12 });
+          const text = await generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts: 10 });
           generatedItems.push({ key: body.key, text });
         }
         bodiesSection.items = generatedItems;
@@ -734,7 +583,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           sectionId: "chiron",
           item: chironExtra,
           minChars: MIN_SHADOW_CHARS,
-          maxAttempts: 12,
+          maxAttempts: 10,
         });
       }
       const lilithSection = pickSectionById(parsed, "lilith");
@@ -748,7 +597,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           sectionId: "lilith",
           item: lilithExtra,
           minChars: MIN_SHADOW_CHARS,
-          maxAttempts: 12,
+          maxAttempts: 10,
         });
       }
       const nodesSection = pickSectionById(parsed, "nodes");
@@ -765,7 +614,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             sectionId: "nodes_south",
             item: southNode,
             minChars: MIN_NODE_CHARS,
-            maxAttempts: 12,
+            maxAttempts: 10,
           });
         }
         if (northNode) {
@@ -778,7 +627,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             sectionId: "nodes_north",
             item: northNode,
             minChars: MIN_NODE_CHARS,
-            maxAttempts: 12,
+            maxAttempts: 10,
           });
         }
       }
@@ -795,7 +644,7 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             sectionId: "angles",
             item: angle,
             minChars: MIN_ANGLE_CHARS,
-            maxAttempts: 12,
+            maxAttempts: 10,
           });
           angleItems.push({ key: angle.key, text });
         }
