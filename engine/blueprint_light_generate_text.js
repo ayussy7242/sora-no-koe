@@ -6,14 +6,10 @@ const {
   SORA_AI_USER_GUIDE_BLUEPRINT_LIGHT,
 } = require("./prompts/sora_ai_prompts");
 
-const MIN_BODY_CHARS = 60;
-const MIN_SHADOW_CHARS = 60;
-const MIN_NODE_CHARS = 60;
-const MIN_ANGLE_CHARS = 60;
-const TARGET_BODY_CHARS = 160;
-const TARGET_SHADOW_CHARS = 160;
-const TARGET_NODE_CHARS = 160;
-const TARGET_ANGLE_CHARS = 160;
+const MIN_BODY_CHARS = 160;
+const MIN_SHADOW_CHARS = 160;
+const MIN_NODE_CHARS = 160;
+const MIN_ANGLE_CHARS = 160;
 const BODY_TEXT_FILLERS = [];
 const SHADOW_TEXT_FILLERS = [];
 const REQUIRED_BODY_KEYS = [
@@ -318,7 +314,7 @@ function buildBodyItemPrompt({ input, body, retryNote = "" }) {
 出力は text のみ（JSON禁止）。
 必ず \\n を1つ含める（段落は2つ）。
 文は 。 で終える。合計3〜5文。
-合計200字前後（空白除去後）を目安にする。
+空白除去で160文字以上（必須）。200字前後を目安にする。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -336,7 +332,7 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
   出力は text のみ（JSON禁止）。
   必ず \\n を1つ含める（段落は2つ）。
 文は 。 で終える。合計3〜5文。
-合計200字前後（空白除去後）を目安にする。
+空白除去で160文字以上（必須）。200字前後を目安にする。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 抽象 → 構造 → 感覚 の流れを含める。
 助言/指示/吉凶/未来断定/読者主語は禁止。
@@ -349,10 +345,9 @@ function buildSectionPrompt({ input, sectionId, item, retryNote = "" }) {
   return `${header}${note}\nINPUT:\n${JSON.stringify(payload, null, 2)}`;
 }
 
-async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 5 }) {
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 12 }) {
   let lastReason = "";
   let lastDetail = "";
-  let lastText = "";
   for (let i = 0; i < maxAttempts; i += 1) {
     const retryNote = lastReason
       ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
@@ -375,29 +370,21 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
       lastDetail = "retry_token";
       continue;
     }
-    text = stripBannedTerms(text);
-    if (!text.includes("\n")) {
-      text = ensureHasBreak(text, "");
-    }
-    text = normalizeSentenceCount(text);
-    const check = isValidSectionText(text, { minChars: TARGET_BODY_CHARS });
+    const check = isValidSectionText(text, { minChars: MIN_BODY_CHARS });
     if (check.ok) return text;
-    lastText = text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
       ? `too_short:${check.len ?? normalizedLength(text)}`
       : check.reason || "invalid";
   }
-  if (lastReason === "too_short" && lastText) return lastText;
   const err = new Error(`bodies_item_failed:${body?.key || ""}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "bodies_item_failed";
   throw err;
 }
 
-async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 5 }) {
+async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 12 }) {
   let lastReason = "";
   let lastDetail = "";
-  let lastText = "";
   for (let i = 0; i < maxAttempts; i += 1) {
     const retryNote = lastReason
       ? "文数・改行・文字数の条件を満たすまで書き直すこと。"
@@ -420,20 +407,13 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       lastDetail = "retry_token";
       continue;
     }
-    text = stripBannedTerms(text);
-    if (!text.includes("\n")) {
-      text = ensureHasBreak(text, "");
-    }
-    text = normalizeSentenceCount(text);
     const check = isValidSectionText(text, { minChars });
     if (check.ok) return text;
-    lastText = text;
     lastReason = check.reason || "invalid";
     lastDetail = check.reason === "too_short"
       ? `too_short:${check.len ?? normalizedLength(text)}`
       : check.reason || "invalid";
   }
-  if (lastReason === "too_short" && lastText) return lastText;
   const err = new Error(`section_item_failed:${sectionId}:${lastDetail || lastReason || "invalid"}`);
   err.validationReason = "section_item_failed";
   throw err;
@@ -590,16 +570,16 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
-    return "chiron/lilith の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
+    return "chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
   }
   if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
-    return "nodes の text は3〜5文。合計100字前後で、改行を1つ以上入れて2段落以上にすること。";
+    return "nodes の text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
   }
   if (baseReason === "angles_too_short") {
-    return "angles.items の各 text は3〜5文。合計200字前後を目安にし、改行を1つ以上入れて2段落以上にすること。";
+    return "angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文。改行を1つ入れて2段落。文末は「。」で終える。";
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -611,22 +591,22 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は3〜5文・改行1つ以上・合計200字前後を目安に書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は3〜5文・改行1つ以上・合計200字前後を目安に書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）・文末は「。」で書き直すこと。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).includes("_sentence_shape")) {
-    return "各 text は3〜5文。合計200字前後を目安にし、改行を1つ以上入れて2段落以上にし、抽象→構造→感覚の流れを含めること。";
+    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。抽象→構造→感覚の流れを含めること。";
   }
   if (String(reason).endsWith("_no_break")) {
-    return "各 text に改行を1つ入れて2段落にすること。";
+    return "各 text は改行を1つ入れて2段落にすること。文末は「。」で終える。";
   }
   if (String(reason).endsWith("_too_short")) {
-    return "各 text は3〜5文、合計200字前後を目安に書くこと。";
+    return "各 text は空白除去160文字以上（必須）・200字前後を目安。3〜5文・改行1つ（2段落）。文末は「。」で終える。";
   }
   return "";
 }
@@ -726,14 +706,14 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           throw parseErr;
         }
       }
-      parsed = { ...parsed, sections: sanitizeSections(parsed.sections) };
+      parsed = { ...parsed };
 
       const bodiesSection = pickSectionById(parsed, "bodies");
       const natalBodies = Array.isArray(input?.natal?.bodies) ? input.natal.bodies : [];
       if (bodiesSection && Array.isArray(bodiesSection.items) && natalBodies.length) {
         const generatedItems = [];
         for (const body of natalBodies) {
-          const text = await generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts: 3 });
+          const text = await generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts: 12 });
           generatedItems.push({ key: body.key, text });
         }
         bodiesSection.items = generatedItems;
@@ -749,11 +729,9 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "chiron",
           item: chironExtra,
-          minChars: TARGET_SHADOW_CHARS,
-          maxAttempts: 4,
+          minChars: MIN_SHADOW_CHARS,
+          maxAttempts: 12,
         });
-      } else if (chironSection && typeof chironSection.text === "string") {
-        chironSection.text = padShadowSectionText(chironSection.text);
       }
       const lilithSection = pickSectionById(parsed, "lilith");
       const lilithExtra = extrasList.find((e) => e?.key === "lilith");
@@ -765,11 +743,9 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
           input,
           sectionId: "lilith",
           item: lilithExtra,
-          minChars: TARGET_SHADOW_CHARS,
-          maxAttempts: 4,
+          minChars: MIN_SHADOW_CHARS,
+          maxAttempts: 12,
         });
-      } else if (lilithSection && typeof lilithSection.text === "string") {
-        lilithSection.text = padShadowSectionText(lilithSection.text);
       }
       const nodesSection = pickSectionById(parsed, "nodes");
       if (nodesSection) {
@@ -784,15 +760,9 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "nodes_south",
             item: southNode,
-            minChars: TARGET_NODE_CHARS,
-            maxAttempts: 4,
+            minChars: MIN_NODE_CHARS,
+            maxAttempts: 12,
           });
-        } else if (nodesSection.south) {
-          if (typeof nodesSection.south === "string") {
-            nodesSection.south = padNodeSectionText(nodesSection.south);
-          } else if (typeof nodesSection.south?.text === "string") {
-            nodesSection.south.text = padNodeSectionText(nodesSection.south.text);
-          }
         }
         if (northNode) {
           nodesSection.north = nodesSection.north || {};
@@ -803,23 +773,8 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "nodes_north",
             item: northNode,
-            minChars: TARGET_NODE_CHARS,
-            maxAttempts: 4,
-          });
-        } else if (nodesSection.north) {
-          if (typeof nodesSection.north === "string") {
-            nodesSection.north = padNodeSectionText(nodesSection.north);
-          } else if (typeof nodesSection.north?.text === "string") {
-            nodesSection.north.text = padNodeSectionText(nodesSection.north.text);
-          }
-        }
-        if (Array.isArray(nodesSection.blocks)) {
-          nodesSection.blocks = nodesSection.blocks.map((block) => {
-            if (!block || typeof block !== "object") return block;
-            if (typeof block.text === "string") {
-              return { ...block, text: padNodeSectionText(block.text) };
-            }
-            return block;
+            minChars: MIN_NODE_CHARS,
+            maxAttempts: 12,
           });
         }
       }
@@ -835,20 +790,12 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
             input,
             sectionId: "angles",
             item: angle,
-            minChars: TARGET_ANGLE_CHARS,
-            maxAttempts: 4,
+            minChars: MIN_ANGLE_CHARS,
+            maxAttempts: 12,
           });
           angleItems.push({ key: angle.key, text });
         }
         anglesSection.items = angleItems;
-      } else if (anglesSection && Array.isArray(anglesSection.items)) {
-        anglesSection.items = anglesSection.items.map((item) => {
-          if (!item || typeof item !== "object") return item;
-          if (typeof item.text === "string") {
-            return { ...item, text: padAngleSectionText(item.text) };
-          }
-          return item;
-        });
       }
       if (debugAngles) {
         const anglesDbg = pickSectionById(parsed, "angles");
@@ -865,14 +812,6 @@ async function generateBlueprintLightText({ env, input, maxTokens = 3200 }) {
         }
       }
       let v = validateOutput(parsed);
-      if (!v.ok && String(v.reason).startsWith("bodies_too_short") && i === maxAttempts - 1) {
-        const bodiesSection = pickSectionById(parsed, "bodies");
-        if (bodiesSection && Array.isArray(bodiesSection.items)) {
-          bodiesSection.items = padShortBodyItems(bodiesSection.items);
-          v = validateOutput(parsed);
-          if (v.ok) return { ok: true, data: parsed };
-        }
-      }
       if (!v.ok) {
         const err = new Error(`validation_failed:${v.reason}`);
         err.validationReason = v.reason;
