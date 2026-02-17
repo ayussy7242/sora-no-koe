@@ -99,6 +99,9 @@ function cleanupPlainText(text) {
       // fall through
     }
   }
+  if (out.includes("\\n")) {
+    out = out.replace(/\\n/g, "\n");
+  }
   return out;
 }
 
@@ -119,7 +122,7 @@ function findBannedTerm(text) {
 function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
-  if (!raw.includes("\n")) return { ok: false, reason: "no_break" };
+  if (!raw.includes("\n") && !raw.includes("\\n")) return { ok: false, reason: "no_break" };
   const len = normalizedLength(raw);
   if (len < minChars) return { ok: false, reason: "too_short" };
   return { ok: true, len };
