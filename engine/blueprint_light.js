@@ -723,9 +723,9 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     font: "body",
     size: 15,
     lineGap: LINE_GAP_SUMMARY,
-    marginAfter: 16,
+    marginAfter: 20,
   });
-  layout.y += LINE_GAP_SUMMARY;
+  layout.y += LINE_GAP_SUMMARY * 3;
 
   drawSymbolValueLine(doc, layout, [
     { symbol: "✶", label: "火", value: element.fire },
@@ -770,7 +770,7 @@ function renderSummary({ doc, layout, element, modality, summary }) {
     (modalityText ? modalityTextHeight + SECTION_GAP : 0);
   ensurePageSpace(doc, layout, modalityBlockHeight);
 
-  layout.y += LINE_GAP_SUMMARY;
+  layout.y += LINE_GAP_SUMMARY * 3;
   drawSymbolValueLine(doc, layout, [
     { symbol: "☍", label: "活動", value: modality.cardinal },
     { symbol: "☌", label: "不動", value: modality.fixed },
