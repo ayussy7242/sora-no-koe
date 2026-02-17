@@ -574,50 +574,14 @@ function sanitizeNarrativeText(text, headingRest) {
   return out.trim();
 }
 
-function ensureBodyText(text, { heading, minChars = BODY_TEXT_MIN_CHARS } = {}) {
+function ensureBodyText(text, { heading } = {}) {
   let out = sanitizeNarrativeText(text, heading);
   if (!out) return "";
-
-  let paragraphs = out.split(/\n+/).map((p) => p.trim()).filter(Boolean);
-  if (paragraphs.length <= 1) {
-    const sentencePool = String(paragraphs[0] || "")
-      .split("。")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (sentencePool.length >= 2) {
-      const first = sentencePool.shift();
-      const second = sentencePool.join("。");
-      paragraphs = [`${first}。`, second ? `${second}。` : ""];
-    } else if (sentencePool.length === 1) {
-      const base = sentencePool[0];
-      paragraphs = [`${base}${base.endsWith("。") ? "" : "。"}`, ""];
-    } else {
-      paragraphs = [out, ""];
-    }
-  } else {
-    paragraphs = [paragraphs[0], paragraphs.slice(1).join(" ").trim()];
+  if (out.includes("\\n")) {
+    out = out.replace(/\\n/g, "\n");
   }
-
-  let p1 = paragraphs[0] || "";
-  let p2 = paragraphs[1] || "";
-  if (!p2) {
-    p2 = BODY_TEXT_FILLERS[0] || "";
-  }
-
-  let idx = 0;
-  let combined = `${p1}\n${p2}`.trim();
-  while (combined.length < minChars) {
-    const filler = BODY_TEXT_FILLERS[idx % BODY_TEXT_FILLERS.length] || "";
-    if (filler) {
-      p2 = `${p2}${p2 ? " " : ""}${filler}`;
-    } else {
-      break;
-    }
-    combined = `${p1}\n${p2}`.trim();
-    idx += 1;
-  }
-
-  return `${p1}\n${p2}`.trim();
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.trim();
 }
 
 function ensureSummaryText(text) {
