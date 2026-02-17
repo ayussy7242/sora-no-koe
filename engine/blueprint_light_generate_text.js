@@ -70,13 +70,17 @@ const BANNED_PATTERNS = [
   /確実/,
   /が起きる/,
   /になる/,
-  /輪郭は、?静かに/,
+  /輪郭/,
+  /静かに残り/,
+  /静かに残る/,
   /言葉にせずとも/,
+  /気配/,
+  /余韻/,
   /が立ち上がる/,
 ];
 
 const SENTENCE_GUIDE_RULE =
-  "できれば4文（1段落目2文＋改行＋2段落目2文）。3〜6文でも可。";
+  "2段落構成。全体2〜6文（目安3〜5文）。各段落1〜3文。";
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -132,9 +136,13 @@ ${sentenceRule}
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
-抽象 → 構造 → 感覚 の流れを含める。
+占星術の意味を簡潔に説明する。
+惑星の機能（思考/感情/行動など）を明示する。
+星座の性質（自己表現/中心/保護など）を明示する。
+度数は位置情報として本文に含める（初期/中盤/後半/最終の言及や数値も可）。
 助言/指示/吉凶/未来断定/読者主語は禁止。
 「確実」「必ず」「〜になる」「〜が起きる」は使わない。
+ポエム定型（輪郭/静かに残る/言葉にせずとも/気配/余韻/立ち上がる）は使わない。
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
@@ -155,9 +163,13 @@ ${sentenceRule}
 160文字未満なら書き直してから出力すること（短くまとめない）。
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
-抽象 → 構造 → 感覚 の流れを含める。
+占星術の意味を簡潔に説明する。
+惑星の機能（思考/感情/行動など）を明示する。
+星座の性質（自己表現/中心/保護など）を明示する。
+度数は位置情報として本文に含める（初期/中盤/後半/最終の言及や数値も可）。
 助言/指示/吉凶/未来断定/読者主語は禁止。
 「確実」「必ず」「〜になる」「〜が起きる」は使わない。
+ポエム定型（輪郭/静かに残る/言葉にせずとも/気配/余韻/立ち上がる）は使わない。
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
@@ -167,13 +179,16 @@ ${sentenceRule}
   return `${header}${note}\nINPUT:\n${JSON.stringify(payload, null, 2)}`;
 }
 
-async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 10 }) {
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 4 }) {
   let lastReason = "";
   let lastDetail = "";
   let lastLen = 0;
   for (let i = 0; i < maxAttempts; i += 1) {
+    const isFinalAttempt = i === maxAttempts - 1;
     const retryNote = lastReason
-      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。`
+      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。${
+          isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""
+        }`
       : "";
     const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
     const content = await createChatCompletion({
@@ -218,13 +233,16 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
   throw err;
 }
 
-async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 10 }) {
+async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 4 }) {
   let lastReason = "";
   let lastDetail = "";
   let lastLen = 0;
   for (let i = 0; i < maxAttempts; i += 1) {
+    const isFinalAttempt = i === maxAttempts - 1;
     const retryNote = lastReason
-      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。`
+      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。${
+          isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""
+        }`
       : "";
     const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
     const content = await createChatCompletion({
@@ -395,16 +413,16 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。惑星の機能／星座の性質／度数の位置情報を明示する。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
-    return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。象徴の意味を簡潔に説明する。160未満は出力しない。`;
   }
   if (baseReason === "nodes_south_too_short" || baseReason === "nodes_north_too_short") {
-    return `nodes の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `nodes の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。方向性の意味を簡潔に説明する。160未満は出力しない。`;
   }
   if (baseReason === "angles_too_short") {
-    return `angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。160未満は出力しない。`;
+    return `angles.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。入口/面/基点として簡潔に説明する。160未満は出力しない。`;
   }
   if (baseReason === "bodies_count" || baseReason === "bodies_keys") {
     return "bodies.items は sun..pluto 10件を順序通りに出すこと。";
@@ -416,13 +434,13 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。惑星の機能／星座の性質／度数の位置情報を明示する。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `各セクションの text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。占星術の意味を簡潔に説明する。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (String(reason).endsWith("_no_break")) {
     return `各 text は${SENTENCE_GUIDE_RULE} 文末は「。」で終える。`;
