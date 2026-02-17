@@ -397,7 +397,6 @@ function validateOutput(data) {
     for (const item of angles.items) {
       if (isEmptyText(item?.text)) return { ok: false, reason: "angles_empty" };
       if (isTooShort(item?.text, MIN_ANGLE_CHARS)) return { ok: false, reason: "angles_too_short" };
-      if (!String(item?.text).includes("\n")) return { ok: false, reason: "angles_no_break" };
       if (tooLong(item?.text, MAX_BODY_CHARS)) return { ok: false, reason: "angles_too_long" };
     }
   }
