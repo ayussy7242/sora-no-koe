@@ -207,16 +207,23 @@ function createBlueprintsRouter(deps = {}) {
     }
 
     let body = req.body;
-    if (typeof body === "string") {
+    if (Buffer.isBuffer(body)) {
+      try {
+        body = JSON.parse(body.toString("utf8"));
+      } catch (_e) {
+        body = { raw: body.toString("utf8") };
+      }
+    } else if (typeof body === "string") {
       try {
         body = JSON.parse(body);
       } catch (_e) {
         body = { raw: body };
       }
     }
+    const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
     const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
-    const forceRun = Boolean(body?.force || body?.forceRegen || body?.forcePush);
-    const forceRegen = Boolean(body?.forceRegen || body?.force);
+    const forceRun = toBool(body?.force || body?.forceRegen || body?.forcePush);
+    const forceRegen = toBool(body?.forceRegen || body?.force);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
