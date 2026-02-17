@@ -1336,7 +1336,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const displayName = lineUser?.line_profile?.display_name || "あなた";
 
     let aiData = null;
-    if (jsonExists && !forceRegen) {
+    if (jsonExists && !shouldForceRegen) {
       try {
         const [buf] = await jsonFile.download();
         aiData = JSON.parse(String(buf || ""));

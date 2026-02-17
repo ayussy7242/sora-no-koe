@@ -206,9 +206,17 @@ function createBlueprintsRouter(deps = {}) {
       return res.status(200).json({ ok: false, nonRetry: true, error: auth.error });
     }
 
-    const lineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
-    const forceRun = Boolean(req.body?.force || req.body?.forceRegen || req.body?.forcePush);
-    const forceRegen = Boolean(req.body?.forceRegen || req.body?.force);
+    let body = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch (_e) {
+        body = { raw: body };
+      }
+    }
+    const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
+    const forceRun = Boolean(body?.force || body?.forceRegen || body?.forcePush);
+    const forceRegen = Boolean(body?.forceRegen || body?.force);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
