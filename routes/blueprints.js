@@ -207,11 +207,16 @@ function createBlueprintsRouter(deps = {}) {
     }
 
     let body = req.body;
+    const rawBodyText = Buffer.isBuffer(body)
+      ? body.toString("utf8")
+      : typeof body === "string"
+        ? body
+        : "";
     if (Buffer.isBuffer(body)) {
       try {
-        body = JSON.parse(body.toString("utf8"));
+        body = JSON.parse(rawBodyText);
       } catch (_e) {
-        body = { raw: body.toString("utf8") };
+        body = { raw: rawBodyText };
       }
     } else if (typeof body === "string") {
       try {
@@ -221,9 +226,12 @@ function createBlueprintsRouter(deps = {}) {
       }
     }
     const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+    const forceHint =
+      typeof rawBodyText === "string" &&
+      (/"forceRegen"\s*:\s*true/i.test(rawBodyText) || /"force"\s*:\s*true/i.test(rawBodyText));
     const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
-    const forceRun = toBool(body?.force || body?.forceRegen || body?.forcePush);
-    const forceRegen = toBool(body?.forceRegen || body?.force);
+    const forceRun = forceHint || toBool(body?.force || body?.forceRegen || body?.forcePush);
+    const forceRegen = forceHint || toBool(body?.forceRegen || body?.force);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
