@@ -124,8 +124,10 @@ function createBlueprintsRouter(deps = {}) {
     if (!shouldEnqueue) {
       return res.status(202).json({ ok: true, status: currentStatus });
     }
+    const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+    const forceRegen = toBool(req.body?.forceRegen || req.body?.force);
     try {
-      await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" });
+      await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light", forceRegen });
       return res.status(202).json({ ok: true, status: "queued", job_id: lineUserId });
     } catch (e) {
       console.log("[blueprint] enqueue failed:", e?.message || String(e));
@@ -231,7 +233,7 @@ function createBlueprintsRouter(deps = {}) {
       (/"forceRegen"\s*:\s*true/i.test(rawBodyText) || /"force"\s*:\s*true/i.test(rawBodyText));
     const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
     const forceRun = forceHint || toBool(body?.force || body?.forceRegen || body?.forcePush);
-    const forceRegen = forceHint || toBool(body?.forceRegen || body?.force);
+    const forceRegen = forceHint || toBool(body?.forceRegen || body?.force) || forceRun;
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",

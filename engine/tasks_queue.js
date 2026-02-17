@@ -20,7 +20,7 @@ function requireTasksEnv(env) {
   return { project, location, queue, url, saEmail, token };
 }
 
-async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "light" }) {
+async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "light", forceRegen = false }) {
   if (!lineUserId) throw new Error("lineUserId is required");
   const { project, location, queue, url, saEmail, token } = requireTasksEnv(env);
 
@@ -31,6 +31,10 @@ async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "ligh
     line_user_id: lineUserId,
     blueprint_type: blueprintType,
   };
+  if (forceRegen) {
+    payload.forceRegen = true;
+    payload.force = true;
+  }
 
   const headers = { "Content-Type": "application/json" };
   if (token) headers["x-internal-tasks-token"] = token;
