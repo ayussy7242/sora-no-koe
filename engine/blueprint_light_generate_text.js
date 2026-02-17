@@ -62,12 +62,17 @@ const BANNED_PATTERNS = [
   /あなた/,
   /きみ/,
   /君/,
+  /した方がいい/,
+  /したほうがいい/,
   /すべき/,
   /しよう/,
   /すると良い/,
   /するとよい/,
   /必ず/,
   /確実/,
+  /絶対/,
+  /保証/,
+  /間違いない/,
   /が起きる/,
   /になる/,
   /輪郭/,
@@ -80,10 +85,27 @@ const BANNED_PATTERNS = [
   /溶ける/,
   /漂う/,
   /が立ち上がる/,
+  /立ち上がる/,
 ];
 
 const SENTENCE_GUIDE_RULE =
   "各文は改行区切り。全体2〜6行（目安3〜5行）。";
+const SENTENCE_GUIDE_RULE_OPTIONAL_BREAK =
+  "各文は改行区切りでもよい。全体1〜6行（目安3〜5行）。";
+
+const PROMPT_BANNED_GUIDE = `
+禁止語（出力に含めない）:
+- 必ず / 確実 / 絶対 / 保証 / 間違いない
+- 〜になる / 〜が起きる
+- すべき / した方がいい / すると良い
+- 輪郭 / 静かに残る / 言葉にせずとも / 気配 / 余韻 / 場の温度 / 溶ける / 漂う / 立ち上がる
+- あなた / きみ / 君
+言い換え例（推奨）:
+- 〜がテーマとして浮かびやすい
+- 〜に意識が向きやすい
+- 〜として現れやすい
+禁止語を使うしかない場合は __RETRY__ のみ返す。
+`.trim();
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -117,12 +139,26 @@ function findBannedTerm(text) {
   return null;
 }
 
+function buildItemRetryNote(lastReason, lastLen) {
+  if (!lastReason) return "";
+  if (String(lastReason).startsWith("banned:")) {
+    const term = String(lastReason).slice("banned:".length);
+    return `禁止語「${term}」を使わないこと。改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。`;
+  }
+  if (lastReason === "no_break") {
+    return "改行を1つ以上入れる（2段落以上）。改行がない出力は不可。";
+  }
+  if (lastReason === "too_short") {
+    return `空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。`;
+  }
+  return "改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。";
+}
 
 
-function isValidSectionText(text, { minChars = MIN_BODY_CHARS } = {}) {
+function isValidSectionText(text, { minChars = MIN_BODY_CHARS, requireBreak = true } = {}) {
   const raw = String(text || "").trim();
   if (!raw) return { ok: false, reason: "empty" };
-  if (!raw.includes("\n") && !raw.includes("\\n")) return { ok: false, reason: "no_break" };
+  if (requireBreak && !raw.includes("\n") && !raw.includes("\\n")) return { ok: false, reason: "no_break" };
   const len = normalizedLength(raw);
   if (len < minChars) return { ok: false, reason: "too_short" };
   return { ok: true, len };
@@ -157,17 +193,25 @@ ${sentenceRule}
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
+${PROMPT_BANNED_GUIDE}
 `.trim();
   const note = retryNote ? `\n\n【直前の修正】${retryNote}\n` : "";
   return `${header}${note}\nINPUT:\n${JSON.stringify({ ...input, natal: { bodies: [body] } }, null, 2)}`;
 }
 
-function buildSectionPrompt({ input, sectionId, item, retryNote = "", sentenceRule = STRICT_SENTENCE_RULE }) {
+function buildSectionPrompt({
+  input,
+  sectionId,
+  item,
+  retryNote = "",
+  sentenceRule = STRICT_SENTENCE_RULE,
+  requireBreak = true,
+}) {
   const header = `
 これは占星術の基礎的意味の説明タスクです。詩的表現は禁止です。
 以下のINPUT（単一セクション）から本文のみ生成する。
   出力は text のみ（JSON禁止）。
-改行を1つ以上入れる（2段落以上）。
+${requireBreak ? "改行を1つ以上入れる（2段落以上）。" : "改行は任意（1段落でも可）。"}
 ${sentenceRule}
 文末は「。」で終える。
 「！」や「？」は使わない。
@@ -183,22 +227,22 @@ ${sentenceRule}
 天体名・星座名・度数・軸は本文に出してよい。
 記号（☉☽☿等）は使わない。
 満たせない場合は __RETRY__ のみ返す。
+${PROMPT_BANNED_GUIDE}
 `.trim();
   const note = retryNote ? `\n\n【直前の修正】${retryNote}\n` : "";
   const payload = { section: sectionId, item, input };
   return `${header}${note}\nINPUT:\n${JSON.stringify(payload, null, 2)}`;
 }
 
-async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 4 }) {
+async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAttempts = 6 }) {
   let lastReason = "";
   let lastDetail = "";
   let lastLen = 0;
   for (let i = 0; i < maxAttempts; i += 1) {
     const isFinalAttempt = i === maxAttempts - 1;
-    const retryNote = lastReason
-      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。${
-          isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""
-        }`
+    const baseNote = buildItemRetryNote(lastReason, lastLen);
+    const retryNote = baseNote
+      ? `${baseNote}${isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""}`
       : "";
     const prompt = buildBodyItemPrompt({ input, body, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
     const content = await createChatCompletion({
@@ -243,18 +287,35 @@ async function generateBodyItemText({ apiKey, baseUrl, model, input, body, maxAt
   throw err;
 }
 
-async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, item, minChars = MIN_SHADOW_CHARS, maxAttempts = 4 }) {
+async function generateSectionText({
+  apiKey,
+  baseUrl,
+  model,
+  input,
+  sectionId,
+  item,
+  minChars = MIN_SHADOW_CHARS,
+  maxAttempts = 6,
+}) {
   let lastReason = "";
   let lastDetail = "";
   let lastLen = 0;
   for (let i = 0; i < maxAttempts; i += 1) {
     const isFinalAttempt = i === maxAttempts - 1;
-    const retryNote = lastReason
-      ? `改行1つ（2段落）・空白除去160文字以上を満たすまで書き直すこと。前回は空白除去${lastLen || "?"}文字。${
-          isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""
-        }`
+    const baseNote = buildItemRetryNote(lastReason, lastLen);
+    const retryNote = baseNote
+      ? `${baseNote}${isFinalAttempt ? " 禁止語を一切使わず、同内容を言い換えて書き直すこと。" : ""}`
       : "";
-    const prompt = buildSectionPrompt({ input, sectionId, item, retryNote, sentenceRule: SENTENCE_GUIDE_RULE });
+    const requireBreak = sectionId !== "angles";
+    const sentenceRule = requireBreak ? SENTENCE_GUIDE_RULE : SENTENCE_GUIDE_RULE_OPTIONAL_BREAK;
+    const prompt = buildSectionPrompt({
+      input,
+      sectionId,
+      item,
+      retryNote,
+      sentenceRule,
+      requireBreak,
+    });
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -280,7 +341,7 @@ async function generateSectionText({ apiKey, baseUrl, model, input, sectionId, i
       lastLen = normalizedLength(text);
       continue;
     }
-    const check = isValidSectionText(text, { minChars });
+    const check = isValidSectionText(text, { minChars, requireBreak });
     if (check.ok) return text;
     lastReason = check.reason || "invalid";
     lastLen = len;
