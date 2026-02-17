@@ -1198,6 +1198,11 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const [jsonExists] = await jsonFile.exists();
     const envForceRegen = String(env?.BLUEPRINT_REGEN || process.env.BLUEPRINT_REGEN || "") === "1";
     const shouldForceRegen = Boolean(forceRegen || envForceRegen);
+    console.log("[blueprint] regen flags", {
+      forceRegen: !!forceRegen,
+      envForceRegen: !!envForceRegen,
+      shouldForceRegen: !!shouldForceRegen,
+    });
 
     if (pdfExists && jsonExists && !shouldForceRegen) {
       console.log("[blueprint] generate skip (exists)", { file_path: filePath });
