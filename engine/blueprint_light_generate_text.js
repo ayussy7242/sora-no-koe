@@ -76,11 +76,14 @@ const BANNED_PATTERNS = [
   /言葉にせずとも/,
   /気配/,
   /余韻/,
+  /場の温度/,
+  /溶ける/,
+  /漂う/,
   /が立ち上がる/,
 ];
 
 const SENTENCE_GUIDE_RULE =
-  "2段落構成。全体2〜6文（目安3〜5文）。各段落1〜3文。";
+  "各文は改行区切り。全体2〜6行（目安3〜5行）。";
 
 function cleanupPlainText(text) {
   let out = String(text || "").trim();
@@ -101,9 +104,12 @@ function cleanupPlainText(text) {
 
 function findBannedTerm(text) {
   const raw = String(text || "");
+  const compact = raw.replace(/\s/g, "");
   for (const re of BANNED_PATTERNS) {
     const match = raw.match(re);
     if (match && match[0]) return match[0];
+    const compactMatch = compact.match(re);
+    if (compactMatch && compactMatch[0]) return compactMatch[0];
   }
   return null;
 }
@@ -126,9 +132,10 @@ function pickSectionById(data, id) {
 
 function buildBodyItemPrompt({ input, body, retryNote = "", sentenceRule = STRICT_SENTENCE_RULE }) {
   const header = `
+これは占星術の基礎的意味の説明タスクです。詩的表現は禁止です。
 以下のINPUT（単一天体）から本文のみ生成する。
 出力は text のみ（JSON禁止）。
-必ず \\n を1つ含める（段落は2つ）。
+改行を1つ以上入れる（2段落以上）。
 ${sentenceRule}
 文末は「。」で終える。
 「！」や「？」は使わない。
@@ -137,9 +144,10 @@ ${sentenceRule}
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 占星術の意味を簡潔に説明する。
-惑星の機能（思考/感情/行動など）を明示する。
-星座の性質（自己表現/中心/保護など）を明示する。
-度数は位置情報として本文に含める（初期/中盤/後半/最終の言及や数値も可）。
+必ず「惑星の機能」から始める。
+次に「星座でどう変化するか」を書く。
+最後に「度数の位置ニュアンス」を書く（初期/中盤/後半/最終の言及や数値も可）。
+各文は改行で区切る（2〜6行以内）。
 助言/指示/吉凶/未来断定/読者主語は禁止。
 「確実」「必ず」「〜になる」「〜が起きる」は使わない。
 ポエム定型（輪郭/静かに残る/言葉にせずとも/気配/余韻/立ち上がる）は使わない。
@@ -153,9 +161,10 @@ ${sentenceRule}
 
 function buildSectionPrompt({ input, sectionId, item, retryNote = "", sentenceRule = STRICT_SENTENCE_RULE }) {
   const header = `
+これは占星術の基礎的意味の説明タスクです。詩的表現は禁止です。
 以下のINPUT（単一セクション）から本文のみ生成する。
   出力は text のみ（JSON禁止）。
-  必ず \\n を1つ含める（段落は2つ）。
+改行を1つ以上入れる（2段落以上）。
 ${sentenceRule}
 文末は「。」で終える。
 「！」や「？」は使わない。
@@ -164,9 +173,7 @@ ${sentenceRule}
 出力前に文字数・文数・改行の条件を満たしているか必ず確認すること。
 文の長さは自然に揺れてよい（短文と中程度の文を混ぜる）。
 占星術の意味を簡潔に説明する。
-惑星の機能（思考/感情/行動など）を明示する。
-星座の性質（自己表現/中心/保護など）を明示する。
-度数は位置情報として本文に含める（初期/中盤/後半/最終の言及や数値も可）。
+各文は改行で区切る（2〜6行以内）。
 助言/指示/吉凶/未来断定/読者主語は禁止。
 「確実」「必ず」「〜になる」「〜が起きる」は使わない。
 ポエム定型（輪郭/静かに残る/言葉にせずとも/気配/余韻/立ち上がる）は使わない。
@@ -298,10 +305,9 @@ function validateOutput(data) {
   }
 
   const allText = countText(data.sections);
-  for (const re of BANNED_PATTERNS) {
-    if (re.test(allText)) {
-      return { ok: false, reason: `banned:${re}` };
-    }
+  const banned = findBannedTerm(allText);
+  if (banned) {
+    return { ok: false, reason: `banned:${banned}` };
   }
 
   const tooLong = (s, max) => typeof s === "string" && s.length > max;
@@ -413,7 +419,7 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const len = parts[2] || "";
-    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。惑星の機能／星座の性質／度数の位置情報を明示する。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
+    return `bodies.items の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。惑星の機能→星座での変化→度数の位置ニュアンスの順で書く。160未満は出力しない。${key ? `（短い項目: ${key}${len ? `/${len}` : ""}）` : ""}`;
   }
   if (baseReason === "chiron_too_short" || baseReason === "lilith_too_short") {
     return `chiron/lilith の text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で終える。象徴の意味を簡潔に説明する。160未満は出力しない。`;
@@ -434,7 +440,7 @@ function buildRetryNote(reason) {
     const parts = String(reason).split(":");
     const key = parts[1] || "";
     const detail = parts.slice(2).join(":");
-    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。惑星の機能／星座の性質／度数の位置情報を明示する。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
+    return `bodies の各 text は空白除去160文字以上（必須）・200字前後を目安。${SENTENCE_GUIDE_RULE} 文末は「。」で書き直すこと。惑星の機能→星座での変化→度数の位置ニュアンスの順で書く。160未満は出力しない。${key ? `（失敗: ${key}${detail ? `/${detail}` : ""}）` : ""}`;
   }
   if (baseReason === "section_item_failed") {
     const parts = String(reason).split(":");
