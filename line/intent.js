@@ -49,7 +49,16 @@ const INTENT = Object.freeze({
   PUBLIC_SKY: "public_sky",
   PERSONAL_TODAY: "personal_today",
   NATAL: "natal_list",
-  ANSHIN: "anshin",
+  DISTRIBUTION: "today_distribution",
+  BUNPU: "paid_bunpu",
+  HOUSE: "paid_house",
+  TSUKIJI: "paid_tsukiji",
+  SORAZU: "paid_sorazu",
+  PLUS_JOIN: "plus_join",
+  PLUS_CANCEL: "plus_cancel",
+  PLUS_STATUS: "plus_status",
+  PLUS_EXPIRE: "plus_expire",
+  PLUS_MENU: "plus_menu",
   BLUEPRINT_LIGHT: "blueprint_light",
   PURCHASE: "purchase",
 
@@ -59,17 +68,6 @@ const INTENT = Object.freeze({
   PING: "ping",
   TEST: "test",
 });
-
-const SORA_MODE = Object.freeze({
-  SORA_TOP: "sora_top",
-  SORA_ALL: "sora_all",
-  SORA_URA: "sora_ura",
-  SORA_URA_SILENT: "sora_ura_silent",
-  SORA_URA_RARE: "sora_ura_rare",
-  SORA_URA_HARMONY: "sora_ura_harmony",
-});
-
-const { SORA_ALIAS_ENTRIES } = require("./sora_alias");
 
 const MAP = new Map([
   // START / 登録導線
@@ -98,27 +96,41 @@ const MAP = new Map([
   ["sky", INTENT.PUBLIC_SKY],
   ["public", INTENT.PUBLIC_SKY],
 
+  // DISTRIBUTION / Paid blocks
+  ["分布", INTENT.BUNPU],
+  ["今日の分布", INTENT.BUNPU],
+  ["きょうの分布", INTENT.BUNPU],
+  ["きょうのぶんぷ", INTENT.BUNPU],
+  ["ぶんぷ", INTENT.BUNPU],
+  ["はうす", INTENT.HOUSE],
+  ["ハウス", INTENT.HOUSE],
+  ["house", INTENT.HOUSE],
+  ["つきじ", INTENT.TSUKIJI],
+  ["ツキジ", INTENT.TSUKIJI],
+  ["tsukiji", INTENT.TSUKIJI],
+  ["そらず", INTENT.SORAZU],
+  ["そら図", INTENT.SORAZU],
+  ["ソラ図", INTENT.SORAZU],
+
+  // PLUS commands
+  ["ぷらす", INTENT.PLUS_MENU],
+  ["ぷらす入会", INTENT.PLUS_JOIN],
+  ["ぷらす解約", INTENT.PLUS_CANCEL],
+  ["ぷらす状態", INTENT.PLUS_STATUS],
+  ["きげん", INTENT.PLUS_EXPIRE],
+
   // NATAL
   ["ほし", INTENT.NATAL],
   ["星", INTENT.NATAL],
   ["わたしのほし", INTENT.NATAL],
   ["わたしの星", INTENT.NATAL],
+  ["わたし", INTENT.NATAL],
   ["私のほし", INTENT.NATAL],
   ["私の星", INTENT.NATAL],
   ["ネイタル", INTENT.NATAL],
   ["ネイタルチャート", INTENT.NATAL],
   ["出生図", INTENT.NATAL],
   ["natal", INTENT.NATAL],
-
-  // ANSHIN
-  ["あんしん", INTENT.ANSHIN],
-  ["安心", INTENT.ANSHIN],
-  ["わたしのあんしん", INTENT.ANSHIN],
-  ["私のあんしん", INTENT.ANSHIN],
-  ["わたしの安心", INTENT.ANSHIN],
-  ["私の安心", INTENT.ANSHIN],
-  ["あんしんねいたる", INTENT.ANSHIN],
-  ["安心ネイタル", INTENT.ANSHIN],
 
   // BLUEPRINT (LIGHT)
   ["設計図", INTENT.BLUEPRINT_LIGHT],
@@ -165,20 +177,16 @@ const MAP = new Map([
   ["テスト", INTENT.TEST],
 ]);
 
-const SORA_MAP = new Map(
-  SORA_ALIAS_ENTRIES.map(({ alias, mode }) => [normalizeForCommand(alias), mode])
-);
-
 function intentFromcommand(rawText) {
   const key = normalizeForCommand(rawText);
   if (!key) return null;
-  return MAP.get(key) || null;
-}
-
-function soraModeFromCommand(rawText) {
-  const key = normalizeForCommand(rawText);
-  if (!key) return null;
-  return SORA_MAP.get(key) || null;
+  const intent = MAP.get(key) || null;
+  const ALLOWED_INTENTS = new Set([
+    INTENT.PERSONAL_TODAY,
+    INTENT.PUBLIC_SKY,
+    INTENT.NATAL,
+  ]);
+  return ALLOWED_INTENTS.has(intent) ? intent : null;
 }
 
 function isunknown(text) {
@@ -188,10 +196,8 @@ function isunknown(text) {
 
 module.exports = {
   INTENT,
-  SORA_MODE,
   normalizeText,
   normalizeForCommand,
   intentFromcommand,
-  soraModeFromCommand,
   isunknown,
 };

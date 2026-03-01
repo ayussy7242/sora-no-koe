@@ -7,8 +7,16 @@ const dict = require("../dict");
 const Stripe = require("stripe");
 const { createPurchaseToken } = require("../engine/purchase_tokens");
 const { createBlueprintLightService } = require("../engine/blueprint_light");
+const { getLineSubscription, isPaidLine500 } = require("../engine/subscription");
+const {
+  buildBunpuTop5,
+  buildHouseBlock,
+  buildTsukijiBlock,
+  buildElementModalityBlock,
+  buildKinjitsuBlock,
+} = require("../engine/paid/line_paid_500");
+const { buildAndStoreSoraWheel } = require("../engine/sora_wheel");
 
-const PAID_SORA_MODES = new Set(env.PAID_SORA_MODES || []);
 const PAID_INTENTS = new Set(env.PAID_INTENTS || []);
 
 async function isPaidAllowed({ appUserId, lineUserId, modules }) {
@@ -35,9 +43,82 @@ function paidOnlyMessage(mode) {
   return map?.[mode] || LINE_COPY.PAID_ONLY || "このコマンドは深層モードで配信中だよ。";
 }
 
+async function getPaidStatus({ db, appUserId, lineUserId }) {
+  let paid = false;
+  try {
+    const sub = await getLineSubscription(db, lineUserId);
+    paid = isPaidLine500(sub);
+  } catch (_) {
+    paid = false;
+  }
+  return { paid };
+}
+
 function pickUrl(envObj, key, fallback) {
   const v = envObj?.[key];
   return v && String(v).trim() ? String(v).trim() : fallback;
+}
+
+async function createCheckoutUrlForLine500({ lineUserId }) {
+  const priceId = env.STRIPE_PRICE_ID_LINE_500 || null;
+  if (!env.STRIPE_SECRET_KEY || !priceId) {
+    return { ok: false, error: "stripe_config_missing" };
+  }
+
+  const successUrl =
+    pickUrl(env, "STRIPE_SUCCESS_URL", null) ||
+    pickUrl(env, "PUBLIC_BASE_URL", null) ||
+    "https://example.com";
+  const cancelUrl =
+    pickUrl(env, "STRIPE_CANCEL_URL", null) ||
+    pickUrl(env, "PUBLIC_BASE_URL", null) ||
+    "https://example.com";
+
+  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      product: "line_500",
+      plan: "line_500",
+      line_user_id: lineUserId || "",
+    },
+  });
+
+  return { ok: true, url: session.url, mode: "checkout_session" };
+}
+
+function formatEpochDate(epochSec) {
+  const n = Number(epochSec);
+  if (!Number.isFinite(n)) return null;
+  const d = new Date(n * 1000);
+  if (Number.isNaN(d.getTime())) return null;
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const y = jst.getUTCFullYear();
+  const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(jst.getUTCDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+}
+
+async function createPortalUrl({ lineUserId, db }) {
+  if (!env.STRIPE_SECRET_KEY) return { ok: false, error: "stripe_config_missing" };
+  const sub = await getLineSubscription(db, lineUserId);
+  const customerId = sub?.stripe_customer_id || null;
+  if (!customerId) return { ok: false, error: "customer_missing" };
+
+  const returnUrl =
+    pickUrl(env, "STRIPE_CANCEL_URL", null) ||
+    pickUrl(env, "PUBLIC_BASE_URL", null) ||
+    "https://example.com";
+
+  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl,
+  });
+  return { ok: true, url: session.url };
 }
 
 async function createCheckoutUrlForLight({ token, lineUserId }) {
@@ -92,43 +173,6 @@ async function hasBlueprintPurchase({ db, lineUserId }) {
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers, db, admin, storage }) {
   const { natal, story } = modules;
 
-  // 0) SORA (public固定)
-  const soraMode = intent.soraModeFromCommand(rawText || cmd);
-  if (soraMode) {
-    if (env.PAID_MODE_ENABLED && PAID_SORA_MODES.has(soraMode)) {
-      if (!(await isPaidAllowed({ appUserId, lineUserId, modules }))) {
-        return { text: paidOnlyMessage(soraMode), stage: "paid_only", mode: soraMode };
-      }
-    }
-    let hasPersonal = false;
-    try {
-      hasPersonal = await natal.hasNatal(appUserId);
-    } catch (_) {
-      hasPersonal = false;
-    }
-    // "ちんもく" は登録済みなら personal を返す
-    const usePersonalSilent = soraMode === "sora_ura_silent" && hasPersonal;
-    const { story: storyJson } = usePersonalSilent
-      ? await story.buildToday({ appUserId })
-      : await story.buildSky();
-    const text = storyJson
-      ? await (usePersonalSilent ? renderers.renderSoraUraSilentPersonalLine(storyJson)
-        : soraMode === "sora_all" ? renderers.renderSoraAllLine(storyJson)
-        : soraMode === "sora_ura" ? renderers.renderSoraUraLine(storyJson)
-        : soraMode === "sora_ura_silent" ? renderers.renderSoraUraSilentLine(storyJson)
-        : soraMode === "sora_ura_rare" ? renderers.renderSoraUraRareLine(storyJson)
-        : soraMode === "sora_ura_harmony" ? renderers.renderSoraUraHarmonyLine(storyJson)
-        : renderers.renderSoraLine(storyJson))
-      : "（そらのデータがまだなかった🙏）";
-    if (soraMode === "sora_ura_silent" && !usePersonalSilent) {
-      return { text: story.appendTail(text, story.tailSoraSilentNoPersonal()), stage: "sora", mode: soraMode };
-    }
-    if (!hasPersonal) {
-      return { text: story.appendTail(text, story.tailSoraNoPersonal()), stage: "sora", mode: soraMode };
-    }
-    return { text, stage: "sora", mode: soraMode };
-  }
-
   // 1) utilities（intentより先）
   const util = await story.handleUtilities({ cmd, appUserId, lineUserId });
   if (util?.text != null) return { text: util.text, stage: "utilities" };
@@ -142,6 +186,79 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 3) intent（唯一の判定）
   const intentKey = intent.intentFromcommand(cmd);
 
+  if (intentKey === intent.INTENT.PLUS_MENU) {
+    return {
+      text: "観測ログ＋は現在準備中です。",
+      stage: "plus_menu_paused",
+    };
+  }
+
+  if (intentKey === intent.INTENT.PLUS_JOIN) {
+    if (!lineUserId) {
+      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_join" };
+    }
+    return { text: "観測ログ＋は現在準備中です。", stage: "plus_join_paused" };
+    const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+    if (paid) {
+      return { text: "すでに観測ログ＋に登録済みです。", stage: "plus_join_already" };
+    }
+    const checkout = await createCheckoutUrlForLine500({ lineUserId });
+    if (!checkout?.ok || !checkout.url) {
+      return { text: "いま入会導線の準備中だよ。", stage: "plus_join_unavailable" };
+    }
+    return {
+      text:
+        "観測ログ＋ 入会はこちら👇\n" +
+        checkout.url,
+      stage: "plus_join",
+    };
+  }
+
+  if (intentKey === intent.INTENT.PLUS_CANCEL) {
+    if (!lineUserId) {
+      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_cancel" };
+    }
+    return { text: "観測ログ＋は現在準備中です。", stage: "plus_cancel_paused" };
+    const portal = await createPortalUrl({ lineUserId, db });
+    if (!portal?.ok || !portal.url) {
+      return {
+        text: "解約はStripeの管理画面から行えます。お手数ですがサポートにご連絡ください。",
+        stage: "plus_cancel_unavailable",
+      };
+    }
+    return {
+      text: "解約はこちら👇\n" + portal.url,
+      stage: "plus_cancel",
+    };
+  }
+
+  if (intentKey === intent.INTENT.PLUS_STATUS) {
+    if (!lineUserId) {
+      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_status" };
+    }
+    return { text: "観測ログ＋は現在準備中です。", stage: "plus_status_paused" };
+    const sub = await getLineSubscription(db, lineUserId);
+    const status = sub?.subscription_status || "inactive";
+    const plan = sub?.plan || "-";
+    return {
+      text: `観測ログ＋ 状態：${status}\nプラン：${plan}`,
+      stage: "plus_status",
+    };
+  }
+
+  if (intentKey === intent.INTENT.PLUS_EXPIRE) {
+    if (!lineUserId) {
+      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_expire" };
+    }
+    return { text: "観測ログ＋は現在準備中です。", stage: "plus_expire_paused" };
+    const sub = await getLineSubscription(db, lineUserId);
+    const date = formatEpochDate(sub?.current_period_end);
+    if (!date) {
+      return { text: "期限情報が見つかりませんでした。", stage: "plus_expire_missing" };
+    }
+    return { text: `次回更新日：${date}`, stage: "plus_expire" };
+  }
+
   if (intentKey === intent.INTENT.NATAL) {
     const r = await natal.handleNatalList({ appUserId });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "natal_list" };
@@ -153,33 +270,97 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PERSONAL_TODAY) {
-    // ✅ ここが最重要：public は guide 付きに統一（debug/webhook 一致）
-    if (!appUserId || appUserId === "public") {
-      const r = await story.buildSkyWithGuide();
-      return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today_no_user" };
-    }
-    const r = await story.buildToday({ appUserId });
+    const r = await story.buildToday({ appUserId: appUserId || "public" });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today" };
   }
 
-  if (intentKey === intent.INTENT.ANSHIN) {
+  if (intentKey === intent.INTENT.DISTRIBUTION) {
+    const hasPersonal = await natal.hasNatal(appUserId);
+    if (!hasPersonal) {
+      return { text: LINE_COPY.NATAL_LIST_NEED_LINK || "先に「はじめる」で登録してね。", stage: "distribution_need_natal" };
+    }
+
     if (env.PAID_MODE_ENABLED && PAID_INTENTS.has(intentKey)) {
-      if (!(await isPaidAllowed({ appUserId, lineUserId, modules }))) {
+      const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+      const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+      if (!paid && !allow) {
         return { text: paidOnlyMessage(intentKey), stage: "paid_only", mode: intentKey };
       }
     }
-    let hasPersonal = false;
-    try {
-      hasPersonal = await natal.hasNatal(appUserId);
-    } catch (_) {
-      hasPersonal = false;
-    }
+
+    const r = await story.buildToday({ appUserId });
+    const text = r?.story
+      ? await renderers.renderDistributionLine(r.story)
+      : (r?.text || story.renderFallback() || "（返す文が空だった🙏）");
+    return { text, stage: "distribution" };
+  }
+
+  if (
+    intentKey === intent.INTENT.BUNPU ||
+    intentKey === intent.INTENT.HOUSE ||
+    intentKey === intent.INTENT.TSUKIJI ||
+    intentKey === intent.INTENT.SORAZU
+  ) {
+    const hasPersonal = await natal.hasNatal(appUserId);
     if (!hasPersonal) {
-      const r = await story.buildAnshinPublic();
-      return { text: story.appendTail(r?.text || story.renderFallback() || "（返す文が空だった🙏）", story.tailAnshinNoPersonal()), stage: "anshin_public" };
+      return { text: LINE_COPY.NATAL_LIST_NEED_LINK || "先に「はじめる」で登録してね。", stage: "paid_need_natal" };
     }
-    const r = await story.buildAnshin({ appUserId });
-    return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "anshin" };
+
+    if (env.PAID_MODE_ENABLED) {
+      const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+      const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+      if (!paid && !allow) {
+        return { text: paidOnlyMessage(intentKey), stage: "paid_only", mode: intentKey };
+      }
+    }
+
+    const r = await story.buildToday({ appUserId });
+    const storyObj = r?.story;
+    if (!storyObj) {
+      return { text: story.renderFallback() || "（返す文が空だった🙏）", stage: "paid_empty" };
+    }
+
+    const dateLabel = String(storyObj?.meta?.date_local || "").replace(/-/g, ".");
+    const asOfISO = storyObj?.meta?.as_of || null;
+
+    if (intentKey === intent.INTENT.BUNPU) {
+      const lines = [`📊 ぶんぷ（TOP5）｜${dateLabel}`, "", ...buildBunpuTop5(storyObj, dict)];
+      return { text: lines.join("\n").trim(), stage: "paid_bunpu" };
+    }
+
+    if (intentKey === intent.INTENT.HOUSE) {
+      const lines = [`🏠 はうす（全ハウス）｜${dateLabel}`, "", ...buildHouseBlock(storyObj, dict, asOfISO)];
+      return { text: lines.join("\n").trim(), stage: "paid_house" };
+    }
+
+    if (intentKey === intent.INTENT.TSUKIJI) {
+      const lines = [`🌙 つきじ｜${dateLabel}`, "", ...buildTsukijiBlock(storyObj, dict, asOfISO)];
+      return { text: lines.join("\n").trim(), stage: "paid_tsukiji" };
+    }
+
+    if (intentKey === intent.INTENT.SORAZU) {
+      const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
+      const expiresDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
+      if (!storage || !bucketName) {
+        return { text: "ソラ図の準備中だよ。", stage: "paid_sorazu_missing_storage" };
+      }
+      const wheel = await buildAndStoreSoraWheel({
+        storage,
+        bucketName,
+        lineUserId,
+        dateLocal: storyObj?.meta?.date_local,
+        story: storyObj,
+        dateLabel,
+        expiresDays,
+      });
+      if (!wheel?.ok || !wheel?.url) {
+        return { text: "ソラ図の生成に失敗したみたい。", stage: "paid_sorazu_failed" };
+      }
+      return {
+        message: [{ type: "image", originalContentUrl: wheel.url, previewImageUrl: wheel.url }],
+        stage: "paid_sorazu",
+      };
+    }
   }
 
   if (intentKey === intent.INTENT.PURCHASE) {
@@ -255,42 +436,55 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
 
     let result = null;
+    let resultMobile = null;
     try {
-      result = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId });
+      result = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId, variant: "print" });
+      resultMobile = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId, variant: "mobile" });
     } catch (e) {
       console.log("[blueprint] error", { message: e?.message || String(e) });
       result = null;
     }
     console.log("[blueprint] result", {
-      ok: !!result?.ok,
-      code: result?.code || null,
-      has_url: !!result?.url,
+      ok: !!result?.ok || !!resultMobile?.ok,
+      code: result?.code || resultMobile?.code || null,
+      has_url: !!result?.url || !!resultMobile?.url,
     });
-    if (!result || !result.ok) {
+    if ((!result || !result.ok) && (!resultMobile || !resultMobile.ok)) {
       const msg =
-        result?.code === "not_purchased"
+        result?.code === "not_purchased" || resultMobile?.code === "not_purchased"
           ? LINE_COPY.BLUEPRINT_NEED_PURCHASE
-          : result?.code === "natal_not_ready" || result?.code === "not_ready"
+          : result?.code === "natal_not_ready" ||
+            result?.code === "not_ready" ||
+            resultMobile?.code === "natal_not_ready" ||
+            resultMobile?.code === "not_ready"
             ? LINE_COPY.BLUEPRINT_NOT_READY
             : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
       return { text: msg || "設計図の準備中だよ。", stage: "blueprint_light" };
     }
 
-    const signedUrl = result.url;
+    const actions = [];
+    if (resultMobile?.ok && resultMobile?.url) {
+      actions.push({ type: "uri", label: "📱 モバイル版", uri: resultMobile.url });
+    }
+    if (result?.ok && result?.url) {
+      actions.push({ type: "uri", label: "🖨 印刷版", uri: result.url });
+    }
     const templateMessage = {
       type: "template",
       altText: "魂の設計図（LIGHT）はこちら",
       template: {
         type: "buttons",
         title: "魂の設計図（LIGHT）",
-        text: "あなた専用の設計図です🌌",
-        actions: [
-          {
-            type: "uri",
-            label: "設計図を開く",
-            uri: signedUrl,
-          },
-        ],
+        text: "📱スマホ最適／🖨印刷（A4）",
+        actions: actions.length
+          ? actions
+          : [
+              {
+                type: "uri",
+                label: "設計図を開く",
+                uri: result?.url || resultMobile?.url || "",
+              },
+            ],
       },
     };
     return { message: templateMessage, stage: "blueprint_light" };

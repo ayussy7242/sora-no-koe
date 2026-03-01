@@ -45,7 +45,7 @@ function createNatalListRenderer({
     const signJa =
       (typeof signJaFromIndex === "function" ? signJaFromIndex(signIndex) : null) || "（不明）";
     const mm = String(min).padStart(2, "0");
-    return `${signJa} ${deg}°${mm}’`;
+    return `${signJa} ${deg}°${mm}'`;
   }
 
   function lonToSignOnly(lonDeg) {
@@ -190,10 +190,23 @@ function createNatalListRenderer({
       return out;
     })();
 
-    // fill missing optional bodies (lilith / chiron) if cache lacks them
+    // fill missing optional bodies (lilith / chiron / nodes) if cache lacks them
     const needsLilith = bodiesLower.lilith == null;
     const needsChiron = bodiesLower.chiron == null;
-    if (needsLilith || needsChiron) {
+    const needsNorthNode =
+      bodiesLower.north_node == null &&
+      bodiesLower.true_node == null &&
+      bodiesLower.mean_node == null &&
+      bodiesLower.northnode == null &&
+      bodiesLower.node == null &&
+      bodiesLower.rahu == null;
+    const needsSouthNode =
+      bodiesLower.south_node == null &&
+      bodiesLower.southnode == null &&
+      bodiesLower.sn == null &&
+      bodiesLower.ketu == null;
+
+    if (needsLilith || needsChiron || needsNorthNode || needsSouthNode) {
       const birth = d?.birth || {};
       const dateLocal = birth?.date_local || null;
       const timeHm = birth?.time_hm || null;
@@ -225,6 +238,20 @@ function createNatalListRenderer({
               const lon1 = typeof out?.longitude === "number" ? out.longitude : out?.data?.[0];
               if (Number.isFinite(lon1)) bodiesLower.chiron = lon1;
             }
+            if (needsNorthNode || needsSouthNode) {
+              const nodeId =
+                swisseph.SE_TRUE_NODE != null ? swisseph.SE_TRUE_NODE :
+                swisseph.SE_MEAN_NODE != null ? swisseph.SE_MEAN_NODE :
+                null;
+              if (nodeId != null) {
+                const out = swisseph.swe_calc_ut(jdUt, nodeId, flags);
+                const lon1 = typeof out?.longitude === "number" ? out.longitude : out?.data?.[0];
+                if (Number.isFinite(lon1)) {
+                  bodiesLower.north_node = lon1;
+                  bodiesLower.south_node = (Number(lon1) + 180) % 360;
+                }
+              }
+            }
           }
         } catch (_) {
           // optional: ignore if calc fails
@@ -244,7 +271,8 @@ function createNatalListRenderer({
 
     const readBodyLon = (key) => {
       if (key === "north_node") {
-        const aliases = ["north_node", "true_node", "mean_node", "northnode", "nn", "node", "rahu"];
+        // true node first (最優先)
+        const aliases = ["true_node", "north_node", "mean_node", "northnode", "nn", "node", "rahu"];
         for (const a of aliases) {
           const v = readBodyLonDirect(a);
           if (Number.isFinite(Number(v))) return v;
@@ -267,8 +295,8 @@ function createNatalListRenderer({
       if (!signText) return "";
       const label = bodyLabel(key);
       const g = glyph[key] || "";
-      const prefix = g ? `${g}` : "";
-      return `${prefix}${label}：${signText}${suffix}`;
+      const prefix = g ? `${g} ` : "";
+      return `${prefix}${label}｜${signText}${suffix}`;
     };
 
     const bodyLines = [];
@@ -302,24 +330,19 @@ function createNatalListRenderer({
 
     let northLon = readBodyLon("north_node");
     let southLon = readBodyLon("south_node");
-    let northFromOpposite = false;
-    let southFromOpposite = false;
-    if (!Number.isFinite(Number(northLon)) && Number.isFinite(Number(southLon))) {
-      northLon = (Number(southLon) + 180) % 360;
-      northFromOpposite = true;
-    }
-    if (!Number.isFinite(Number(southLon)) && Number.isFinite(Number(northLon))) {
+    if (Number.isFinite(Number(northLon))) {
       southLon = (Number(northLon) + 180) % 360;
-      southFromOpposite = true;
+    } else if (Number.isFinite(Number(southLon))) {
+      northLon = (Number(southLon) + 180) % 360;
     }
 
     const nodeLines = [];
     if (Number.isFinite(Number(northLon))) {
-      const line = formatLine("north_node", northLon, { showDeg: true, suffix: northFromOpposite ? "（対向）" : "" });
+      const line = formatLine("north_node", northLon, { showDeg: true });
       if (line) nodeLines.push(line);
     }
     if (Number.isFinite(Number(southLon))) {
-      const line = formatLine("south_node", southLon, { showDeg: true, suffix: southFromOpposite ? "（対向）" : "" });
+      const line = formatLine("south_node", southLon, { showDeg: true });
       if (line) nodeLines.push(line);
     }
 
@@ -328,10 +351,10 @@ function createNatalListRenderer({
     const mcLine = lonToSignDegMin(mc);
     const icLine = lonToSignDegMin(Number(mc) + 180);
     const dcLine = lonToSignDegMin(Number(asc) + 180);
-    if (ascLine) angleLines.push(`ASC：${ascLine}`);
-    if (mcLine) angleLines.push(`MC：${mcLine}`);
-    if (icLine) angleLines.push(`IC：${icLine}`);
-    if (dcLine) angleLines.push(`DC：${dcLine}`);
+    if (ascLine) angleLines.push(`ASC｜${ascLine}`);
+    if (mcLine) angleLines.push(`MC｜${mcLine}`);
+    if (icLine) angleLines.push(`IC｜${icLine}`);
+    if (dcLine) angleLines.push(`DC｜${dcLine}`);
 
     const appendBlock = (block) => {
       if (!block.length) return;
@@ -348,9 +371,7 @@ function createNatalListRenderer({
     if (total > 0) {
       // 余白を1行追加（見やすさ優先）
       lines.push("");
-      lines.push("【惑星属性】");
       lines.push(`🔥 火${element.fire} 🪨 地${element.earth} 💨 風${element.air} 💧 水${element.water}`);
-      lines.push("【三区分】");
       lines.push(`🏃 活動${modality.cardinal} 🧱 不動${modality.fixed} 🌿 柔軟${modality.mutable}`);
     }
 
