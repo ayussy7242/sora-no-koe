@@ -145,7 +145,8 @@ async function renderLine(story, deps = {}) {
     const tRetro = retroMap[tKey] ? "(R)" : "";
     const tLabelR = `${tLabel}${tRetro}`;
     const tSignText = tSign ? `（${tSign}）` : "";
-    const line1 = `${i + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText} × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`;
+    const line1 = `${i + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText}`;
+    const line1b = `   × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`;
 
     const aspectInfo = _aspectInfo(dict, it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja, it?.aspect_deg);
     const aspectLabel = aspectInfo?.label_ja || String(it?.aspect || it?.type || it?.aspectType || "");
@@ -159,7 +160,7 @@ async function renderLine(story, deps = {}) {
     const orbText = orb != null ? `${orb.toFixed(1)}` : "";
     const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
 
-    lines.push(line1, line2);
+    lines.push(line1, line1b, line2);
     if (i < picked.length - 1) lines.push("");
   });
 
