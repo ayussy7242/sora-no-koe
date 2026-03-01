@@ -32,6 +32,19 @@ https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
 
 ---
 
+## 1.1 Build / Deploy（Dockerfile）
+
+Cloud Run では **Buildpacks ではなく Dockerfile でビルド**します。  
+Swiss Ephemeris（swisseph）のネイティブアドオンが **ビルド環境と実行環境のABI不整合で落ちる**ため、
+同一コンテナ内でビルド・実行する方式に固定しています。
+
+Cloud Build で Docker ビルド＋デプロイ：
+```bash
+gcloud builds submit --config cloudbuild.yaml
+```
+
+---
+
 ## 2. ローカル起動（開発）
 
 依存インストール
@@ -227,7 +240,8 @@ Firestore
 - `FIRESTORE_DATABASE_ID`
 
 Swiss Ephemeris
-- `SWISSEPH_PATH`
+- `SWISSEPH_EPH_PATH`（ephe ディレクトリの絶対 or 相対パス）
+- `SWISSEPH_PATH`（legacy）
 
 LINE
 - `LINE_CHANNEL_SECRET`
@@ -278,3 +292,16 @@ CRON_TOKEN=YOUR_TOKEN node scripts/check_outputs.js
 このプロジェクトは「占い」ではない。
 予測・断定・指示を避け、構造だけを置く。
 解釈と選択の主権は、常に人にある。
+
+---
+
+## 14. Third-Party Libraries
+
+This project uses Swiss Ephemeris for astronomical calculations.
+
+Swiss Ephemeris  
+Official website: https://www.astro.com/swisseph/  
+Source code: https://github.com/aloistr/swisseph  
+
+Swiss Ephemeris is developed by Astrodienst AG, Switzerland.  
+License terms apply. See the official website for details.
