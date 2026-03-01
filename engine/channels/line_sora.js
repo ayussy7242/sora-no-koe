@@ -120,11 +120,11 @@ async function renderSoraLine(story, deps = {}) {
     signJa = String(signJa || "").trim();
     if (!signJa) return "";
     const retro = retroMap[k] ? "(R)" : "";
-    const signText = `${signJa}${retro}`;
     const glyph = _glyphForBodyLocal(k);
     const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
+    const bodyText = `${bodyJa}${retro}`;
     const prefix = glyph ? `${glyph} ` : "";
-    return `${prefix}${bodyJa}｜${signText}`;
+    return `${prefix}${bodyText}｜${signJa}`;
   }).filter(Boolean);
 
   const top1 = skyAll
@@ -144,13 +144,13 @@ async function renderSoraLine(story, deps = {}) {
     const bGlyph = _glyphForBodyLocal(bKey);
     const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
     const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
-    const aSignText = aSign ? `（${aSign}）` : "";
-    const bSignText = bSign ? `（${bSign}）` : "";
     const aRetro = retroMap[aKey] ? "(R)" : "";
     const bRetro = retroMap[bKey] ? "(R)" : "";
-    const aSignTextR = aSign ? `（${aSign}）${aRetro}` : aRetro;
-    const bSignTextR = bSign ? `（${bSign}）${bRetro}` : bRetro;
-    const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignTextR} × (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignTextR}`;
+    const aLabelR = `${aLabel}${aRetro}`;
+    const bLabelR = `${bLabel}${bRetro}`;
+    const aSignText = aSign ? `（${aSign}）` : "";
+    const bSignText = bSign ? `（${bSign}）` : "";
+    const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText} × (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
 
     const aspectInfo = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
     const aspectLabel = aspectInfo?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
