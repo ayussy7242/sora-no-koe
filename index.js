@@ -85,22 +85,33 @@ const ASPECTS = (() => {
 const ASPECTS_DEEP = buildAspectListFromGroup(ASPECTS_SRC?.deep_space);
 
 // -------------------- storyService --------------------
-const storyService = createStoryService({
-  db,
-  admin: fb.admin,
-  swisseph,
+let storyService = null;
+try {
+  if (!swisseph) throw new Error("swisseph unavailable");
+  storyService = createStoryService({
+    db,
+    admin: fb.admin,
+    swisseph,
 
-  // story側が必要とする dict pieces
-  SIGNS: dict?.SIGNS,
-  ASPECTS,
-  ASPECTS_DEEP,
+    // story側が必要とする dict pieces
+    SIGNS: dict?.SIGNS,
+    ASPECTS,
+    ASPECTS_DEEP,
 
-  DEFAULT_TZ: env.DEFAULT_TZ,
-  PROJECT: env.PROJECT,
-  SCHEMA_VERSION: env.SCHEMA_VERSION,
+    DEFAULT_TZ: env.DEFAULT_TZ,
+    PROJECT: env.PROJECT,
+    SCHEMA_VERSION: env.SCHEMA_VERSION,
 
-  buildResonanceBullets,
-});
+    buildResonanceBullets,
+  });
+} catch (e) {
+  console.error("[BOOT] storyService disabled:", e?.message || String(e));
+  storyService = {
+    buildStoryForUser: async () => {
+      throw new Error("storyService unavailable");
+    },
+  };
+}
 
 // -------------------- renderers (DICT FIRST / NO LEGACY FALLBACK) --------------------
 const renderers = createRenderers({ dict });
