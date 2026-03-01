@@ -103,18 +103,31 @@ async function renderLine(story, deps = {}) {
   const includeSummary = deps?.includeSummary !== false;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
-  const header = `🌌 きょう｜${dateLabel}`;
+  const header = `🌌 ${dateLabel}`;
   const subHeader = "わたしのほし×きょうのそら";
 
   const pool = Array.isArray(story?.personal?.touch_points_all)
     ? story.personal.touch_points_all
     : [];
 
-  const picked = pool
+  const raw = pool
     .filter((it) => Number.isFinite(Number(it?.orb_deg)))
     .filter((it) => Number(it.orb_deg) <= 6)
-    .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg))
-    .slice(0, 3);
+    .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+
+  const picked = [];
+  const seen = new Set();
+  for (const it of raw) {
+    const nKey = String(it?.natal_body_or_point || it?.natal_body || it?.a || "").toLowerCase();
+    const tKey = String(it?.transit_body || it?.b || "").toLowerCase();
+    const aspectDeg = Number.isFinite(Number(it?.aspect_deg)) ? Number(it.aspect_deg) : "";
+    const aspectType = String(it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja || "").toLowerCase();
+    const key = [nKey, tKey, aspectDeg, aspectType].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(it);
+    if (picked.length >= 3) break;
+  }
 
   const lines = [];
   const tKeys = picked.map((it) => String(it?.transit_body || it?.b || "").toLowerCase()).filter(Boolean);
