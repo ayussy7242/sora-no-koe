@@ -3,13 +3,13 @@ steps:
     args:
       - "build"
       - "-t"
-      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$COMMIT_SHA"
+      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$BUILD_ID"
       - "."
 
   - name: "gcr.io/cloud-builders/docker"
     args:
       - "push"
-      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$COMMIT_SHA"
+      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$BUILD_ID"
 
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
     entrypoint: "gcloud"
@@ -18,7 +18,7 @@ steps:
       - "deploy"
       - "sora-no-koe-v2"
       - "--image"
-      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$COMMIT_SHA"
+      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$BUILD_ID"
       - "--region"
       - "asia-northeast1"
       - "--platform"
@@ -26,4 +26,4 @@ steps:
       - "--allow-unauthenticated"
 
 images:
-  - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$COMMIT_SHA"
+  - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:$BUILD_ID"
