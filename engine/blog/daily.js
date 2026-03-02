@@ -1,12 +1,12 @@
 "use strict";
 
-const { createJaFormatters } = require("../render_parts/utils/fmt_ja");
 const dict = require("../../dict");
 const { createChatCompletion } = require("./openai_client");
+const { buildBlogBlocks, blocksToInput } = require("./story_blocks");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-  SORA_AI_USER_GUIDE_BLOG,
 } = require("../prompts/sora_ai_prompts");
+const { BLOG_BLOCKS_USER_GUIDE } = require("../prompts/blog_blocks");
 
 const BLOG_BANNED_TERMS = [
   "あなた",
@@ -15,6 +15,7 @@ const BLOG_BANNED_TERMS = [
   "必ず",
   "確実",
   "逃れられない",
+  "絶対",
   "運命",
   "使命",
   "すべき",
@@ -42,6 +43,11 @@ const BLOG_BANNED_TERMS = [
   "正しい",
   "間違い",
   "べき",
+  "示す",
+  "意味する",
+  "促す",
+  "影響する",
+  "課題",
 ];
 
 function findBannedTerm(text) {
@@ -172,15 +178,6 @@ function pickBySeed(list, seed, count = 1) {
   }
   return out;
 }
-
-const fmt = createJaFormatters({
-  META: {
-    ASPECTS_META,
-    PLANETS_META: dict?.PLANETS_V2?.bodies || {},
-    POINTS_META: dict?.POINTS_V1?.points || {},
-  },
-  normalizeAspectType,
-});
 
 function signJa(signKey) {
   const k = String(signKey || "").toLowerCase();
@@ -383,7 +380,7 @@ function dominantLabel(strata) {
 
 function aspectLabelWithDeg(typeRaw) {
   const meta = aspectMeta(typeRaw);
-  if (!meta) return fmt.fmtAspectJa(typeRaw);
+  if (!meta) return String(typeRaw || "");
   const deg = Number.isFinite(meta.deg) ? `${meta.deg}°` : "";
   return deg ? `${meta.label_ja}（${deg}）` : meta.label_ja;
 }
@@ -413,133 +410,13 @@ function aspectVoice(typeRaw) {
   return pickList(parts, 4);
 }
 
-function buildDailyDataBlock(story, maxItems = 5, dateLocal = "") {
-  const pub = story?.public || {};
-  const all = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
-  all.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-
-  const aspectTriplet = pickTripletByBucket(
-    all,
-    (x) => aspectToneBucket(x?.type),
-    ["yin", "harmony", "yang"],
-    `${dateLocal}|aspect-triplet`
-  );
-  const list = aspectTriplet.slice(0, 3);
-  const seenAspect = new Set();
-
-  const baseCandidates = [];
-  const baseSeen = new Set();
-  for (const x of list) {
-    const aKey = String(x?.a || "");
-    const bKey = String(x?.b || "");
-    const aSignKey = String(x?.a_sign_key || x?.a_sign || x?.aS || "").toLowerCase();
-    const bSignKey = String(x?.b_sign_key || x?.b_sign || x?.bS || "").toLowerCase();
-    const aSig = `${aKey}|${aSignKey}`;
-    const bSig = `${bKey}|${bSignKey}`;
-    if (aKey && aSignKey && !baseSeen.has(aSig)) {
-      baseSeen.add(aSig);
-      baseCandidates.push({ bodyKey: aKey, signKey: aSignKey, orb_deg: x?.orb_deg });
-    }
-    if (bKey && bSignKey && !baseSeen.has(bSig)) {
-      baseSeen.add(bSig);
-      baseCandidates.push({ bodyKey: bKey, signKey: bSignKey, orb_deg: x?.orb_deg });
-    }
-  }
-  const baseTriplet = pickTripletByBucket(
-    baseCandidates,
-    (x) => elementBucket(signElement(x.signKey)),
-    ["yin", "harmony", "yang"],
-    `${dateLocal}|base-triplet`
-  ).slice(0, 3);
-
-  const aspects = list.map((x, idx) => {
-    const a = fmt.fmtAnyJa(x.a);
-    const b = fmt.fmtAnyJa(x.b);
-    const aS = signJa(x.a_sign_key || x.a_sign || x.aS);
-    const bS = signJa(x.b_sign_key || x.b_sign || x.bS);
-    const typeRaw = x.type || x.aspect || x.aspectType;
-    const asp = aspectLabelWithDeg(typeRaw);
-    const qSeed = hash32(`${dateLocal}-${normalizeAspectType(typeRaw)}-${x?.a}-${x?.b}`);
-    const quality = aspectQualityLabel(typeRaw, qSeed);
-    const aspectKey = normalizeAspectType(typeRaw);
-    const role = seenAspect.has(aspectKey) ? aspectRoleEcho(typeRaw) : aspectRoleSentence(typeRaw);
-    seenAspect.add(aspectKey);
-    const roleLine = role ? `角度の役割: ${role}` : "";
-    const orb = Number.isFinite(x.orb_deg) ? x.orb_deg.toFixed(1) : "—";
-    const meta = aspectMeta(typeRaw);
-    const core = meta?.core ? `角度質感: ${meta.core}` : "";
-    const feel = Array.isArray(meta?.feel) && meta.feel.length ? `触れ味: ${meta.feel.join(" / ")}` : "";
-    const qualityLine = quality ? `質感ラベル: ${quality}` : "";
-    const voice = aspectVoice(typeRaw);
-    const voiceLine = voice.length ? `角度語彙: ${voice.join(" / ")}` : "";
-    const pTouchA = planetTouch(x.a);
-    const pTouchB = planetTouch(x.b);
-    const sTouchA = signTouch(x.a_sign_key || x.a_sign || x.aS);
-    const sTouchB = signTouch(x.b_sign_key || x.b_sign || x.bS);
-    const pLine = pTouchA.length || pTouchB.length ? `惑星感触: ${[...pTouchA, ...pTouchB].join(" / ")}` : "";
-    const sLine = sTouchA.length || sTouchB.length ? `サイン感触: ${[...sTouchA, ...sTouchB].join(" / ")}` : "";
-    const extra = [core, feel].filter(Boolean).join(" / ");
-    return [
-      `${["①", "②", "③"][idx] || "①"} ${a}（${aS}）× ${b}（${bS}）｜${asp}（orb ${orb}°）`,
-      roleLine ? `  ${roleLine}` : "",
-      extra ? `  ${extra}` : "",
-      qualityLine ? `  ${qualityLine}` : "",
-      voiceLine ? `  ${voiceLine}` : "",
-      pLine ? `  ${pLine}` : "",
-      sLine ? `  ${sLine}` : "",
-    ].filter(Boolean).join("\n");
-  });
-
-  const planetLines = baseTriplet.map((item, idx) => {
-    const bodyKey = item.bodyKey;
-    const signKey = item.signKey;
-    const ja = fmt.fmtAnyJa(bodyKey);
-    const signJaLabel = signJa(signKey || "");
-    const pTouch = planetTouch(bodyKey);
-    const sTouch = signTouch(signKey);
-    const touch = [...pTouch, ...sTouch].filter(Boolean);
-    const touchLine = touch.length ? `感触: ${touch.slice(0, 4).join(" / ")}` : "";
-    const fusion = fusionTokensFor(signKey, bodyKey);
-    const fusionLine = fusion.length ? `融合語彙: ${fusion.slice(0, 12).join(" / ")}` : "";
-    return [`${["①", "②", "③"][idx] || "①"} ${ja}×${signJaLabel}`, touchLine, fusionLine].filter(Boolean).join(" / ");
-  });
-
-  const sky = pub.sky_strata || {};
-  const e = sky.element_count || {};
-  const m = sky.modality_count || {};
-  const elements = `火${e.fire || 0} 地${e.earth || 0} 風${e.air || 0} 水${e.water || 0}`;
-  const modalities = `活${m.cardinal || 0} 不${m.fixed || 0} 柔${m.mutable || 0}`;
-  const moon = pub?.moon?.sign_ja || signJa(pub?.moon?.sign_key || "");
-
-  const qualities = aspects
-    .map((a) => {
-      const m = String(a || "").match(/質感ラベル:\s*([^\n]+)/);
-      return m ? m[1].trim() : "";
-    })
-    .filter(Boolean);
-
-  return [
-    `月：${moon}`,
-    `要素：${elements}`,
-    `区分：${modalities}`,
-    "",
-    "配置メモ（①〜③）:",
-    ...planetLines,
-    "",
-    "角度メモ（①〜③）:",
-    ...aspects.map((a) => `- ${a}`),
-    "",
-    qualities.length ? `余韻ヒント: ${qualities.join(" / ")}` : "",
-  ].filter(Boolean).join("\n");
-}
-
 function systemPrompt() {
   return SORA_AI_SYSTEM_PROMPT_COMMON;
 }
 
 function userPrompt({ dateLocal, dataBlock }) {
   return [
-    SORA_AI_USER_GUIDE_BLOG,
+    BLOG_BLOCKS_USER_GUIDE,
     "",
     `日付: ${dateLocal}`,
     "",
@@ -569,7 +446,8 @@ function buildDailyTitle(story, dateLocal) {
 }
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
-  const dataBlock = buildDailyDataBlock(story, 3, dateLocal);
+  const blocks = buildBlogBlocks(story, { dateLocal });
+  const dataBlock = blocksToInput(blocks);
   const baseUser = userPrompt({ dateLocal, dataBlock });
   const buildMessages = (retryNote = "") => [
     { role: "system", content: systemPrompt() },
