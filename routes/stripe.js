@@ -104,7 +104,96 @@ function createStripeRouter(deps = {}) {
       const raw = req.rawBody;
       const event = stripe.webhooks.constructEvent(raw, sig, webhookSecret);
 
-      if (event.type !== "checkout.session.completed") {
+      const eventType = event.type;
+
+      const upsertLineSubscription = async ({
+        lineUserId,
+        stripeCustomerId,
+        subscriptionStatus,
+        plan,
+        currentPeriodEnd,
+        source,
+      }) => {
+        if (!lineUserId) return false;
+        const payload = {
+          line_user_id: lineUserId,
+          stripe_customer_id: stripeCustomerId || null,
+          subscription_status: subscriptionStatus || null,
+          plan: plan || null,
+          current_period_end: currentPeriodEnd || null,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          source: source || null,
+        };
+        await db.collection("line_subscriptions").doc(lineUserId).set(payload, { merge: true });
+        return true;
+      };
+
+      const resolvePlanFromSubscription = (sub) => {
+        const priceId500 = env.STRIPE_PRICE_ID_LINE_500 || null;
+        const items = sub?.items?.data || [];
+        const hit = items.find((it) => it?.price?.id && it.price.id === priceId500);
+        if (hit) return "line_500";
+        const metaPlan = String(sub?.metadata?.plan || sub?.metadata?.product || "").trim();
+        if (metaPlan === "line_500" || metaPlan === "SORA_LINE_500") return "line_500";
+        return null;
+      };
+
+      const resolveLineUserId = async (sub, fallback) => {
+        const meta = sub?.metadata || {};
+        const lineUserId =
+          String(meta.line_user_id || meta.lineUserId || meta.line_id || fallback || "").trim();
+        if (lineUserId) return lineUserId;
+        const customerId = sub?.customer || null;
+        if (!customerId) return null;
+        const q = await db
+          .collection("line_subscriptions")
+          .where("stripe_customer_id", "==", customerId)
+          .limit(1)
+          .get();
+        if (!q.empty) return q.docs[0].id;
+        return null;
+      };
+
+      // ---- subscription lifecycle ----
+      if (
+        eventType === "customer.subscription.created" ||
+        eventType === "customer.subscription.updated" ||
+        eventType === "customer.subscription.deleted"
+      ) {
+        const sub = event.data?.object || {};
+        const lineUserId = await resolveLineUserId(sub, null);
+        const plan = resolvePlanFromSubscription(sub);
+        await upsertLineSubscription({
+          lineUserId,
+          stripeCustomerId: sub.customer || null,
+          subscriptionStatus: sub.status || null,
+          plan,
+          currentPeriodEnd: sub.current_period_end || null,
+          source: eventType,
+        });
+        return res.json({ ok: true, received: true, handled: "subscription" });
+      }
+
+      if (eventType === "invoice.paid" || eventType === "invoice.payment_failed") {
+        const invoice = event.data?.object || {};
+        const subId = invoice?.subscription || null;
+        if (subId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const lineUserId = await resolveLineUserId(sub, null);
+          const plan = resolvePlanFromSubscription(sub);
+          await upsertLineSubscription({
+            lineUserId,
+            stripeCustomerId: sub.customer || null,
+            subscriptionStatus: sub.status || null,
+            plan,
+            currentPeriodEnd: sub.current_period_end || null,
+            source: eventType,
+          });
+        }
+        return res.json({ ok: true, received: true, handled: "invoice" });
+      }
+
+      if (eventType !== "checkout.session.completed") {
         return res.json({ ok: true, received: true, ignored: true });
       }
 
@@ -121,6 +210,25 @@ function createStripeRouter(deps = {}) {
         has_line_user_id: !!lineUserIdFromMeta,
         session_id: session.id || null,
       });
+
+      // ---- subscription checkout (LINE_500) ----
+      if (session.mode === "subscription") {
+        const lineUserId = String(meta.line_user_id || meta.lineUserId || "").trim();
+        const subId = session.subscription || null;
+        if (subId && lineUserId) {
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const plan = resolvePlanFromSubscription(sub);
+          await upsertLineSubscription({
+            lineUserId,
+            stripeCustomerId: sub.customer || null,
+            subscriptionStatus: sub.status || null,
+            plan,
+            currentPeriodEnd: sub.current_period_end || null,
+            source: "checkout.session.completed",
+          });
+        }
+        return res.json({ ok: true, received: true, handled: "subscription_checkout" });
+      }
 
       if (!token) {
         if (!lineUserIdFromMeta) {
@@ -199,7 +307,7 @@ function createStripeRouter(deps = {}) {
             maxText: Number(env.MAX_LINE_TEXT || 4800),
           });
           const msg = LINE_COPY?.BLUEPRINT_PREPARING_PUSH ||
-            "🌌 LIGHT：設計図の準備を開始しました。整い次第、このトークに『設計図を開く』ボタンが届きます。";
+            "🌌 星の設計図：準備を開始しました。整い次第、このトークに『設計図を開く』ボタンが届きます。";
           await lineApiClient.pushMessages(lineUserId, { type: "text", text: msg });
         }
       } catch (e) {

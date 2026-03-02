@@ -203,8 +203,39 @@ function createStoryService({
     return story; // no personal at all
   }
 
+  function buildNatalSummaryFromLongitudes(longitudes = {}) {
+    const element = { fire: 0, earth: 0, air: 0, water: 0 };
+    const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+    const bodies = [
+      "sun",
+      "moon",
+      "mercury",
+      "venus",
+      "mars",
+      "jupiter",
+      "saturn",
+      "uranus",
+      "neptune",
+      "pluto",
+    ];
 
-  function buildPersonalStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg, touchPointsAll }) {
+    let counted = 0;
+    for (const key of bodies) {
+      const lon = longitudes?.[key];
+      if (!Number.isFinite(Number(lon))) continue;
+      const s = signFromLon(Number(lon));
+      const meta = getSignMetaByKey(s?.sign_key);
+      const e = String(meta?.element || "").toLowerCase();
+      const m = String(meta?.modality || "").toLowerCase();
+      if (element[e] !== undefined) element[e] += 1;
+      if (modality[m] !== undefined) modality[m] += 1;
+      counted += 1;
+    }
+
+    return { element, modality, bodies_counted: counted };
+  }
+
+  function buildPersonalStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg, touchPointsAll, natalLongitudes }) {
     const story = baseStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
 
     // ✅ 三層にするには Top3 じゃなく候補も必要
@@ -224,6 +255,9 @@ function createStoryService({
 
       // ✅ 三層
       sky_layers,
+
+      // ✅ ネイタル構造（元素/三区分）
+      natal_summary: buildNatalSummaryFromLongitudes(natalLongitudes || {}),
     };
 
     attachResonanceBullets(story, { allowPersonal: true });
@@ -333,6 +367,7 @@ function createStoryService({
       rules,
       precisionDeg: prec,
       touchPointsAll: touchAll,
+      natalLongitudes: extracted.longitudes,
     });
   }
 

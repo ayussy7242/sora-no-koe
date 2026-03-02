@@ -1,6 +1,5 @@
 // scripts/print_natal_cache.js
-const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getDb } = require("../config/firebase");
 
 function getArg(name) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -14,17 +13,10 @@ function pick(obj, keys) {
 }
 
 (async () => {
-  const projectId =
-    process.env.GCP_PROJECT_ID ||
-    process.env.GCLOUD_PROJECT ||
-    getArg("project_id");
-
   const appUserId = getArg("app_user_id");
-  if (!projectId) throw new Error("Missing project id. Set GCP_PROJECT_ID or use --project_id=xxx");
   if (!appUserId) throw new Error("Missing --app_user_id=...");
 
-  if (!admin.apps.length) admin.initializeApp({ projectId });
-  const db = getFirestore(admin.app(), "sora-no-koe-db");
+  const db = getDb();
 
   const snap = await db.collection("natal_cache").doc(appUserId).get();
   if (!snap.exists) {

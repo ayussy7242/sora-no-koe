@@ -1,0 +1,157 @@
+"use strict";
+
+const SIGN_KEYS = [
+  "aries",
+  "taurus",
+  "gemini",
+  "cancer",
+  "leo",
+  "virgo",
+  "libra",
+  "scorpio",
+  "sagittarius",
+  "capricorn",
+  "aquarius",
+  "pisces",
+];
+
+const BODY_ORDER_MAIN = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+];
+
+const BODY_ORDER_EXTRA = ["chiron", "lilith", "north_node", "south_node"];
+
+const BODY_LABEL = {
+  sun: "太陽",
+  moon: "月",
+  mercury: "水星",
+  venus: "金星",
+  mars: "火星",
+  jupiter: "木星",
+  saturn: "土星",
+  uranus: "天王星",
+  neptune: "海王星",
+  pluto: "冥王星",
+  lilith: "リリス",
+  chiron: "キロン",
+  north_node: "北ノード",
+  south_node: "南ノード",
+  vertex: "バーテックス",
+  asc: "ASC",
+  mc: "MC",
+  ic: "IC",
+  dc: "DC",
+};
+
+const BODY_GLYPH = {
+  sun: "☉",
+  moon: "☽",
+  mercury: "☿",
+  venus: "♀",
+  mars: "♂",
+  jupiter: "♃",
+  saturn: "♄",
+  uranus: "♅",
+  neptune: "♆",
+  pluto: "♇",
+  lilith: "⚸",
+  chiron: "⚷",
+  north_node: "☊",
+  south_node: "☋",
+};
+
+const BODY_EN = {
+  sun: "Sun",
+  moon: "Moon",
+  mercury: "Mercury",
+  venus: "Venus",
+  mars: "Mars",
+  jupiter: "Jupiter",
+  saturn: "Saturn",
+  uranus: "Uranus",
+  neptune: "Neptune",
+  pluto: "Pluto",
+  chiron: "Chiron",
+  lilith: "Lilith",
+  north_node: "North Node",
+  south_node: "South Node",
+  asc: "ASC",
+  mc: "MC",
+  ic: "IC",
+  dc: "DC",
+};
+
+const SIGN_EN = {
+  aries: "Aries",
+  taurus: "Taurus",
+  gemini: "Gemini",
+  cancer: "Cancer",
+  leo: "Leo",
+  virgo: "Virgo",
+  libra: "Libra",
+  scorpio: "Scorpio",
+  sagittarius: "Sagittarius",
+  capricorn: "Capricorn",
+  aquarius: "Aquarius",
+  pisces: "Pisces",
+};
+
+const SIGN_SYMBOL = {
+  aries: "♈︎",
+  taurus: "♉︎",
+  gemini: "♊︎",
+  cancer: "♋︎",
+  leo: "♌︎",
+  virgo: "♍︎",
+  libra: "♎︎",
+  scorpio: "♏︎",
+  sagittarius: "♐︎",
+  capricorn: "♑︎",
+  aquarius: "♒︎",
+  pisces: "♓︎",
+};
+
+const ASTRO_GLYPHS = [
+  "☉",
+  "☽",
+  "☿",
+  "♀",
+  "♂",
+  "♃",
+  "♄",
+  "♅",
+  "♆",
+  "♇",
+  "⚷",
+  "⚸",
+  "☊",
+  "☋",
+  "✶",
+  "✷",
+  "✹",
+  "✦",
+  "☍",
+  "☌",
+  "△",
+];
+
+module.exports = {
+  SIGN_KEYS,
+  BODY_ORDER_MAIN,
+  BODY_ORDER_EXTRA,
+  BODY_LABEL,
+  BODY_GLYPH,
+  BODY_EN,
+  SIGN_EN,
+  SIGN_SYMBOL,
+  ASTRO_GLYPHS,
+};

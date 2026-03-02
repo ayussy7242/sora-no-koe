@@ -3,7 +3,7 @@
 /**
  * copy/render.js — 正本（Render Copy） Unified v3.3.3/3.3.4 compatible
  * - render.js が出す「固定文言」をここに集約（copyが正）
- * - トンマナ統一：「占いじゃない／構造を置く／解釈はあなた」
+ * - トンマナ統一：「占いじゃない／構造を置く／星は語る。解釈はあなたのもの」
  * - personal（今日）と public（そら）を “copy段” で分離
  * - render.js は “組み立て” だけ（判断しない）
  */
@@ -37,14 +37,12 @@ const HEAD_KUSOU_YOIN = "";
 const HEAD_YOIN_GLOBAL = "";
 
 // footer
-const FOOTER_LINE = ["解釈は、あなたのもの。", "星は語る。決めるのは、人。🌎️🛸✨️"];
-const FOOTER_X = "星は語る。🌎🛸";
+const FOOTER_LINE = ["星は語る。解釈はあなたのもの🌃"];
+const FOOTER_X = "星は語る。解釈はあなたのもの🌃";
 const FOOTER_X_POOL = [
-  "星は語る。🌎🛸",
-  "星は語る。🌌",
-  "星は語る。🪐",
-  "星は語る。🌎",
-  "星は語る。✨",
+  "星は語る。解釈はあなたのもの🌃",
+  "星は語る。解釈はあなたのもの。",
+  "星は語る。解釈はあなたのもの。🌌",
 ];
 const FOOTER_IG = FOOTER_LINE.join("\n");
 
@@ -137,10 +135,10 @@ const RENDER_COPY = Object.freeze({
   FOOTER_IG,
 
   // public footer（そら用）
-  // ⚠️ ここに「解釈は、あなたのもの。」を入れると、
+  // ⚠️ ここに「星は語る。解釈はあなたのもの🌃」を入れると、
   // buildSora() 側で kusouYoin セクションにも入れる場合、重複する。
   // → “重複回避”のため、基本は footer には入れない版をデフォにする。
-  FOOTER_SORA_LINE: ["星は語る。決めるのは、人。", "そらとして、眺めてみてね。🌌"],
+  FOOTER_SORA_LINE: ["星は語る。解釈はあなたのもの🌃"],
 
   // --------------------
   // Generic small bits
@@ -246,7 +244,7 @@ const RENDER_COPY = Object.freeze({
       ].join("\n"),
 
     NOTE: () =>
-      ["", "※ これは「星の配置」の一覧です。", "※ 意味や解釈は置いていません。", "", "星は語る。", "決めるのは、人。🌎️🛸✨️"].join("\n"),
+      ["", "※ これは「星の配置」の一覧です。", "※ 意味や解釈は置いていません。", "", "星は語る。解釈はあなたのもの🌃"].join("\n"),
   },
 
   // --------------------
@@ -291,7 +289,7 @@ const RENDER_COPY = Object.freeze({
       "決めなくていいまま、置いておける日。",
       "動いてもいい。動かなくても、壊れない。",
       "答えより、手触りを持ち帰る。",
-      "意味づけは、あなたのタイミングで。",
+      "意味づけは、手元のタイミングで。",
     ],
 
     TAIL_POOL_2: ["先に身体、あとで言葉。", "焦点を変えるだけで、景色が変わる日。", "余白を残して、次に渡す。", "今日は“結論”じゃなくて“残響”で十分。", "これでいい、を急がない。"],
@@ -556,7 +554,7 @@ const RENDER_COPY = Object.freeze({
         if (kusouYoin) {
           if (RENDER_COPY.HEAD_KUSOU_YOIN) pushLine(lines, RENDER_COPY.HEAD_KUSOU_YOIN);
           pushLine(lines, kusouYoin);
-          pushLine(lines, "解釈は、あなたのもの。");
+          pushLine(lines, "星は語る。解釈はあなたのもの🌃");
           pushBlank(lines, 1);
         }
 
