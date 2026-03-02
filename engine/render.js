@@ -29,6 +29,7 @@ const chLineSora = require("./channels/line_sora");
 const chLineDistribution = require("./channels/line_distribution");
 const chIG = require("./channels/ig");
 const chX = require("./channels/x");
+const chXThread = require("./channels/x_thread");
 const chThreads = require("./channels/threads");
 
 // SSOT: export名ズレ吸収 + 日本語postfix
@@ -288,6 +289,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const fnDistributionLine = resolveFn(chLineDistribution, ["renderDistributionLine"], "channels/line_distribution");
   const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
   const fnX = resolveFn(chX, ["renderX"], "channels/x");
+  const fnXThread = resolveFn(chXThread, ["renderXThread"], "channels/x_thread");
   const fnThreads = resolveFn(chThreads, ["renderThreads"], "channels/threads");
 
   // --------------------
@@ -523,6 +525,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderX(story) {
     return fnX(story, ctxFor(story));
   }
+  function renderXThread(story) {
+    return fnXThread(story, ctxFor(story));
+  }
   function renderThreads(story) {
     return fnThreads(story, ctxFor(story));
   }
@@ -540,6 +545,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     renderSoraLine,
     renderDistributionLine,
     renderX,
+    renderXThread,
     renderIG,
     renderThreads,
 
