@@ -122,10 +122,11 @@ function createStoriesRouter(deps = {}) {
     !renderers?.renderDistributionLine ||
     !renderers?.renderNatalListFromcache ||
     !renderers?.renderX ||
+    !renderers?.renderXThread ||
     !renderers?.renderIG ||
     !renderers?.renderThreads
   ) {
-    throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderIG/renderThreads) is missing");
+    throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderXThread/renderIG/renderThreads) is missing");
   }
 
   router.get("/", async (req, res) => {
@@ -145,6 +146,9 @@ function createStoriesRouter(deps = {}) {
 
         // optional aliases
         x: "x",
+        x_thread: "x_thread",
+        xthread: "x_thread",
+        x2: "x_thread",
         ig: "ig",
         threads: "threads",
         line: "line",
@@ -153,8 +157,8 @@ function createStoriesRouter(deps = {}) {
       const ch = channelAlias[reqChannel] || reqChannel;
 
       const isSocial =
-        format === "x" || format === "ig" || format === "threads" ||
-        ch === "x" || ch === "ig" || ch === "threads";
+        format === "x" || format === "x_thread" || format === "ig" || format === "threads" ||
+        ch === "x" || ch === "x_thread" || ch === "ig" || ch === "threads";
 
       const isSora = ch === "line_sora";
       const isDistribution = ch === "line_distribution";
@@ -286,7 +290,7 @@ function createStoriesRouter(deps = {}) {
       if (format === "all") return res.json({ ok: true, saved, doc_id, meta: story.meta, story });
 
       // respond (single text channel)
-      if (format === "line" || format === "x" || format === "ig" || format === "threads") {
+      if (format === "line" || format === "x" || format === "x_thread" || format === "ig" || format === "threads") {
         return res.json({ ok: true, saved, doc_id, text: primaryText });
       }
 

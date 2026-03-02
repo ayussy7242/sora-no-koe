@@ -7,6 +7,7 @@ const OUTPUT_KEYS = [
   "distribution",
   "natal",
   "x",
+  "x_thread",
   "ig",
   "threads",
 ];
@@ -18,6 +19,7 @@ function buildRenderMap({ renderers, story, natalCache }) {
     distribution: () => renderers.renderDistributionLine(story),
     natal: () => renderers.renderNatalListFromcache(natalCache || null),
     x: () => renderers.renderX(story),
+    x_thread: () => renderers.renderXThread(story),
     ig: () => renderers.renderIG(story),
     threads: () => renderers.renderThreads(story),
   };
@@ -29,9 +31,11 @@ function resolvePrimaryKey({ format, channel }) {
 
   return f === "line" ? "line" :
     f === "x" ? "x" :
+      f === "x_thread" ? "x_thread" :
       f === "ig" ? "ig" :
         f === "threads" ? "threads" :
           (f === "text" && ch === "x") ? "x" :
+            (f === "text" && ch === "x_thread") ? "x_thread" :
             (f === "text" && ch === "ig") ? "ig" :
               (f === "text" && ch === "threads") ? "threads" :
           (f === "text" && ch === "line_sora") ? "sora" :
