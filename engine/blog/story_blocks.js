@@ -154,10 +154,12 @@ function buildBlogBlocks(story, opts = {}) {
 
   const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-  const resonanceItems = skyAll.map((it) => formatAspectLine(it, retroMap)).filter(Boolean);
 
-  const skyTop = Array.isArray(pub.sky_top) ? pub.sky_top : [];
-  const leadAspect = skyTop?.[0] || skyAll?.[0] || null;
+  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
+  const resonancePool = skyAll.filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit);
+  const resonanceItems = resonancePool.map((it) => formatAspectLine(it, retroMap)).filter(Boolean);
+
+  const leadAspect = resonancePool?.[0] || skyAll?.[0] || null;
   const leadAspectLine = leadAspect ? formatAspectLine(leadAspect, retroMap) : "";
 
   const strata = pub.sky_strata || {};
@@ -189,7 +191,7 @@ function buildBlogBlocks(story, opts = {}) {
     ? pub.tone_hints.resonance_bullets
     : [];
 
-  const orbValues = skyAll
+  const orbValues = resonancePool
     .map((it) => (Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null))
     .filter((n) => n != null);
   const orbMin = orbValues.length ? Math.min(...orbValues) : null;

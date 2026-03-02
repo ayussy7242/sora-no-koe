@@ -31,7 +31,10 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
     openai: {
       apiKey: env.OPENAI_API_KEY,
       baseUrl: env.OPENAI_BASE_URL,
-      model: env.OPENAI_MODEL,
+      model: env.OPENAI_MODEL_BLOG || env.OPENAI_MODEL,
+      modelBlog: env.OPENAI_MODEL_BLOG || env.OPENAI_MODEL,
+      modelBlogParts: env.OPENAI_MODEL_BLOG_PARTS || null,
+      mode: env.BLOG_GEN_MODE || "single",
     },
   });
 
