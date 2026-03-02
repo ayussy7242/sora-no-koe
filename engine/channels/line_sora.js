@@ -21,6 +21,7 @@ const {
 async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../dict");
   const includeHeader = deps?.includeHeader !== false;
+  const includeAspect = deps?.includeAspect !== false;
   const isPaid = deps?.paid === true;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
@@ -142,21 +143,24 @@ async function renderSoraLine(story, deps = {}) {
 
   const lines = [];
   if (includeHeader) lines.push(headerLine, "");
-  lines.push(
-    listTitleAll,
-    "",
-    ...bodyLines,
-    "",
-    sep,
-    "",
-    listTitleAspect,
-    "",
-    ...aspectSummaryLines,
-    ...(aspectSummaryLines.length ? [""] : []),
-    ...aspectLines,
-    "",
-    ...distLines
-  );
+  lines.push(listTitleAll, "", ...bodyLines);
+
+  if (includeAspect) {
+    lines.push(
+      "",
+      sep,
+      "",
+      listTitleAspect,
+      "",
+      ...aspectSummaryLines,
+      ...(aspectSummaryLines.length ? [""] : []),
+      ...aspectLines
+    );
+  }
+
+  if (distLines.length) {
+    lines.push("", ...distLines);
+  }
 
   return lines.filter((x) => x !== null && x !== undefined).join("\n").trim();
 }
