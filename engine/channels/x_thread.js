@@ -19,6 +19,7 @@ const {
 const { listWithOrb, filterWithinOrb, sortByOrb, minByOrb } = require("../domain/aspect_selection");
 
 const THREAD_SEP = "\n\n---\n\n";
+const HASHTAGS = "#ソラのこえ #きょうのそら";
 
 function renderXThread(story, deps = {}) {
   const dict = deps?.dict || require("../../dict");
@@ -61,6 +62,8 @@ function renderXThread(story, deps = {}) {
     ...bodyLines,
     "",
     ...distLines,
+    "",
+    HASHTAGS,
   ];
 
   // ---------- Part 2: 共鳴 ----------
@@ -70,19 +73,15 @@ function renderXThread(story, deps = {}) {
   const minItem = minByOrb(allWithOrb);
 
   let picked = [];
-  let listTitleAspect = "";
+  const listTitleAspect = "【今日の共鳴（最強）】";
   if (within.length) {
     picked = sortByOrb(within).slice(0, 1);
-    listTitleAspect = SPEC.labels.sora.closest;
   } else if (minItem) {
     picked = [minItem];
-    const refOrb = Number(minItem?.orb_deg);
-    const refText = Number.isFinite(refOrb) ? refOrb.toFixed(1) : "-";
-    listTitleAspect = SPEC.labels.sora.closestRef(refText);
   } else {
-    listTitleAspect = SPEC.labels.sora.closest;
   }
 
+  let resonanceSignsLine = "";
   const aspectLines = (() => {
     if (!picked.length) return ["該当なし"];
     const item = picked[0];
@@ -118,6 +117,12 @@ function renderXThread(story, deps = {}) {
     const orbText = orb != null ? `${orb.toFixed(1)}` : "";
     const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
 
+    if (aSign || bSign) {
+      const aS = aSign || "—";
+      const bS = bSign || "—";
+      resonanceSignsLine = `星座：${aS} × ${bS}`;
+    }
+
     return [line1, line2];
   })();
 
@@ -125,6 +130,9 @@ function renderXThread(story, deps = {}) {
     listTitleAspect,
     "",
     ...aspectLines,
+    ...(resonanceSignsLine ? ["", resonanceSignsLine] : []),
+    "",
+    HASHTAGS,
   ];
 
   return part1Lines.filter(Boolean).join("\n").trim() + THREAD_SEP + part2Lines.filter(Boolean).join("\n").trim();
