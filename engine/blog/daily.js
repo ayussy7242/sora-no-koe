@@ -12,6 +12,13 @@ const {
   BLOG_BLOCK_ITEM_GUIDE,
   BLOG_STRUCT_HOUSE_GUIDE,
   BLOG_STRUCT_ELEMENT_GUIDE,
+  BLOG_LONG_OVERVIEW_GUIDE,
+  BLOG_LONG_POSITION_GUIDE,
+  BLOG_LONG_RESONANCE_GUIDE,
+  BLOG_LONG_HOUSE_GUIDE,
+  BLOG_LONG_ELEMENTS_GUIDE,
+  BLOG_LONG_RETRO_GUIDE,
+  BLOG_LONG_AFTERTASTE_GUIDE,
 } = require("../prompts/blog_blocks");
 const { SPEC } = require("../config/sora_spec");
 const { buildRetrogradeMap } = require("../astro/retrograde");
@@ -535,6 +542,17 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
     return enforceSingleClosing(merged, closing);
   };
 
+  if (mode === "long_v2") {
+    const html = await generateLongV2({
+      story,
+      dateLocal,
+      runWithRetry,
+      modelMain,
+      modelParts,
+    });
+    return enforceSingleClosing(html, closing);
+  }
+
   if (mode === "block") {
     const parts = [];
     for (const block of blocks) {
@@ -907,6 +925,307 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
   moonLines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
 
   return sections.join("\n");
+}
+
+function formatSignDegree(signKey, lonDeg) {
+  const signJa = signLabelJa(dict, signKey) || signKey || "";
+  if (!Number.isFinite(Number(lonDeg))) return signJa;
+  const deg = ((Number(lonDeg) % 30) + 30) % 30;
+  return `${signJa} ${deg.toFixed(0)}°`.trim();
+}
+
+function aspectLabelForLong(aspectKey, aspectDeg) {
+  const key = normalizeAspectKey(aspectKey, aspectDeg);
+  const meta =
+    dict?.ASPECTS_V2?.major?.[key] ||
+    dict?.ASPECTS_V2?.deep_space?.[key] ||
+    dict?.ASPECTS_V2?.craft_space?.[key] ||
+    null;
+  if (meta?.label_ja) return meta.label_ja;
+  return key || String(aspectKey || "");
+}
+
+function calcOrbAt(aKey, bKey, aspectDeg, asOfISO) {
+  const lonA = calcTransitLon(aKey, asOfISO);
+  const lonB = calcTransitLon(bKey, asOfISO);
+  if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
+  const dist = Math.abs(((lonA - lonB + 540) % 360) - 180);
+  return Math.abs(dist - aspectDeg);
+}
+
+function aspectTrend(aKey, bKey, aspectDeg, asOfISO) {
+  const nowOrb = calcOrbAt(aKey, bKey, aspectDeg, asOfISO);
+  if (!Number.isFinite(Number(nowOrb))) return "";
+  const later = new Date(new Date(asOfISO).getTime() + 12 * 3600 * 1000).toISOString();
+  const laterOrb = calcOrbAt(aKey, bKey, aspectDeg, later);
+  if (!Number.isFinite(Number(laterOrb))) return "";
+  return laterOrb < nowOrb ? "接近中" : "離脱中";
+}
+
+async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, modelParts }) {
+  const pub = story?.public || {};
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const dateLabel = String(dateLocal || "")
+    .trim()
+    .replace(/-/g, ".") || formatDateYmd(new Date(asOfISO));
+
+  const retroMap = buildRetrogradeMap(asOfISO, BLOG_STRUCT_BODY_ORDER);
+  const retroBodies = BLOG_STRUCT_BODY_ORDER.filter((k) => retroMap[k]);
+  const retroCount = retroBodies.length;
+
+  const strata = pub.sky_strata || {};
+  const e = strata.element_count || {};
+  const m = strata.modality_count || {};
+  const elementLine = `🔥${e.fire || 0} 🪨${e.earth || 0} 💨${e.air || 0} 💧${e.water || 0}`;
+  const modalityLine = `🏃${m.cardinal || 0} 🧱${m.fixed || 0} 🌿${m.mutable || 0}`;
+
+  const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
+  skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
+  const resonancePool = skyAll.filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0));
+  const strongest = resonancePool[0] || skyAll[0] || null;
+  const strongestQuality = strongest
+    ? aspectQualityLabel(strongest.type, hash32(`${dateLabel}-${normalizeAspectType(strongest.type)}-quality`))
+    : "";
+
+  const pressureDir = (() => {
+    const inw = (e.water || 0) + (e.earth || 0);
+    const out = (e.fire || 0) + (e.air || 0);
+    if (inw === out) return "内外が拮抗";
+    return inw > out ? "内／下" : "外／上";
+  })();
+
+  const overviewFacts = [
+    `元素優勢: ${strata.top_element || "—"}`,
+    `区分優勢: ${strata.top_modality || "—"}`,
+    strongest
+      ? `強い角度: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)} ${Math.round(strongest.aspect_deg)}°`
+      : "強い角度: —",
+    strongestQuality ? `角度の質: ${strongestQuality}` : "角度の質: —",
+    `逆行数: ${retroCount}`,
+    `圧の向き: ${pressureDir}`,
+  ];
+
+  const overviewPrompt = [
+    BLOG_LONG_OVERVIEW_GUIDE,
+    "",
+    `日付: ${dateLabel}`,
+    `FACTS: ${overviewFacts.join(" / ")}`,
+  ].join("\n");
+
+  const overviewText = await runWithRetry({ userContent: overviewPrompt, model: modelMain, maxTokens: 500 });
+
+  const lines = [];
+  lines.push(`<h1>🌌 きょうのそら｜${dateLabel}</h1>`);
+  lines.push("<h2>0｜今日の全体圧</h2>");
+  lines.push(`<p>${escapeHtml(overviewText)}</p>`);
+
+  // 1) Positions
+  lines.push("<h2>1｜配置</h2>");
+  const transit = pub.transit_signs || {};
+  const resonanceByBody = {};
+  resonancePool.forEach((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    if (aKey) resonanceByBody[aKey] = (resonanceByBody[aKey] || []).concat(row);
+    if (bKey) resonanceByBody[bKey] = (resonanceByBody[bKey] || []).concat(row);
+  });
+
+  for (const key of BLOG_STRUCT_BODY_ORDER) {
+    const info = transit?.[key];
+    if (!info) continue;
+    const signKey = normalizeSignKey(info.sign_key || "");
+    const title = `${bodyGlyph(key)} ${bodyLabelJa(dict, key)}｜${formatSignDegree(signKey, info.lon_deg)}`.trim();
+    const retro = retroMap[key] ? "あり" : "なし";
+    const rel = (resonanceByBody[key] || []).slice(0, 2).map((row) => {
+      const other = normalizeBodyKey(row?.a === key ? row?.b : row?.a);
+      const label = bodyLabelJa(dict, other) || other;
+      const asp = aspectLabelForLong(row.type, row.aspect_deg);
+      return `${label} ${asp}`;
+    });
+    const facts = [
+      `逆行: ${retro}`,
+      `位置: ${signLabelJa(dict, signKey)} ${Number.isFinite(Number(info.lon_deg)) ? ((info.lon_deg % 30 + 30) % 30).toFixed(0) : "—"}°`,
+      rel.length ? `関係: ${rel.join(" / ")}` : "関係: —",
+    ];
+    const prompt = [
+      BLOG_LONG_POSITION_GUIDE,
+      "",
+      `日付: ${dateLabel}`,
+      `TITLE: ${title}`,
+      `FACTS: ${facts.join(" / ")}`,
+    ].join("\n");
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 260 });
+    lines.push(`<h3>${escapeHtml(title)}</h3>`);
+    lines.push(`<p>${escapeHtml(text)}</p>`);
+  }
+
+  // 2) Resonance
+  lines.push("<h2>2｜共鳴</h2>");
+  if (!resonancePool.length) {
+    lines.push("<p>該当なし</p>");
+  }
+  for (const row of resonancePool) {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    const aLabel = `${bodyGlyph(aKey)} ${bodyLabelJa(dict, aKey)}`.trim();
+    const bLabel = `${bodyGlyph(bKey)} ${bodyLabelJa(dict, bKey)}`.trim();
+    const aSign = row?.a_sign_ja || signLabelJa(dict, row?.a_sign_key);
+    const bSign = row?.b_sign_ja || signLabelJa(dict, row?.b_sign_key);
+    const aspectDeg = Number(row?.aspect_deg);
+    const aspLabel = aspectLabelForLong(row?.type, aspectDeg);
+    const orb = Number(row?.orb_deg);
+    const trend = aspectTrend(aKey, bKey, aspectDeg, asOfISO);
+    const title = `(T) ${aLabel}（${aSign}） × (T) ${bLabel}（${bSign}）`;
+    const facts = [
+      `角度: ${aspLabel} ${Math.round(aspectDeg)}°`,
+      `orb: ${Number.isFinite(orb) ? orb.toFixed(1) : "—"}°`,
+      `状態: ${trend || "—"}`,
+    ];
+    const prompt = [
+      BLOG_LONG_RESONANCE_GUIDE,
+      "",
+      `日付: ${dateLabel}`,
+      `TITLE: ${title}`,
+      `FACTS: ${facts.join(" / ")}`,
+    ].join("\n");
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 240 });
+    lines.push(`<h3>${escapeHtml(title)}</h3>`);
+    lines.push(`<p>${escapeHtml(text)}</p>`);
+  }
+
+  // 3) Houses
+  lines.push("<h2>3｜🏠 はうす（全ハウス）</h2>");
+  const { rows: houseRows } = buildHouseRowsPublic(story, asOfISO);
+  lines.push("<h3>■ ログ</h3>");
+  houseRows.forEach((row) => {
+    lines.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
+  });
+
+  for (const row of houseRows) {
+    const title = `第${row.houseNo}ハウス`;
+    const facts = [
+      `支配: ${row.signGlyph || ""}${row.signJa || ""}`.trim(),
+      `天体: ${row.items.length ? row.items.join(" ") : "—"}`,
+      `score: ${Number(row.score || 0).toFixed(2)}`,
+    ];
+    const prompt = [
+      BLOG_LONG_HOUSE_GUIDE,
+      "",
+      `日付: ${dateLabel}`,
+      `TITLE: ${title}`,
+      `FACTS: ${facts.join(" / ")}`,
+    ].join("\n");
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
+    lines.push(`<h3>${escapeHtml(title)}</h3>`);
+    lines.push(`<p>${escapeHtml(text)}</p>`);
+  }
+
+  // 4) Elements
+  lines.push("<h2>4｜🔥 元素／三区分</h2>");
+  lines.push(`<p>${escapeHtml(elementLine)}</p>`);
+  lines.push(`<p>${escapeHtml(modalityLine)}</p>`);
+  const elementsPrompt = [
+    BLOG_LONG_ELEMENTS_GUIDE,
+    "",
+    `日付: ${dateLabel}`,
+    `FACTS: ${elementLine} / ${modalityLine}`,
+  ].join("\n");
+  const elementsText = await runWithRetry({ userContent: elementsPrompt, model: modelMain, maxTokens: 700 });
+  lines.push(`<p>${escapeHtml(elementsText)}</p>`);
+
+  // 5) Tsukiji log
+  lines.push("<h2>5｜🌙 つきじ（継続接近ログ）</h2>");
+  const tsukijiRows = buildTsukijiRowsPublic(story, asOfISO);
+  if (!tsukijiRows.length) {
+    lines.push("<p>該当なし</p>");
+  } else {
+    const tRetro = buildRetrogradeMap(asOfISO, Array.from(new Set(tsukijiRows.flatMap((r) => [r.aKey, r.bKey]))));
+    tsukijiRows.forEach((row) => {
+      const aLabel = `${bodyGlyph(row.aKey)}${bodyLabelJa(dict, row.aKey)}${tRetro[row.aKey] ? SPEC.retro.suffix : ""}`;
+      const bLabel = `${bodyGlyph(row.bKey)}${bodyLabelJa(dict, row.bKey)}${tRetro[row.bKey] ? SPEC.retro.suffix : ""}`;
+      const aSign = row.aSignJa || signLabelJa(dict, row.aSignKey);
+      const bSign = row.bSignJa || signLabelJa(dict, row.bSignKey);
+      const aspLabel = aspectLabelForLong(row.aspect, row.aspectDeg);
+      const degText = `${Math.round(row.aspectDeg)}°`;
+      const orbText = `orb ${row.orb.toFixed(1)}°`;
+      const startText = row.start ? formatDateYmd(row.start) : "-";
+      const peakText = row.peak ? formatDateYmd(row.peak) : "-";
+      const line = [
+        `(T) ${aLabel}（${aSign}）`,
+        `× (T) ${bLabel}（${bSign}）`,
+        `${aspLabel} ${degText}｜${orbText}`,
+        `開始 ${startText}｜ピーク付近 ${peakText}`,
+      ].join("<br>");
+      lines.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
+    });
+  }
+
+  // 6) Kinjitsu log
+  lines.push("<h2>6｜📅 近日（接近予定）</h2>");
+  const kinjitsuRows = buildKinjitsuRowsPublic(story);
+  if (!kinjitsuRows.length) {
+    lines.push("<p>該当なし</p>");
+  } else {
+    kinjitsuRows.forEach((row) => {
+      const aKey = normalizeBodyKey(row?.a || "");
+      const bKey = normalizeBodyKey(row?.b || "");
+      const aLabel = `${bodyGlyph(aKey)}${bodyLabelJa(dict, aKey)}`;
+      const bLabel = `${bodyGlyph(bKey)}${bodyLabelJa(dict, bKey)}`;
+      const aSign = row?.a_sign_ja || signLabelJa(dict, row?.a_sign_key);
+      const bSign = row?.b_sign_ja || signLabelJa(dict, row?.b_sign_key);
+      const aspLabel = aspectLabelForLong(row?.aspect, row?.aspect_deg);
+      const degText = `${Math.round(row?.aspect_deg)}°`;
+      const orbText = `現在 orb ${Number(row?.now_orb).toFixed(1)}°`;
+      const peakText = row?.peak_label ? `最接近 ${row.peak_label}` : "";
+      const line = [
+        `(T) ${aLabel}（${aSign}）`,
+        `× (T) ${bLabel}（${bSign}）`,
+        `${aspLabel} ${degText}`,
+        [orbText, peakText].filter(Boolean).join(" → "),
+      ].join("<br>");
+      lines.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
+    });
+  }
+  buildMoonPhaseLines(asOfISO).forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
+
+  // 7) Retrograde
+  lines.push("<h2>7｜逆行</h2>");
+  if (!retroBodies.length) {
+    lines.push("<p>該当なし</p>");
+  } else {
+    for (const key of retroBodies) {
+      const info = transit?.[key];
+      const signKey = normalizeSignKey(info?.sign_key || "");
+      const title = `${bodyGlyph(key)} ${bodyLabelJa(dict, key)}（${signLabelJa(dict, signKey)}）逆行`;
+      const prompt = [
+        BLOG_LONG_RETRO_GUIDE,
+        "",
+        `日付: ${dateLabel}`,
+        `TITLE: ${title}`,
+        `FACTS: 速度の内転 / サイン ${signLabelJa(dict, signKey)}`,
+      ].join("\n");
+      const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
+      lines.push(`<h3>${escapeHtml(title)}</h3>`);
+      lines.push(`<p>${escapeHtml(text)}</p>`);
+    }
+  }
+
+  // 8) Aftertaste
+  lines.push("<h2>8｜余韻</h2>");
+  const afterFacts = [
+    `重心: ${strata.top_element || "—"}×${strata.top_modality || "—"}`,
+    strongest ? `強い層: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)}` : "強い層: —",
+  ];
+  const afterPrompt = [
+    BLOG_LONG_AFTERTASTE_GUIDE,
+    "",
+    `日付: ${dateLabel}`,
+    `FACTS: ${afterFacts.join(" / ")}`,
+  ].join("\n");
+  const afterText = await runWithRetry({ userContent: afterPrompt, model: modelMain, maxTokens: 700 });
+  lines.push(`<p>${escapeHtml(afterText)}</p>`);
+
+  return lines.join("\n");
 }
 
 function markdownToHtml(text, opts = {}) {
