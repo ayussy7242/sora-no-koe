@@ -43,6 +43,8 @@ const modModalitiesV1 = safeRequire("./modalities.v1");
 const modOrbRulesV1 = safeRequire("./orb_rules.v1");
 const modToneVariantsV1 = safeRequire("./tone_variants.v1");
 const modSoarStyleV1 = safeRequire("./soar_style.v1");
+const modSoraCoreV1 = safeRequire("./sora_core.v1");
+const modSoraCoreV2 = safeRequire("./sora_core.v2");
 
 const ASPECTS_V2 = modAspectsV2?.ASPECTS_V2 || null;
 const ASPECTS_V1 = modAspectsV1?.ASPECTS_V1 || null;
@@ -72,6 +74,8 @@ const MODALITIES_V1 = modModalitiesV1?.MODALITIES_V1 || null;
 const ORB_RULES_V1 = modOrbRulesV1?.ORB_RULES_V1 || null;
 const TONE_VARIANTS_V1 = modToneVariantsV1?.TONE_VARIANTS_V1 || null;
 const SOAR_STYLE_V1 = modSoarStyleV1?.SOAR_STYLE_V1 || null;
+const SORA_CORE_V1 = modSoraCoreV1?.SORA_CORE_V1 || null;
+const SORA_CORE_V2 = modSoraCoreV2?.SORA_CORE_V2 || null;
 
 /**
  * ✅ Unified accessors (renderが迷わないための“正規窓口”)
@@ -109,6 +113,8 @@ const DICT = Object.freeze({
   ORB_RULES_V1,
   TONE_VARIANTS_V1,
   SOAR_STYLE_V1,
+  SORA_CORE_V1,
+  SORA_CORE_V2,
 });
 
 module.exports = DICT;

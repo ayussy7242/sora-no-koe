@@ -3,7 +3,6 @@
 
 const express = require("express");
 const { normalizeStoryArgs } = require("../engine/story_args");
-const { SORA_ALIAS_ENTRIES } = require("../line/sora_alias");
 const { buildRenderMap, resolvePrimaryKey, attachOutputs } = require("./stories_render");
 
 // -------------------- helpers --------------------
@@ -120,17 +119,13 @@ function createStoriesRouter(deps = {}) {
   if (
     !renderers?.renderLine ||
     !renderers?.renderSoraLine ||
-    !renderers?.renderSoraAllLine ||
-    !renderers?.renderSoraUraLine ||
-    !renderers?.renderSoraUraSilentLine ||
-    !renderers?.renderSoraUraRareLine ||
-    !renderers?.renderSoraUraHarmonyLine ||
-    !renderers?.renderAnshinLine ||
+    !renderers?.renderDistributionLine ||
+    !renderers?.renderNatalListFromcache ||
     !renderers?.renderX ||
     !renderers?.renderIG ||
     !renderers?.renderThreads
   ) {
-    throw new Error("deps.renderers (renderLine/renderSoraLine/renderSoraAllLine/renderX/renderIG/renderThreads) is missing");
+    throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderIG/renderThreads) is missing");
   }
 
   router.get("/", async (req, res) => {
@@ -140,15 +135,13 @@ function createStoriesRouter(deps = {}) {
       const reqChannel = String(req.query.channel || "").trim().toLowerCase();
 
       const channelAlias = {
-        // sora系は共通エイリアス（line/intent と同一）から構築
-        ...(SORA_ALIAS_ENTRIES || []).reduce((acc, e) => {
-          if (e?.alias && e?.channel) acc[e.alias] = e.channel;
-          return acc;
-        }, {}),
-
-        // anshin / other channels
-        anshin: "line_anshin",
-        line_anshin: "line_anshin",
+        // LINE
+        sora: "line_sora",
+        line_sora: "line_sora",
+        distribution: "line_distribution",
+        line_distribution: "line_distribution",
+        natal: "line_natal",
+        line_natal: "line_natal",
 
         // optional aliases
         x: "x",
@@ -164,12 +157,8 @@ function createStoriesRouter(deps = {}) {
         ch === "x" || ch === "ig" || ch === "threads";
 
       const isSora = ch === "line_sora";
-      const isSoraAll = ch === "line_sora_all";
-      const isSoraUra = ch === "line_sora_ura";
-      const isSoraUraSilent = ch === "line_sora_ura_silent";
-      const isSoraUraRare = ch === "line_sora_ura_rare";
-      const isSoraUraHarmony = ch === "line_sora_ura_harmony";
-      const isAnshin = ch === "line_anshin";
+      const isDistribution = ch === "line_distribution";
+      const isNatal = ch === "line_natal";
 
       // ② appUserId/mode
       let appUserId = pickAppUserId(req);
@@ -178,8 +167,8 @@ function createStoriesRouter(deps = {}) {
       // ③ save 先に初期化
       let save = boolish(req.query.save);
 
-      // ④ public固定＆保存禁止ルール（SNS / sora系は public固定）
-      if (isSocial || isSora || isSoraAll || isSoraUra || isSoraUraSilent || isSoraUraRare || isSoraUraHarmony) {
+      // ④ public固定＆保存禁止ルール（SNS / 公開系は public固定）
+      if (isSocial || isSora || isDistribution || isNatal) {
         appUserId = "public";
         mode = "public";
         save = false;
@@ -215,17 +204,14 @@ function createStoriesRouter(deps = {}) {
         })
       );
 
-      // anshin / natal 用に natal_cache を補足（publicは取得しない）
-      let anshinNatalCache = null;
+      // natal 用に natal_cache を補足（publicは取得しない）
       let natalCache = null;
       if (appUserId && appUserId !== "public") {
         try {
           const snap = await db.collection("natal_cache").doc(appUserId).get();
           const data = snap.exists ? snap.data() : null;
-          if (isAnshin) anshinNatalCache = data;
           natalCache = data;
         } catch (_) {
-          anshinNatalCache = null;
           natalCache = null;
         }
       }
@@ -243,7 +229,7 @@ function createStoriesRouter(deps = {}) {
       // --------------------
       // render only what is requested (NO collateral failures)
       // --------------------
-      const renderMap = buildRenderMap({ renderers, story, anshinNatalCache, natalCache });
+      const renderMap = buildRenderMap({ renderers, story, natalCache });
 
       // format/channel -> primary output key
       const wantKey = resolvePrimaryKey({ format, channel: ch });

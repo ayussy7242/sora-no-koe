@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeBodyKey } = require("../../domain/canonical");
+
 const fmtDeg = (deg) => {
   if (deg == null) return "";
   const n = Number(deg);
@@ -19,7 +21,7 @@ const PLANET_ALIAS = {
 const planetJa = (dictObj, planetKey) => {
   if (!planetKey) return "";
   const dict = dictObj || {};
-  const key = String(planetKey || "");
+  const key = normalizeBodyKey(planetKey);
   const lower = key.toLowerCase();
   const v2 = dict.PLANETS?.bodies || dict.PLANETS_V2?.bodies || null;
   const p =

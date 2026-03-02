@@ -81,6 +81,8 @@ function createBlueprintsRouter(deps = {}) {
     const nowMs = getNowMillis();
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
 
+    const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
+    const forceRegen = toBool(req.body?.forceRegen || req.body?.force);
     let shouldEnqueue = true;
     let currentStatus = "queued";
     let currentSignedUrl = null;
@@ -88,7 +90,7 @@ function createBlueprintsRouter(deps = {}) {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(jobRef);
       const job = snap.exists ? snap.data() : null;
-      if (job?.status === "done") {
+      if (job?.status === "done" && !forceRegen) {
         currentStatus = "done";
         shouldEnqueue = false;
         return;
@@ -124,8 +126,6 @@ function createBlueprintsRouter(deps = {}) {
     if (!shouldEnqueue) {
       return res.status(202).json({ ok: true, status: currentStatus });
     }
-    const toBool = (v) => v === true || v === "true" || v === 1 || v === "1";
-    const forceRegen = toBool(req.body?.forceRegen || req.body?.force);
     try {
       await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light", forceRegen });
       return res.status(202).json({ ok: true, status: "queued", job_id: lineUserId });
@@ -150,6 +150,7 @@ function createBlueprintsRouter(deps = {}) {
     const lineUserId = String(req.query?.line_user_id || "").trim();
     if (!lineUserId) return res.status(400).json({ ok: false, error: "line_user_id required" });
 
+    const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     const jobRef = getJobRef(db, lineUserId);
     const snap = await jobRef.get();
     if (!snap.exists) {
@@ -157,20 +158,39 @@ function createBlueprintsRouter(deps = {}) {
     }
     const job = snap.data() || {};
     const nowMs = getNowMillis();
-    if (job.status === "running" && job.error && !isLeaseActive(job, nowMs)) {
+    if (job.status === "running" && !isLeaseActive(job, nowMs)) {
+      const exists = await blueprint.hasPdf({ lineUserId }).catch(() => null);
+      if (exists?.ok && exists.exists) {
+        const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
+        const updates = {
+          status: "done",
+          error: signed?.ok ? null : signed?.error || job.error || null,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          finished_at: admin.firestore.FieldValue.serverTimestamp(),
+          lease_until: null,
+        };
+        if (signed?.ok && signed?.url) updates.signed_url = signed.url;
+        await jobRef.set(updates, { merge: true });
+        return res.status(200).json({
+          ok: true,
+          status: "done",
+          signed_url: signed?.ok ? signed.url : (job.signed_url || null),
+          error: signed?.ok ? null : (signed?.error || "signing_failed"),
+        });
+      }
       await jobRef.set(
         {
           status: "failed",
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
           lease_until: null,
+          error: job.error || "stale_running",
         },
         { merge: true }
       );
       job.status = "failed";
     }
     if (job.status === "done") {
-      const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
       if (signed?.ok && signed?.url) {
         await jobRef.set(
@@ -178,6 +198,14 @@ function createBlueprintsRouter(deps = {}) {
           { merge: true }
         );
         return res.status(200).json({ ok: true, status: "done", signed_url: signed.url });
+      }
+      if (signed?.code === "signing_failed") {
+        return res.status(200).json({
+          ok: true,
+          status: "done",
+          signed_url: job.signed_url || null,
+          error: signed?.error || "signing_failed",
+        });
       }
       await jobRef.set(
         {
@@ -275,47 +303,75 @@ function createBlueprintsRouter(deps = {}) {
 
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     try {
-      const gen = await blueprint.generateAndStore({ lineUserId, forceRegen });
-      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
-      if (!signed?.ok || !signed?.url) {
-        throw new Error("signed url missing after generate");
+      const genPrint = await blueprint.generateAndStore({ lineUserId, forceRegen, variant: "print" });
+      const genMobile = await blueprint.generateAndStore({ lineUserId, forceRegen, variant: "mobile" });
+      const signedPrint = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "print" });
+      const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+      const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
+      if ((!signedPrint?.ok || !signedPrint?.url) && (!signedMobile?.ok || !signedMobile?.url)) {
+        if (!allowUnsigned) {
+          throw new Error("signed url missing after generate");
+        }
+        console.log("[blueprint] signed url unavailable (dev)", {
+          code: signedPrint?.code || signedMobile?.code || null,
+          error: signedPrint?.error || signedMobile?.error || null,
+        });
+      } else {
+        const lineApiClient = createLineApi({
+          accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+          maxText: Number(env.MAX_LINE_TEXT || 4800),
+        });
+
+        const actions = [];
+        if (signedMobile?.ok && signedMobile?.url) {
+          actions.push({
+            type: "uri",
+            label: "📱 モバイル版",
+            uri: signedMobile.url,
+          });
+        }
+        if (signedPrint?.ok && signedPrint?.url) {
+          actions.push({
+            type: "uri",
+            label: "🖨 印刷版",
+            uri: signedPrint.url,
+          });
+        }
+
+        const templateMessage = {
+          type: "template",
+          altText: "星の設計図はこちら",
+          template: {
+            type: "buttons",
+            title: "星の設計図",
+            text: "📱スマホ最適／🖨印刷（A4）",
+            actions: actions.length ? actions : [
+              {
+                type: "uri",
+                label: "設計図を開く",
+                uri: signedPrint?.url || signedMobile?.url || "",
+              },
+            ],
+          },
+        };
+
+        await lineApiClient.pushMessages(lineUserId, templateMessage);
       }
-
-      const lineApiClient = createLineApi({
-        accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
-        maxText: Number(env.MAX_LINE_TEXT || 4800),
-      });
-
-      const templateMessage = {
-        type: "template",
-        altText: "魂の設計図（LIGHT）はこちら",
-        template: {
-          type: "buttons",
-          title: "魂の設計図（LIGHT）",
-          text: "あなた専用の設計図です🌌",
-          actions: [
-            {
-              type: "uri",
-              label: "設計図を開く",
-              uri: signed.url,
-            },
-          ],
-        },
-      };
-
-      await lineApiClient.pushMessages(lineUserId, templateMessage);
       await jobRef.set(
         {
           status: "done",
-          file_path: gen?.filePath || null,
-          signed_url: signed.url,
+          file_path: genPrint?.filePath || null,
+          file_path_mobile: genMobile?.filePath || null,
+          signed_url: signedPrint?.ok ? signedPrint.url : null,
+          signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
           lease_until: null,
         },
         { merge: true }
       );
-      return res.json({ ok: true, code: gen?.skipped ? "already_exists" : "generated" });
+      const skipped = genPrint?.skipped && genMobile?.skipped;
+      return res.json({ ok: true, code: skipped ? "already_exists" : "generated" });
     } catch (e) {
       const message = String(e?.message || e || "");
       const code = String(e?.code || "");

@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeBodyKey } = require("./domain/canonical");
+
 function createNatalService({ db, norm360 }) {
   async function loadNatalFromcache(appUserId) {
     const snap = await db.collection("natal_cache").doc(appUserId).get();
@@ -27,7 +29,10 @@ function createNatalService({ db, norm360 }) {
       pluto: "pluto",
     };
 
-    const normalizeKey = (k) => ALIASES[k] || k;
+    const normalizeKey = (k) => {
+      const key = normalizeBodyKey(k);
+      return ALIASES[key] || key;
+    };
 
     const put = (key, lon) => {
       const nk = normalizeKey(key);

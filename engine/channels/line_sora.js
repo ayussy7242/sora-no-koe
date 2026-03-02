@@ -1,110 +1,36 @@
 "use strict";
 
 const { buildRetrogradeMap } = require("../astro/retrograde");
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
-
-function _glyphForBodyLocal(key) {
-  const k = String(key || "").toLowerCase();
-  const map = {
-    sun: "☉",
-    moon: "☽",
-    mercury: "☿",
-    venus: "♀",
-    mars: "♂",
-    jupiter: "♃",
-    saturn: "♄",
-    uranus: "♅",
-    neptune: "♆",
-    pluto: "♇",
-    chiron: "⚷",
-    lilith: "⚸",
-  };
-  return map[k] || "";
-}
-
-function _signJaLocal(dict, signKey) {
-  const key = String(signKey || "").toLowerCase();
-  if (!key) return "";
-  return (
-    dict?.SIGNS_V2?.signs?.[key]?.label_ja ||
-    dict?.SIGNS?.signs?.[key]?.label_ja ||
-    dict?.SIGNS_V1?.signs?.[key]?.label_ja ||
-    ""
-  );
-}
-
-function _normAspectKey(raw) {
-  return String(raw || "").toLowerCase().trim();
-}
-
-function _aspectMetaFromDict(dict, key) {
-  if (!key) return null;
-  const v2 = dict?.ASPECTS_V2 || {};
-  const v1 = dict?.ASPECTS_V1 || {};
-  const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space, v1.craft_space];
-  for (const p of pools) {
-    if (p && p[key]) return p[key];
-  }
-  return null;
-}
-
-function _aspectInfo(dict, rawType, aspectDeg) {
-  const k = _normAspectKey(rawType);
-  let meta = _aspectMetaFromDict(dict, k);
-
-  if (!meta && Number.isFinite(Number(aspectDeg))) {
-    const target = Number(aspectDeg);
-    const v2 = dict?.ASPECTS_V2 || {};
-    const v1 = dict?.ASPECTS_V1 || {};
-    const pools = [v2.major, v2.deep_space, v2.craft_space, v1.major, v1.deep_space, v1.craft_space];
-    for (const p of pools) {
-      if (!p) continue;
-      for (const v of Object.values(p)) {
-        if (Number.isFinite(Number(v?.deg)) && Number(v.deg) === target) {
-          meta = v;
-          break;
-        }
-      }
-      if (meta) break;
-    }
-  }
-
-  return {
-    label_ja: meta?.label_ja || "",
-    deg: Number.isFinite(Number(meta?.deg)) ? Number(meta.deg) : null,
-  };
-}
-
-function _formatElementModalityLines(skyStrata) {
-  const element = skyStrata?.element_count || {};
-  const modality = skyStrata?.modality_count || {};
-  const hasElement =
-    Number(element.fire || 0) + Number(element.earth || 0) + Number(element.air || 0) + Number(element.water || 0) > 0;
-  const hasModality =
-    Number(modality.cardinal || 0) + Number(modality.fixed || 0) + Number(modality.mutable || 0) > 0;
-
-  if (!hasElement && !hasModality) return [];
-
-  return [
-    `🔥 火${Number(element.fire || 0)} 🪨 地${Number(element.earth || 0)} 💨 風${Number(element.air || 0)} 💧 水${Number(element.water || 0)}`,
-    `🏃 活動${Number(modality.cardinal || 0)} 🧱 不動${Number(modality.fixed || 0)} 🌿 柔軟${Number(modality.mutable || 0)}`,
-  ];
-}
+const { SPEC } = require("../config/sora_spec");
+const { scoreForAspect } = require("../domain/touch_point_scoring");
+const { normalizeBodyKey } = require("../domain/canonical");
+const {
+  formatDateLabel,
+  glyphForBody,
+  signJa,
+  aspectInfo,
+  formatElementModalityLines,
+} = require("../render_parts/format/line_common");
+const {
+  listWithOrb,
+  filterWithinOrb,
+  sortByOrb,
+  minByOrb,
+} = require("../domain/aspect_selection");
 
 async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../dict");
   const includeHeader = deps?.includeHeader !== false;
+  const isPaid = deps?.paid === true;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
   const headerLine = `🌌 きょうのそら｜${dateLabel}`;
-  const listTitleAll = "【配置一覧】";
-  const listTitleAspect = "【今日の共鳴（最大orb接近）】";
+  const listTitleAll = SPEC.labels.sora.listAll;
 
   const pub = story?.public || {};
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
+  const orbLimit = isPaid ? SPEC.orb.paid : SPEC.orb.free;
 
   const bodyOrder = [
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
@@ -115,60 +41,104 @@ async function renderSoraLine(story, deps = {}) {
 
   const bodyLines = bodyOrder.map((k) => {
     let signKey = transitSigns?.[k]?.sign_key || "";
-    let signJa = transitSigns?.[k]?.sign_ja || "";
-    if (!signJa && signKey) signJa = _signJaLocal(dict, signKey || "");
-    signJa = String(signJa || "").trim();
-    if (!signJa) return "";
-    const retro = retroMap[k] ? "(R)" : "";
-    const glyph = _glyphForBodyLocal(k);
+    let signLabel = transitSigns?.[k]?.sign_ja || "";
+    if (!signLabel && signKey) signLabel = signJa(dict, signKey || "");
+    signLabel = String(signLabel || "").trim();
+    if (!signLabel) return "";
+    const retro = retroMap[k] ? SPEC.retro.suffix : "";
+    const glyph = glyphForBody(k);
     const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
     const bodyText = `${bodyJa}${retro}`;
     const prefix = glyph ? `${glyph} ` : "";
-    return `${prefix}${bodyText}｜${signJa}`;
+    return `${prefix}${bodyText}｜${signLabel}`;
   }).filter(Boolean);
 
-  const top1 = skyAll
-    .filter((r) => Number.isFinite(Number(r?.orb_deg)))
-    .filter((r) => Number(r?.orb_deg) <= 6)
-    .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg))
-    .slice(0, 1);
+  const allWithOrb = listWithOrb(skyAll);
+  const within = filterWithinOrb(allWithOrb, orbLimit);
+  const minItem = minByOrb(allWithOrb);
+
+  let picked = [];
+  let listTitleAspect = "";
+
+  if (isPaid) {
+    picked = within
+      .map((r) => {
+        const aKey = normalizeBodyKey(r?.a || "");
+        const bKey = normalizeBodyKey(r?.b || "");
+        return { item: r, score: scoreForAspect({ orb: r?.orb_deg, aKey, bKey }) };
+      })
+      .sort((a, b) => Number(b.score) - Number(a.score))
+      .map((x) => x.item);
+    listTitleAspect = SPEC.labels.sora.closestPaid(orbLimit);
+  } else {
+    if (within.length) {
+      picked = sortByOrb(within).slice(0, 1);
+      listTitleAspect = SPEC.labels.sora.closest;
+    } else if (minItem) {
+      picked = [minItem];
+      const refOrb = Number(minItem?.orb_deg);
+      const refText = Number.isFinite(refOrb) ? refOrb.toFixed(1) : "-";
+      listTitleAspect = SPEC.labels.sora.closestRef(refText);
+    } else {
+      listTitleAspect = SPEC.labels.sora.closest;
+    }
+  }
 
   const aspectLines = (() => {
-    const item = top1[0] || null;
-    if (!item) return ["該当なし"];
-    const aKey = String(item?.a || "").toLowerCase();
-    const bKey = String(item?.b || "").toLowerCase();
-    const aSign = item?.a_sign_ja || _signJaLocal(dict, item?.a_sign_key || "");
-    const bSign = item?.b_sign_ja || _signJaLocal(dict, item?.b_sign_key || "");
-    const aGlyph = _glyphForBodyLocal(aKey);
-    const bGlyph = _glyphForBodyLocal(bKey);
-    const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
-    const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
-    const aRetro = retroMap[aKey] ? "(R)" : "";
-    const bRetro = retroMap[bKey] ? "(R)" : "";
-    const aLabelR = `${aLabel}${aRetro}`;
-    const bLabelR = `${bLabel}${bRetro}`;
-    const aSignText = aSign ? `（${aSign}）` : "";
-    const bSignText = bSign ? `（${bSign}）` : "";
-    const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText} × (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
+    if (!picked.length) return ["該当なし"];
+    const lines = [];
+    picked.forEach((item, idx) => {
+      const aKey = normalizeBodyKey(item?.a || "");
+      const bKey = normalizeBodyKey(item?.b || "");
+      const aSign = item?.a_sign_ja || signJa(dict, item?.a_sign_key || "");
+      const bSign = item?.b_sign_ja || signJa(dict, item?.b_sign_key || "");
+      const aGlyph = glyphForBody(aKey);
+      const bGlyph = glyphForBody(bKey);
+      const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
+      const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
+      const aRetro = retroMap[aKey] ? SPEC.retro.suffix : "";
+      const bRetro = retroMap[bKey] ? SPEC.retro.suffix : "";
+      const aLabelR = `${aLabel}${aRetro}`;
+      const bLabelR = `${bLabel}${bRetro}`;
+      const aSignText = aSign ? `（${aSign}）` : "";
+      const bSignText = bSign ? `（${bSign}）` : "";
+      const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText} × (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
 
-    const aspectInfo = _aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
-    const aspectLabel = aspectInfo?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
-    const aspectDeg = Number.isFinite(Number(item?.aspect_deg))
-      ? Number(item.aspect_deg)
-      : Number.isFinite(Number(aspectInfo?.deg))
-        ? Number(aspectInfo.deg)
-        : null;
-    const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-    const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
-    const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-    const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
+      const aspect = aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
+      const aspectLabel = aspect?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
+      const aspectDeg = Number.isFinite(Number(item?.aspect_deg))
+        ? Number(item.aspect_deg)
+        : Number.isFinite(Number(aspect?.deg))
+          ? Number(aspect.deg)
+          : null;
+      const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
+      const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
+      const orbText = orb != null ? `${orb.toFixed(1)}` : "";
+      const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
 
-    return [line1, line2];
+      if (idx > 0) lines.push("");
+      lines.push(line1, line2);
+    });
+    return lines;
   })();
 
-  const distLines = _formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
-  const sep = "─────────────";
+  const aspectSummaryLines = (() => {
+    if (!isPaid || !picked.length) return [];
+    const counts = new Map();
+    picked.forEach((item) => {
+      const deg = Number.isFinite(Number(item?.aspect_deg)) ? Math.round(Number(item.aspect_deg)) : null;
+      if (deg == null) return;
+      counts.set(deg, (counts.get(deg) || 0) + 1);
+    });
+    if (!counts.size) return [];
+    const parts = Array.from(counts.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([deg, count]) => `${deg}°×${count}`);
+    return [`${SPEC.labels.sora.aspectSummaryPrefix}${parts.join(" / ")}`];
+  })();
+
+  const distLines = formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
+  const sep = SPEC.separators.section;
 
   const lines = [];
   if (includeHeader) lines.push(headerLine, "");
@@ -181,6 +151,8 @@ async function renderSoraLine(story, deps = {}) {
     "",
     listTitleAspect,
     "",
+    ...aspectSummaryLines,
+    ...(aspectSummaryLines.length ? [""] : []),
     ...aspectLines,
     "",
     ...distLines

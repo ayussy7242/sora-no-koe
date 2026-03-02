@@ -91,6 +91,7 @@ function createCronRouter(deps = {}) {
   const swisseph = deps.swisseph;
   const storyService = deps.storyService;
   const renderers = deps.renderers;
+  const storage = deps.storage;
 
   if (!db) throw new Error("deps.db is required for cron router");
   if (!admin) throw new Error("deps.admin is required for cron router");
@@ -137,7 +138,7 @@ function createCronRouter(deps = {}) {
       const target = pickTarget(b.target ?? q.target);
 
       const result = await runDaily8(
-        { db, admin, env, storyService, renderers },
+        { db, admin, env, storyService, renderers, storage },
         { dateLocal, dryRun, mode, target }
       );
 
@@ -158,7 +159,7 @@ function createCronRouter(deps = {}) {
       const mode = pickMode(b.mode ?? q.mode);
       const target = pickTarget(b.target ?? q.target);
 
-      const result = await rebuildDaily8({ db, admin, env, storyService, renderers }, { dateLocal, mode, target });
+      const result = await rebuildDaily8({ db, admin, env, storyService, renderers, storage }, { dateLocal, mode, target });
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e) });

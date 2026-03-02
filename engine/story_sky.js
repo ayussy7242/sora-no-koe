@@ -8,6 +8,7 @@ function createSkyService({
   absAngularDistance,
   toFixedPrecision,
 }) {
+  const { normalizeBodyKey, canonicalizeTouchPoint } = require("./domain/canonical");
   function attachSignsToSkyList(list, transitSigns) {
     const ts = transitSigns || {};
     const arr = Array.isArray(list) ? list : [];
@@ -121,8 +122,8 @@ function createSkyService({
 
     for (let i = 0; i < keys.length; i++) {
       for (let j = i + 1; j < keys.length; j++) {
-        const a = keys[i];
-        const b = keys[j];
+        const a = normalizeBodyKey(keys[i]);
+        const b = normalizeBodyKey(keys[j]);
 
         const dist = absAngularDistance(transitBodies[a], transitBodies[b]);
         const best = bestAspectForDistance(dist, aspectsList);
@@ -157,8 +158,21 @@ function createSkyService({
 
   function buildTouchPoints({ transitBodies, natalBodies, rules, withSigns = true }) {
     const results = [];
-    const transitKeys = Object.keys(transitBodies || {});
-    const natalKeys = Object.keys(natalBodies || {});
+    const transitRaw = transitBodies || {};
+    const natalRaw = natalBodies || {};
+    const transitMap = {};
+    const natalMap = {};
+    for (const [k, v] of Object.entries(transitRaw)) {
+      const nk = normalizeBodyKey(k);
+      if (typeof v === "number" && nk) transitMap[nk] = v;
+    }
+    for (const [k, v] of Object.entries(natalRaw)) {
+      const nk = normalizeBodyKey(k);
+      if (typeof v === "number" && nk) natalMap[nk] = v;
+    }
+
+    const transitKeys = Object.keys(transitMap);
+    const natalKeys = Object.keys(natalMap);
     const isChironLilith = (k) => {
       const s = String(k || "").toLowerCase();
       return s === "chiron" || s === "lilith";
@@ -174,11 +188,11 @@ function createSkyService({
     };
 
     for (const t of transitKeys) {
-      const tLon = transitBodies[t];
+      const tLon = transitMap[t];
       if (typeof tLon !== "number") continue;
 
       for (const n of natalKeys) {
-        const nLon = natalBodies[n];
+        const nLon = natalMap[n];
         if (typeof nLon !== "number") continue;
 
         const dist = absAngularDistance(tLon, nLon);
@@ -213,7 +227,7 @@ function createSkyService({
           base.natal_sign_ja = ns.sign_ja;
         }
 
-        results.push(base);
+        results.push(canonicalizeTouchPoint(base));
       }
     }
 

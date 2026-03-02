@@ -15,12 +15,12 @@ const path = require("path");
 
 let swisseph = null;
 try {
-  // npm package: swisseph
-  // (node bindings)
+  // npm package: swisseph (node bindings)
   // eslint-disable-next-line global-require
   swisseph = require("swisseph");
 } catch (e) {
   // ここで落とすと全API死ぬので、後段で分かりやすくエラーにする
+  console.error("[swisseph] load failed:", e?.message || String(e));
   swisseph = null;
 }
 
@@ -30,6 +30,12 @@ function resolveEphePath() {
     // 絶対/相対どっちでもOK
     return path.isAbsolute(envPath) ? envPath : path.resolve(process.cwd(), envPath);
   }
+
+  // Prefer bundled ephemeris inside node_modules (if exists)
+  const bundled = path.resolve(process.cwd(), "node_modules", "swisseph", "ephe");
+  try {
+    if (require("fs").existsSync(bundled)) return bundled;
+  } catch (_) {}
 
   // よくある配置：プロジェクト直下に ephe/ を置く
   // (同梱してないなら存在しないけど、それでも問題ないようにする)

@@ -75,14 +75,7 @@ function requireDeps(d) {
   const r = d?.renderers || {};
   if (!r.renderLine) throw new Error("renderers.renderLine required");
   if (!r.renderSoraLine) throw new Error("renderers.renderSoraLine required");
-  if (!r.renderSoraAllLine) throw new Error("renderers.renderSoraAllLine required");
-  if (!r.renderSoraUraLine) throw new Error("renderers.renderSoraUraLine required");
-  if (!r.renderSoraUraSilentLine) throw new Error("renderers.renderSoraUraSilentLine required");
-  if (!r.renderSoraUraSilentPersonalLine) throw new Error("renderers.renderSoraUraSilentPersonalLine required");
-  if (!r.renderSoraUraRareLine) throw new Error("renderers.renderSoraUraRareLine required");
-  if (!r.renderSoraUraHarmonyLine) throw new Error("renderers.renderSoraUraHarmonyLine required");
-  if (!r.renderSoraAnshinLine) throw new Error("renderers.renderSoraAnshinLine required");
-  if (!r.renderAnshinLine) throw new Error("renderers.renderAnshinLine required");
+  if (!r.renderDistributionLine) throw new Error("renderers.renderDistributionLine required");
   if (!r.renderNatalListFromcache) throw new Error("renderers.renderNatalListFromcache required");
 
   if (!createLineUser) throw new Error("[line] createLineUser export not found (line/user.js)");

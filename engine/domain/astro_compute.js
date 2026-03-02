@@ -2,6 +2,7 @@
 
 const { swisseph } = require("../../config/swisseph");
 const { isRetrograde } = require("../astro/retrograde");
+const { normalizeBodyKey, normalizeSignKey } = require("./canonical");
 
 const TOKYO_LAT = 35.6895;
 const TOKYO_LON = 139.6917;
@@ -107,7 +108,7 @@ function signIndexFromKey(dict, signKey) {
       "aquarius",
       "pisces",
     ];
-  const key = String(signKey || "").toLowerCase();
+  const key = normalizeSignKey(signKey);
   return order.indexOf(key);
 }
 
@@ -151,7 +152,7 @@ function calcTransitLon(bodyKey, asOfISO) {
     chiron: swisseph.SE_CHIRON,
     lilith: swisseph.SE_MEAN_APOG,
   };
-  const id = map[String(bodyKey || "").toLowerCase()];
+  const id = map[normalizeBodyKey(bodyKey)];
   if (id == null) return null;
 
   const flags = swisseph.SEFLG_SWIEPH | swisseph.SEFLG_SPEED;

@@ -77,7 +77,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
     // --------------------
     signs: Object.freeze({
         // ==========================================================
-        // ♈ aries 牡羊座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♈ aries 牡羊座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         aries: Object.freeze({
             label_ja: "牡羊座",
@@ -288,9 +288,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "“選ばない”が、強い拒否として瞬時に出やすい",
                     tension: "自由でいたい{drive}と、関係に触れた瞬間の反射の{dyn}",
@@ -329,7 +329,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
         // ♉ taurus 牡牛座
         // ==========================================================
         // ==========================================================
-        // ♉ taurus 牡牛座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♉ taurus 牡牛座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         taurus: Object.freeze({
             label_ja: "牡牛座",
@@ -540,9 +540,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "価値や身体に触れられると“NO”が強く出やすい",
                     tension: "守る{drive}と、関係・共有の圧の{dyn}",
@@ -639,7 +639,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♋ cancer 蟹座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♋ cancer 蟹座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         cancer: Object.freeze({
             label_ja: "蟹座",
@@ -850,9 +850,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "親密圏に踏み込まれると“NO”が濃く出やすい",
                     tension: "包みたい{drive}と、不可侵を守る反射の{dyn}",
@@ -889,7 +889,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♌ leo 獅子座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♌ leo 獅子座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         leo: Object.freeze({
             label_ja: "獅子座",
@@ -1100,9 +1100,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "尊重されない場に対して“NO”が強く出る",
                     tension: "誇りを守る拒否への{drive}と、わがままと見られる{dyn}",
@@ -1139,7 +1139,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♍ virgo 乙女座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♍ virgo 乙女座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         virgo: Object.freeze({
             label_ja: "乙女座",
@@ -1350,9 +1350,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "雑さやルール違反に対して“NO”が出やすい",
                     tension: "守りたい基準への{drive}と、合わせろと言われる圧の{dyn}",
@@ -1389,7 +1389,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♎ libra 天秤座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♎ libra 天秤座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         libra: Object.freeze({
             label_ja: "天秤座",
@@ -1600,9 +1600,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "不公平・無礼に対して“NO”が出る（品の主権）",
                     tension: "品を守る拒否への{drive}と、冷たい断絶に見える{dyn}",
@@ -1639,7 +1639,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♏ scorpio 蠍座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♏ scorpio 蠍座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         scorpio: Object.freeze({
             label_ja: "蠍座",
@@ -1850,9 +1850,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "嘘・薄さ・裏切りに対して“NO”が出る（深さの主権）",
                     tension: "切る主権への{drive}と、断罪/破壊になる{dyn}",
@@ -1889,7 +1889,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♐ sagittarius 射手座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♐ sagittarius 射手座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         sagittarius: Object.freeze({
             label_ja: "射手座",
@@ -2100,9 +2100,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "束縛・停滞・偽善に対して“NO”が出る（自由の主権）",
                     tension: "自由の主権への{drive}と、反発/断絶になる{dyn}",
@@ -2139,7 +2139,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♑ capricorn 山羊座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♑ capricorn 山羊座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         capricorn: Object.freeze({
             label_ja: "山羊座",
@@ -2350,9 +2350,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "軽さ・甘さ・曖昧さに対して“NO”が出やすい（厳しさの主権）",
                     tension: "厳しさの主権への{drive}と、孤立/断絶の{dyn}",
@@ -2389,7 +2389,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♒ aquarius 水瓶座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♒ aquarius 水瓶座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         aquarius: Object.freeze({
             label_ja: "水瓶座",
@@ -2600,9 +2600,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "『縛られない』が強い主権として立つ（自由の野性）",
                     tension: "自由の主権への{drive}と、切断/拒絶の{dyn}",
@@ -2639,7 +2639,7 @@ const SIGN_FLAVOR_V1 = Object.freeze({
 
 
         // ==========================================================
-        // ♒ aquarius 水瓶座 — FULL (sun..pluto + chiron/Lilith/asc)
+        // ♒ aquarius 水瓶座 — FULL (sun..pluto + chiron/lilith/asc)
         // ==========================================================
         aquarius: Object.freeze({
             label_ja: "水瓶座",
@@ -2850,9 +2850,9 @@ const SIGN_FLAVOR_V1 = Object.freeze({
                 }),
 
                 // --------------------------
-                // Lilith
+                // lilith
                 // --------------------------
-                Lilith: Object.freeze({
+                lilith: Object.freeze({
                     role: "言語化されなかった主権",
                     core: "『縛られない』が強い主権として立つ（自由の野性）",
                     tension: "自由の主権への{drive}と、切断/拒絶の{dyn}",

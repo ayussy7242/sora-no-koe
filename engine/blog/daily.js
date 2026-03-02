@@ -8,6 +8,51 @@ const {
   SORA_AI_USER_GUIDE_BLOG,
 } = require("../prompts/sora_ai_prompts");
 
+const BLOG_BANNED_TERMS = [
+  "あなた",
+  "あなたは",
+  "あなたが",
+  "必ず",
+  "確実",
+  "逃れられない",
+  "運命",
+  "使命",
+  "すべき",
+  "した方がいい",
+  "したほうがいい",
+  "しよう",
+  "求められる",
+  "必要",
+  "可能性",
+  "かもしれない",
+  "調整",
+  "安定感",
+  "バランス",
+  "うまく",
+  "成功",
+  "失敗",
+  "成長",
+  "癒し",
+  "学び",
+  "導き",
+  "目覚め",
+  "示唆",
+  "問われる",
+  "大事",
+  "正しい",
+  "間違い",
+  "べき",
+];
+
+function findBannedTerm(text) {
+  const s = String(text || "");
+  if (!s) return "";
+  for (const t of BLOG_BANNED_TERMS) {
+    if (t && s.includes(t)) return t;
+  }
+  return "";
+}
+
 function normalizeAspectType(raw) {
   const x = String(raw || "").trim().toLowerCase();
   if (!x) return "";
@@ -525,22 +570,33 @@ function buildDailyTitle(story, dateLocal) {
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
   const dataBlock = buildDailyDataBlock(story, 3, dateLocal);
-  const messages = [
+  const baseUser = userPrompt({ dateLocal, dataBlock });
+  const buildMessages = (retryNote = "") => [
     { role: "system", content: systemPrompt() },
-    { role: "user", content: userPrompt({ dateLocal, dataBlock }) },
+    {
+      role: "user",
+      content: retryNote ? `${baseUser}\n\n【NG修正】${retryNote}` : baseUser,
+    },
   ];
 
-  const text = await createChatCompletion({
-    apiKey: openai.apiKey,
-    baseUrl: openai.baseUrl,
-    model: openai.model,
-    messages,
-    temperature: 0.7,
-    maxTokens: 2200,
-  });
+  const runOnce = async (retryNote = "") =>
+    createChatCompletion({
+      apiKey: openai.apiKey,
+      baseUrl: openai.baseUrl,
+      model: openai.model,
+      messages: buildMessages(retryNote),
+      temperature: 0.7,
+      maxTokens: 2200,
+    });
 
-  const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\nどう感じ、どう扱うかの主権は、常にあなたにあります。";
+  const text = await runOnce();
+  const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\n星は語る。解釈はあなたのもの🌃";
   const cleaned = softenText(text);
+  const banned = findBannedTerm(cleaned);
+  if (banned) {
+    const retryText = await runOnce(`禁止語「${banned}」を含めない。未来断定/指示/救済/運命固定/絶対語/本文の「あなた」を避ける。`);
+    return enforceSingleClosing(softenText(retryText), closing);
+  }
   return enforceSingleClosing(cleaned, closing);
 }
 

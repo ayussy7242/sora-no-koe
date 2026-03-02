@@ -69,7 +69,7 @@ function renderIG(story, deps = {}) {
   }
 
   const BRAND_IG = RENDER_COPY?.BRAND_IG || "ソラのこえ。";
-  const FOOTER_IG = RENDER_COPY?.FOOTER_IG || "星は語る。解釈はあなた。";
+  const FOOTER_IG = RENDER_COPY?.FOOTER_IG || "星は語る。解釈はあなたのもの🌃";
 
   const IG_FORMAT = RENDER_COPY?.IG_FORMAT || {
     SKY_LINE_NUM: (n, a, aSign, b, bSign) => `【${n}】${a}${aSign} × ${b}${bSign}`,
