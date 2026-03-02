@@ -21,7 +21,6 @@ const { normalizeStoryArgs } = require("../engine/story_args");
 const {
   isYYYYMMDD,
   toDateLocalJST,
-  asOfIsoFromDateLocalJST,
   toSafeText,
   isNonEmptyText,
   pickNum,
@@ -202,7 +201,7 @@ async function runDaily8(deps, opts = {}) {
   }
 
   async function buildPayloadFor({ appUserId, lineUserId }) {
-    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
+    const asOfISO = new Date().toISOString();
     const story = await storyService.buildStoryForUser(
       normalizeStoryArgs({
         appUserId,
