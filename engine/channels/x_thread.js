@@ -78,8 +78,6 @@ function renderXThread(story, deps = {}) {
   const part1Lines = [
     `🌌 きょうのそら｜${dateLabel}`,
     "",
-    SPEC.labels.sora.listAll,
-    "",
     ...bodyLines,
     "",
     ...distLines,
