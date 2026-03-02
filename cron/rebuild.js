@@ -28,7 +28,6 @@ const { normalizeStoryArgs } = require("../engine/story_args");
 const {
   isYYYYMMDD,
   toDateLocalJST,
-  asOfIsoFromDateLocalJST,
   toSafeText,
   isNonEmptyText,
   pickMode,
@@ -36,8 +35,11 @@ const {
   pickNum,
   clamp,
   getLineUserIdFromUserDoc,
-  pickRenderer,
 } = require("./cron_utils");
+const dict = require("../dict");
+const { buildDailyLineMessage } = require("../engine/line_daily_message");
+const { getLineSubscription, isPaidLine500 } = require("../engine/subscription");
+const { buildAndStoreSoraWheel } = require("../engine/sora_wheel");
 
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
@@ -45,7 +47,7 @@ function makeRunId(dateLocal) {
 }
 
 async function rebuildDaily8(deps, opts = {}) {
-  const { db, admin, env, storyService, renderers } = deps || {};
+  const { db, admin, env, storyService, storage } = deps || {};
   if (!db) throw new Error("db required");
   if (!admin) throw new Error("admin required");
   if (!env) throw new Error("env required");
@@ -54,35 +56,32 @@ async function rebuildDaily8(deps, opts = {}) {
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const mode = pickMode(opts.mode);
   const target = pickTarget(opts.target);
-  const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
+  const asOfISO = new Date().toISOString();
   const runId = makeRunId(dateLocal);
 
   // daily8 と同じく、オーブ等のパラメータも受け取れるようにする（互換＆将来拡張）
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
   const precisionDeg = clamp(pickNum(opts.precisionDeg, 0.01), 0.001, 1);
 
-  const renderFn = pickRenderer(renderers);
-  if (!renderFn) throw new Error("no renderer found (need one of: renderKyou/renderToday/renderLineToday/renderLine)");
+  const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
+  const wheelExpireDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
+
+  function isPaidAllowed({ appUserId, lineUserId }) {
+    if (!env.PAID_MODE_ENABLED) return true;
+    if (env.PAID_ALLOW_OWNER) {
+      if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
+      if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
+    }
+    if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
+    if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
+    return false;
+  }
 
   // outbox root
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
 
-  async function buildTextFor(appUserId) {
-    if (mode === "sky") {
-      const story = await storyService.buildStoryForUser(
-        normalizeStoryArgs({
-          appUserId: "public",
-          mode: "public",
-          dateLocal,
-          asOfISO,
-          orbMaxDeg,
-          precisionDeg,
-        })
-      );
-      return await renderFn(story);
-    }
-
-    // mode=today
+  async function buildMessageFor({ appUserId, lineUserId }) {
+    // mode=today (fixed: daily combines sky + personal)
     const story = await storyService.buildStoryForUser(
       normalizeStoryArgs({
         appUserId,
@@ -93,17 +92,56 @@ async function rebuildDaily8(deps, opts = {}) {
         precisionDeg,
       })
     );
-    return await renderFn(story);
+
+    let paid = false;
+    try {
+      const sub = await getLineSubscription(db, lineUserId);
+      paid = isPaidLine500(sub);
+    } catch (_) {
+      paid = false;
+    }
+    const allow = isPaidAllowed({ appUserId, lineUserId });
+    const isPaid500 = paid || allow;
+
+    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500 }));
+
+    let imageUrl = null;
+    let imagePath = null;
+    if (isPaid500 && storage && bucketName) {
+      try {
+        const wheel = await buildAndStoreSoraWheel({
+          storage,
+          bucketName,
+          lineUserId,
+          dateLocal,
+          story,
+          dateLabel: String(dateLocal || "").replace(/-/g, "."),
+          expiresDays: wheelExpireDays,
+        });
+        if (wheel?.ok && wheel?.url) {
+          imageUrl = wheel.url;
+          imagePath = wheel.path || null;
+        }
+      } catch (_) {
+        imageUrl = null;
+        imagePath = null;
+      }
+    }
+
+    return { text, isPaid500, imageUrl, imagePath };
   }
 
   // 共通: outbox に書くペイロード生成
-  function makeOutboxPayload({ appUserId, lineUserId, text }) {
+  function makeOutboxPayload({ appUserId, lineUserId, text, isPaid500, imageUrl, imagePath }) {
     return {
       app_user_id: appUserId,
       line_user_id: lineUserId,
       mode,
       text,
       text_len: text.length,
+      is_paid_500: !!isPaid500,
+      image_url: imageUrl || null,
+      image_path: imagePath || null,
       prepared_at: admin.firestore.FieldValue.serverTimestamp(),
       // 運用・デバッグ用
       run_id: runId,
@@ -125,11 +163,19 @@ async function rebuildDaily8(deps, opts = {}) {
     if (!ownerAppUserId) throw new Error("OWNER_APP_USER_ID not set");
     if (!ownerLineUserId) throw new Error("OWNER_LINE_USER_ID not set");
 
-    const text = toSafeText(await buildTextFor(ownerAppUserId));
+    const payload = await buildMessageFor({ appUserId: ownerAppUserId, lineUserId: ownerLineUserId });
+    const text = payload?.text || "";
     if (!isNonEmptyText(text)) throw new Error("text empty");
 
     await outboxRoot.doc(ownerAppUserId).set(
-      makeOutboxPayload({ appUserId: ownerAppUserId, lineUserId: ownerLineUserId, text }),
+      makeOutboxPayload({
+        appUserId: ownerAppUserId,
+        lineUserId: ownerLineUserId,
+        text,
+        isPaid500: payload?.isPaid500,
+        imageUrl: payload?.imageUrl,
+        imagePath: payload?.imagePath,
+      }),
       { merge: true }
     );
 
@@ -160,14 +206,22 @@ async function rebuildDaily8(deps, opts = {}) {
     }
 
     try {
-      const text = toSafeText(await buildTextFor(appUserId));
+      const payload = await buildMessageFor({ appUserId, lineUserId });
+      const text = payload?.text || "";
       if (!isNonEmptyText(text)) {
         skipped++;
         continue;
       }
 
       await outboxRoot.doc(appUserId).set(
-        makeOutboxPayload({ appUserId, lineUserId, text }),
+        makeOutboxPayload({
+          appUserId,
+          lineUserId,
+          text,
+          isPaid500: payload?.isPaid500,
+          imageUrl: payload?.imageUrl,
+          imagePath: payload?.imagePath,
+        }),
         { merge: true }
       );
 

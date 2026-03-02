@@ -13,13 +13,12 @@
 
 const { LINE_COPY } = require("../copy");
 const { normalizeStoryArgs } = require("../engine/story_args");
-const { ymdInTimeZone, asOfIsoFromDateLocalJST } = require("../engine/time_utils");
+const { ymdInTimeZone } = require("../engine/time_utils");
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser is required");
   if (!renderers?.renderLine) throw new Error("renderers.renderLine is required");
-  // public用（なければ renderLine にフォールバックしてもいい）
   const renderSky =
     typeof renderers?.renderSoraLine === "function"
       ? renderers.renderSoraLine
@@ -43,7 +42,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   function computeDateLocalAndAsOfISO() {
     const now = new Date();
     const dateLocal = ymdInTimeZone(now, DEFAULT_TZ);
-    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
+    const asOfISO = now.toISOString();
     return { dateLocal, asOfISO };
   }
 
@@ -83,45 +82,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return buildStory({ appUserId, mode: "auto", renderer: renderers.renderLine });
   }
 
-  // ---- anshin (natal-based)
-  async function buildAnshin({ appUserId }) {
-    const { story, dateLocal } = await buildStoryBase({ appUserId, mode: "auto" });
-    const snap = await db.collection("natal_cache").doc(appUserId).get();
-    const natalCache = snap.exists ? snap.data() : null;
-    const payload = {
-      story,
-      meta: {
-        date_local: dateLocal,
-        app_user_id: appUserId,
-        user_id: appUserId,
-      },
-      natal_cache: natalCache,
-    };
-    const text = await renderStoryText(payload, renderers.renderAnshinLine);
-    return { payload, text };
-  }
-
-  // ---- anshin (public)
-  async function buildAnshinPublic() {
-    return buildStory({ appUserId: "public", mode: "public", renderer: renderers.renderSoraAnshinLine });
-  }
-  
-  async function buildSkyWithGuide({ withGuide = false } = {}) {
-    const { story, text } = await buildStory({
-      appUserId: "public",
-      mode: "public",
-      renderer: renderers.renderLine,
-    });
-
-    if (!withGuide) return { story, text };
-
-    const guide =
-      "\n\n（「今日」は登録があると personal が立ち上がりやすい🌌\n" +
-      "登録は「はじめる」）";
-
-    return { story, text: safeText(text + guide) };
-  }
-
   function appendTail(text, tail) {
     if (!tail) return safeText(text);
     return safeText(`${text}\n\n${tail}`);
@@ -133,10 +93,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   function tailSoraNoPersonal() {
     return "──\nあなたの星も、静かに待っています。\n「はじめる」と送ると登録できます。🌌";
-  }
-
-  function tailAnshinNoPersonal() {
-    return "──\nあなたのあんしんも、星の奥にあります。\n「はじめる」と送ると、あなたの星が登録できます。🫧";
   }
   function renderFallback() {
     return LINE_COPY.FALLBACK;
@@ -187,17 +143,13 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   return {
     buildSky,
-    buildSkyWithGuide,
     buildToday,
-    buildAnshin,
-    buildAnshinPublic,
     renderFallback,
     renderWelcome,
     handleUtilities,
     appendTail,
     tailSoraSilentNoPersonal,
     tailSoraNoPersonal,
-    tailAnshinNoPersonal,
   };
 }
 
