@@ -27,8 +27,14 @@ const {
   pickNum,
   clamp,
   getLineUserIdFromUserDoc,
-  pickRenderer,
 } = require("./cron_utils");
+const dict = require("../dict");
+const { buildDailyLineMessage } = require("../engine/line_daily_message");
+const { getLineSubscription, isPaidLine500 } = require("../engine/subscription");
+const { buildAndStoreSoraWheel } = require("../engine/sora_wheel");
+
+// Temporary: disable sorazu image push in daily 08:00
+const DISABLE_DAILY8_SORA_IMAGE = true;
 function normalizeOpts(input) {
   if (!input) return {};
   if (typeof input === "object") return input;
@@ -84,6 +90,31 @@ async function linePushText({ accessToken, to, text }) {
   return (await res.text().catch(() => "")) || null;
 }
 
+async function linePushImage({ accessToken, to, imageUrl, previewUrl }) {
+  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
+  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
+  if (!to) throw new Error("line_user_id missing");
+  if (!imageUrl) throw new Error("image_url missing");
+
+  const originalContentUrl = String(imageUrl);
+  const previewImageUrl = String(previewUrl || imageUrl);
+
+  const res = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ to, messages: [{ type: "image", originalContentUrl, previewImageUrl }] }),
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`LINE push image error ${res.status} ${t}`);
+  }
+  return true;
+}
+
 function isTargetUser(user) {
   const active = String(user?.status || "active") === "active";
   const natalEnabled = user?.natal?.enabled === true;
@@ -129,7 +160,7 @@ async function writePerUserResult({ db, admin, dateLocal, appUserId, payload }) 
  * opts: { dateLocal?, dryRun?/dry_run?, mode?, target?, orbMaxDeg?, precisionDeg? }
  */
 async function runDaily8(deps, opts = {}) {
-  const { db, admin, env, storyService, renderers } = deps || {};
+  const { db, admin, env, storyService, storage } = deps || {};
   if (!db) throw new Error("db required");
   if (!admin) throw new Error("admin required");
   if (!env) throw new Error("env required");
@@ -149,8 +180,8 @@ async function runDaily8(deps, opts = {}) {
   const target = targetRaw === "owner" ? "owner" : "all";
 
   const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
-  const renderFn = pickRenderer(renderers);
-  if (!renderFn) throw new Error("no renderer found (need renderLine or today renderer)");
+  const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
+  const wheelExpireDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
   if (!LINE_ENABLED) {
     return { ok: true, skipped: true, reason: "LINE disabled", date_local: dateLocal, dry_run: dryRun, mode, target };
@@ -159,24 +190,19 @@ async function runDaily8(deps, opts = {}) {
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
   const precisionDeg = clamp(pickNum(opts.precisionDeg, 0.01), 0.001, 1);
 
-  async function buildTextFor(appUserId) {
-    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
-
-    if (mode === "sky") {
-      const story = await storyService.buildStoryForUser(
-        normalizeStoryArgs({
-          appUserId: "public",
-          mode: "public",
-          dateLocal,
-          asOfISO,
-          orbMaxDeg,
-          precisionDeg,
-        })
-      );
-      return await renderFn(story);
+  function isPaidAllowed({ appUserId, lineUserId }) {
+    if (!env.PAID_MODE_ENABLED) return true;
+    if (env.PAID_ALLOW_OWNER) {
+      if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
+      if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
     }
+    if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
+    if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
+    return false;
+  }
 
-    // mode === "today" => auto
+  async function buildPayloadFor({ appUserId, lineUserId }) {
+    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
     const story = await storyService.buildStoryForUser(
       normalizeStoryArgs({
         appUserId,
@@ -187,17 +213,52 @@ async function runDaily8(deps, opts = {}) {
         precisionDeg,
       })
     );
-    return await renderFn(story);
+
+    let paid = false;
+    try {
+      const sub = await getLineSubscription(db, lineUserId);
+      paid = isPaidLine500(sub);
+    } catch (_) {
+      paid = false;
+    }
+    const allow = isPaidAllowed({ appUserId, lineUserId });
+    const isPaid500 = paid || allow;
+
+    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500 }));
+
+    let imageUrl = null;
+    if (!DISABLE_DAILY8_SORA_IMAGE && isPaid500 && storage && bucketName) {
+      try {
+        const wheel = await buildAndStoreSoraWheel({
+          storage,
+          bucketName,
+          lineUserId,
+          dateLocal,
+          story,
+          dateLabel: String(dateLocal || "").replace(/-/g, "."),
+          expiresDays: wheelExpireDays,
+        });
+        if (wheel?.ok && wheel?.url) imageUrl = wheel.url;
+      } catch (_) {
+        imageUrl = null;
+      }
+    }
+
+    return { text, imageUrl, isPaid500 };
   }
 
   async function deliverOne({ appUserId, lineUserId }) {
     const startedAt = admin.firestore.FieldValue.serverTimestamp();
     try {
-      const outText = await buildTextFor(appUserId);
+      const payload = await buildPayloadFor({ appUserId, lineUserId });
+      const outText = payload?.text || "";
       if (!isNonEmptyText(outText)) throw new Error("outText empty");
 
       if (!dryRun) {
         await linePushText({ accessToken, to: lineUserId, text: outText });
+        if (payload?.imageUrl) {
+          await linePushImage({ accessToken, to: lineUserId, imageUrl: payload.imageUrl });
+        }
       }
 
       await writePerUserResult({
