@@ -163,6 +163,15 @@ function createSkyService({
       const s = String(k || "").toLowerCase();
       return s === "chiron" || s === "lilith";
     };
+    const norm360 = (x) => ((Number(x) % 360) + 360) % 360;
+    const signIndexFromLon = (lon) => Math.floor(norm360(lon) / 30);
+    const ascLon = natalBodies?.asc;
+    const ascIndex = Number.isFinite(Number(ascLon)) ? signIndexFromLon(ascLon) : null;
+    const houseNumberForLon = (lon) => {
+      if (ascIndex == null || !Number.isFinite(Number(lon))) return null;
+      const signIndex = signIndexFromLon(lon);
+      return ((signIndex - ascIndex + 12) % 12) + 1;
+    };
 
     for (const t of transitKeys) {
       const tLon = transitBodies[t];
@@ -189,7 +198,7 @@ function createSkyService({
           aspect: best.type,
           aspect_deg: best.aspect_deg,
           orb_deg: Number(best.delta.toFixed(2)),
-          house_focus: null,
+          house_focus: houseNumberForLon(nLon),
           keywords: [],
         };
 

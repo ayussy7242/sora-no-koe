@@ -266,11 +266,31 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
 
   if (intentKey === intent.INTENT.PUBLIC_SKY) {
     const r = await story.buildSky();
+    let isPaid = false;
+    if (env.PAID_MODE_ENABLED) {
+      const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+      const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+      isPaid = paid || allow;
+    }
+    if (r?.story && typeof renderers?.renderSoraLine === "function") {
+      const text = await renderers.renderSoraLine(r.story, { dict, paid: isPaid });
+      return { text, stage: "public_sky" };
+    }
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "public_sky" };
   }
 
   if (intentKey === intent.INTENT.PERSONAL_TODAY) {
     const r = await story.buildToday({ appUserId: appUserId || "public" });
+    let isPaid = false;
+    if (env.PAID_MODE_ENABLED) {
+      const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+      const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+      isPaid = paid || allow;
+    }
+    if (r?.story && typeof renderers?.renderLine === "function") {
+      const text = await renderers.renderLine(r.story, { dict, paid: isPaid });
+      return { text, stage: "personal_today" };
+    }
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "personal_today" };
   }
 
@@ -324,7 +344,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     const asOfISO = storyObj?.meta?.as_of || null;
 
     if (intentKey === intent.INTENT.BUNPU) {
-      const lines = [`📊 ぶんぷ（TOP5）｜${dateLabel}`, "", ...buildBunpuTop5(storyObj, dict)];
+      const lines = [...buildBunpuTop5(storyObj, dict)];
       return { text: lines.join("\n").trim(), stage: "paid_bunpu" };
     }
 
@@ -339,7 +359,27 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
 
     if (intentKey === intent.INTENT.SORAZU) {
-      return { text: "ソラ図は現在停止中だよ。", stage: "paid_sorazu_paused" };
+      const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
+      const expiresDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
+      if (!storage || !bucketName) {
+        return { text: "ソラ図の準備中だよ。", stage: "paid_sorazu_missing_storage" };
+      }
+      const wheel = await buildAndStoreSoraWheel({
+        storage,
+        bucketName,
+        lineUserId,
+        dateLocal: storyObj?.meta?.date_local,
+        story: storyObj,
+        dateLabel,
+        expiresDays,
+      });
+      if (!wheel?.ok || !wheel?.url) {
+        return { text: "ソラ図の生成に失敗したみたい。", stage: "paid_sorazu_failed" };
+      }
+      return {
+        message: [{ type: "image", originalContentUrl: wheel.url, previewImageUrl: wheel.url }],
+        stage: "paid_sorazu",
+      };
     }
   }
 
