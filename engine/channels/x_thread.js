@@ -54,7 +54,12 @@ function renderXThread(story, deps = {}) {
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
   // ---------- Part 1: 配置一覧 ----------
-  const bodyLines = bodyOrder.map((k) => {
+  const coreOrder = [
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ];
+  const pointOrder = ["lilith","chiron"];
+
+  const renderBodyLine = (k) => {
     let signKey = transitSigns?.[k]?.sign_key || "";
     let signLabel = transitSigns?.[k]?.sign_ja || "";
     if (!signLabel && signKey) signLabel = signJa(dict, signKey || "");
@@ -67,7 +72,11 @@ function renderXThread(story, deps = {}) {
     const bodyText = `${bodyJa}${retro}`;
     const prefix = glyph ? `${glyph} ` : "";
     return `${prefix}${bodyText}｜${signLabel}`;
-  }).filter(Boolean);
+  };
+
+  const coreLines = coreOrder.map(renderBodyLine).filter(Boolean);
+  const pointLines = pointOrder.map(renderBodyLine).filter(Boolean);
+  const bodyLines = pointLines.length ? [...coreLines, "", ...pointLines] : coreLines;
 
   const distLines = formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
 
@@ -100,7 +109,6 @@ function renderXThread(story, deps = {}) {
   } else {
   }
 
-  let resonanceSignsLine = "";
   const aspectLines = (() => {
     if (!picked.length) return ["該当なし"];
     const item = picked[0];
@@ -136,22 +144,22 @@ function renderXThread(story, deps = {}) {
     const orbText = orb != null ? `${orb.toFixed(1)}` : "";
     const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
 
-    if (aSign || bSign) {
-      const aS = aSign || "—";
-      const bS = bSign || "—";
-      resonanceSignsLine = `星座：${aS} × ${bS}`;
-    }
-
     return [line1, line2];
   })();
 
-  const part2Tags = buildTags([resonanceSignsLine ? resonanceSignsLine.replace(/^星座：/,"").split(" × ")[0] : "", resonanceSignsLine ? resonanceSignsLine.replace(/^星座：/,"").split(" × ")[1] : ""]);
+  let resonanceSigns = [];
+  if (picked.length) {
+    const item = picked[0];
+    const aSign = item?.a_sign_ja || signJa(dict, item?.a_sign_key || "");
+    const bSign = item?.b_sign_ja || signJa(dict, item?.b_sign_key || "");
+    resonanceSigns = [aSign, bSign];
+  }
+  const part2Tags = buildTags(resonanceSigns);
 
   const part2Lines = [
     listTitleAspect,
     "",
     ...aspectLines,
-    ...(resonanceSignsLine ? ["", resonanceSignsLine] : []),
     "",
     part2Tags,
   ];
