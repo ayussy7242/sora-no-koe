@@ -4,8 +4,8 @@
     "project": "sora-no-koe",
     "timezone": "Asia/Tokyo",
     "date_local": "2026-03-02",
-    "as_of": "2026-03-02T13:23:14.280Z",
-    "generated_at_utc": "2026-03-02T13:23:14.552Z",
+    "as_of": "2026-03-02T14:00:37.982Z",
+    "generated_at_utc": "2026-03-02T14:00:38.072Z",
     "user_id": "u_me_yxhONE59qsE8hdpcdsGZ",
     "app_user_id": "u_me_yxhONE59qsE8hdpcdsGZ",
     "engine": {
@@ -64,7 +64,7 @@
   "public": {
     "date_local": "2026-03-02",
     "moon": {
-      "lon_deg": 150.47,
+      "lon_deg": 150.82,
       "sign_key": "virgo",
       "sign_ja": "乙女座"
     },
@@ -72,27 +72,27 @@
       "sun": {
         "sign_key": "pisces",
         "sign_ja": "魚座",
-        "lon_deg": 341.97
+        "lon_deg": 341.99
       },
       "moon": {
         "sign_key": "virgo",
         "sign_ja": "乙女座",
-        "lon_deg": 150.47
+        "lon_deg": 150.82
       },
       "mercury": {
         "sign_key": "pisces",
         "sign_ja": "魚座",
-        "lon_deg": 351.14
+        "lon_deg": 351.12
       },
       "venus": {
         "sign_key": "pisces",
         "sign_ja": "魚座",
-        "lon_deg": 355.16
+        "lon_deg": 355.19
       },
       "mars": {
         "sign_key": "aquarius",
         "sign_ja": "水瓶座",
-        "lon_deg": 329.97
+        "lon_deg": 329.99
       },
       "jupiter": {
         "sign_key": "cancer",
@@ -155,7 +155,7 @@
         "b": "jupiter",
         "type": "sesqui_square_135",
         "aspect_deg": 135,
-        "orb_deg": 0.24,
+        "orb_deg": 0.22,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "cancer",
@@ -163,14 +163,25 @@
       },
       {
         "a": "moon",
-        "b": "jupiter",
-        "type": "semi_square_45",
-        "aspect_deg": 45,
-        "orb_deg": 0.26,
+        "b": "neptune",
+        "type": "quincunx_150",
+        "aspect_deg": 150,
+        "orb_deg": 0.28,
         "a_sign_key": "virgo",
         "a_sign_ja": "乙女座",
-        "b_sign_key": "cancer",
-        "b_sign_ja": "蟹座"
+        "b_sign_key": "aries",
+        "b_sign_ja": "牡羊座"
+      },
+      {
+        "a": "moon",
+        "b": "mercury",
+        "type": "quadranovile_160",
+        "aspect_deg": 160,
+        "orb_deg": 0.3,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "pisces",
+        "b_sign_ja": "魚座"
       },
       {
         "a": "pluto",
@@ -185,14 +196,14 @@
       },
       {
         "a": "moon",
-        "b": "mars",
-        "type": "opposition",
-        "aspect_deg": 180,
-        "orb_deg": 0.5,
+        "b": "jupiter",
+        "type": "semi_square_45",
+        "aspect_deg": 45,
+        "orb_deg": 0.61,
         "a_sign_key": "virgo",
         "a_sign_ja": "乙女座",
-        "b_sign_key": "aquarius",
-        "b_sign_ja": "水瓶座"
+        "b_sign_key": "cancer",
+        "b_sign_ja": "蟹座"
       },
       {
         "a": "jupiter",
@@ -206,28 +217,6 @@
         "b_sign_ja": "水瓶座"
       },
       {
-        "a": "moon",
-        "b": "neptune",
-        "type": "quincunx_150",
-        "aspect_deg": 150,
-        "orb_deg": 0.63,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "aries",
-        "b_sign_ja": "牡羊座"
-      },
-      {
-        "a": "moon",
-        "b": "mercury",
-        "type": "quadranovile_160",
-        "aspect_deg": 160,
-        "orb_deg": 0.67,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "pisces",
-        "b_sign_ja": "魚座"
-      },
-      {
         "a": "saturn",
         "b": "neptune",
         "type": "conjunction",
@@ -239,11 +228,22 @@
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "moon",
+        "b": "mars",
+        "type": "opposition",
+        "aspect_deg": 180,
+        "orb_deg": 0.83,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "aquarius",
+        "b_sign_ja": "水瓶座"
+      },
+      {
         "a": "venus",
         "b": "chiron",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
-        "orb_deg": 1.04,
+        "orb_deg": 1.07,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aries",
@@ -272,11 +272,22 @@
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "moon",
+        "b": "saturn",
+        "type": "quincunx_150",
+        "aspect_deg": 150,
+        "orb_deg": 1.09,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "aries",
+        "b_sign_ja": "牡羊座"
+      },
+      {
         "a": "mars",
         "b": "neptune",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
-        "orb_deg": 1.13,
+        "orb_deg": 1.11,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "aries",
@@ -294,22 +305,11 @@
         "b_sign_ja": "射手座"
       },
       {
-        "a": "moon",
-        "b": "saturn",
-        "type": "quincunx_150",
-        "aspect_deg": 150,
-        "orb_deg": 1.44,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "aries",
-        "b_sign_ja": "牡羊座"
-      },
-      {
         "a": "mercury",
         "b": "pluto",
         "type": "semi_square_45",
         "aspect_deg": 45,
-        "orb_deg": 1.56,
+        "orb_deg": 1.54,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aquarius",
@@ -317,32 +317,32 @@
       },
       {
         "a": "mars",
-        "b": "lilith",
-        "type": "binovile_80",
-        "aspect_deg": 80,
-        "orb_deg": 1.93,
-        "a_sign_key": "aquarius",
-        "a_sign_ja": "水瓶座",
-        "b_sign_key": "sagittarius",
-        "b_sign_ja": "射手座"
-      },
-      {
-        "a": "mars",
         "b": "saturn",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
-        "orb_deg": 1.94,
+        "orb_deg": 1.92,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "aries",
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "mars",
+        "b": "lilith",
+        "type": "binovile_80",
+        "aspect_deg": 80,
+        "orb_deg": 1.95,
+        "a_sign_key": "aquarius",
+        "a_sign_ja": "水瓶座",
+        "b_sign_key": "sagittarius",
+        "b_sign_ja": "射手座"
+      },
+      {
         "a": "sun",
         "b": "chiron",
         "type": "novile_40",
         "aspect_deg": 40,
-        "orb_deg": 2.15,
+        "orb_deg": 2.13,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aries",
@@ -353,7 +353,7 @@
         "b": "uranus",
         "type": "square",
         "aspect_deg": 90,
-        "orb_deg": 2.2,
+        "orb_deg": 2.22,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "taurus",
@@ -371,26 +371,26 @@
         "b_sign_ja": "牡牛座"
       },
       {
-        "a": "sun",
-        "b": "pluto",
-        "type": "novile_40",
-        "aspect_deg": 40,
-        "orb_deg": 2.61,
-        "a_sign_key": "pisces",
-        "a_sign_ja": "魚座",
-        "b_sign_key": "aquarius",
-        "b_sign_ja": "水瓶座"
-      },
-      {
         "a": "venus",
         "b": "uranus",
         "type": "sextile",
         "aspect_deg": 60,
-        "orb_deg": 2.61,
+        "orb_deg": 2.58,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "taurus",
         "b_sign_ja": "牡牛座"
+      },
+      {
+        "a": "sun",
+        "b": "pluto",
+        "type": "novile_40",
+        "aspect_deg": 40,
+        "orb_deg": 2.59,
+        "a_sign_key": "pisces",
+        "a_sign_ja": "魚座",
+        "b_sign_key": "aquarius",
+        "b_sign_ja": "水瓶座"
       },
       {
         "a": "saturn",
@@ -404,33 +404,33 @@
         "b_sign_ja": "水瓶座"
       },
       {
-        "a": "moon",
-        "b": "uranus",
-        "type": "square",
-        "aspect_deg": 90,
-        "orb_deg": 2.7,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "taurus",
-        "b_sign_ja": "牡牛座"
-      },
-      {
         "a": "mercury",
         "b": "chiron",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
-        "orb_deg": 2.98,
+        "orb_deg": 3,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aries",
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "moon",
+        "b": "uranus",
+        "type": "square",
+        "aspect_deg": 90,
+        "orb_deg": 3.05,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "taurus",
+        "b_sign_ja": "牡牛座"
+      },
+      {
         "a": "sun",
         "b": "jupiter",
         "type": "trine",
         "aspect_deg": 120,
-        "orb_deg": 3.24,
+        "orb_deg": 3.22,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "cancer",
@@ -481,11 +481,22 @@
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "moon",
+        "b": "pluto",
+        "type": "quincunx_150",
+        "aspect_deg": 150,
+        "orb_deg": 3.76,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "aquarius",
+        "b_sign_ja": "水瓶座"
+      },
+      {
         "a": "sun",
         "b": "uranus",
         "type": "quintile_72",
         "aspect_deg": 72,
-        "orb_deg": 3.8,
+        "orb_deg": 3.78,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "taurus",
@@ -496,7 +507,7 @@
         "b": "lilith",
         "type": "square",
         "aspect_deg": 90,
-        "orb_deg": 3.93,
+        "orb_deg": 3.95,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "sagittarius",
@@ -507,22 +518,11 @@
         "b": "venus",
         "type": "conjunction",
         "aspect_deg": 0,
-        "orb_deg": 4.02,
+        "orb_deg": 4.07,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "pisces",
         "b_sign_ja": "魚座"
-      },
-      {
-        "a": "moon",
-        "b": "pluto",
-        "type": "quincunx_150",
-        "aspect_deg": 150,
-        "orb_deg": 4.11,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "aquarius",
-        "b_sign_ja": "水瓶座"
       },
       {
         "a": "saturn",
@@ -536,33 +536,33 @@
         "b_sign_ja": "牡牛座"
       },
       {
-        "a": "mars",
-        "b": "pluto",
-        "type": "semi_sextile_30",
-        "aspect_deg": 30,
-        "orb_deg": 4.61,
-        "a_sign_key": "aquarius",
-        "a_sign_ja": "水瓶座",
-        "b_sign_key": "aquarius",
-        "b_sign_ja": "水瓶座"
-      },
-      {
         "a": "moon",
         "b": "venus",
         "type": "quadranovile_160",
         "aspect_deg": 160,
-        "orb_deg": 4.69,
+        "orb_deg": 4.37,
         "a_sign_key": "virgo",
         "a_sign_ja": "乙女座",
         "b_sign_key": "pisces",
         "b_sign_ja": "魚座"
       },
       {
+        "a": "mars",
+        "b": "pluto",
+        "type": "semi_sextile_30",
+        "aspect_deg": 30,
+        "orb_deg": 4.59,
+        "a_sign_key": "aquarius",
+        "a_sign_ja": "水瓶座",
+        "b_sign_key": "aquarius",
+        "b_sign_ja": "水瓶座"
+      },
+      {
         "a": "venus",
         "b": "mars",
         "type": "semi_sextile_30",
         "aspect_deg": 30,
-        "orb_deg": 4.81,
+        "orb_deg": 4.8,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aquarius",
@@ -573,7 +573,7 @@
         "b": "uranus",
         "type": "quintile_72",
         "aspect_deg": 72,
-        "orb_deg": 5.37,
+        "orb_deg": 5.35,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "taurus",
@@ -584,7 +584,7 @@
         "b": "pluto",
         "type": "semi_square_45",
         "aspect_deg": 45,
-        "orb_deg": 5.58,
+        "orb_deg": 5.61,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aquarius",
@@ -595,7 +595,7 @@
         "b": "chiron",
         "type": "sextile",
         "aspect_deg": 60,
-        "orb_deg": 5.85,
+        "orb_deg": 5.87,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "aries",
@@ -606,7 +606,7 @@
         "b": "jupiter",
         "type": "trine",
         "aspect_deg": 120,
-        "orb_deg": 5.93,
+        "orb_deg": 5.91,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "cancer",
@@ -617,7 +617,7 @@
         "b": "neptune",
         "type": "conjunction",
         "aspect_deg": 0,
-        "orb_deg": 5.94,
+        "orb_deg": 5.91,
         "a_sign_key": "pisces",
         "a_sign_ja": "魚座",
         "b_sign_key": "aries",
@@ -639,7 +639,7 @@
         "b": "chiron",
         "type": "trine",
         "aspect_deg": 120,
-        "orb_deg": 6.35,
+        "orb_deg": 6.7,
         "a_sign_key": "virgo",
         "a_sign_ja": "乙女座",
         "b_sign_key": "aries",
@@ -672,7 +672,7 @@
         "b": "lilith",
         "type": "square",
         "aspect_deg": 90,
-        "orb_deg": 7.57,
+        "orb_deg": 7.22,
         "a_sign_key": "virgo",
         "a_sign_ja": "乙女座",
         "b_sign_key": "sagittarius",
@@ -692,17 +692,6 @@
     ],
     "sky_top": [
       {
-        "a": "moon",
-        "b": "mars",
-        "type": "opposition",
-        "aspect_deg": 180,
-        "orb_deg": 0.5,
-        "a_sign_key": "virgo",
-        "a_sign_ja": "乙女座",
-        "b_sign_key": "aquarius",
-        "b_sign_ja": "水瓶座"
-      },
-      {
         "a": "saturn",
         "b": "neptune",
         "type": "conjunction",
@@ -714,11 +703,22 @@
         "b_sign_ja": "牡羊座"
       },
       {
+        "a": "moon",
+        "b": "mars",
+        "type": "opposition",
+        "aspect_deg": 180,
+        "orb_deg": 0.83,
+        "a_sign_key": "virgo",
+        "a_sign_ja": "乙女座",
+        "b_sign_key": "aquarius",
+        "b_sign_ja": "水瓶座"
+      },
+      {
         "a": "mars",
         "b": "uranus",
         "type": "square",
         "aspect_deg": 90,
-        "orb_deg": 2.2,
+        "orb_deg": 2.22,
         "a_sign_key": "aquarius",
         "a_sign_ja": "水瓶座",
         "b_sign_key": "taurus",
@@ -727,10 +727,10 @@
     ],
     "tone_hints": {
       "resonance_bullets": [
-        "・安心と揺れが同時に存在しやすい",
+        "・小さな違和感に気づきやすい",
+        "・同じ領域でエネルギーが重なり、濃度が上がりやすい",
         "・言葉にしないまま抱えていたい余韻",
-        "・整理より先に、体感が動きやすい",
-        "・小さな違和感に気づきやすい"
+        "・安心と揺れが同時に存在しやすい"
       ]
     }
   },
@@ -759,10 +759,10 @@
         "natal_body_or_point": "mc",
         "aspect": "sesqui_square_135",
         "aspect_deg": 135,
-        "orb_deg": 0.02,
+        "orb_deg": 0.01,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 355.16,
+        "transit_lon_deg": 355.19,
         "natal_lon_deg": 130.18,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
@@ -834,10 +834,10 @@
         "natal_body_or_point": "Mercury",
         "aspect": "quadranovile_160",
         "aspect_deg": 160,
-        "orb_deg": 0.13,
+        "orb_deg": 0.15,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 341.97,
+        "transit_lon_deg": 341.99,
         "natal_lon_deg": 141.84,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
@@ -849,13 +849,58 @@
         "natal_body_or_point": "mercury",
         "aspect": "quadranovile_160",
         "aspect_deg": 160,
-        "orb_deg": 0.13,
+        "orb_deg": 0.15,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 341.97,
+        "transit_lon_deg": 341.99,
         "natal_lon_deg": 141.84,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
+        "natal_sign_key": "leo",
+        "natal_sign_ja": "獅子座"
+      },
+      {
+        "transit_body": "moon",
+        "natal_body_or_point": "Sun",
+        "aspect": "semi_sextile_30",
+        "aspect_deg": 30,
+        "orb_deg": 0.17,
+        "house_focus": null,
+        "keywords": [],
+        "transit_lon_deg": 150.82,
+        "natal_lon_deg": 120.99,
+        "transit_sign_key": "virgo",
+        "transit_sign_ja": "乙女座",
+        "natal_sign_key": "leo",
+        "natal_sign_ja": "獅子座"
+      },
+      {
+        "transit_body": "moon",
+        "natal_body_or_point": "sun",
+        "aspect": "semi_sextile_30",
+        "aspect_deg": 30,
+        "orb_deg": 0.17,
+        "house_focus": null,
+        "keywords": [],
+        "transit_lon_deg": 150.82,
+        "natal_lon_deg": 120.99,
+        "transit_sign_key": "virgo",
+        "transit_sign_ja": "乙女座",
+        "natal_sign_key": "leo",
+        "natal_sign_ja": "獅子座"
+      },
+      {
+        "transit_body": "mars",
+        "natal_body_or_point": "mc",
+        "aspect": "quadranovile_160",
+        "aspect_deg": 160,
+        "orb_deg": 0.19,
+        "house_focus": null,
+        "keywords": [],
+        "transit_lon_deg": 329.99,
+        "natal_lon_deg": 130.18,
+        "transit_sign_key": "aquarius",
+        "transit_sign_ja": "水瓶座",
         "natal_sign_key": "leo",
         "natal_sign_ja": "獅子座"
       },
@@ -864,10 +909,10 @@
         "natal_body_or_point": "Saturn",
         "aspect": "sextile",
         "aspect_deg": 60,
-        "orb_deg": 0.19,
+        "orb_deg": 0.21,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 351.14,
+        "transit_lon_deg": 351.12,
         "natal_lon_deg": 291.33,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
@@ -879,30 +924,15 @@
         "natal_body_or_point": "saturn",
         "aspect": "sextile",
         "aspect_deg": 60,
-        "orb_deg": 0.19,
+        "orb_deg": 0.21,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 351.14,
+        "transit_lon_deg": 351.12,
         "natal_lon_deg": 291.33,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
         "natal_sign_key": "capricorn",
         "natal_sign_ja": "山羊座"
-      },
-      {
-        "transit_body": "mars",
-        "natal_body_or_point": "mc",
-        "aspect": "quadranovile_160",
-        "aspect_deg": 160,
-        "orb_deg": 0.21,
-        "house_focus": null,
-        "keywords": [],
-        "transit_lon_deg": 329.97,
-        "natal_lon_deg": 130.18,
-        "transit_sign_key": "aquarius",
-        "transit_sign_ja": "水瓶座",
-        "natal_sign_key": "leo",
-        "natal_sign_ja": "獅子座"
       },
       {
         "transit_body": "pluto",
@@ -965,21 +995,6 @@
         "natal_sign_ja": "蠍座"
       },
       {
-        "transit_body": "moon",
-        "natal_body_or_point": "chiron",
-        "aspect": "novile_40",
-        "aspect_deg": 40,
-        "orb_deg": 0.32,
-        "house_focus": null,
-        "keywords": [],
-        "transit_lon_deg": 150.47,
-        "natal_lon_deg": 110.15,
-        "transit_sign_key": "virgo",
-        "transit_sign_ja": "乙女座",
-        "natal_sign_key": "cancer",
-        "natal_sign_ja": "蟹座"
-      },
-      {
         "transit_body": "chiron",
         "natal_body_or_point": "Jupiter",
         "aspect": "square",
@@ -1008,21 +1023,6 @@
         "transit_sign_ja": "牡羊座",
         "natal_sign_key": "cancer",
         "natal_sign_ja": "蟹座"
-      },
-      {
-        "transit_body": "pluto",
-        "natal_body_or_point": "Pluto",
-        "aspect": "binovile_80",
-        "aspect_deg": 80,
-        "orb_deg": 0.39,
-        "house_focus": null,
-        "keywords": [],
-        "transit_lon_deg": 304.58,
-        "natal_lon_deg": 224.97,
-        "transit_sign_key": "aquarius",
-        "transit_sign_ja": "水瓶座",
-        "natal_sign_key": "scorpio",
-        "natal_sign_ja": "蠍座"
       }
     ],
     "touch_points_top3": [
@@ -1031,10 +1031,10 @@
         "natal_body_or_point": "mc",
         "aspect": "sesqui_square_135",
         "aspect_deg": 135,
-        "orb_deg": 0.02,
+        "orb_deg": 0.01,
         "house_focus": null,
         "keywords": [],
-        "transit_lon_deg": 355.16,
+        "transit_lon_deg": 355.19,
         "natal_lon_deg": 130.18,
         "transit_sign_key": "pisces",
         "transit_sign_ja": "魚座",
@@ -1096,10 +1096,10 @@
           "natal_body_or_point": "mc",
           "aspect": "sesqui_square_135",
           "aspect_deg": 135,
-          "orb_deg": 0.02,
+          "orb_deg": 0.01,
           "house_focus": null,
           "keywords": [],
-          "transit_lon_deg": 355.16,
+          "transit_lon_deg": 355.19,
           "natal_lon_deg": 130.18,
           "transit_sign_key": "pisces",
           "transit_sign_ja": "魚座",
@@ -1128,10 +1128,10 @@
           "natal_body_or_point": "mc",
           "aspect": "sesqui_square_135",
           "aspect_deg": 135,
-          "orb_deg": 0.02,
+          "orb_deg": 0.01,
           "house_focus": null,
           "keywords": [],
-          "transit_lon_deg": 355.16,
+          "transit_lon_deg": 355.19,
           "natal_lon_deg": 130.18,
           "transit_sign_key": "pisces",
           "transit_sign_ja": "魚座",
@@ -1156,10 +1156,10 @@
     },
     "tone_hints": {
       "resonance_bullets": [
-        "・言葉より“態度”が大事に感じやすい",
-        "・関係性を通してテーマが浮かびやすい",
         "・やわらかい関係性が欲しくなりやすい",
-        "・好意と警戒が混ざりやすい"
+        "・好意と警戒が混ざりやすい",
+        "・同じ領域でエネルギーが重なり、濃度が上がりやすい",
+        "・無自覚に反応が出やすい"
       ]
     }
   }
