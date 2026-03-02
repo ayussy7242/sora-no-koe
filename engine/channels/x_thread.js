@@ -19,7 +19,24 @@ const {
 const { listWithOrb, filterWithinOrb, sortByOrb, minByOrb } = require("../domain/aspect_selection");
 
 const THREAD_SEP = "\n\n---\n\n";
-const HASHTAGS = "#ソラのこえ #きょうのそら";
+const BASE_TAGS = ["#ソラのこえ", "#きょうのそら"];
+
+function buildTags(signs = []) {
+  const out = [];
+  const seen = new Set();
+  const push = (tag) => {
+    if (!tag) return;
+    if (seen.has(tag)) return;
+    seen.add(tag);
+    out.push(tag);
+  };
+  BASE_TAGS.forEach(push);
+  signs
+    .map((s) => String(s || "").replace(/\s+/g, "").trim())
+    .filter(Boolean)
+    .forEach((s) => push(`#${s}`));
+  return out.join(" ");
+}
 
 function renderXThread(story, deps = {}) {
   const dict = deps?.dict || require("../../dict");
@@ -54,6 +71,10 @@ function renderXThread(story, deps = {}) {
 
   const distLines = formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
 
+  const sunSign = transitSigns?.sun?.sign_ja || signJa(dict, transitSigns?.sun?.sign_key || "");
+  const moonSign = transitSigns?.moon?.sign_ja || signJa(dict, transitSigns?.moon?.sign_key || "");
+  const part1Tags = buildTags([sunSign, moonSign]);
+
   const part1Lines = [
     `🌌 きょうのそら｜${dateLabel}`,
     "",
@@ -63,7 +84,7 @@ function renderXThread(story, deps = {}) {
     "",
     ...distLines,
     "",
-    HASHTAGS,
+    part1Tags,
   ];
 
   // ---------- Part 2: 共鳴 ----------
@@ -73,7 +94,7 @@ function renderXThread(story, deps = {}) {
   const minItem = minByOrb(allWithOrb);
 
   let picked = [];
-  const listTitleAspect = "【今日の共鳴（最強）】";
+  const listTitleAspect = "【今日の共鳴（最大接近）】";
   if (within.length) {
     picked = sortByOrb(within).slice(0, 1);
   } else if (minItem) {
@@ -126,13 +147,15 @@ function renderXThread(story, deps = {}) {
     return [line1, line2];
   })();
 
+  const part2Tags = buildTags([resonanceSignsLine ? resonanceSignsLine.replace(/^星座：/,"").split(" × ")[0] : "", resonanceSignsLine ? resonanceSignsLine.replace(/^星座：/,"").split(" × ")[1] : ""]);
+
   const part2Lines = [
     listTitleAspect,
     "",
     ...aspectLines,
     ...(resonanceSignsLine ? ["", resonanceSignsLine] : []),
     "",
-    HASHTAGS,
+    part2Tags,
   ];
 
   return part1Lines.filter(Boolean).join("\n").trim() + THREAD_SEP + part2Lines.filter(Boolean).join("\n").trim();
