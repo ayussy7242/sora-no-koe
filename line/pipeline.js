@@ -339,27 +339,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
 
     if (intentKey === intent.INTENT.SORAZU) {
-      const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
-      const expiresDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
-      if (!storage || !bucketName) {
-        return { text: "ソラ図の準備中だよ。", stage: "paid_sorazu_missing_storage" };
-      }
-      const wheel = await buildAndStoreSoraWheel({
-        storage,
-        bucketName,
-        lineUserId,
-        dateLocal: storyObj?.meta?.date_local,
-        story: storyObj,
-        dateLabel,
-        expiresDays,
-      });
-      if (!wheel?.ok || !wheel?.url) {
-        return { text: "ソラ図の生成に失敗したみたい。", stage: "paid_sorazu_failed" };
-      }
-      return {
-        message: [{ type: "image", originalContentUrl: wheel.url, previewImageUrl: wheel.url }],
-        stage: "paid_sorazu",
-      };
+      return { text: "ソラ図は現在停止中だよ。", stage: "paid_sorazu_paused" };
     }
   }
 
