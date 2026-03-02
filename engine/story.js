@@ -30,6 +30,14 @@ const { createSignHelpers } = require("./story_signs");
 const { createTransitsService } = require("./story_transits");
 const { createNatalService } = require("./story_natal");
 const { createSkyService } = require("./story_sky");
+const {
+  computeTokyoAscDeg,
+  signIndexFromKey,
+  houseNumberForSignIndex,
+  pickApplyingUpcomingAspects,
+  formatDateYmdHm,
+} = require("./domain/astro_compute");
+const { normalizeAspectKey } = require("./domain/canonical");
 
 function createStoryService({
   db,
@@ -150,6 +158,48 @@ function createStoryService({
     // ✅ sky_all / sky_top の各行に a/b のサイン情報を埋める
     attachSignsToSkyList(publicObj.sky_all, publicObj.transit_signs);
     attachSignsToSkyList(publicObj.sky_top, publicObj.transit_signs);
+
+    // ✅ public house focus (Tokyo / whole sign)
+    const ascDeg = computeTokyoAscDeg(asOfISO);
+    const ascSign = Number.isFinite(Number(ascDeg)) ? signFromLon(ascDeg) : null;
+    const ascIndex = ascSign ? signIndexFromKey(SIGNS, ascSign.sign_key) : null;
+    const houseCounts = {};
+    if (ascIndex != null && publicObj.transit_signs) {
+      Object.values(publicObj.transit_signs).forEach((item) => {
+        const signKey = item?.sign_key;
+        if (!signKey) return;
+        const signIndex = signIndexFromKey(SIGNS, signKey);
+        const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+        if (!houseNo) return;
+        houseCounts[houseNo] = (houseCounts[houseNo] || 0) + 1;
+      });
+    }
+    const houseList = Object.entries(houseCounts)
+      .map(([houseNo, count]) => ({ house_no: Number(houseNo), count }))
+      .sort((a, b) => (b.count - a.count) || (a.house_no - b.house_no));
+    publicObj.house_focus = {
+      total: Object.keys(publicObj.transit_signs || {}).length,
+      asc_sign_key: ascSign?.sign_key || null,
+      asc_sign_ja: ascSign?.sign_ja || null,
+      counts: houseCounts,
+      top: houseList.slice(0, 3),
+    };
+
+    // ✅ public kinjitsu (approaching transit-transit)
+    const upcoming = pickApplyingUpcomingAspects({ public: publicObj }, SIGNS, asOfISO, 5, 3);
+    publicObj.kinjitsu = upcoming.map((it) => ({
+      a: it?.aKey || it?.raw?.a || null,
+      b: it?.bKey || it?.raw?.b || null,
+      aspect: normalizeAspectKey(it?.raw?.type || it?.raw?.aspect, it?.aspectDeg),
+      aspect_deg: it?.aspectDeg ?? it?.raw?.aspect_deg ?? null,
+      now_orb: it?.nowOrb ?? it?.raw?.orb_deg ?? null,
+      peak_at: it?.peak instanceof Date ? it.peak.toISOString() : null,
+      peak_label: it?.peak instanceof Date ? formatDateYmdHm(it.peak) : null,
+      a_sign_key: it?.raw?.a_sign_key || null,
+      a_sign_ja: it?.raw?.a_sign_ja || null,
+      b_sign_key: it?.raw?.b_sign_key || null,
+      b_sign_ja: it?.raw?.b_sign_ja || null,
+    }));
 
     // ✅ 最後に story を返す
     return {
