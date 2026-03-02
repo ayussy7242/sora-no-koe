@@ -6,7 +6,11 @@ const { buildBlogBlocks, blocksToInput } = require("./story_blocks");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
 } = require("../prompts/sora_ai_prompts");
-const { BLOG_BLOCKS_USER_GUIDE } = require("../prompts/blog_blocks");
+const {
+  BLOG_BLOCKS_USER_GUIDE,
+  BLOG_BLOCK_SECTION_GUIDE,
+  BLOG_BLOCK_ITEM_GUIDE,
+} = require("../prompts/blog_blocks");
 
 const BLOG_BANNED_TERMS = [
   "あなた",
@@ -448,34 +452,134 @@ function buildDailyTitle(story, dateLocal) {
 async function generateDailyDraft({ story, dateLocal, openai }) {
   const blocks = buildBlogBlocks(story, { dateLocal });
   const dataBlock = blocksToInput(blocks);
-  const baseUser = userPrompt({ dateLocal, dataBlock });
-  const buildMessages = (retryNote = "") => [
+
+  const noAi =
+    openai?.noAi === true ||
+    process.env.BLOG_NO_AI === "1" ||
+    process.env.BLOG_PREVIEW === "1";
+  if (noAi) {
+    return renderBlocksPreview(blocks);
+  }
+
+  const mode = String(openai?.mode || process.env.BLOG_GEN_MODE || "single").toLowerCase();
+  const modelMain =
+    openai?.modelBlog ||
+    openai?.model ||
+    process.env.OPENAI_MODEL_BLOG ||
+    process.env.OPENAI_MODEL ||
+    "gpt-4o";
+  const modelParts =
+    openai?.modelBlogParts ||
+    process.env.OPENAI_MODEL_BLOG_PARTS ||
+    modelMain;
+
+  const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\n星は語る。解釈はあなたのもの🌃";
+
+  const buildMessages = (userContent, retryNote = "") => [
     { role: "system", content: systemPrompt() },
     {
       role: "user",
-      content: retryNote ? `${baseUser}\n\n【NG修正】${retryNote}` : baseUser,
+      content: retryNote ? `${userContent}\n\n【NG修正】${retryNote}` : userContent,
     },
   ];
 
-  const runOnce = async (retryNote = "") =>
-    createChatCompletion({
-      apiKey: openai.apiKey,
-      baseUrl: openai.baseUrl,
-      model: openai.model,
-      messages: buildMessages(retryNote),
-      temperature: 0.7,
-      maxTokens: 2200,
-    });
+  const runWithRetry = async ({ userContent, model, maxTokens = 2200 }) => {
+    const runOnce = async (retryNote = "") =>
+      createChatCompletion({
+        apiKey: openai.apiKey,
+        baseUrl: openai.baseUrl,
+        model,
+        messages: buildMessages(userContent, retryNote),
+        temperature: 0.7,
+        maxTokens,
+      });
 
-  const text = await runOnce();
-  const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\n星は語る。解釈はあなたのもの🌃";
-  const cleaned = softenText(text);
-  const banned = findBannedTerm(cleaned);
-  if (banned) {
-    const retryText = await runOnce(`禁止語「${banned}」を含めない。未来断定/指示/救済/運命固定/絶対語/本文の「あなた」を避ける。`);
-    return enforceSingleClosing(softenText(retryText), closing);
+    const text = await runOnce();
+    const cleaned = softenText(text);
+    const banned = findBannedTerm(cleaned);
+    if (banned) {
+      const retryText = await runOnce(
+        `禁止語「${banned}」を含めない。未来断定/指示/救済/運命固定/絶対語/本文の「あなた」を避ける。`
+      );
+      return softenText(retryText);
+    }
+    return cleaned;
+  };
+
+  if (mode === "block") {
+    const parts = [];
+    for (const block of blocks) {
+      const blockInput = blocksToInput([block]);
+      const content = [
+        BLOG_BLOCKS_USER_GUIDE,
+        "",
+        `日付: ${dateLocal}`,
+        "",
+        "INPUT:",
+        blockInput,
+      ].join("\n");
+      const html = await runWithRetry({ userContent: content, model: modelParts, maxTokens: 1400 });
+      parts.push(html.trim());
+    }
+    return enforceSingleClosing(parts.join("\n\n").trim(), closing);
   }
-  return enforceSingleClosing(cleaned, closing);
+
+  if (mode === "item") {
+    const out = [];
+    for (const block of blocks) {
+      const facts = Array.isArray(block?.facts) && block.facts.length
+        ? `FACTS:\n- ${block.facts.join("\n- ")}`
+        : "FACTS: none";
+      const headerPrompt = [
+        BLOG_BLOCK_SECTION_GUIDE,
+        "",
+        `日付: ${dateLocal}`,
+        "",
+        `BLOCK_TITLE: ${block.title}`,
+        facts,
+      ].join("\n");
+      const headerHtml = await runWithRetry({ userContent: headerPrompt, model: modelParts, maxTokens: 800 });
+      out.push(headerHtml.trim());
+
+      const items = Array.isArray(block?.items) ? block.items : [];
+      if (block.itemsAsH3 && items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const title = `${i + 1}. ${items[i]}`;
+          const itemPrompt = [
+            BLOG_BLOCK_ITEM_GUIDE,
+            "",
+            `日付: ${dateLocal}`,
+            "",
+            `BLOCK_TITLE: ${block.title}`,
+            `H3_TITLE: ${title}`,
+            facts,
+          ].join("\n");
+          const itemHtml = await runWithRetry({ userContent: itemPrompt, model: modelParts, maxTokens: 700 });
+          out.push(itemHtml.trim());
+        }
+      } else if (items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const title = `${block.title} ${i + 1}`;
+          const itemPrompt = [
+            BLOG_BLOCK_ITEM_GUIDE,
+            "",
+            `日付: ${dateLocal}`,
+            "",
+            `BLOCK_TITLE: ${block.title}`,
+            `H3_TITLE: ${title}`,
+            facts,
+          ].join("\n");
+          const itemHtml = await runWithRetry({ userContent: itemPrompt, model: modelParts, maxTokens: 600 });
+          out.push(itemHtml.trim());
+        }
+      }
+    }
+    return enforceSingleClosing(out.join("\n\n").trim(), closing);
+  }
+
+  const baseUser = userPrompt({ dateLocal, dataBlock });
+  const text = await runWithRetry({ userContent: baseUser, model: modelMain, maxTokens: 2200 });
+  return enforceSingleClosing(text, closing);
 }
 
 function escapeHtml(text) {
@@ -484,6 +588,28 @@ function escapeHtml(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function renderBlocksPreview(blocks = []) {
+  const out = [];
+  blocks.forEach((block) => {
+    if (block?.title) out.push(`<h2>${escapeHtml(block.title)}</h2>`);
+    if (Array.isArray(block?.facts) && block.facts.length) {
+      out.push(`<p>${escapeHtml(block.facts.join(" / "))}</p>`);
+    }
+    if (Array.isArray(block?.items) && block.items.length) {
+      if (block.itemsAsH3) {
+        block.items.forEach((item, idx) => {
+          out.push(`<h3>${idx + 1}. ${escapeHtml(item)}</h3>`);
+        });
+      } else {
+        block.items.forEach((item) => {
+          out.push(`<p>${escapeHtml(item)}</p>`);
+        });
+      }
+    }
+  });
+  return out.join("\n");
 }
 
 function markdownToHtml(text, opts = {}) {
