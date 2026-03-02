@@ -3,7 +3,6 @@
 const { renderLine } = require("./channels/line_today");
 const { renderSoraLine } = require("./channels/line_sora");
 
-
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");
 }
@@ -22,7 +21,7 @@ async function buildDailyLineMessage({ story, dict } = {}) {
   lines.push(`🌤 きょうのそら｜${dateLabel}`, "");
   if (freeSoraBody) lines.push(freeSoraBody);
   lines.push("", "────────", "");
-  lines.push(`⭐ あなたの星 × きょう`, "");
+  lines.push("⭐ あなたの星 × きょう", "");
   if (freeTodayBody) lines.push(freeTodayBody);
   lines.push("", "────────", "");
   lines.push("🔵 観測ログ＋｜近日公開");

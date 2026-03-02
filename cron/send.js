@@ -73,11 +73,39 @@ async function linePushText({ accessToken, to, text }) {
   return true;
 }
 
+async function linePushImage({ accessToken, to, imageUrl, previewUrl }) {
+  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
+  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
+  if (!to) throw new Error("line_user_id missing");
+  if (!imageUrl) throw new Error("image_url missing");
+
+  const originalContentUrl = String(imageUrl);
+  const previewImageUrl = String(previewUrl || imageUrl);
+
+  const res = await fetch("https://api.line.me/v2/bot/message/push", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to,
+      messages: [{ type: "image", originalContentUrl, previewImageUrl }],
+    }),
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`LINE push image error ${res.status} ${t}`);
+  }
+  return true;
+}
+
 async function sendDaily8(deps, opts = {}) {
   const { db, admin, env } = deps || {};
   if (!db) throw new Error("db required");
   if (!admin) throw new Error("admin required");
   if (!env) throw new Error("env required");
+
+  // Temporary: disable sending any LINE images in daily 08:00
+  const DISABLE_DAILY8_IMAGES = true;
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const target = pickTarget(opts.target);
@@ -102,6 +130,9 @@ async function sendDaily8(deps, opts = {}) {
 
     if (!dryRun) {
       await linePushText({ accessToken, to: item.line_user_id, text: item.text });
+      if (!DISABLE_DAILY8_IMAGES && item.image_url) {
+        await linePushImage({ accessToken, to: item.line_user_id, imageUrl: item.image_url });
+      }
       return { ok: true, date_local: dateLocal, target, sent: 1, failed: 0, dry_run: dryRun };
     }
     return { ok: true, date_local: dateLocal, target, sent: 0, failed: 0, dry_run: dryRun };
@@ -120,6 +151,9 @@ async function sendDaily8(deps, opts = {}) {
 
       if (!dryRun) {
         await linePushText({ accessToken, to: item.line_user_id, text: item.text });
+        if (!DISABLE_DAILY8_IMAGES && item.image_url) {
+          await linePushImage({ accessToken, to: item.line_user_id, imageUrl: item.image_url });
+        }
         sent++;
       }
     } catch (_e) {
