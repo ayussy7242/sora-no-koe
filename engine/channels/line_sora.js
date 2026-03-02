@@ -101,7 +101,7 @@ async function renderSoraLine(story, deps = {}) {
 
   const headerLine = `🌌 きょうのそら｜${dateLabel}`;
   const listTitleAll = "【配置一覧】";
-  const listTitleAspect = "【今日の共鳴（最強）】";
+  const listTitleAspect = "【最大orb接近】";
 
   const pub = story?.public || {};
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
