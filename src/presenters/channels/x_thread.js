@@ -21,7 +21,6 @@ const {
   absAngularDistance,
   calcTransitLon,
   formatDateYmdHm,
-  findNextMoonPhase,
   pickApplyingUpcomingAspects,
 } = require("../../domain/astro_compute");
 const { toDateLocalJST } = require("../../utils/time_utils");
@@ -79,6 +78,95 @@ function formatMonthDayHm(date) {
   const hh = String(jst.getUTCHours()).padStart(2, "0");
   const mm = String(jst.getUTCMinutes()).padStart(2, "0");
   return `${ymd} ${hh}:${mm}`;
+}
+
+function moonPhaseDegAt(iso) {
+  const sunLon = calcTransitLon("sun", iso);
+  const moonLon = calcTransitLon("moon", iso);
+  if (!Number.isFinite(Number(sunLon)) || !Number.isFinite(Number(moonLon))) return null;
+  return ((Number(moonLon) - Number(sunLon) + 360) % 360);
+}
+
+function phaseContNear(iso, ref) {
+  const deg = moonPhaseDegAt(iso);
+  if (!Number.isFinite(Number(deg))) return null;
+  let cont = Number(deg);
+  while (cont - ref > 180) cont -= 360;
+  while (cont - ref < -180) cont += 360;
+  return cont;
+}
+
+function findNextMoonPhaseContinuous(asOfISO, targetDeg, maxDays = 40) {
+  if (!asOfISO) return null;
+  const start = new Date(asOfISO);
+  if (!isValidDate(start)) return null;
+
+  const startDeg = moonPhaseDegAt(asOfISO);
+  if (!Number.isFinite(Number(startDeg))) return null;
+
+  let target = Number(targetDeg);
+  while (target <= Number(startDeg)) target += 360;
+
+  const stepHours = 6;
+  const totalSteps = Math.ceil((maxDays * 24) / stepHours);
+  let prevTime = null;
+  let prevCont = Number(startDeg);
+  let prevOffset = prevCont - target;
+
+  for (let i = 1; i <= totalSteps; i++) {
+    const t = new Date(start.getTime() + i * stepHours * 3600 * 1000);
+    const iso = t.toISOString();
+    const cont = phaseContNear(iso, prevCont);
+    if (!Number.isFinite(Number(cont))) continue;
+    const offset = cont - target;
+
+    if (prevOffset * offset <= 0) {
+      let left = prevTime || start;
+      let right = t;
+      let leftCont = prevCont;
+      let leftOffset = prevOffset;
+      for (let k = 0; k < 24; k++) {
+        const mid = new Date((left.getTime() + right.getTime()) / 2);
+        const midCont = phaseContNear(mid.toISOString(), leftCont);
+        if (!Number.isFinite(Number(midCont))) break;
+        const midOffset = midCont - target;
+        if (leftOffset * midOffset <= 0) {
+          right = mid;
+        } else {
+          left = mid;
+          leftCont = midCont;
+          leftOffset = midOffset;
+        }
+      }
+      return right;
+    }
+
+    prevTime = t;
+    prevCont = cont;
+    prevOffset = offset;
+  }
+  return null;
+}
+
+function computeMoonPhaseState(asOfISO) {
+  const sunLon = calcTransitLon("sun", asOfISO);
+  const moonLon = calcTransitLon("moon", asOfISO);
+  if (!Number.isFinite(Number(sunLon)) || !Number.isFinite(Number(moonLon))) return null;
+
+  const phaseDeg = ((Number(moonLon) - Number(sunLon) + 360) % 360);
+  const phaseAngle = absAngularDistance(moonLon, sunLon);
+  const illumination = (1 - Math.cos((phaseAngle * Math.PI) / 180)) / 2;
+
+  if (illumination <= 0.02) {
+    return { kind: "new", emoji: "🌑", label: "新月なう", phaseDeg, illumination };
+  }
+  if (illumination >= 0.98) {
+    return { kind: "full", emoji: "🌕", label: "満月なう", phaseDeg, illumination };
+  }
+  if (phaseDeg < 180) {
+    return { kind: "waxing", emoji: "🌓", label: "上弦へ向かう", phaseDeg, illumination };
+  }
+  return { kind: "waning", emoji: "🌗", label: "下弦へ向かう", phaseDeg, illumination };
 }
 
 function elementLabelFromSign(dict, signKey) {
@@ -180,32 +268,45 @@ function renderXThread(story, deps = {}) {
 
   // ---------- Part 2: 月相 + 今日の共鳴（上位1件） ----------
   const baseDate = new Date(asOfISO || Date.now());
-  const moonWindowMs = 2 * 86400000;
 
   const moonCandidates = [
     { kind: "new", emoji: "🌑", label: "新月", deg: 0 },
     { kind: "full", emoji: "🌕", label: "満月", deg: 180 },
   ];
 
-  const moonEvents = [];
-  moonCandidates.forEach((c) => {
-    const next = findNextMoonPhase(asOfISO, c.deg);
-    const prev = findNextMoonPhase(new Date(baseDate.getTime() - moonWindowMs).toISOString(), c.deg);
-    [next, prev].forEach((d) => {
-      if (!isValidDate(d)) return;
-      const exists = moonEvents.some((v) => Math.abs(v.date.getTime() - d.getTime()) < 6 * 3600 * 1000);
-      if (exists) return;
-      moonEvents.push({ ...c, date: d });
-    });
-  });
+  const moonLines = (() => {
+    const state = computeMoonPhaseState(asOfISO);
+    if (!state) return [];
 
-  const moonLines = moonEvents
-    .filter((ev) => Math.abs(ev.date.getTime() - baseDate.getTime()) <= moonWindowMs)
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((ev) => {
-      const dateText = formatDateYmdHm(ev.date);
-      return `${ev.emoji} ${ev.label}｜${dateText}（JST）`;
-    });
+    const lines = [];
+    lines.push("🌙 月相", "", `${state.emoji} ${state.label}`);
+
+    if (state.kind === "new" || state.kind === "full") {
+      const targetDeg = state.kind === "new" ? 0 : 180;
+      const peakStart = new Date(baseDate.getTime() - 3 * 86400000).toISOString();
+      const peak = findNextMoonPhaseContinuous(peakStart, targetDeg, 10);
+      if (isValidDate(peak)) lines.push(`ピーク：${formatDateYmdHm(peak)}（JST）`);
+    }
+
+    const nextNew = findNextMoonPhaseContinuous(asOfISO, 0);
+    const nextFull = findNextMoonPhaseContinuous(asOfISO, 180);
+    let nextMajor = null;
+    if (isValidDate(nextNew) && isValidDate(nextFull)) {
+      nextMajor = nextNew.getTime() <= nextFull.getTime()
+        ? { ...moonCandidates[0], date: nextNew }
+        : { ...moonCandidates[1], date: nextFull };
+    } else if (isValidDate(nextNew)) {
+      nextMajor = { ...moonCandidates[0], date: nextNew };
+    } else if (isValidDate(nextFull)) {
+      nextMajor = { ...moonCandidates[1], date: nextFull };
+    }
+
+    if (nextMajor) {
+      lines.push("", "次の月相", `${nextMajor.emoji} ${nextMajor.label}｜${formatDateYmdHm(nextMajor.date)}（JST）`);
+    }
+
+    return lines;
+  })();
 
   const resonanceItems = listWithOrb(skyAll)
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
@@ -259,7 +360,7 @@ function renderXThread(story, deps = {}) {
 
   const part2Blocks = [];
   if (moonLines.length) {
-    part2Blocks.push(["🌙 月相", "", ...moonLines].join("\n"));
+    part2Blocks.push(moonLines.join("\n"));
   }
   part2Blocks.push(["【今日の共鳴（最大接近）】", "", resonanceBlocks.join("\n\n")].join("\n"));
   part2Blocks.push(part2Tags);
