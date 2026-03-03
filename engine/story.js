@@ -35,6 +35,7 @@ const {
   signIndexFromKey,
   houseNumberForSignIndex,
   pickApplyingUpcomingAspects,
+  findTransitTransitWindow,
   formatDateYmdHm,
 } = require("./domain/astro_compute");
 const { normalizeAspectKey } = require("./domain/canonical");
@@ -200,6 +201,76 @@ function createStoryService({
       b_sign_key: it?.raw?.b_sign_key || null,
       b_sign_ja: it?.raw?.b_sign_ja || null,
     }));
+
+    // ✅ public kinjitsu_short (with start/end/applying_days)
+    publicObj.kinjitsu_short = upcoming.map((it) => {
+      const aKey = it?.aKey || it?.raw?.a || null;
+      const bKey = it?.bKey || it?.raw?.b || null;
+      const aspectDeg = it?.aspectDeg ?? it?.raw?.aspect_deg ?? null;
+      const window = (aKey && bKey && Number.isFinite(Number(aspectDeg)))
+        ? findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays: 120, orbLimit: 3 })
+        : null;
+      const now = new Date(asOfISO);
+      const applyingDays = window?.peak
+        ? Math.max(0, Math.ceil((window.peak.getTime() - now.getTime()) / 86400000))
+        : null;
+
+      return {
+        a: aKey,
+        b: bKey,
+        aspect: normalizeAspectKey(it?.raw?.type || it?.raw?.aspect, aspectDeg),
+        aspect_deg: aspectDeg,
+        now_orb: it?.nowOrb ?? it?.raw?.orb_deg ?? null,
+        start_at: window?.start instanceof Date ? window.start.toISOString() : null,
+        peak_at: window?.peak instanceof Date ? window.peak.toISOString() : (it?.peak instanceof Date ? it.peak.toISOString() : null),
+        end_at: window?.end instanceof Date ? window.end.toISOString() : null,
+        applying_days: applyingDays,
+        a_sign_key: it?.raw?.a_sign_key || null,
+        a_sign_ja: it?.raw?.a_sign_ja || null,
+        b_sign_key: it?.raw?.b_sign_key || null,
+        b_sign_ja: it?.raw?.b_sign_ja || null,
+      };
+    });
+
+    // ✅ public kinjitsu_long (long-term logs)
+    const longRows = [];
+    const seenLong = new Set();
+    (publicObj.sky_all || []).forEach((row) => {
+      const orb = Number(row?.orb_deg);
+      if (!Number.isFinite(orb) || orb > 3) return;
+      const aKey = String(row?.a || "").toLowerCase();
+      const bKey = String(row?.b || "").toLowerCase();
+      const aspectDeg = Number(row?.aspect_deg);
+      if (!aKey || !bKey || !Number.isFinite(aspectDeg)) return;
+
+      const key = [aKey, bKey, aspectDeg].join("|");
+      if (seenLong.has(key)) return;
+      seenLong.add(key);
+
+      const window = findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays: 500, orbLimit: 3 });
+      if (!window?.start || !window?.end) return;
+      const durationDays = Math.ceil((window.end.getTime() - window.start.getTime()) / 86400000);
+      if (durationDays < 30) return;
+
+      longRows.push({
+        a: aKey,
+        b: bKey,
+        aspect: normalizeAspectKey(row?.type || row?.aspect, aspectDeg),
+        aspect_deg: aspectDeg,
+        now_orb: orb,
+        start_at: window.start.toISOString(),
+        peak_at: window.peak instanceof Date ? window.peak.toISOString() : null,
+        end_at: window.end.toISOString(),
+        duration_days: durationDays,
+        a_sign_key: row?.a_sign_key || null,
+        a_sign_ja: row?.a_sign_ja || null,
+        b_sign_key: row?.b_sign_key || null,
+        b_sign_ja: row?.b_sign_ja || null,
+      });
+    });
+
+    longRows.sort((a, b) => Number(a.now_orb) - Number(b.now_orb));
+    publicObj.kinjitsu_long = longRows.slice(0, 3);
 
     // ✅ 最後に story を返す
     return {
