@@ -93,11 +93,46 @@ function buildTodayMoonInfo({ asOfISO, story, dict }) {
   return { phaseDeg, phase, moonAge, moonSign };
 }
 
+function getFullMoonForDate(asOfISO) {
+  const base = asOfISO ? new Date(asOfISO) : new Date();
+  if (Number.isNaN(base.getTime())) return null;
+  const dateLocal = toDateLocalJST(base);
+  const nextFull = findNextMoonPhase(asOfISO, 180);
+  const prevFull = findNextMoonPhase(new Date(base.getTime() - 35 * 86400000).toISOString(), 180);
+  if (nextFull && toDateLocalJST(nextFull) === dateLocal) return nextFull;
+  if (prevFull && toDateLocalJST(prevFull) === dateLocal) return prevFull;
+  return null;
+}
+
+function nearFullLabelByAge(moonAge) {
+  if (!Number.isFinite(Number(moonAge))) return "";
+  const age = Number(moonAge);
+  if (age < 12.5) return "上弦の月";
+  if (age < 13.5) return "十三夜";
+  if (age < 14.5) return "小望月";
+  if (age < 15.5) return "十六夜";
+  if (age < 16.5) return "立待月";
+  if (age < 17.5) return "居待月";
+  if (age < 18.5) return "寝待月";
+  if (age < 19.5) return "更待月";
+  return "有明月";
+}
+
 function formatTodayMoonLines({ asOfISO, story, dict }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const lines = [];
   if (info.phase.label || info.moonSign || Number.isFinite(info.moonAge)) {
-    const phaseLabel = info.phase.alt ? `${info.phase.label}（${info.phase.alt}）` : (info.phase.label || "—");
+    const baseDate = asOfISO ? new Date(asOfISO) : new Date();
+    const moonName = moonNameJaFromDate(baseDate);
+    const fullToday = getFullMoonForDate(asOfISO);
+    let phaseLabel = info.phase.label || "—";
+    if (fullToday) {
+      phaseLabel = moonName ? `満月（${moonName}）` : (info.phase.alt ? `満月（${info.phase.alt}）` : "満月");
+    } else if (info.phase.label === "満月") {
+      phaseLabel = nearFullLabelByAge(info.moonAge) || "小望月";
+    } else if (info.phase.alt) {
+      phaseLabel = `${info.phase.label}（${info.phase.alt}）`;
+    }
     const moonAgeText = Number.isFinite(info.moonAge) ? info.moonAge.toFixed(1) : "—";
     lines.push("🌙 本日の月");
     lines.push(`${phaseLabel}｜${info.moonSign || "—"}｜月齢 ${moonAgeText}`);
