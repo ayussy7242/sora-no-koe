@@ -101,8 +101,8 @@ function createCronRouter(deps = {}) {
   }
 
   function requireCronToken(req) {
-    const token = req.header("x-cron-token") || "";
-    const CRON_TOKEN = env2.CRON_TOKEN;
+    const token = String(req.header("x-cron-token") || "").trim();
+    const CRON_TOKEN = String(env2.CRON_TOKEN || "").trim();
 
     if (!CRON_TOKEN) return { ok: false, status: 500, message: "CRON_TOKEN is not set" };
     if (String(token) !== String(CRON_TOKEN)) return { ok: false, status: 401, message: "invalid cron token" };
