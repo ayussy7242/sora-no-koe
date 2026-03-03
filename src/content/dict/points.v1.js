@@ -31,7 +31,7 @@ const POINTS_V1 = {
     },
 
     vertex: {
-      label_ja: "vertex",
+      label_ja: "バーテックス",
       core: "交差点・出会いの焦点",
       field: "縁/転機/接点",
       sora_short: "交差点。縁が動く。",
@@ -39,6 +39,18 @@ const POINTS_V1 = {
       sora_deep: "自分の意志だけでは説明しにくい“接点”として現れやすい。",
       keywords: ["縁", "転機", "接点"],
       ai_tags: ["fated", "encounter"],
+    },
+
+    anti_vertex: {
+      label_ja: "アンチバーテックス",
+    },
+
+    part_of_fortune: {
+      label_ja: "パート・オブ・フォーチュン",
+    },
+
+    east_point: {
+      label_ja: "イーストポイント",
     },
 
     Lilith_mean: {

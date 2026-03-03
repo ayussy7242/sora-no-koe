@@ -41,19 +41,25 @@ async function renderSoraLine(story, deps = {}) {
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
-  const bodyLines = bodyOrder.map((k) => {
+  const bodyLines = [];
+  const breakBefore = new Set(["lilith"]);
+  bodyOrder.forEach((k) => {
     let signKey = transitSigns?.[k]?.sign_key || "";
     let signLabel = transitSigns?.[k]?.sign_ja || "";
     if (!signLabel && signKey) signLabel = signJa(dict, signKey || "");
     signLabel = String(signLabel || "").trim();
-    if (!signLabel) return "";
+    if (!signLabel) return;
     const retro = retroMap[k] ? SPEC.retro.suffix : "";
     const glyph = glyphForBody(k);
     const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
     const bodyText = `${bodyJa}${retro}`;
     const prefix = glyph ? `${glyph} ` : "";
-    return `${prefix}${bodyText}｜${signLabel}`;
-  }).filter(Boolean);
+    const line = `${prefix}${bodyText}｜${signLabel}`;
+    if (breakBefore.has(k) && bodyLines.length && bodyLines[bodyLines.length - 1] !== "") {
+      bodyLines.push("");
+    }
+    bodyLines.push(line);
+  });
 
   const allWithOrb = listWithOrb(skyAll);
   const within = filterWithinOrb(allWithOrb, orbLimit);
