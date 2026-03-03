@@ -243,7 +243,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // COPY (SSOT)
   // --------------------
-  const { RENDER_COPY } = require("../copy/render");
+  const { RENDER_COPY } = require("../../content/copy/render");
 
   // --------------------
   // DICT
