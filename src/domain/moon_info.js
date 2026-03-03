@@ -97,10 +97,15 @@ function getFullMoonForDate(asOfISO) {
   const base = asOfISO ? new Date(asOfISO) : new Date();
   if (Number.isNaN(base.getTime())) return null;
   const dateLocal = toDateLocalJST(base);
-  const nextFull = findNextMoonPhase(asOfISO, 180);
-  const prevFull = findNextMoonPhase(new Date(base.getTime() - 35 * 86400000).toISOString(), 180);
-  if (nextFull && toDateLocalJST(nextFull) === dateLocal) return nextFull;
-  if (prevFull && toDateLocalJST(prevFull) === dateLocal) return prevFull;
+  if (!dateLocal) return null;
+
+  // JST day window: 00:00:00 - 23:59:59
+  const start = new Date(`${dateLocal}T00:00:00+09:00`);
+  const end = new Date(`${dateLocal}T23:59:59+09:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+
+  const nextFull = findNextMoonPhase(start.toISOString(), 180);
+  if (nextFull && nextFull.getTime() <= end.getTime()) return nextFull;
   return null;
 }
 
