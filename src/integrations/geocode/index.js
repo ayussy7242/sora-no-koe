@@ -9,7 +9,7 @@
  * - 失敗時も扱いやすい戻り値（ok=false + status/reason/candidates）
  *
  * Usage:
- *   const { createGeocoder } = require("../engine/geocode");
+ *   const { createGeocoder } = require("../integrations/geocode");
  *   const geocoder = createGeocoder({ apiKey: env.GOOGLE_MAPS_API_KEY, db, project: env.PROJECT });
  *   const r = await geocoder.geocodePlace("北海道 上川郡 清水町", { language: "ja" });
  */
