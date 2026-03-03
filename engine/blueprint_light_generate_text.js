@@ -1,3 +1,3 @@
 "use strict";
 
-module.exports = require("./blueprint_light/generate_text");
+module.exports = require("../src/usecases/blueprint_light/entry");

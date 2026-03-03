@@ -13,7 +13,7 @@
  *   DEEP_MODE_ALLOW_LINE_USER_IDS=Uxxx,Uyyy
  */
 
-const { admin, getDb } = require("../config/firebase");
+const { admin, getDb } = require("../src/integrations/firebase/firebase");
 
 function listEnv(key, fallback = []) {
   const v = process.env[key];

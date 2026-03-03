@@ -1,6 +1,6 @@
 "use strict";
 
-const { admin, getDb } = require("../config/firebase");
+const { admin, getDb } = require("../src/integrations/firebase/firebase");
 
 function getArg(name, fallback = null) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
