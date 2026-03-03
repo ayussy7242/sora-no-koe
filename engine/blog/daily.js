@@ -457,24 +457,52 @@ function userPrompt({ dateLocal, dataBlock }) {
   ].join("\n");
 }
 
-function buildDailyTitle(story, dateLocal) {
+function formatDateJaFromLocal(dateLocal) {
+  const parts = String(dateLocal || "").trim().split("-");
+  if (parts.length !== 3) return "";
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return "";
+  return `${y}年${m}月${d}日`;
+}
+
+function storySignJa(story, bodyKey) {
+  const direct =
+    story?.public?.transit_signs?.[bodyKey]?.sign_ja ||
+    story?.public?.[bodyKey]?.sign_ja ||
+    "";
+  if (direct) return direct;
+  const rawKey =
+    story?.public?.transit_signs?.[bodyKey]?.sign_key ||
+    story?.public?.[bodyKey]?.sign_key ||
+    "";
+  const key = normalizeSignKey(rawKey);
+  return key ? signLabelJa(dict, key) : "";
+}
+
+function extractMoonPhaseLabel({ asOfISO, story }) {
+  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
+  const phaseLine = todayMoon?.lines?.[1] || "";
+  if (!phaseLine) return "";
+  const main = phaseLine.split("｜")[0] || "";
+  const label = main.split("（")[0].trim();
+  return label;
+}
+
+function buildSeoTitle({ story, dateLocal }) {
   const fallback = `今日のソラ｜${dateLocal}`;
-  const top = story?.public?.sky_top?.[0];
-  if (!top) return fallback;
+  const dateJa = formatDateJaFromLocal(dateLocal);
+  const sunSign = storySignJa(story, "sun");
+  const moonSign = storySignJa(story, "moon");
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const moonPhase = extractMoonPhaseLabel({ asOfISO, story });
+  if (!dateJa || !sunSign || !moonSign || !moonPhase) return fallback;
+  return `${dateJa}の星の配置｜${sunSign}太陽×${moonSign}${moonPhase}｜今日のソラ`;
+}
 
-  const aspect = getAspectByType(top.type);
-  const label = aspect?.label_ja;
-  const deg = top?.aspect_deg;
-  const seed = hash32(`${dateLocal}-${normalizeAspectType(top.type)}-title`);
-  const quality = aspectQualityLabel(top.type, seed);
-
-  if (!label || !deg || !quality) return fallback;
-
-  const strata = story?.public?.sky_strata || {};
-  const dom = dominantLabel(strata);
-  const domLabel = dom ? `${dom} ` : "";
-
-  return `今日のソラ｜${dateLocal} ― ${domLabel}${label}（${deg}°）：${quality}`;
+function buildDailyTitle(story, dateLocal) {
+  return buildSeoTitle({ story, dateLocal });
 }
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
