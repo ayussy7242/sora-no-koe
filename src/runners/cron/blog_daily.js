@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const { createWpClient } = require("../../integrations/wordpress/wp_client");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml } = require("../../usecases/daily/blog_daily");
@@ -9,7 +10,58 @@ function requiredEnv(name, value) {
   return value;
 }
 
-async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun = false }) {
+const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
+
+function nowIso(ms = Date.now()) {
+  return new Date(ms).toISOString();
+}
+
+async function acquireBlogLock(db, slug) {
+  const runId = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+
+  const ref = db.collection("cronLocks").doc(`blog_daily_${slug}`);
+  const now = Date.now();
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const data = snap.data() || {};
+      const status = String(data.status || "");
+      const startedAtMs = Number(data.startedAtMs || 0);
+      const isStale = startedAtMs > 0 && (now - startedAtMs) > BLOG_LOCK_TTL_MS;
+
+      if (status === "done") {
+        return { ok: false, reason: "done", data };
+      }
+      if (status === "running" && !isStale) {
+        return { ok: false, reason: "running", data };
+      }
+    }
+
+    tx.set(ref, {
+      status: "running",
+      slug,
+      runId,
+      startedAtMs: now,
+      startedAt: nowIso(now),
+    }, { merge: true });
+
+    return { ok: true, runId };
+  });
+}
+
+async function markBlogLock(ref, patch) {
+  const now = Date.now();
+  await ref.set({
+    ...patch,
+    finishedAtMs: now,
+    finishedAt: nowIso(now),
+  }, { merge: true });
+}
+
+async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false }) {
   const t0 = Date.now();
   const mark = (label, meta = null) => {
     const ms = Date.now() - t0;
@@ -28,6 +80,8 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
   requiredEnv("WP_APP_PASSWORD", env.WP_APP_PASSWORD);
   requiredEnv("WP_CATEGORY_DAILY", env.WP_CATEGORY_DAILY);
 
+  if (!db) throw new Error("db is required for blog daily lock");
+
   mark("story_before");
   const story = await storyService.buildStoryForUser(
     normalizeStoryArgs({
@@ -40,6 +94,21 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
   mark("story_after");
 
   mark("openai_before");
+  const slug = String(dateLocal);
+
+  let lockRef = null;
+  let lockRunId = null;
+  if (!dryRun) {
+    const lock = await acquireBlogLock(db, slug);
+    if (!lock.ok) {
+      mark("lock_skip", { reason: lock.reason, slug });
+      return { ok: true, skipped: true, reason: lock.reason, slug };
+    }
+    lockRunId = lock.runId;
+    lockRef = db.collection("cronLocks").doc(`blog_daily_${slug}`);
+    mark("lock_acquired", { slug, runId: lockRunId });
+  }
+
   let content = await generateDailyDraft({
     story,
     dateLocal,
@@ -54,7 +123,6 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
   });
   mark("openai_after");
 
-  const slug = String(dateLocal);
   const title = buildDailyTitle(story, dateLocal);
   const hasHtmlHeadings = /<h[23][\s>]/i.test(String(content || ""));
   content = hasHtmlHeadings
@@ -87,18 +155,27 @@ async function runDailyBlog({ env, storyService }, { dateLocal, asOfISO, dryRun 
     categories: [Number(env.WP_CATEGORY_DAILY)],
   };
 
-  const existing = await wp.getPostBySlug(slug);
-  if (existing?.id) {
-    const updated = await wp.updatePost(existing.id, payload);
-    mark("wp_after", { updated: true, id: updated?.id });
-    mark("end", { ok: true, updated: true, id: updated?.id });
-    return { ok: true, updated: true, id: updated.id, link: updated.link };
-  }
+  try {
+    const existing = await wp.getPostBySlug(slug);
+    if (existing?.id) {
+      const updated = await wp.updatePost(existing.id, payload);
+      mark("wp_after", { updated: true, id: updated?.id });
+      if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: updated?.id });
+      mark("end", { ok: true, updated: true, id: updated?.id });
+      return { ok: true, updated: true, id: updated.id, link: updated.link };
+    }
 
-  const created = await wp.createPost(payload);
-  mark("wp_after", { created: true, id: created?.id });
-  mark("end", { ok: true, created: true, id: created?.id });
-  return { ok: true, created: true, id: created.id, link: created.link };
+    const created = await wp.createPost(payload);
+    mark("wp_after", { created: true, id: created?.id });
+    if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: created?.id });
+    mark("end", { ok: true, created: true, id: created?.id });
+    return { ok: true, created: true, id: created.id, link: created.link };
+  } catch (e) {
+    if (lockRef) {
+      await markBlogLock(lockRef, { status: "failed", runId: lockRunId, error: e?.message || String(e) });
+    }
+    throw e;
+  }
 }
 
 module.exports = { runDailyBlog };

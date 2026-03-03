@@ -209,7 +209,7 @@ function createCronRouter(deps = {}) {
       const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
 
       const result = await runDailyBlog(
-        { env: env2, storyService },
+        { env: env2, storyService, db },
         { dateLocal, asOfISO, dryRun }
       );
 
