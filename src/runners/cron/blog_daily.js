@@ -82,6 +82,22 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
 
   if (!db) throw new Error("db is required for blog daily lock");
 
+  const slug = String(dateLocal);
+
+  let lockRef = null;
+  let lockRunId = null;
+  if (!dryRun) {
+    const lock = await acquireBlogLock(db, slug);
+    if (!lock.ok) {
+      mark("lock_skip", { reason: lock.reason, slug });
+      mark("end", { ok: true, skipped: true, reason: lock.reason, slug });
+      return { ok: true, skipped: true, reason: lock.reason, slug };
+    }
+    lockRunId = lock.runId;
+    lockRef = db.collection("cronLocks").doc(`blog_daily_${slug}`);
+    mark("lock_acquired", { slug, runId: lockRunId });
+  }
+
   mark("story_before");
   const story = await storyService.buildStoryForUser(
     normalizeStoryArgs({
@@ -94,21 +110,6 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   mark("story_after");
 
   mark("openai_before");
-  const slug = String(dateLocal);
-
-  let lockRef = null;
-  let lockRunId = null;
-  if (!dryRun) {
-    const lock = await acquireBlogLock(db, slug);
-    if (!lock.ok) {
-      mark("lock_skip", { reason: lock.reason, slug });
-      return { ok: true, skipped: true, reason: lock.reason, slug };
-    }
-    lockRunId = lock.runId;
-    lockRef = db.collection("cronLocks").doc(`blog_daily_${slug}`);
-    mark("lock_acquired", { slug, runId: lockRunId });
-  }
-
   let content = await generateDailyDraft({
     story,
     dateLocal,
