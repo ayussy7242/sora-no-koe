@@ -15,7 +15,7 @@
 
 "use strict";
 
-const fb = require("../config/firebase");
+const fb = require("../src/integrations/firebase/firebase");
 const db = fb.getDb();
 const admin = fb.admin;
 

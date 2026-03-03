@@ -135,12 +135,12 @@ async function main() {
 
   ensureTestPersonal(ensureSkyStrata(story));
 
-  const dict = require("../dict");
+  const dict = require("../src/content/dict");
 
-  const { renderSoraLine } = require("../engine/channels/line_sora");
-  const { renderLine } = require("../engine/channels/line_today");
-  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../engine/paid/line_paid_500");
-  const { buildSoraWheelSvg } = require("../engine/sora_wheel");
+  const { renderSoraLine } = require("../src/presenters/channels/line_sora");
+  const { renderLine } = require("../src/presenters/channels/line_today");
+  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../src/usecases/paid/line_paid_500");
+  const { buildSoraWheelSvg } = require("../src/integrations/media/sora_wheel");
 
   const dateLabel = date.replace(/-/g, ".");
 

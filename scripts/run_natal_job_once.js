@@ -1,7 +1,7 @@
 "use strict";
 
 const swisseph = require("swisseph");
-const { admin, getDb } = require("../config/firebase");
+const { admin, getDb } = require("../src/integrations/firebase/firebase");
 const { processOneNatalJob } = require("../jobs/worker");
 
 function getArg(name, fallback = null) {

@@ -1,6 +1,6 @@
 "use strict";
 
-const swisseph = require("../config/swisseph"); // ←あなたの構成に合わせてここは要調整
+const swisseph = require("../src/config/swisseph"); // ←あなたの構成に合わせてここは要調整
 // もし config/swisseph.js が「初期化済 swisseph」を export してるならOK
 
 function jdUtFromIso(iso) {

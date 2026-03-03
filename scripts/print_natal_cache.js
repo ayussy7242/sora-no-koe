@@ -1,5 +1,5 @@
 // scripts/print_natal_cache.js
-const { getDb } = require("../config/firebase");
+const { getDb } = require("../src/integrations/firebase/firebase");
 
 function getArg(name) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

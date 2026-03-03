@@ -43,10 +43,10 @@ async function main() {
   if (story.meta.rules.orb_max_deg == null) story.meta.rules.orb_max_deg = 6;
 
   // ✅ dict は常にプロジェクトから
-  const dict = require("../dict");
+  const dict = require("../src/content/dict");
 
   // ✅ renderer（←これが抜けてた/壊れてた）
-  const { createRenderers } = require("../engine/render");
+  const { createRenderers } = require("../src/presenters/render");
 
   const r = createRenderers({
     dict,

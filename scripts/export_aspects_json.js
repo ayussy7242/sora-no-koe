@@ -53,17 +53,17 @@ const COLLECTION = typeof args.collection === "string" ? args.collection : "dict
 // --------------------
 // Import dictionaries
 // --------------------
-const { ASPECTS_V1 } = require("../dict/aspects.v1");
-const { PLANETS_V1 } = require("../dict/planets.v1");
-const { POINTS_V1 } = require("../dict/points.v1");
-const { RESONANCE_V1 } = require("../dict/resonance.v1");
+const { ASPECTS_V1 } = require("../src/content/dict/aspects.v1");
+const { PLANETS_V1 } = require("../src/content/dict/planets.v1");
+const { POINTS_V1 } = require("../src/content/dict/points.v1");
+const { RESONANCE_V1 } = require("../src/content/dict/resonance.v1");
 
-const { SIGNS_V1 } = require("../dict/signs.v1");
-const { HOUSES_V1 } = require("../dict/houses.v1");
-const { ELEMENTS_V1 } = require("../dict/elements.v1");
-const { MODALITIES_V1 } = require("../dict/modalities.v1");
-const { ORB_RULES_V1 } = require("../dict/orb_rules.v1");
-const { TONE_VARIANTS_V1 } = require("../dict/tone_variants.v1");
+const { SIGNS_V1 } = require("../src/content/dict/signs.v1");
+const { HOUSES_V1 } = require("../src/content/dict/houses.v1");
+const { ELEMENTS_V1 } = require("../src/content/dict/elements.v1");
+const { MODALITIES_V1 } = require("../src/content/dict/modalities.v1");
+const { ORB_RULES_V1 } = require("../src/content/dict/orb_rules.v1");
+const { TONE_VARIANTS_V1 } = require("../src/content/dict/tone_variants.v1");
 
 // --------------------
 // Build payload
