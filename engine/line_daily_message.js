@@ -18,10 +18,10 @@ async function buildDailyLineMessage({ story, dict } = {}) {
 
   const lines = [];
 
-  lines.push(`🌤 きょうのそら｜${dateLabel}`, "");
+  lines.push(`🌃 きょうのそら｜${dateLabel}`, "");
   if (freeSoraBody) lines.push(freeSoraBody);
   lines.push("", "────────", "");
-  lines.push("⭐ わたしのほし×きょうのそら", "");
+  lines.push("⭐ あなたのほし×きょうのそら", "");
   if (freeTodayBody) lines.push(freeTodayBody);
   lines.push("", "────────", "");
   lines.push("🔵 観測ログ＋｜近日公開");

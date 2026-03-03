@@ -17,6 +17,7 @@ const {
   sortByOrb,
   minByOrb,
 } = require("../domain/aspect_selection");
+const { formatTodayMoonLines } = require("../domain/moon_info");
 
 async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../dict");
@@ -103,7 +104,8 @@ async function renderSoraLine(story, deps = {}) {
       const bLabelR = `${bLabel}${bRetro}`;
       const aSignText = aSign ? `（${aSign}）` : "";
       const bSignText = bSign ? `（${bSign}）` : "";
-      const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText} × (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
+      const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText}`;
+      const line2 = `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
 
       const aspect = aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
       const aspectLabel = aspect?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
@@ -115,10 +117,10 @@ async function renderSoraLine(story, deps = {}) {
       const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
       const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
       const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-      const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
+      const line3 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
 
       if (idx > 0) lines.push("");
-      lines.push(line1, line2);
+      lines.push(line1, line2, line3);
     });
     return lines;
   })();
@@ -144,6 +146,11 @@ async function renderSoraLine(story, deps = {}) {
   const lines = [];
   if (includeHeader) lines.push(headerLine, "");
   lines.push(listTitleAll, "", ...bodyLines);
+
+  const moonInfo = formatTodayMoonLines({ asOfISO, story, dict });
+  if (moonInfo.lines.length) {
+    lines.push("", ...moonInfo.lines);
+  }
 
   if (includeAspect) {
     lines.push(
