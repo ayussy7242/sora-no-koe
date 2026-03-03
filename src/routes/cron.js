@@ -18,7 +18,7 @@
 "use strict";
 
 const express = require("express");
-const { handleJobsWorker } = require("../jobs/worker");
+const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8 } = require("../runners/cron/daily8");
 const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
