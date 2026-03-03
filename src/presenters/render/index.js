@@ -41,9 +41,9 @@ const blendV2 = require("../../content/dict/blend.v2");
 // natal_list (揺れ吸収)
 let chNatalList = null;
 try {
-  chNatalList = require("../channels/natal_list");
+  chNatalList = require("../channels/line/natal_list");
 } catch (_) {
-  chNatalList = require("../channels/natal_list");
+  chNatalList = require("../channels/line/natal_list");
 }
 
 function safeStr(v) {
@@ -295,7 +295,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // natal_list
   // --------------------
-  const createNatal = resolveFn(chNatalList, ["createNatalListRenderer"], "channels/natal_list");
+  const createNatal = resolveFn(chNatalList, ["createNatalListRenderer"], "channels/line/natal_list");
   const natalRenderer = createNatal({
     signJaFromIndex,
     fmtBodyJa: fmtJa.fmtBodyJa,
