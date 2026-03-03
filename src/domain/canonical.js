@@ -52,6 +52,22 @@ const BODY_ALIAS_MAP = buildAliasMap([
   { key: "ic", aliases: ["imum_coeli", "imum coeli", "i.c."] },
   { key: "dc", aliases: ["desc", "descendant", "dsc"] },
   { key: "vertex", aliases: ["vert"] },
+  { key: "anti_vertex", aliases: ["antivertex", "anti-vertex", "anti vertex", "anti_vert", "antivert", "anti-vert"] },
+  {
+    key: "part_of_fortune",
+    aliases: [
+      "part of fortune",
+      "partoffortune",
+      "fortune",
+      "pof",
+      "pars_fortunae",
+      "pars fortunae",
+      "pars_fortuna",
+      "lot of fortune",
+      "lot_of_fortune",
+    ],
+  },
+  { key: "east_point", aliases: ["eastpoint", "east point", "ep"] },
 ]);
 
 const SIGN_ALIAS_MAP = buildAliasMap([

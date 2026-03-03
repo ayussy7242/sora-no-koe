@@ -19,6 +19,13 @@ const {
   dedupeTouchPoints,
 } = require("../../../domain/touch_point_selection");
 
+const FREE_EXCLUDED_BODY_KEYS = new Set([
+  "vertex",
+  "anti_vertex",
+  "part_of_fortune",
+  "east_point",
+]);
+
 async function renderLine(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
@@ -29,9 +36,16 @@ async function renderLine(story, deps = {}) {
   const header = `🌌 ${dateLabel}`;
   const subHeader = "わたしのほし×きょうのそら";
 
-  const pool = Array.isArray(story?.personal?.touch_points_all)
+  const poolAll = Array.isArray(story?.personal?.touch_points_all)
     ? story.personal.touch_points_all
     : [];
+  const pool = isPaid
+    ? poolAll
+    : poolAll.filter((it) => {
+        const nKey = normalizeBodyKey(it?.natal_body_or_point || it?.natal_body || it?.a || "");
+        const tKey = normalizeBodyKey(it?.transit_body || it?.b || "");
+        return !FREE_EXCLUDED_BODY_KEYS.has(nKey) && !FREE_EXCLUDED_BODY_KEYS.has(tKey);
+      });
 
   const orbLimit = isPaid ? SPEC.orb.paid : SPEC.orb.free;
   const scored = scoreTouchPoints(pool, { orbLimit, scoreForAspect });

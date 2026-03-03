@@ -31,6 +31,9 @@ const planetJa = (dictObj, planetKey) => {
     dict.planets?.[lower] ||
     null;
   if (p?.label_ja) return p.label_ja;
+  const points = dict.POINTS_V1?.points || null;
+  const pt = points?.[key] || points?.[lower] || null;
+  if (pt?.label_ja) return pt.label_ja;
   if (PLANET_ALIAS[lower]) return PLANET_ALIAS[lower];
   return key;
 };
