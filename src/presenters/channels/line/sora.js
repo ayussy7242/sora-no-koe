@@ -1,26 +1,26 @@
 "use strict";
 
-const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
-const { SPEC } = require("../../config/sora_spec");
-const { scoreForAspect } = require("../../domain/touch_point_scoring");
-const { normalizeBodyKey } = require("../../domain/canonical");
+const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
+const { SPEC } = require("../../../config/sora_spec");
+const { scoreForAspect } = require("../../../domain/touch_point_scoring");
+const { normalizeBodyKey } = require("../../../domain/canonical");
 const {
   formatDateLabel,
   glyphForBody,
   signJa,
   aspectInfo,
   formatElementModalityLines,
-} = require("../format/format/line_common");
+} = require("../../format/format/line_common");
 const {
   listWithOrb,
   filterWithinOrb,
   sortByOrb,
   minByOrb,
-} = require("../../domain/aspect_selection");
-const { formatTodayMoonLines } = require("../../domain/moon_info");
+} = require("../../../domain/aspect_selection");
+const { formatTodayMoonLines } = require("../../../domain/moon_info");
 
 async function renderSoraLine(story, deps = {}) {
-  const dict = deps?.dict || require("../../content/dict");
+  const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
   const includeAspect = deps?.includeAspect !== false;
   const isPaid = deps?.paid === true;

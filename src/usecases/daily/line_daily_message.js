@@ -1,7 +1,7 @@
 "use strict";
 
-const { renderLine } = require("../../presenters/channels/line_today");
-const { renderSoraLine } = require("../../presenters/channels/line_sora");
+const { renderLine } = require("../../presenters/channels/line/today");
+const { renderSoraLine } = require("../../presenters/channels/line/sora");
 
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");

@@ -24,9 +24,9 @@ const pickersPublic = require("../format/data/pickers_public");
 const { pickStable, getUserId } = require("../format/utils/seed");
 
 // channels
-const chLineToday = require("../channels/line_today");
-const chLineSora = require("../channels/line_sora");
-const chLineDistribution = require("../channels/line_distribution");
+const chLineToday = require("../channels/line/today");
+const chLineSora = require("../channels/line/sora");
+const chLineDistribution = require("../channels/line/distribution");
 const chIG = require("../channels/ig");
 const chX = require("../channels/x");
 const chXThread = require("../channels/x_thread");
@@ -284,9 +284,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   // --------------------
   // Channel functions (export揺れ吸収)
   // --------------------
-  const fnLineToday = resolveFn(chLineToday, ["renderLine"], "channels/line_today");
-  const fnSoraLine = resolveFn(chLineSora, ["renderSoraLine"], "channels/line_sora");
-  const fnDistributionLine = resolveFn(chLineDistribution, ["renderDistributionLine"], "channels/line_distribution");
+  const fnLineToday = resolveFn(chLineToday, ["renderLine"], "channels/line/today");
+  const fnSoraLine = resolveFn(chLineSora, ["renderSoraLine"], "channels/line/sora");
+  const fnDistributionLine = resolveFn(chLineDistribution, ["renderDistributionLine"], "channels/line/distribution");
   const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
   const fnX = resolveFn(chX, ["renderX"], "channels/x");
   const fnXThread = resolveFn(chXThread, ["renderXThread"], "channels/x_thread");

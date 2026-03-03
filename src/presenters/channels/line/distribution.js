@@ -5,14 +5,14 @@ const {
   buildHouseBlock,
   buildTsukijiBlock,
   buildKinjitsuBlock,
-} = require("../../usecases/paid/line_paid_500");
+} = require("../../../usecases/paid/line_paid_500");
 
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");
 }
 
 async function renderDistributionLine(story, deps = {}) {
-  const dict = deps?.dict || require("../../content/dict");
+  const dict = deps?.dict || require("../../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
