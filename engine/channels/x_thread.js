@@ -20,6 +20,7 @@ const { listWithOrb, sortByOrb } = require("../domain/aspect_selection");
 const {
   absAngularDistance,
   calcTransitLon,
+  formatDateYmdHm,
   findNextMoonPhase,
   pickApplyingUpcomingAspects,
 } = require("../domain/astro_compute");
@@ -69,6 +70,15 @@ function formatMonthDay(date) {
   const d = Number(parts[2]);
   if (!Number.isFinite(m) || !Number.isFinite(d)) return "-";
   return `${m}/${d}`;
+}
+
+function formatMonthDayHm(date) {
+  if (!isValidDate(date)) return "-";
+  const ymd = formatMonthDay(date);
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const hh = String(jst.getUTCHours()).padStart(2, "0");
+  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
+  return `${ymd} ${hh}:${mm}`;
 }
 
 function elementLabelFromSign(dict, signKey) {
@@ -156,9 +166,7 @@ function renderXThread(story, deps = {}) {
 
   const distLines = formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
 
-  const sunSign = transitSigns?.sun?.sign_ja || signJa(dict, transitSigns?.sun?.sign_key || "");
-  const moonSign = transitSigns?.moon?.sign_ja || signJa(dict, transitSigns?.moon?.sign_key || "");
-  const part1Tags = buildTags([sunSign, moonSign]);
+  const part1Tags = buildTags([], { base: BASE_TAGS, max: BASE_TAGS.length });
 
   const part1Lines = [
     `🌌 きょうのそら｜${dateLabel}`,
@@ -170,9 +178,8 @@ function renderXThread(story, deps = {}) {
     part1Tags,
   ];
 
-  // ---------- Part 2: 月相 + 近日（接近中） ----------
+  // ---------- Part 2: 月相 + 今日の共鳴（上位1件） ----------
   const baseDate = new Date(asOfISO || Date.now());
-  const baseDateLocal = String(story?.meta?.date_local || "").trim();
   const moonWindowMs = 2 * 86400000;
 
   const moonCandidates = [
@@ -196,11 +203,70 @@ function renderXThread(story, deps = {}) {
     .filter((ev) => Math.abs(ev.date.getTime() - baseDate.getTime()) <= moonWindowMs)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((ev) => {
-      const dateText = formatJstYmd(ev.date);
-      const isToday = baseDateLocal && toDateLocalJST(ev.date) === baseDateLocal;
-      return `${ev.emoji} ${ev.label}｜${dateText}${isToday ? "（今日）" : ""}`;
+      const dateText = formatDateYmdHm(ev.date);
+      return `${ev.emoji} ${ev.label}｜${dateText}（JST）`;
     });
 
+  const resonanceItems = listWithOrb(skyAll)
+    .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
+    .slice(0, 1);
+
+  const resonanceBlocks = resonanceItems.length
+    ? resonanceItems.map((item) => {
+      const aKey = normalizeBodyKey(item?.a || "");
+      const bKey = normalizeBodyKey(item?.b || "");
+      const aSign = item?.a_sign_ja || signJa(dict, item?.a_sign_key || "") || transitSigns?.[aKey]?.sign_ja || "";
+      const bSign = item?.b_sign_ja || signJa(dict, item?.b_sign_key || "") || transitSigns?.[bKey]?.sign_ja || "";
+      const aGlyph = glyphForBody(aKey);
+      const bGlyph = glyphForBody(bKey);
+      const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
+      const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
+      const aRetro = retroMap[aKey] ? SPEC.retro.suffix : "";
+      const bRetro = retroMap[bKey] ? SPEC.retro.suffix : "";
+      const aLabelR = `${aLabel}${aRetro}`;
+      const bLabelR = `${bLabel}${bRetro}`;
+      const aSignText = aSign ? `（${aSign}）` : "";
+      const bSignText = bSign ? `（${bSign}）` : "";
+
+      const aspect = aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
+      const aspectLabel = aspect?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
+      const aspectDeg = Number.isFinite(Number(item?.aspect_deg))
+        ? Number(item.aspect_deg)
+        : Number.isFinite(Number(aspect?.deg))
+          ? Number(aspect.deg)
+          : null;
+      const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
+      const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
+      const orbText = orb != null ? `${orb.toFixed(1)}` : "-";
+
+      return [
+        `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText}`,
+        `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`,
+        `${aspectLabel} ${degText}`.trim(),
+        `現在 オーブ ${orbText}°`,
+      ].join("\n");
+    })
+    : ["該当なし"];
+
+  const primaryResonance = resonanceItems[0] || null;
+  const resonanceSigns = primaryResonance
+    ? [
+      primaryResonance?.a_sign_ja || signJa(dict, primaryResonance?.a_sign_key || ""),
+      primaryResonance?.b_sign_ja || signJa(dict, primaryResonance?.b_sign_key || ""),
+    ].filter(Boolean)
+    : [];
+  const part2Tags = buildTags(resonanceSigns, { base: ["#ソラのこえ"], max: 3 });
+
+  const part2Blocks = [];
+  if (moonLines.length) {
+    part2Blocks.push(["🌙 月相", "", ...moonLines].join("\n"));
+  }
+  part2Blocks.push(["【今日の共鳴（最大接近）】", "", resonanceBlocks.join("\n\n")].join("\n"));
+  part2Blocks.push(part2Tags);
+
+  const part2Text = part2Blocks.filter(Boolean).join("\n\n");
+
+  // ---------- Part 3: 近日（接近中） ----------
   const kinjitsuRaw = Array.isArray(pub.kinjitsu) && pub.kinjitsu.length
     ? pub.kinjitsu
     : pickApplyingUpcomingAspects({ public: pub }, dict, asOfISO, 6, 3).map((it) => ({
@@ -210,6 +276,10 @@ function renderXThread(story, deps = {}) {
       aspect_deg: it?.aspectDeg ?? it?.raw?.aspect_deg ?? null,
       now_orb: it?.nowOrb ?? it?.raw?.orb_deg ?? null,
       peak_at: it?.peak instanceof Date ? it.peak.toISOString() : null,
+      a_sign_key: it?.raw?.a_sign_key || null,
+      a_sign_ja: it?.raw?.a_sign_ja || null,
+      b_sign_key: it?.raw?.b_sign_key || null,
+      b_sign_ja: it?.raw?.b_sign_ja || null,
     }));
 
   const upcomingItems = (kinjitsuRaw || [])
@@ -233,105 +303,33 @@ function renderXThread(story, deps = {}) {
       const bGlyph = glyphForBody(row.bKey);
       const aLabel = dict?.PLANETS_V2?.bodies?.[row.aKey]?.label_ja || dict?.POINTS_V1?.points?.[row.aKey]?.label_ja || row.aKey;
       const bLabel = dict?.PLANETS_V2?.bodies?.[row.bKey]?.label_ja || dict?.POINTS_V1?.points?.[row.bKey]?.label_ja || row.bKey;
+      const aSign = row?.raw?.a_sign_ja || signJa(dict, row?.raw?.a_sign_key || "") || transitSigns?.[row.aKey]?.sign_ja || "";
+      const bSign = row?.raw?.b_sign_ja || signJa(dict, row?.raw?.b_sign_key || "") || transitSigns?.[row.bKey]?.sign_ja || "";
+      const aSignText = aSign ? `（${aSign}）` : "";
+      const bSignText = bSign ? `（${bSign}）` : "";
       const aspect = aspectInfo(dict, row.raw?.aspect || row.raw?.type || row.raw?.aspT, row.aspectDeg);
       const aspectLabel = aspect?.label_ja || String(row.raw?.aspect || row.raw?.type || row.raw?.aspT || "");
       const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(Number(row.aspectDeg))}°` : "";
-      const peakText = row.peakAt && isValidDate(row.peakAt) ? formatMonthDay(row.peakAt) : "-";
+      const nowOrbText = Number.isFinite(Number(row.nowOrb)) ? row.nowOrb.toFixed(1) : "-";
+      const peakText = row.peakAt && isValidDate(row.peakAt) ? formatMonthDayHm(row.peakAt) : "-";
 
       const lines = [
-        `★ ${aGlyph ? `${aGlyph} ` : ""}${aLabel} × ${bGlyph ? `${bGlyph} ` : ""}${bLabel}`,
+        `★ ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText} × ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
         `${aspectLabel} ${degText}`.trim(),
-        `最接近 ${peakText}`,
+        `現在 オーブ ${nowOrbText}°`,
+        `最接近 ${peakText}（JST）`,
       ];
       return idx === 0 ? lines : ["", ...lines];
     })
     : ["該当なし"];
 
-  const part2Blocks = [];
-  if (moonLines.length) {
-    part2Blocks.push(["🌙 月相", "", ...moonLines].join("\n"));
-  }
-  part2Blocks.push(["📅 近日（接近中）", "", ...upcomingLines].join("\n"));
-  part2Blocks.push(buildTags([], { base: BASE_TAGS }));
-
-  const part2Text = part2Blocks.filter(Boolean).join("\n\n");
-
-  // ---------- Part 3: 今日の共鳴（最接近） ----------
-  const allWithOrb = listWithOrb(skyAll);
-  const aspectPool = allWithOrb.map((row) => ({
-    row,
-    orb: Number(row?.orb_deg),
-    applying: computeApplyingFlag(row, asOfISO),
-  }));
-
-  const applyingPool = aspectPool.filter((v) => v.applying === true);
-  const pool = applyingPool.length ? applyingPool : aspectPool;
-  const pickedItem = pool.sort((a, b) => a.orb - b.orb)[0]?.row || null;
-
-  const resonanceLines = (() => {
-    if (!pickedItem) return ["該当なし"];
-
-    const aKey = normalizeBodyKey(pickedItem?.a || "");
-    const bKey = normalizeBodyKey(pickedItem?.b || "");
-
-    const aSign = pickedItem?.a_sign_ja || signJa(dict, pickedItem?.a_sign_key || "") || transitSigns?.[aKey]?.sign_ja || "";
-    const bSign = pickedItem?.b_sign_ja || signJa(dict, pickedItem?.b_sign_key || "") || transitSigns?.[bKey]?.sign_ja || "";
-
-    const aGlyph = glyphForBody(aKey);
-    const bGlyph = glyphForBody(bKey);
-    const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
-    const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
-
-    const aRetro = retroMap[aKey] ? SPEC.retro.suffix : "";
-    const bRetro = retroMap[bKey] ? SPEC.retro.suffix : "";
-    const aLabelR = `${aLabel}${aRetro}`;
-    const bLabelR = `${bLabel}${bRetro}`;
-    const aSignText = aSign ? `（${aSign}）` : "";
-    const bSignText = bSign ? `（${bSign}）` : "";
-
-    const aspect = aspectInfo(dict, pickedItem?.type || pickedItem?.aspT || pickedItem?.aspect, pickedItem?.aspect_deg);
-    const aspectLabel = aspect?.label_ja || String(pickedItem?.type || pickedItem?.aspT || pickedItem?.aspect || "");
-    const aspectDeg = Number.isFinite(Number(pickedItem?.aspect_deg))
-      ? Number(pickedItem.aspect_deg)
-      : Number.isFinite(Number(aspect?.deg))
-        ? Number(aspect.deg)
-        : null;
-    const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-    const orb = Number.isFinite(Number(pickedItem?.orb_deg)) ? Number(pickedItem.orb_deg) : null;
-    const orbText = orb != null ? `${orb.toFixed(1)}` : "-";
-    const applying = computeApplyingFlag(pickedItem, asOfISO);
-    const trendLabel = applying === false ? "離脱中" : "接近中";
-
-    const elementA = elementLabelFromSign(dict, pickedItem?.a_sign_key || transitSigns?.[aKey]?.sign_key);
-    const elementB = elementLabelFromSign(dict, pickedItem?.b_sign_key || transitSigns?.[bKey]?.sign_key);
-
-    return [
-      `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText}`,
-      "×",
-      `(T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`,
-      "",
-      `${aspectLabel} ${degText}`.trim(),
-      `オーブ ${orbText}°（${trendLabel}）`,
-      "",
-      `${elementA} × ${elementB}`,
-    ];
-  })();
-
-  let resonanceSigns = [];
-  if (pickedItem) {
-    const aSign = pickedItem?.a_sign_ja || signJa(dict, pickedItem?.a_sign_key || "");
-    const bSign = pickedItem?.b_sign_ja || signJa(dict, pickedItem?.b_sign_key || "");
-    resonanceSigns = [aSign, bSign];
-  }
-  const part3Tags = buildTags(resonanceSigns, { base: ["#ソラのこえ"], max: 3 });
-
-  const part3Text = joinLines([
-    "【今日の共鳴（最大接近）】",
+  const part3Text = [
+    "📅 近日（接近中）",
     "",
-    ...resonanceLines,
+    ...upcomingLines,
     "",
-    part3Tags,
-  ]);
+    buildTags([], { base: ["#ソラのこえ"], max: 1 }),
+  ].join("\n").trim();
 
   const output = {
     x_1_main: joinLines(part1Lines).trim(),
