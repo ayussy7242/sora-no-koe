@@ -158,7 +158,7 @@ function buildNextMoonEvent(kind, date, dict) {
   const labelCore = kind === "new" ? "🌑 次の新月" : "🌕 次の満月";
 
   const tags = [];
-  if (moonName) tags.push(moonName);
+  if (kind === "full" && moonName) tags.push(moonName);
 
   if (kind === "new") {
     if (isBlackMoon(date)) tags.push("ブラックムーン");
@@ -195,11 +195,15 @@ function buildNextMoonEvents(asOfISO, dict) {
   };
 }
 
+function orderedMoonEvents(events) {
+  return [events?.new, events?.full]
+    .filter((ev) => ev?.date instanceof Date)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
 function formatNextMoonLines({ asOfISO, dict }) {
   const events = buildNextMoonEvents(asOfISO, dict);
-  const lines = [];
-  if (events.new?.line) lines.push(events.new.line);
-  if (events.full?.line) lines.push(events.full.line);
+  const lines = orderedMoonEvents(events).map((ev) => ev.line).filter(Boolean);
   return { lines, events };
 }
 
@@ -209,5 +213,6 @@ module.exports = {
   buildTodayMoonInfo,
   formatTodayMoonLines,
   buildNextMoonEvents,
+  orderedMoonEvents,
   formatNextMoonLines,
 };

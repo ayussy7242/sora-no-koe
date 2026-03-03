@@ -36,7 +36,8 @@ const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../presenter
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../domain/canonical");
 const {
   formatTodayMoonLines,
-  buildNextMoonEvents,
+  formatNextMoonLines,
+  orderedMoonEvents,
 } = require("../domain/moon_info");
 
 const BLOG_BANNED_TERMS = [
@@ -948,10 +949,8 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
   const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
   todayMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
 
-  const nextEvents = buildNextMoonEvents(asOfISO, dict);
-  [nextEvents.new?.line, nextEvents.full?.line]
-    .filter(Boolean)
-    .forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
+  const nextMoon = formatNextMoonLines({ asOfISO, dict });
+  nextMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
 
   return sections.join("\n");
 }
@@ -1252,13 +1251,10 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
   todayMoon.lines.forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
 
-  const nextEvents = buildNextMoonEvents(asOfISO, dict);
-  const nextLines = [nextEvents.new?.line, nextEvents.full?.line].filter(Boolean);
-  nextLines.forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
+  const nextMoon = formatNextMoonLines({ asOfISO, dict });
+  nextMoon.lines.forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
 
-  const nextSoon = [nextEvents.new, nextEvents.full]
-    .filter((ev) => ev?.date instanceof Date)
-    .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+  const nextSoon = orderedMoonEvents(nextMoon.events)[0];
 
   if (nextSoon?.line) {
     const moonAfterPrompt = [
