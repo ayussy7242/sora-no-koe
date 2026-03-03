@@ -30,11 +30,14 @@ const {
   findTransitTransitWindow,
   formatDateYmd,
   formatDateYmdHm,
-  findNextMoonPhase,
   calcTransitLon,
 } = require("../domain/astro_compute");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../presenter/render_tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../domain/canonical");
+const {
+  formatTodayMoonLines,
+  buildNextMoonEvents,
+} = require("../domain/moon_info");
 
 const BLOG_BANNED_TERMS = [
   "あなた",
@@ -683,7 +686,6 @@ const BLOG_STRUCT_SIGN_ORDER =
 const BLOG_STRUCT_TSUKIJI_MIN_DAYS = 30;
 const BLOG_STRUCT_TSUKIJI_ORB = SPEC?.orb?.paid ?? 3.0;
 const BLOG_STRUCT_TSUKIJI_MAX = 3;
-const BLOG_STRUCT_TSUKIJI_SLOW = new Set(["jupiter","saturn","uranus","neptune","pluto"]);
 
 function buildHouseRowsPublic(story, asOfISO) {
   const transitSigns = story?.public?.transit_signs || {};
@@ -732,12 +734,32 @@ function buildHouseRowsPublic(story, asOfISO) {
 
 function formatHouseLogLine(row) {
   const signText = `${row.signGlyph || ""}${row.signJa || ""}`.trim() || "—";
-  const bodies = row.items.length ? row.items.join(" ") : "—";
+  const bodiesRaw = row.items.length ? row.items.join(" ") : "—";
+  const bodies = bodiesRaw.replace(/\(R\)/g, "（R）");
   const score = Number.isFinite(Number(row.score)) ? Number(row.score).toFixed(2) : "0.00";
   return `第${row.houseNo}ハウス｜${signText}｜${bodies}｜score ${score}`;
 }
 
 function buildTsukijiRowsPublic(story, asOfISO) {
+  const longLogs = Array.isArray(story?.public?.kinjitsu_long) ? story.public.kinjitsu_long : [];
+  if (longLogs.length) {
+    return longLogs.map((row) => ({
+      aKey: normalizeBodyKey(row?.a || ""),
+      bKey: normalizeBodyKey(row?.b || ""),
+      aSignKey: row?.a_sign_key || "",
+      bSignKey: row?.b_sign_key || "",
+      aSignJa: row?.a_sign_ja || "",
+      bSignJa: row?.b_sign_ja || "",
+      aspect: normalizeAspectKey(row?.aspect || row?.type, row?.aspect_deg),
+      aspectDeg: Number(row?.aspect_deg),
+      orb: Number(row?.now_orb),
+      start: row?.start_at ? new Date(row.start_at) : null,
+      peak: row?.peak_at ? new Date(row.peak_at) : null,
+      end: row?.end_at ? new Date(row.end_at) : null,
+      durationDays: Number(row?.duration_days),
+    })).filter((r) => r.aKey && r.bKey);
+  }
+
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   const now = new Date(asOfISO || new Date().toISOString());
   if (Number.isNaN(now.getTime())) return [];
@@ -751,7 +773,6 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     if (!aKey || !bKey) return;
-    if (!BLOG_STRUCT_TSUKIJI_SLOW.has(aKey) || !BLOG_STRUCT_TSUKIJI_SLOW.has(bKey)) return;
 
     const sig = [aKey, bKey].sort().join("|");
     if (seen.has(sig)) return;
@@ -785,6 +806,8 @@ function buildTsukijiRowsPublic(story, asOfISO) {
       orb,
       start: window.start,
       peak: window.peak,
+      end: window.end,
+      durationDays,
     });
   });
 
@@ -793,7 +816,9 @@ function buildTsukijiRowsPublic(story, asOfISO) {
 }
 
 function buildKinjitsuRowsPublic(story) {
-  const items = Array.isArray(story?.public?.kinjitsu) ? story.public.kinjitsu : [];
+  const items = Array.isArray(story?.public?.kinjitsu_short)
+    ? story.public.kinjitsu_short
+    : (Array.isArray(story?.public?.kinjitsu) ? story.public.kinjitsu : []);
   return items
     .filter((it) => Number.isFinite(Number(it?.now_orb)))
     .sort((a, b) => Number(a.now_orb) - Number(b.now_orb))
@@ -807,17 +832,6 @@ function buildElementLinesPublic(story) {
   const elementLine = `🔥${e.fire || 0} 🪨${e.earth || 0} 💨${e.air || 0} 💧${e.water || 0}`;
   const modalityLine = `🏃${m.cardinal || 0} 🧱${m.fixed || 0} 🌿${m.mutable || 0}`;
   return { elementLine, modalityLine };
-}
-
-function buildMoonPhaseLines(asOfISO) {
-  const baseISO = asOfISO || new Date().toISOString();
-  const newMoon = findNextMoonPhase(baseISO, 0);
-  const fullMoon = findNextMoonPhase(baseISO, 180);
-
-  const lines = [];
-  if (newMoon) lines.push(`新月 ${formatDateYmdHm(newMoon)}`);
-  if (fullMoon) lines.push(`満月 ${formatDateYmdHm(fullMoon)}`);
-  return lines;
 }
 
 async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelParts, enableAi }) {
@@ -867,11 +881,16 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const orbText = Number.isFinite(Number(row.orb)) ? `orb ${row.orb.toFixed(1)}°` : "";
       const startText = row.start ? formatDateYmd(row.start) : "-";
       const peakText = row.peak ? formatDateYmd(row.peak) : "-";
+      const endText = row.end ? formatDateYmd(row.end) : "-";
+      const durationText = Number.isFinite(Number(row.durationDays)) ? `継続：約${row.durationDays}日` : "";
       const line = [
         `(T) ${aLabel}（${aSign}）`,
         `× (T) ${bLabel}（${bSign}）`,
         `${aspectLabel} ${degText}｜${orbText}`.trim(),
-        `開始 ${startText}｜ピーク付近 ${peakText}`,
+        `開始 ${startText}`,
+        `ピーク ${peakText}`,
+        `終了予定 ${endText}`,
+        durationText,
       ].join("<br>");
       sections.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     });
@@ -910,19 +929,29 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const aspectLabel = row?.aspect ? row.aspect : "";
       const degText = Number.isFinite(Number(row?.aspect_deg)) ? `${Math.round(row.aspect_deg)}°` : "";
       const orbText = Number.isFinite(Number(row?.now_orb)) ? `現在 orb ${Number(row.now_orb).toFixed(1)}°` : "";
-      const peakText = row?.peak_label ? `最接近 ${row.peak_label}` : "";
+      const startText = row?.start_at ? formatDateYmd(new Date(row.start_at)) : "-";
+      const peakText = row?.peak_at ? formatDateYmdHm(new Date(row.peak_at)) : (row?.peak_label ? row.peak_label : "-");
+      const endText = row?.end_at ? formatDateYmd(new Date(row.end_at)) : "-";
       const line = [
         `(T) ${aLabel}（${aSign}）`,
         `× (T) ${bLabel}（${bSign}）`,
         `${aspectLabel} ${degText}`.trim(),
-        [orbText, peakText].filter(Boolean).join(" → "),
+        `開始 ${startText}`,
+        `最接近 ${peakText}`,
+        `終了予定 ${endText}`,
+        orbText,
       ].filter(Boolean).join("<br>");
       sections.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     });
   }
 
-  const moonLines = buildMoonPhaseLines(asOfISO);
-  moonLines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
+  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
+  todayMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
+
+  const nextEvents = buildNextMoonEvents(asOfISO, dict);
+  [nextEvents.new?.line, nextEvents.full?.line]
+    .filter(Boolean)
+    .forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
 
   return sections.join("\n");
 }
@@ -971,7 +1000,12 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
 
   const retroMap = buildRetrogradeMap(asOfISO, BLOG_STRUCT_BODY_ORDER);
   const retroBodies = BLOG_STRUCT_BODY_ORDER.filter((k) => retroMap[k]);
-  const retroCount = retroBodies.length;
+
+  const ascDeg = computeTokyoAscDeg(asOfISO);
+  const ascIndex = Number.isFinite(Number(ascDeg))
+    ? Math.floor((((Number(ascDeg) % 360) + 360) % 360) / 30)
+    : null;
+  const bodyHouseMap = new Map();
 
   const strata = pub.sky_strata || {};
   const e = strata.element_count || {};
@@ -981,28 +1015,41 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
 
   const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-  const resonancePool = skyAll.filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0));
+  const resonanceAll = skyAll.filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0));
+  const resonancePool = [...resonanceAll];
   const strongest = resonancePool[0] || skyAll[0] || null;
-  const strongestQuality = strongest
-    ? aspectQualityLabel(strongest.type, hash32(`${dateLabel}-${normalizeAspectType(strongest.type)}-quality`))
-    : "";
+  const resonanceTop = resonancePool
+    .map((row) => {
+      const aKey = normalizeBodyKey(row?.a || "");
+      const bKey = normalizeBodyKey(row?.b || "");
+      const aspectDeg = Number(row?.aspect_deg);
+      const orb = Number(row?.orb_deg);
+      const trend = aspectTrend(aKey, bKey, aspectDeg, asOfISO);
+      const applying = trend === "接近中";
+      const exact = Number.isFinite(orb) && orb <= 0.05;
+      return { ...row, _orb: orb, _applying: applying, _exact: exact };
+    })
+    .sort((a, b) => {
+      if (a._exact !== b._exact) return a._exact ? -1 : 1;
+      if (a._applying !== b._applying) return a._applying ? -1 : 1;
+      return (a._orb ?? 99) - (b._orb ?? 99);
+    })
+    .slice(0, 1);
 
-  const pressureDir = (() => {
-    const inw = (e.water || 0) + (e.earth || 0);
-    const out = (e.fire || 0) + (e.air || 0);
-    if (inw === out) return "内外が拮抗";
-    return inw > out ? "内／下" : "外／上";
-  })();
+  const { rows: houseRows } = buildHouseRowsPublic(story, asOfISO);
+  const topHouses = houseRows.filter((r) => r.score > 0).slice(0, 3).map((r) => `第${r.houseNo}ハウス`);
+
+  const retroList = retroBodies.length
+    ? retroBodies.map((k) => `${bodyGlyph(k)} ${bodyLabelJa(dict, k)}`.trim()).join(" / ")
+    : "なし";
 
   const overviewFacts = [
-    `元素優勢: ${strata.top_element || "—"}`,
-    `区分優勢: ${strata.top_modality || "—"}`,
+    `${elementLine}`,
+    `${modalityLine}`,
+    `逆行: ${retroList}`,
     strongest
       ? `強い角度: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)} ${Math.round(strongest.aspect_deg)}°`
       : "強い角度: —",
-    strongestQuality ? `角度の質: ${strongestQuality}` : "角度の質: —",
-    `逆行数: ${retroCount}`,
-    `圧の向き: ${pressureDir}`,
   ];
 
   const overviewPrompt = [
@@ -1016,14 +1063,14 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
 
   const lines = [];
   lines.push(`<h1>🌌 きょうのそら｜${dateLabel}</h1>`);
-  lines.push("<h2>0｜今日の全体圧</h2>");
+  lines.push("<h2>0｜今日の全体圧（圧縮）</h2>");
   lines.push(`<p>${escapeHtml(overviewText)}</p>`);
 
   // 1) Positions
-  lines.push("<h2>1｜配置</h2>");
+  lines.push("<h2>1｜配置（全天体：短文化）</h2>");
   const transit = pub.transit_signs || {};
   const resonanceByBody = {};
-  resonancePool.forEach((row) => {
+  resonanceAll.forEach((row) => {
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     if (aKey) resonanceByBody[aKey] = (resonanceByBody[aKey] || []).concat(row);
@@ -1034,7 +1081,17 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const info = transit?.[key];
     if (!info) continue;
     const signKey = normalizeSignKey(info.sign_key || "");
-    const title = `${bodyGlyph(key)} ${bodyLabelJa(dict, key)}｜${formatSignDegree(signKey, info.lon_deg)}`.trim();
+    const signIndex = signIndexFromKey(dict, signKey || "");
+    if (signIndex >= 0 && ascIndex != null) {
+      const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+      if (houseNo) bodyHouseMap.set(key, houseNo);
+    }
+    const glyph = bodyGlyph(key);
+    const bodyLabel = bodyLabelJa(dict, key);
+    const retroSuffix = retroMap[key] ? "（R）" : "";
+    const houseNo = bodyHouseMap.get(key);
+    const houseText = houseNo ? `第${houseNo}ハウス` : "第—ハウス";
+    const title = `${glyph ? `${glyph} ` : ""}${bodyLabel}${retroSuffix}｜${formatSignDegree(signKey, info.lon_deg)}｜${houseText}`.trim();
     const retro = retroMap[key] ? "あり" : "なし";
     const rel = (resonanceByBody[key] || []).slice(0, 2).map((row) => {
       const other = normalizeBodyKey(row?.a === key ? row?.b : row?.a);
@@ -1045,7 +1102,9 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const facts = [
       `逆行: ${retro}`,
       `位置: ${signLabelJa(dict, signKey)} ${Number.isFinite(Number(info.lon_deg)) ? ((info.lon_deg % 30 + 30) % 30).toFixed(0) : "—"}°`,
-      rel.length ? `関係: ${rel.join(" / ")}` : "関係: —",
+      houseNo ? `所属ハウス: 第${houseNo}ハウス` : "所属ハウス: —",
+      topHouses.length ? `主要ハウス: ${topHouses.join(" / ")}` : "主要ハウス: —",
+      rel.length ? `近接角度(orb≤3°): ${rel.join(" / ")}` : "近接角度(orb≤3°): —",
     ];
     const prompt = [
       BLOG_LONG_POSITION_GUIDE,
@@ -1054,17 +1113,17 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       `TITLE: ${title}`,
       `FACTS: ${facts.join(" / ")}`,
     ].join("\n");
-    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 260 });
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
     lines.push(`<p>${escapeHtml(text)}</p>`);
   }
 
   // 2) Resonance
-  lines.push("<h2>2｜共鳴</h2>");
-  if (!resonancePool.length) {
+  lines.push("<h2>2｜共鳴（トップのみ／現状の並び維持）</h2>");
+  if (!resonanceTop.length) {
     lines.push("<p>該当なし</p>");
   }
-  for (const row of resonancePool) {
+  for (const row of resonanceTop) {
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     const aLabel = `${bodyGlyph(aKey)} ${bodyLabelJa(dict, aKey)}`.trim();
@@ -1088,26 +1147,30 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       `TITLE: ${title}`,
       `FACTS: ${facts.join(" / ")}`,
     ].join("\n");
-    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 240 });
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
     lines.push(`<p>${escapeHtml(text)}</p>`);
   }
 
   // 3) Houses
   lines.push("<h2>3｜🏠 はうす（全ハウス）</h2>");
-  const { rows: houseRows } = buildHouseRowsPublic(story, asOfISO);
   lines.push("<h3>■ ログ</h3>");
   houseRows.forEach((row) => {
     lines.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
   });
 
-  for (const row of houseRows) {
-    const title = `第${row.houseNo}ハウス`;
+  const detailHouseRows = houseRows.filter((row) => row.score > 0).slice(0, 3);
+  for (const row of detailHouseRows) {
+    const logLine = formatHouseLogLine(row);
+    const title = logLine;
     const facts = [
       `支配: ${row.signGlyph || ""}${row.signJa || ""}`.trim(),
       `天体: ${row.items.length ? row.items.join(" ") : "—"}`,
       `score: ${Number(row.score || 0).toFixed(2)}`,
     ];
+    const signElement = dict?.SIGNS_V2?.signs?.[row.signKey]?.element || "";
+    const temp = (signElement === "fire" || signElement === "air") ? "外向" : (signElement ? "内向" : "—");
+    facts.push(`圧の温度: ${temp}`);
     const prompt = [
       BLOG_LONG_HOUSE_GUIDE,
       "",
@@ -1115,13 +1178,13 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       `TITLE: ${title}`,
       `FACTS: ${facts.join(" / ")}`,
     ].join("\n");
-    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
     lines.push(`<p>${escapeHtml(text)}</p>`);
   }
 
   // 4) Elements
-  lines.push("<h2>4｜🔥 元素／三区分</h2>");
+  lines.push("<h2>4｜🔥 元素／三区分（圧縮）</h2>");
   lines.push(`<p>${escapeHtml(elementLine)}</p>`);
   lines.push(`<p>${escapeHtml(modalityLine)}</p>`);
   const elementsPrompt = [
@@ -1133,85 +1196,75 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const elementsText = await runWithRetry({ userContent: elementsPrompt, model: modelMain, maxTokens: 700 });
   lines.push(`<p>${escapeHtml(elementsText)}</p>`);
 
-  // 5) Tsukiji log
-  lines.push("<h2>5｜🌙 つきじ（継続接近ログ）</h2>");
-  const tsukijiRows = buildTsukijiRowsPublic(story, asOfISO);
-  if (!tsukijiRows.length) {
-    lines.push("<p>該当なし</p>");
-  } else {
-    const tRetro = buildRetrogradeMap(asOfISO, Array.from(new Set(tsukijiRows.flatMap((r) => [r.aKey, r.bKey]))));
-    tsukijiRows.forEach((row) => {
-      const aLabel = `${bodyGlyph(row.aKey)}${bodyLabelJa(dict, row.aKey)}${tRetro[row.aKey] ? SPEC.retro.suffix : ""}`;
-      const bLabel = `${bodyGlyph(row.bKey)}${bodyLabelJa(dict, row.bKey)}${tRetro[row.bKey] ? SPEC.retro.suffix : ""}`;
-      const aSign = row.aSignJa || signLabelJa(dict, row.aSignKey);
-      const bSign = row.bSignJa || signLabelJa(dict, row.bSignKey);
-      const aspLabel = aspectLabelForLong(row.aspect, row.aspectDeg);
-      const degText = `${Math.round(row.aspectDeg)}°`;
-      const orbText = `orb ${row.orb.toFixed(1)}°`;
-      const startText = row.start ? formatDateYmd(row.start) : "-";
-      const peakText = row.peak ? formatDateYmd(row.peak) : "-";
-      const line = [
-        `(T) ${aLabel}（${aSign}）`,
-        `× (T) ${bLabel}（${bSign}）`,
-        `${aspLabel} ${degText}｜${orbText}`,
-        `開始 ${startText}｜ピーク付近 ${peakText}`,
-      ].join("<br>");
-      lines.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
-    });
-  }
-
-  // 6) Kinjitsu log
-  lines.push("<h2>6｜📅 近日（接近予定）</h2>");
-  const kinjitsuRows = buildKinjitsuRowsPublic(story);
+  // 6) Kinjitsu log (lightweight)
+  lines.push("<h2>6｜📅 近日（軽量版）</h2>");
+  const kinjitsuRows = buildKinjitsuRowsPublic(story).slice(0, 3);
   if (!kinjitsuRows.length) {
     lines.push("<p>該当なし</p>");
   } else {
-    kinjitsuRows.forEach((row) => {
+    const kinjitsuRetro = buildRetrogradeMap(asOfISO, Array.from(new Set(kinjitsuRows.flatMap((r) => [
+      normalizeBodyKey(r?.a || ""),
+      normalizeBodyKey(r?.b || ""),
+    ]).filter(Boolean))));
+    for (const row of kinjitsuRows) {
       const aKey = normalizeBodyKey(row?.a || "");
       const bKey = normalizeBodyKey(row?.b || "");
-      const aLabel = `${bodyGlyph(aKey)}${bodyLabelJa(dict, aKey)}`;
-      const bLabel = `${bodyGlyph(bKey)}${bodyLabelJa(dict, bKey)}`;
-      const aSign = row?.a_sign_ja || signLabelJa(dict, row?.a_sign_key);
-      const bSign = row?.b_sign_ja || signLabelJa(dict, row?.b_sign_key);
+      const aLabel = `${bodyGlyph(aKey)} ${bodyLabelJa(dict, aKey)}${kinjitsuRetro[aKey] ? "（R）" : ""}`.trim();
+      const bLabel = `${bodyGlyph(bKey)} ${bodyLabelJa(dict, bKey)}${kinjitsuRetro[bKey] ? "（R）" : ""}`.trim();
       const aspLabel = aspectLabelForLong(row?.aspect, row?.aspect_deg);
       const degText = `${Math.round(row?.aspect_deg)}°`;
-      const orbText = `現在 orb ${Number(row?.now_orb).toFixed(1)}°`;
-      const peakText = row?.peak_label ? `最接近 ${row.peak_label}` : "";
-      const line = [
-        `(T) ${aLabel}（${aSign}）`,
-        `× (T) ${bLabel}（${bSign}）`,
-        `${aspLabel} ${degText}`,
-        [orbText, peakText].filter(Boolean).join(" → "),
-      ].join("<br>");
-      lines.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
-    });
-  }
-  buildMoonPhaseLines(asOfISO).forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
+      const orbText = Number.isFinite(Number(row?.now_orb)) ? `${Number(row.now_orb).toFixed(1)}°` : "—";
+      const peakText = row?.peak_at ? formatDateYmdHm(new Date(row.peak_at)) : (row?.peak_label ? row.peak_label : "-");
 
-  // 7) Retrograde
-  lines.push("<h2>7｜逆行</h2>");
-  if (!retroBodies.length) {
-    lines.push("<p>該当なし</p>");
-  } else {
-    for (const key of retroBodies) {
-      const info = transit?.[key];
-      const signKey = normalizeSignKey(info?.sign_key || "");
-      const title = `${bodyGlyph(key)} ${bodyLabelJa(dict, key)}（${signLabelJa(dict, signKey)}）逆行`;
-      const prompt = [
-        BLOG_LONG_RETRO_GUIDE,
-        "",
-        `日付: ${dateLabel}`,
-        `TITLE: ${title}`,
-        `FACTS: 速度の内転 / サイン ${signLabelJa(dict, signKey)}`,
+      const afterPrompt = [
+        "以下のFACTSから「余韻」を1行で書く。",
+        "出力は日本語本文のみ（HTMLなし）。",
+        "20〜45字。1文のみ。",
+        "占い化しない。未来断定/指示/救済/運命固定/絶対語は禁止。",
+        "主語は構造（配置/角度/圧/残り方）。",
+        `FACTS: ${aLabel} × ${bLabel} / ${aspLabel} ${degText} / 現在 orb ${orbText}`,
       ].join("\n");
-      const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
-      lines.push(`<h3>${escapeHtml(title)}</h3>`);
-      lines.push(`<p>${escapeHtml(text)}</p>`);
+      const afterTextRaw = await runWithRetry({ userContent: afterPrompt, model: modelParts, maxTokens: 90 });
+      const afterText = String(afterTextRaw || "").split(/\r?\n/)[0].trim();
+
+      const line = [
+        `★ ${aLabel} × ${bLabel}`,
+        `${aspLabel} ${degText}`.trim(),
+        `最接近 ${peakText}`,
+        `現在 orb ${orbText}`,
+        `余韻 ${afterText}`.trim(),
+      ].filter(Boolean).join("<br>");
+      lines.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     }
   }
 
+  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
+  todayMoon.lines.forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
+
+  const nextEvents = buildNextMoonEvents(asOfISO, dict);
+  const nextLines = [nextEvents.new?.line, nextEvents.full?.line].filter(Boolean);
+  nextLines.forEach((line) => lines.push(`<p>${escapeHtml(line)}</p>`));
+
+  const nextSoon = [nextEvents.new, nextEvents.full]
+    .filter((ev) => ev?.date instanceof Date)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+
+  if (nextSoon?.line) {
+    const moonAfterPrompt = [
+      "以下のFACTSから「余韻」を1行で書く。",
+      "出力は日本語本文のみ（HTMLなし）。",
+      "15〜35字。1文のみ。",
+      "占い化しない。未来断定/指示/救済/運命固定/絶対語は禁止。",
+      "主語は構造（配置/角度/圧/残り方）。",
+      `FACTS: ${nextSoon.line}`,
+    ].join("\n");
+    const moonAfterRaw = await runWithRetry({ userContent: moonAfterPrompt, model: modelParts, maxTokens: 70 });
+    const moonAfter = String(moonAfterRaw || "").split(/\r?\n/)[0].trim();
+    lines.push(`<p>${escapeHtml(moonAfter)}</p>`);
+  }
+
   // 8) Aftertaste
-  lines.push("<h2>8｜余韻</h2>");
+  lines.push("<h2>8｜余韻（短縮）</h2>");
   const afterFacts = [
     `重心: ${strata.top_element || "—"}×${strata.top_modality || "—"}`,
     strongest ? `強い層: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)}` : "強い層: —",
