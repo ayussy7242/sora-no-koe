@@ -991,6 +991,33 @@ function aspectTrend(aKey, bKey, aspectDeg, asOfISO) {
   return laterOrb < nowOrb ? "接近中" : "離脱中";
 }
 
+function splitIntoParagraphs(text) {
+  const s = String(text || "").trim();
+  if (!s) return [];
+  const parts = s.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length > 1) return parts;
+
+  const chunks = s.split(/。/).map((p, i, arr) => {
+    const t = String(p || "").trim();
+    if (!t) return "";
+    return i < arr.length - 1 ? `${t}。` : t;
+  }).filter(Boolean);
+
+  if (chunks.length >= 3) {
+    const mid = Math.ceil(chunks.length / 2);
+    return [chunks.slice(0, mid).join(""), chunks.slice(mid).join("")].filter(Boolean);
+  }
+  return [s];
+}
+
+function pushParagraphs(lines, text) {
+  const paras = splitIntoParagraphs(text);
+  if (!paras.length) return;
+  paras.forEach((p) => {
+    lines.push(`<p>${escapeHtml(p)}</p>`);
+  });
+}
+
 async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, modelParts }) {
   const pub = story?.public || {};
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
@@ -1064,19 +1091,11 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const lines = [];
   lines.push(`<h1>🌌 きょうのそら｜${dateLabel}</h1>`);
   lines.push("<h2>0｜今日の全体圧（圧縮）</h2>");
-  lines.push(`<p>${escapeHtml(overviewText)}</p>`);
+  pushParagraphs(lines, overviewText);
 
   // 1) Positions
   lines.push("<h2>1｜配置（全天体：短文化）</h2>");
   const transit = pub.transit_signs || {};
-  const resonanceByBody = {};
-  resonanceAll.forEach((row) => {
-    const aKey = normalizeBodyKey(row?.a || "");
-    const bKey = normalizeBodyKey(row?.b || "");
-    if (aKey) resonanceByBody[aKey] = (resonanceByBody[aKey] || []).concat(row);
-    if (bKey) resonanceByBody[bKey] = (resonanceByBody[bKey] || []).concat(row);
-  });
-
   for (const key of BLOG_STRUCT_BODY_ORDER) {
     const info = transit?.[key];
     if (!info) continue;
@@ -1093,18 +1112,10 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const houseText = houseNo ? `第${houseNo}ハウス` : "第—ハウス";
     const title = `${glyph ? `${glyph} ` : ""}${bodyLabel}${retroSuffix}｜${formatSignDegree(signKey, info.lon_deg)}｜${houseText}`.trim();
     const retro = retroMap[key] ? "あり" : "なし";
-    const rel = (resonanceByBody[key] || []).slice(0, 2).map((row) => {
-      const other = normalizeBodyKey(row?.a === key ? row?.b : row?.a);
-      const label = bodyLabelJa(dict, other) || other;
-      const asp = aspectLabelForLong(row.type, row.aspect_deg);
-      return `${label} ${asp}`;
-    });
     const facts = [
       `逆行: ${retro}`,
       `位置: ${signLabelJa(dict, signKey)} ${Number.isFinite(Number(info.lon_deg)) ? ((info.lon_deg % 30 + 30) % 30).toFixed(0) : "—"}°`,
       houseNo ? `所属ハウス: 第${houseNo}ハウス` : "所属ハウス: —",
-      topHouses.length ? `主要ハウス: ${topHouses.join(" / ")}` : "主要ハウス: —",
-      rel.length ? `近接角度(orb≤3°): ${rel.join(" / ")}` : "近接角度(orb≤3°): —",
     ];
     const prompt = [
       BLOG_LONG_POSITION_GUIDE,
@@ -1113,9 +1124,9 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       `TITLE: ${title}`,
       `FACTS: ${facts.join(" / ")}`,
     ].join("\n");
-    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 180 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
-    lines.push(`<p>${escapeHtml(text)}</p>`);
+    pushParagraphs(lines, text);
   }
 
   // 2) Resonance
@@ -1149,7 +1160,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     ].join("\n");
     const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 220 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
-    lines.push(`<p>${escapeHtml(text)}</p>`);
+    pushParagraphs(lines, text);
   }
 
   // 3) Houses
@@ -1180,7 +1191,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     ].join("\n");
     const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
-    lines.push(`<p>${escapeHtml(text)}</p>`);
+    pushParagraphs(lines, text);
   }
 
   // 4) Elements
@@ -1194,7 +1205,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     `FACTS: ${elementLine} / ${modalityLine}`,
   ].join("\n");
   const elementsText = await runWithRetry({ userContent: elementsPrompt, model: modelMain, maxTokens: 700 });
-  lines.push(`<p>${escapeHtml(elementsText)}</p>`);
+  pushParagraphs(lines, elementsText);
 
   // 6) Kinjitsu log (lightweight)
   lines.push("<h2>6｜📅 近日（軽量版）</h2>");
@@ -1276,7 +1287,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     `FACTS: ${afterFacts.join(" / ")}`,
   ].join("\n");
   const afterText = await runWithRetry({ userContent: afterPrompt, model: modelMain, maxTokens: 700 });
-  lines.push(`<p>${escapeHtml(afterText)}</p>`);
+  pushParagraphs(lines, afterText);
 
   return lines.join("\n");
 }
