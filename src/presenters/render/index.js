@@ -41,9 +41,9 @@ const blendV2 = require("../../content/dict/blend.v2");
 // natal_list (揺れ吸収)
 let chNatalList = null;
 try {
-  chNatalList = require("./channels/natal_list");
+  chNatalList = require("../channels/natal_list");
 } catch (_) {
-  chNatalList = require("./render_parts/channels/natal_list");
+  chNatalList = require("../channels/natal_list");
 }
 
 function safeStr(v) {
