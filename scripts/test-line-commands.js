@@ -137,8 +137,8 @@ async function main() {
 
   const dict = require("../src/content/dict");
 
-  const { renderSoraLine } = require("../src/presenters/channels/line_sora");
-  const { renderLine } = require("../src/presenters/channels/line_today");
+  const { renderSoraLine } = require("../src/presenters/channels/line/sora");
+  const { renderLine } = require("../src/presenters/channels/line/today");
   const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../src/usecases/paid/line_paid_500");
   const { buildSoraWheelSvg } = require("../src/integrations/media/sora_wheel");
 

@@ -166,7 +166,7 @@ function createNatalListRenderer({
       "aquarius",
       "pisces",
     ];
-    const SIGNS_V2 = require("../../content/dict").SIGNS_V2 || {};
+    const SIGNS_V2 = require("../../../content/dict").SIGNS_V2 || {};
     const sigMeta = (lon) => {
       const v = Number(lon);
       if (!Number.isFinite(v)) return null;
@@ -214,7 +214,7 @@ function createNatalListRenderer({
 
       if (dateLocal && timeHm && (!tz || tz === "Asia/Tokyo")) {
         try {
-          const { swisseph } = require("../../config/swisseph");
+          const { swisseph } = require("../../../config/swisseph");
           const iso = `${dateLocal}T${timeHm}:00+09:00`;
           const dd = new Date(iso);
           if (!Number.isNaN(dd.getTime()) && swisseph) {

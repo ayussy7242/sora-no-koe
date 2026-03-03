@@ -1,26 +1,26 @@
 "use strict";
 
-const { planetJa } = require("../format/utils/line_ai_utils");
-const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
-const { SPEC } = require("../../config/sora_spec");
-const { scoreForAspect } = require("../../domain/touch_point_scoring");
-const { computeOrbStats } = require("../../domain/aspect_stats");
-const { normalizeBodyKey } = require("../../domain/canonical");
+const { planetJa } = require("../../format/utils/line_ai_utils");
+const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
+const { SPEC } = require("../../../config/sora_spec");
+const { scoreForAspect } = require("../../../domain/touch_point_scoring");
+const { computeOrbStats } = require("../../../domain/aspect_stats");
+const { normalizeBodyKey } = require("../../../domain/canonical");
 const {
   formatDateLabel,
   glyphForBody,
   signJa,
   aspectInfo,
   formatElementModalityLines,
-} = require("../format/format/line_common");
+} = require("../../format/format/line_common");
 const {
   scoreTouchPoints,
   sortScoredTouchPoints,
   dedupeTouchPoints,
-} = require("../../domain/touch_point_selection");
+} = require("../../../domain/touch_point_selection");
 
 async function renderLine(story, deps = {}) {
-  const dict = deps?.dict || require("../../content/dict");
+  const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
   const includeSummary = deps?.includeSummary !== false;
   const isPaid = deps?.paid === true;

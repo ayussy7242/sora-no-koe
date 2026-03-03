@@ -6,7 +6,7 @@
  * - 文章/解釈/個人要素は出さない
  */
 
-const { renderSoraLine } = require("./line_sora");
+const { renderSoraLine } = require("./line/sora");
 
 function renderIG(story, deps = {}) {
   return renderSoraLine(story, {

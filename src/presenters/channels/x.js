@@ -6,7 +6,7 @@
  * - 余計な個人要素は出さない
  */
 
-const { renderSoraLine } = require("./line_sora");
+const { renderSoraLine } = require("./line/sora");
 
 function renderX(story, deps = {}) {
   return renderSoraLine(story, {
