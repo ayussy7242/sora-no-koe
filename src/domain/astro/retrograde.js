@@ -2,7 +2,7 @@
 
 const { normalizeBodyKey } = require("../canonical");
 
-const { swisseph } = require("../../../config/swisseph");
+const { swisseph } = require("../../config/swisseph");
 
 function jdUtFromIso(asOfISO) {
   const d = new Date(asOfISO);
