@@ -10,7 +10,7 @@
 
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
-const { FIRESTORE_DATABASE_ID } = require("./env");
+const { FIRESTORE_DATABASE_ID } = require("../../config/env");
 
 function getAdminApp() {
   if (!admin.apps.length) {
