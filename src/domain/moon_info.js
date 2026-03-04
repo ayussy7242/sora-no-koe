@@ -2,7 +2,7 @@
 
 const dictDefault = require("../content/dict");
 const { swisseph } = require("../config/swisseph");
-const { jdUtFromIso, calcTransitLon, findNextMoonPhase, formatDateYmdHm } = require("./astro_compute");
+const { jdUtFromIso, calcTransitLon, findNextMoonPhase, formatDateYmdHm, absAngularDistance } = require("./astro_compute");
 const { signLabelJa } = require("../presenters/render/render_tokens");
 const { toDateLocalJST } = require("../utils/time_utils");
 
@@ -88,9 +88,15 @@ function buildTodayMoonInfo({ asOfISO, story, dict }) {
     ? ((Number(moonLon) - Number(sunLon) + 360) % 360)
     : null;
   const phase = moonPhaseInfo(phaseDeg);
+  const phaseAngle = Number.isFinite(Number(sunLon)) && Number.isFinite(Number(moonLon))
+    ? absAngularDistance(moonLon, sunLon)
+    : null;
+  const illumination = Number.isFinite(Number(phaseAngle))
+    ? (1 - Math.cos((Number(phaseAngle) * Math.PI) / 180)) / 2
+    : null;
   const moonAge = Number.isFinite(Number(phaseDeg)) ? (Number(phaseDeg) / 360) * SYNODIC_MONTH_DAYS : null;
   const moonSign = story?.public?.moon?.sign_ja || signLabelJa(useDict, story?.public?.moon?.sign_key);
-  return { phaseDeg, phase, moonAge, moonSign };
+  return { phaseDeg, phase, moonAge, moonSign, illumination };
 }
 
 function getFullMoonForDate(asOfISO) {
@@ -129,18 +135,30 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
   if (info.phase.label || info.moonSign || Number.isFinite(info.moonAge)) {
     const baseDate = asOfISO ? new Date(asOfISO) : new Date();
     const moonName = moonNameJaFromDate(baseDate);
-    const fullToday = getFullMoonForDate(asOfISO);
-    let phaseLabel = info.phase.label || "—";
-    if (fullToday) {
-      phaseLabel = moonName ? `満月（${moonName}）` : (info.phase.alt ? `満月（${info.phase.alt}）` : "満月");
+    const isFullNow = Number.isFinite(Number(info.illumination)) && Number(info.illumination) >= 0.98;
+    const isNewNow = Number.isFinite(Number(info.illumination)) && Number(info.illumination) <= 0.02;
+    let phaseLabelCore = info.phase.label || "—";
+    if (isFullNow) {
+      phaseLabelCore = "満月";
+    } else if (isNewNow) {
+      phaseLabelCore = "新月";
     } else if (info.phase.label === "満月") {
-      phaseLabel = nearFullLabelByAge(info.moonAge) || "小望月";
-    } else if (info.phase.alt) {
-      phaseLabel = `${info.phase.label}（${info.phase.alt}）`;
+      phaseLabelCore = nearFullLabelByAge(info.moonAge) || "小望月";
     }
+
+    let phaseLabel = phaseLabelCore;
+    const alt = info.phase.alt || "";
+    if (phaseLabelCore === "満月" || phaseLabelCore === "新月") {
+      const name = moonName || alt;
+      if (name) phaseLabel = `${phaseLabelCore}（${name}）`;
+    } else if (alt && alt !== phaseLabelCore) {
+      phaseLabel = `${phaseLabelCore}（${alt}）`;
+    }
+
     const moonAgeText = Number.isFinite(info.moonAge) ? info.moonAge.toFixed(1) : "—";
     lines.push("🌙 本日の月");
-    lines.push(`${phaseLabel}｜${info.moonSign || "—"}｜月齢 ${moonAgeText}`);
+    lines.push(`${phaseLabel}｜${info.moonSign || "—"}`);
+    lines.push(`月齢 ${moonAgeText}`);
   }
   return { lines, info };
 }
