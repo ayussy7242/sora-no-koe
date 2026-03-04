@@ -160,13 +160,24 @@ function computeMoonPhaseState(asOfISO) {
   if (illumination <= 0.02) {
     return { kind: "new", emoji: "🌑", label: "新月なう", phaseDeg, illumination };
   }
+  const peak = findNextMoonPhaseContinuous(
+    new Date(new Date(asOfISO).getTime() - 3 * 86400000).toISOString(),
+    180,
+    10
+  );
   if (illumination >= 0.98) {
-    return { kind: "full", emoji: "🌕", label: "満月なう", phaseDeg, illumination };
+    return { kind: "full", emoji: "🌕", label: "満月なう", phaseDeg, illumination, peak };
+  }
+  if (illumination >= 0.95) {
+    const label = isValidDate(peak) && new Date(asOfISO).getTime() > peak.getTime()
+      ? "満月（ピーク通過）"
+      : "満月へ向かう";
+    return { kind: "full_near", emoji: "🌕", label, phaseDeg, illumination, peak };
   }
   if (phaseDeg < 180) {
-    return { kind: "waxing", emoji: "🌓", label: "上弦へ向かう", phaseDeg, illumination };
+    return { kind: "waxing", emoji: "🌓", label: "上弦へ向かう", phaseDeg, illumination, peak };
   }
-  return { kind: "waning", emoji: "🌗", label: "下弦へ向かう", phaseDeg, illumination };
+  return { kind: "waning", emoji: "🌗", label: "下弦へ向かう", phaseDeg, illumination, peak };
 }
 
 function elementLabelFromSign(dict, signKey) {
@@ -281,7 +292,7 @@ function renderXThread(story, deps = {}) {
     const lines = [];
     lines.push("🌙 月相", "", `${state.emoji} ${state.label}`);
 
-    if (state.kind === "new" || state.kind === "full") {
+    if (state.kind === "new" || state.kind === "full" || state.kind === "full_near") {
       const targetDeg = state.kind === "new" ? 0 : 180;
       const peakStart = new Date(baseDate.getTime() - 3 * 86400000).toISOString();
       const peak = findNextMoonPhaseContinuous(peakStart, targetDeg, 10);
