@@ -156,20 +156,28 @@ function computeMoonPhaseState(asOfISO) {
   const phaseDeg = ((Number(moonLon) - Number(sunLon) + 360) % 360);
   const phaseAngle = absAngularDistance(moonLon, sunLon);
   const illumination = (1 - Math.cos((phaseAngle * Math.PI) / 180)) / 2;
+  const now = new Date(asOfISO);
+  const peak = isValidDate(now)
+    ? findNextMoonPhaseContinuous(
+        new Date(now.getTime() - 3 * 86400000).toISOString(),
+        180,
+        10
+      )
+    : null;
+  const hoursAfterPeak =
+    isValidDate(now) && isValidDate(peak) ? (now.getTime() - peak.getTime()) / 3600000 : null;
 
   if (illumination <= 0.02) {
     return { kind: "new", emoji: "🌑", label: "新月なう", phaseDeg, illumination };
   }
-  const peak = findNextMoonPhaseContinuous(
-    new Date(new Date(asOfISO).getTime() - 3 * 86400000).toISOString(),
-    180,
-    10
-  );
   if (illumination >= 0.98) {
+    if (Number.isFinite(Number(hoursAfterPeak)) && Number(hoursAfterPeak) > 12) {
+      return { kind: "full_near", emoji: "🌕", label: "満月（ピーク通過）", phaseDeg, illumination, peak };
+    }
     return { kind: "full", emoji: "🌕", label: "満月なう", phaseDeg, illumination, peak };
   }
   if (illumination >= 0.95) {
-    const label = isValidDate(peak) && new Date(asOfISO).getTime() > peak.getTime()
+    const label = isValidDate(peak) && Number.isFinite(Number(hoursAfterPeak)) && Number(hoursAfterPeak) > 0
       ? "満月（ピーク通過）"
       : "満月へ向かう";
     return { kind: "full_near", emoji: "🌕", label, phaseDeg, illumination, peak };
