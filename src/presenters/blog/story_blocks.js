@@ -55,6 +55,19 @@ function formatModalityCount(count = {}) {
   return `活動${count.cardinal || 0} 不動${count.fixed || 0} 柔軟${count.mutable || 0}`;
 }
 
+function formatSignConcentration(counts = {}) {
+  const entries = Object.entries(counts)
+    .map(([k, v]) => [k, Number(v)])
+    .filter(([k, v]) => k && Number.isFinite(v) && v > 0)
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+  if (!entries.length) return "";
+  const top = entries.slice(0, 2).map(([k, v]) => {
+    const label = signLabelJa(dict, k) || k;
+    return `${label}${v}件`;
+  });
+  return top.join(" / ");
+}
+
 function formatPositionLine({ bodyKey, signKey, signJa, retro, lonDeg }) {
   const glyph = bodyGlyph(bodyKey);
   const label = bodyLabelJa(dict, bodyKey) || bodyKey;
@@ -162,6 +175,14 @@ function buildBlogBlocks(story, opts = {}) {
   const elements = formatElementCount(strata.element_count || {});
   const modalities = formatModalityCount(strata.modality_count || {});
 
+  const signCounts = {};
+  BODY_ORDER.forEach((key) => {
+    const signKey = normalizeSignKey(transitSigns?.[key]?.sign_key || "");
+    if (!signKey) return;
+    signCounts[signKey] = (signCounts[signKey] || 0) + 1;
+  });
+  const signConcentration = formatSignConcentration(signCounts);
+
   const orbValues = resonancePool
     .map((it) => (Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null))
     .filter((n) => n != null);
@@ -180,8 +201,7 @@ function buildBlogBlocks(story, opts = {}) {
       facts: [
         dateLocal ? `日付: ${dateLocal}` : "",
         leadAspectLine ? `最接近: ${leadAspectLine}` : "",
-        elements ? `要素: ${elements}` : "",
-        modalities ? `区分: ${modalities}` : "",
+        signConcentration ? `集中: ${signConcentration}` : "",
       ].filter(Boolean),
     },
     {

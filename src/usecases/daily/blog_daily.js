@@ -462,6 +462,25 @@ function userPrompt({ dateLocal, dataBlock }) {
   ].join("\n");
 }
 
+function buildMoonHtml({ asOfISO, story }) {
+  const today = formatTodayMoonLines({ asOfISO, story, dict })?.lines || [];
+  const next = formatNextMoonLines({ asOfISO, dict })?.lines || [];
+  const lines = [...today, ...next].filter(Boolean).filter((line) => line !== "🌙 本日の月");
+  if (!lines.length) return "";
+  const out = ["<h2>🌙 本日の月</h2>"];
+  lines.forEach((line) => out.push(`<p>${escapeHtml(line)}</p>`));
+  return out.join("\n");
+}
+
+function injectMoonSection(html, moonHtml) {
+  if (!moonHtml) return html;
+  const pattern = /<h2>🌙 本日の月<\/h2>[\s\S]*?(?=<h2>|$)/;
+  if (pattern.test(html)) {
+    return html.replace(pattern, moonHtml);
+  }
+  return `${html}\n\n${moonHtml}`.trim();
+}
+
 function formatDateJaFromLocal(dateLocal) {
   const parts = String(dateLocal || "").trim().split("-");
   if (parts.length !== 3) return "";
@@ -577,6 +596,8 @@ function buildDailyEyecatchLines(story, dateLocal) {
 async function generateDailyDraft({ story, dateLocal, openai }) {
   const blocks = buildBlogBlocks(story, { dateLocal });
   const dataBlock = blocksToInput(blocks);
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const moonHtml = buildMoonHtml({ asOfISO, story });
 
   const noAi =
     openai?.noAi === true ||
@@ -598,7 +619,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
     process.env.OPENAI_MODEL_BLOG_PARTS ||
     modelMain;
 
-  const closing = "これは占いではありません。\n星は答えを示さず、構造だけを置いています。\n星は語る。解釈はあなたのもの🌃";
+  const closing = "星は答えを示さず、構造だけを置いています。\n星は語る。解釈はあなたのもの🌃";
 
   const buildMessages = (userContent, retryNote = "") => [
     { role: "system", content: systemPrompt() },
@@ -651,7 +672,8 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       modelMain,
       modelParts,
     });
-    return stripAiLogs(enforceSingleClosing(html, closing));
+    const merged = stripAiLogs(enforceSingleClosing(html, closing));
+    return injectMoonSection(merged, moonHtml);
   }
 
   if (mode === "block") {
@@ -673,7 +695,8 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       const html = await runWithRetry({ userContent: content, model: modelParts, maxTokens: 1400 });
       parts.push(html.trim());
     }
-    return appendStructureLog(parts.join("\n\n").trim());
+    const merged = await appendStructureLog(parts.join("\n\n").trim());
+    return injectMoonSection(merged, moonHtml);
   }
 
   if (mode === "item") {
@@ -730,12 +753,14 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
         }
       }
     }
-    return appendStructureLog(out.join("\n\n").trim());
+    const merged = await appendStructureLog(out.join("\n\n").trim());
+    return injectMoonSection(merged, moonHtml);
   }
 
   const baseUser = userPrompt({ dateLocal, dataBlock });
   const text = await runWithRetry({ userContent: baseUser, model: modelMain, maxTokens: 2200 });
-  return appendStructureLog(text);
+  const merged = await appendStructureLog(text);
+  return injectMoonSection(merged, moonHtml);
 }
 
 function escapeHtml(text) {
@@ -858,28 +883,35 @@ function formatHouseLogLine(row) {
   const signText = `${row.signGlyph || ""}${row.signJa || ""}`.trim() || "—";
   const bodiesRaw = row.items.length ? row.items.join(" ") : "—";
   const bodies = bodiesRaw.replace(/\(R\)/g, "（R）");
-  const score = Number.isFinite(Number(row.score)) ? Number(row.score).toFixed(2) : "0.00";
-  return `第${row.houseNo}ハウス｜${signText}｜${bodies}｜score ${score}`;
+  return `第${row.houseNo}ハウス｜${signText}｜${bodies}`;
+}
+
+const TSUKIJI_EXCLUDE_BODIES = new Set(["sun", "moon", "mercury", "venus", "mars"]);
+
+function shouldSkipTsukiji(aKey, bKey) {
+  return TSUKIJI_EXCLUDE_BODIES.has(aKey) || TSUKIJI_EXCLUDE_BODIES.has(bKey);
 }
 
 function buildTsukijiRowsPublic(story, asOfISO) {
   const longLogs = Array.isArray(story?.public?.kinjitsu_long) ? story.public.kinjitsu_long : [];
   if (longLogs.length) {
-    return longLogs.map((row) => ({
-      aKey: normalizeBodyKey(row?.a || ""),
-      bKey: normalizeBodyKey(row?.b || ""),
-      aSignKey: row?.a_sign_key || "",
-      bSignKey: row?.b_sign_key || "",
-      aSignJa: row?.a_sign_ja || "",
-      bSignJa: row?.b_sign_ja || "",
-      aspect: normalizeAspectKey(row?.aspect || row?.type, row?.aspect_deg),
-      aspectDeg: Number(row?.aspect_deg),
-      orb: Number(row?.now_orb),
-      start: row?.start_at ? new Date(row.start_at) : null,
-      peak: row?.peak_at ? new Date(row.peak_at) : null,
-      end: row?.end_at ? new Date(row.end_at) : null,
-      durationDays: Number(row?.duration_days),
-    })).filter((r) => r.aKey && r.bKey);
+    return longLogs
+      .map((row) => ({
+        aKey: normalizeBodyKey(row?.a || ""),
+        bKey: normalizeBodyKey(row?.b || ""),
+        aSignKey: row?.a_sign_key || "",
+        bSignKey: row?.b_sign_key || "",
+        aSignJa: row?.a_sign_ja || "",
+        bSignJa: row?.b_sign_ja || "",
+        aspect: normalizeAspectKey(row?.aspect || row?.type, row?.aspect_deg),
+        aspectDeg: Number(row?.aspect_deg),
+        orb: Number(row?.now_orb),
+        start: row?.start_at ? new Date(row.start_at) : null,
+        peak: row?.peak_at ? new Date(row.peak_at) : null,
+        end: row?.end_at ? new Date(row.end_at) : null,
+        durationDays: Number(row?.duration_days),
+      }))
+      .filter((r) => r.aKey && r.bKey && !shouldSkipTsukiji(r.aKey, r.bKey));
   }
 
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
@@ -895,6 +927,7 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     if (!aKey || !bKey) return;
+    if (shouldSkipTsukiji(aKey, bKey)) return;
 
     const sig = [aKey, bKey].sort().join("|");
     if (seen.has(sig)) return;
@@ -974,6 +1007,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
 
     for (const row of houseRows) {
       const title = `第${row.houseNo}ハウス`;
+      const line = formatHouseLogLine(row);
       let body = "この領域に圧が集まり、動きの重さが残っている。";
       if (enableAi) {
         const prompt = [
@@ -982,11 +1016,11 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
           `日付: ${dateLocal}`,
           `HOUSE: ${title}｜${row.signGlyph || ""}${row.signJa || ""}`.trim(),
           `BODIES: ${row.items.length ? row.items.join(" ") : "—"}`,
-          `SCORE: ${Number(row.score || 0).toFixed(2)}`,
         ].join("\n");
         body = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
       }
       sections.push(`<h3>${escapeHtml(title)}</h3>`);
+      sections.push(`<p>${escapeHtml(line)}</p>`);
       sections.push(`<p>${escapeHtml(body)}</p>`);
     }
   }
