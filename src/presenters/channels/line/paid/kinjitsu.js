@@ -28,7 +28,8 @@ function formatKinjitsu({ items = [], moonEvents = [], dict, formatDateYmdHm }) 
       `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText}`,
       `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
       `${aspectLabel} ${degText}`.trim(),
-      `${SPEC.labels.kinjitsu.nowOrb} ${Number(it.nowOrb).toFixed(1)}° → ${SPEC.labels.kinjitsu.peak} ${formatDateYmdHm(it.peak)}`
+      `${SPEC.labels.kinjitsu.nowOrb} ${Number(it.nowOrb).toFixed(1)}°`,
+      `${SPEC.labels.kinjitsu.peak} ${formatDateYmdHm(it.peak)}`
     );
   });
 
