@@ -59,6 +59,7 @@ function formatBunpu({
   }
 
   ura.forEach((row, idx) => {
+    if (idx > 0) lines.push("");
     const it = row.item;
     const nKey = row?.nKey || String(it?.natal_body_or_point || it?.natal_body || it?.a || "").toLowerCase();
     const tKey = row?.tKey || String(it?.transit_body || it?.b || "").toLowerCase();
@@ -84,7 +85,8 @@ function formatBunpu({
     const orb = Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null;
     const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
 
-    lines.push(`${idx + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText} × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`);
+    lines.push(`${idx + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText}`);
+    lines.push(`   × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`);
     lines.push(`   ${aspectLabel} ${degText}｜orb ${orbText}`.trim());
   });
 

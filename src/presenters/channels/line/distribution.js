@@ -6,6 +6,7 @@ const {
   buildTsukijiBlock,
   buildKinjitsuBlock,
 } = require("../../../usecases/paid/line_paid_500");
+const { SPEC } = require("../../../config/sora_spec");
 
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");
@@ -19,15 +20,15 @@ async function renderDistributionLine(story, deps = {}) {
   const lines = [`🔵 観測ログ＋｜${dateLabel}`, ""];
 
   lines.push(...buildBunpuTop5(story, dict));
-  lines.push("");
+  lines.push("", SPEC.separators.section, "");
 
-  lines.push("🏠 はうす（全ハウス）", "");
+  lines.push("🏠 はうす（接点あり）", "");
   lines.push(...buildHouseBlock(story, dict, asOfISO));
-  lines.push("");
+  lines.push("", SPEC.separators.section, "");
 
   lines.push("🌙 つきじ（最大3）", "");
   lines.push(...buildTsukijiBlock(story, dict, asOfISO));
-  lines.push("");
+  lines.push("", SPEC.separators.section, "");
 
   lines.push(...buildKinjitsuBlock(story, dict, asOfISO));
 
