@@ -104,9 +104,11 @@ async function renderLine(story, deps = {}) {
     const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
     const orb = Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null;
     const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-    const line2 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
+    const line2 = `${aspectLabel} ${degText}`.trim();
+    const line2b = orbText ? `orb ${orbText}°` : "";
 
     lines.push(line1, line1b, line2);
+    if (line2b) lines.push(line2b);
     if (i < picked.length - 1) lines.push("");
   });
 

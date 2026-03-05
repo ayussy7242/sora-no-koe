@@ -27,10 +27,11 @@ function formatTsukiji({ approachRows = [], retroRows = [], dict }) {
       const aspectMeta = aspectInfo(dict, row.aspectType, row.aspectDeg);
       const aspectLabel = aspectMeta?.label_ja || String(row.aspectType || "");
       const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(row.aspectDeg)}°` : "";
-      const orbText = Number.isFinite(Number(row.orb)) ? `｜orb ${Number(row.orb).toFixed(1)}°` : "";
+      const orbText = Number.isFinite(Number(row.orb)) ? `orb ${Number(row.orb).toFixed(1)}°` : "";
       lines.push(`${idx + 1}) (${aKind}) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText}`);
       lines.push(`   × (${bKind}) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`);
-      lines.push(`   ${aspectLabel} ${degText}${orbText}`.trim());
+      lines.push(`   ${aspectLabel} ${degText}`.trim());
+      if (orbText) lines.push(`   ${orbText}`);
       lines.push(`   ${row.startText} → ${row.endText}`);
       lines.push(`   ${SPEC.labels.tsukiji.remaining} ${row.remainingDays}日`);
     });
