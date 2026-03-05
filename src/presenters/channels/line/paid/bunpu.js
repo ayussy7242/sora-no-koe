@@ -50,7 +50,7 @@ function formatBunpu({
   lines.push(`元素：火${Number(elementCounts.fire || 0)} 地${Number(elementCounts.earth || 0)} 風${Number(elementCounts.air || 0)} 水${Number(elementCounts.water || 0)}`);
   lines.push(`三区分：活動${Number(modalityCounts.cardinal || 0)} 不動${Number(modalityCounts.fixed || 0)} 柔軟${Number(modalityCounts.mutable || 0)}`, "");
 
-  lines.push("─────────────");
+  lines.push("", "─────────────", "");
   lines.push("🌑 うら｜きょうに出ていない接点（全件）", "");
 
   if (!ura.length) {
