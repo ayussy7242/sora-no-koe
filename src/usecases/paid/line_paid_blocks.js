@@ -1,6 +1,7 @@
 "use strict";
 
 const { isRetrograde, buildRetrogradeMap } = require("../../domain/astro/retrograde");
+const { moonNameJaFromDate } = require("../../domain/moon_info");
 const { SPEC } = require("../../config/sora_spec");
 const { weightForBody, scoreForAspect } = require("../../domain/touch_point_scoring");
 const { computeOrbStats } = require("../../domain/aspect_stats");
@@ -476,11 +477,13 @@ function buildKinjitsuBlock(story, dict, asOfISO) {
     const idx = Number.isFinite(Number(lon)) ? Math.floor(((lon % 360) + 360) % 360 / 30) : null;
     const signKey = idx != null ? signOrder[idx] : null;
     const signLabel = signKey ? signJa(dict, signKey) : "";
+    const moonName = typeof moonNameJaFromDate === "function" ? moonNameJaFromDate(ev.date) : null;
     return {
       kind: ev.kind,
       date: ev.date,
       signKey,
       signJa: signLabel,
+      moonName: moonName || "",
     };
   });
 

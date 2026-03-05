@@ -137,10 +137,12 @@ async function renderSoraLine(story, deps = {}) {
       const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
       const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
       const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-      const line3 = `${aspectLabel} ${degText}｜orb ${orbText}°`.trim();
+      const line3 = `${aspectLabel} ${degText}`.trim();
+      const line3b = orbText ? `orb ${orbText}°` : "";
 
       if (idx > 0) lines.push("");
       lines.push(line1, line2, line3);
+      if (line3b) lines.push(line3b);
     });
     return lines;
   })();
