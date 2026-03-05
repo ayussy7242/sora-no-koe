@@ -1,5 +1,6 @@
 "use strict";
 
+const { renderLine } = require("../../presenters/channels/line/today");
 const { renderSoraLine } = require("../../presenters/channels/line/sora");
 const { renderDistributionLine } = require("../../presenters/channels/line/distribution");
 const { SPEC } = require("../../config/sora_spec");
@@ -15,6 +16,7 @@ async function buildDailyLineMessage({ story, dict, isPaid500 } = {}) {
   const dateLabel = formatDateLabel(story?.meta?.date_local);
 
   const freeSoraBody = await renderSoraLine(story, { dict: useDict, includeHeader: false });
+  const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false });
   const paidBody = isPaid500
     ? await renderDistributionLine(story, { dict: useDict })
     : null;
@@ -23,6 +25,9 @@ async function buildDailyLineMessage({ story, dict, isPaid500 } = {}) {
 
   lines.push(`🌌 きょうのそら｜${dateLabel}`, "");
   if (freeSoraBody) lines.push(freeSoraBody);
+
+  lines.push("", SPEC.separators.section, "", "⭐ あなたのほし×きょうのそら", "");
+  if (freeTodayBody) lines.push(freeTodayBody);
 
   if (paidBody) {
     const paidLines = String(paidBody || "").split("\n");
