@@ -156,9 +156,10 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
     }
 
     const moonAgeText = Number.isFinite(info.moonAge) ? info.moonAge.toFixed(1) : "—";
+    const illuminationPct = Number.isFinite(info.illumination) ? Math.round(info.illumination * 100) : null;
     lines.push("🌙 本日の月");
     lines.push(`${phaseLabel}｜${info.moonSign || "—"}`);
-    lines.push(`月齢 ${moonAgeText}`);
+    lines.push(illuminationPct != null ? `月齢 ${moonAgeText}｜照度 ${illuminationPct}%` : `月齢 ${moonAgeText}`);
   }
   return { lines, info };
 }
