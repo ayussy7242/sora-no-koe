@@ -4,10 +4,11 @@ const { glyphForSign } = require("../../../format/format/line_common");
 const { SPEC } = require("../../../../config/sora_spec");
 
 function formatHouse({ rows = [] }) {
-  if (!rows.length) return ["該当なし"];
+  const visibleRows = rows.filter((row) => Array.isArray(row?.items) && row.items.length > 0);
+  if (!visibleRows.length) return ["該当なし"];
 
   const lines = [];
-  rows.forEach((row) => {
+  visibleRows.forEach((row) => {
     const signGlyph = row?.signKey ? glyphForSign(row.signKey) : "";
     const signText = row?.signJa ? `${row.signJa}` : "";
     const itemsText = row.items && row.items.length ? row.items.join("、") : "—";

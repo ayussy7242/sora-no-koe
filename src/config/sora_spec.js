@@ -7,7 +7,7 @@ const SPEC = Object.freeze({
   },
   tsukiji: {
     minDays: 14,
-    maxItems: 5,
+    maxItems: 3,
   },
   labels: {
     sora: {

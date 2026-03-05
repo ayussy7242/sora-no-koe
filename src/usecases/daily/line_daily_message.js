@@ -4,6 +4,7 @@ const { renderLine } = require("../../presenters/channels/line/today");
 const { renderSoraLine } = require("../../presenters/channels/line/sora");
 const { renderDistributionLine } = require("../../presenters/channels/line/distribution");
 const { SPEC } = require("../../config/sora_spec");
+const env = require("../../config/env");
 
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");
@@ -29,7 +30,19 @@ async function buildDailyLineMessage({ story, dict, isPaid500 } = {}) {
   lines.push("", SPEC.separators.section, "", "⭐ あなたのほし×きょうのそら", "");
   if (freeTodayBody) lines.push(freeTodayBody);
 
-  if (paidBody) {
+  if (!paidBody) {
+    const plusUrl = env?.SORA_PLUS_URL || null;
+    const plusLine = plusUrl
+      ? `ソラの観測をもう少し深く見る ▶ ソラぷらす ${plusUrl}`
+      : "ソラの観測をもう少し深く見る ▶ ソラぷらす";
+    lines.push(
+      "",
+      SPEC.separators.section,
+      "",
+      "🔵 観測ログ＋（ぶんぷ / ハウス / つきじ / 近日）",
+      plusLine
+    );
+  } else {
     const paidLines = String(paidBody || "").split("\n");
     if (paidLines[0] && paidLines[0].startsWith("🔵 観測ログ＋")) {
       paidLines[0] = "🔵 観測ログ＋";
