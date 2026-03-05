@@ -11,6 +11,7 @@ const {
   aspectInfo,
   formatElementModalityLines,
 } = require("../../format/format/line_common");
+const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
 const {
   listWithOrb,
   filterWithinOrb,
@@ -23,6 +24,7 @@ async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
   const includeAspect = deps?.includeAspect !== false;
+  const includeHouse = deps?.includeHouse === true;
   const isPaid = deps?.paid === true;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
@@ -41,6 +43,17 @@ async function renderSoraLine(story, deps = {}) {
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
+  const ascDeg = includeHouse && asOfISO ? computeTokyoAscDeg(asOfISO) : null;
+  const ascIndex = Number.isFinite(Number(ascDeg)) ? Math.floor(Number(ascDeg) / 30) : null;
+
+  const houseLabelFor = (signKey) => {
+    if (ascIndex == null) return "";
+    const idx = signIndexFromKey(dict, signKey || "");
+    if (idx < 0) return "";
+    const houseNo = houseNumberForSignIndex(idx, ascIndex);
+    return houseNo ? `｜第${houseNo}ハウス` : "";
+  };
+
   const bodyLines = [];
   const breakBefore = new Set(["lilith"]);
   bodyOrder.forEach((k) => {
@@ -54,7 +67,8 @@ async function renderSoraLine(story, deps = {}) {
     const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
     const bodyText = `${bodyJa}${retro}`;
     const prefix = glyph ? `${glyph} ` : "";
-    const line = `${prefix}${bodyText}｜${signLabel}`;
+    const houseText = includeHouse ? houseLabelFor(signKey) : "";
+    const line = `${prefix}${bodyText}｜${signLabel}${houseText}`;
     if (breakBefore.has(k) && bodyLines.length && bodyLines[bodyLines.length - 1] !== "") {
       bodyLines.push("");
     }
