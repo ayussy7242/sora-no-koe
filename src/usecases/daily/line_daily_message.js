@@ -31,7 +31,7 @@ async function buildDailyLineMessage({ story, dict, isPaid500 } = {}) {
   lines.push(`🌌 きょうのそら｜${dateLabel}`, "");
   if (freeSoraBody) lines.push(freeSoraBody);
 
-  lines.push("", SPEC.separators.section, "", "⭐ あなたのほし×きょうのそら", "");
+  lines.push("", "", SPEC.separators.section, "", "⭐ あなたのほし×きょうのそら", "");
   if (freeTodayBody) lines.push(freeTodayBody);
 
   if (!paidBody) {
