@@ -13,7 +13,7 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../domain/canonical");
-const { formatTodayMoonLines } = require("../../domain/moon_info");
+const { formatTodayMoonLines, formatNextMoonLines } = require("../../domain/moon_info");
 
 const BODY_ORDER = [
   "sun",
@@ -101,6 +101,31 @@ function formatAspectLine(item, retroMap = {}) {
   return `${pair}｜${tail}`.trim();
 }
 
+function formatResonanceHeading(item, retroMap = {}) {
+  const aKey = normalizeBodyKey(item?.a || "");
+  const bKey = normalizeBodyKey(item?.b || "");
+  const aGlyph = bodyGlyph(aKey);
+  const bGlyph = bodyGlyph(bKey);
+  const aLabel = bodyLabelJa(dict, aKey) || aKey;
+  const bLabel = bodyLabelJa(dict, bKey) || bKey;
+  const aRetro = retroMap[aKey] ? SPEC.retro.suffix : "";
+  const bRetro = retroMap[bKey] ? SPEC.retro.suffix : "";
+  const aSign = item?.a_sign_ja || signLabelJa(dict, item?.a_sign_key || "");
+  const bSign = item?.b_sign_ja || signLabelJa(dict, item?.b_sign_key || "");
+  const aspectDeg = Number.isFinite(Number(item?.aspect_deg)) ? Number(item.aspect_deg) : null;
+  const aspectLabel = aspectLabelJa(item?.type || item?.aspect, aspectDeg);
+  const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
+
+  const left = `${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aRetro}`.trim();
+  const right = `${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bRetro}`.trim();
+  const signTextA = aSign ? `（${aSign}）` : "";
+  const signTextB = bSign ? `（${bSign}）` : "";
+  const pair = `${left}${signTextA} × ${right}${signTextB}`.trim();
+  const angle = [aspectLabel, degText].filter(Boolean).join(" ");
+  if (!angle) return pair;
+  return `${pair}｜ ${angle}`.trim();
+}
+
 function buildBlogBlocks(story, opts = {}) {
   const pub = story?.public || {};
   const dateLocal = opts.dateLocal || story?.meta?.date_local || "";
@@ -127,7 +152,7 @@ function buildBlogBlocks(story, opts = {}) {
 
   const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
   const resonancePool = skyAll.filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit);
-  const resonanceItems = resonancePool.map((it) => formatAspectLine(it, retroMap)).filter(Boolean);
+  const resonanceItems = resonancePool.map((it) => formatResonanceHeading(it, retroMap)).filter(Boolean);
   const resonanceTop = resonanceItems.slice(0, 3);
 
   const leadAspect = resonancePool?.[0] || skyAll?.[0] || null;
@@ -145,6 +170,8 @@ function buildBlogBlocks(story, opts = {}) {
 
   const todayMoon = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
   const todayMoonItems = todayMoon.filter((line) => line && line !== "🌙 本日の月");
+  const nextMoon = formatNextMoonLines({ asOfISO, dict }).lines || [];
+  const moonItems = [...todayMoonItems, ...nextMoon];
 
   const blocks = [
     {
@@ -167,7 +194,7 @@ function buildBlogBlocks(story, opts = {}) {
     {
       id: "today_moon",
       title: "🌙 本日の月",
-      items: todayMoonItems.length ? todayMoonItems : ["データなし"],
+      items: moonItems.length ? moonItems : ["データなし"],
       render: "raw",
     },
     {
