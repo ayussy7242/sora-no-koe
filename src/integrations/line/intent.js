@@ -86,6 +86,8 @@ const MAP = new Map([
   ["今日のほし", INTENT.PERSONAL_TODAY],
   ["きょうのほし", INTENT.PERSONAL_TODAY],
   ["today", INTENT.PERSONAL_TODAY],
+  ["きょう＋", INTENT.PERSONAL_TODAY],
+  ["きょう+", INTENT.PERSONAL_TODAY],
 
   // PUBLIC_SKY（公開）
   ["そら", INTENT.PUBLIC_SKY],
@@ -95,6 +97,8 @@ const MAP = new Map([
   ["宇宙", INTENT.PUBLIC_SKY],
   ["sky", INTENT.PUBLIC_SKY],
   ["public", INTENT.PUBLIC_SKY],
+  ["そら＋", INTENT.PUBLIC_SKY],
+  ["そら+", INTENT.PUBLIC_SKY],
 
   // DISTRIBUTION / Paid blocks
   ["分布", INTENT.BUNPU],
@@ -114,6 +118,8 @@ const MAP = new Map([
 
   // PLUS commands
   ["ぷらす", INTENT.PLUS_MENU],
+  ["そらぷらす", INTENT.PLUS_MENU],
+  ["ソラぷらす", INTENT.PLUS_MENU],
   ["ぷらす入会", INTENT.PLUS_JOIN],
   ["ぷらす解約", INTENT.PLUS_CANCEL],
   ["ぷらす状態", INTENT.PLUS_STATUS],
@@ -185,6 +191,11 @@ function intentFromcommand(rawText) {
     INTENT.PERSONAL_TODAY,
     INTENT.PUBLIC_SKY,
     INTENT.NATAL,
+    INTENT.PLUS_MENU,
+    INTENT.PLUS_JOIN,
+    INTENT.PLUS_CANCEL,
+    INTENT.PLUS_STATUS,
+    INTENT.PLUS_EXPIRE,
   ]);
   return ALLOWED_INTENTS.has(intent) ? intent : null;
 }

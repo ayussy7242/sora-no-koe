@@ -156,6 +156,7 @@ const PAID_INTENTS = listEnv("PAID_INTENTS", ["today_distribution"]);
 const PAID_ALLOW_APP_USER_IDS = listEnv("PAID_ALLOW_APP_USER_IDS", []);
 const PAID_ALLOW_LINE_USER_IDS = listEnv("PAID_ALLOW_LINE_USER_IDS", []);
 const PAID_ALLOW_OWNER = boolEnv("PAID_ALLOW_OWNER", true);
+const PLUS_ENABLED = boolEnv("PLUS_ENABLED", false);
 
 //WORKER
 const WORKER_PUSH_NATAL_RESULT = getEnv("WORKER_PUSH_NATAL_RESULT", { defaultValue: "0" });
@@ -176,6 +177,9 @@ const WP_CATEGORY_ASPECT = numEnv("WP_CATEGORY_ASPECT", 9);
 
 const BLOG_RECO_ENABLED = boolEnv("BLOG_RECO_ENABLED", true);
 const BLOG_RECO_COUNT = numEnv("BLOG_RECO_COUNT", 3);
+const BLOG_EYECATCH_ENABLED = boolEnv("BLOG_EYECATCH_ENABLED", false);
+const BLOG_EYECATCH_BG_PATH = getEnv("BLOG_EYECATCH_BG_PATH", { defaultValue: null });
+const BLOG_EYECATCH_PRESET = getEnv("BLOG_EYECATCH_PRESET", { defaultValue: "C" });
 
 // --------------------
 // OpenAI (BLOG generation)
@@ -285,6 +289,7 @@ module.exports = {
   PAID_ALLOW_APP_USER_IDS,
   PAID_ALLOW_LINE_USER_IDS,
   PAID_ALLOW_OWNER,
+  PLUS_ENABLED,
 
   //worker
   WORKER_PUSH_NATAL_RESULT,
@@ -300,6 +305,9 @@ module.exports = {
   WP_CATEGORY_ASPECT,
   BLOG_RECO_ENABLED,
   BLOG_RECO_COUNT,
+  BLOG_EYECATCH_ENABLED,
+  BLOG_EYECATCH_BG_PATH,
+  BLOG_EYECATCH_PRESET,
 
   // OpenAI
   OPENAI_API_KEY,

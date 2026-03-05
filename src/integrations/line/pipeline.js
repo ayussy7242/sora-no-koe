@@ -186,39 +186,55 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 3) intent（唯一の判定）
   const intentKey = intent.intentFromcommand(cmd);
 
-  if (intentKey === intent.INTENT.PLUS_MENU) {
-    return {
-      text: "観測ログ＋は現在準備中です。",
-      stage: "plus_menu_paused",
-    };
-  }
+  const plusEnabled = !!env.PLUS_ENABLED;
 
-  if (intentKey === intent.INTENT.PLUS_JOIN) {
+  if (intentKey === intent.INTENT.PLUS_MENU || intentKey === intent.INTENT.PLUS_JOIN) {
+    if (!plusEnabled) {
+      return {
+        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
+        stage: "plus_menu_paused",
+      };
+    }
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_join" };
     }
-    return { text: "観測ログ＋は現在準備中です。", stage: "plus_join_paused" };
     const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
     if (paid) {
-      return { text: "すでに観測ログ＋に登録済みです。", stage: "plus_join_already" };
+      return {
+        text: LINE_COPY.PLUS_ALREADY || "観測ログ＋は、朝配信の続きに毎日自動で付いています。",
+        stage: "plus_join_already",
+      };
     }
-    const checkout = await createCheckoutUrlForLine500({ lineUserId });
-    if (!checkout?.ok || !checkout.url) {
-      return { text: "いま入会導線の準備中だよ。", stage: "plus_join_unavailable" };
+    let checkout = null;
+    try {
+      checkout = await createCheckoutUrlForLine500({ lineUserId });
+    } catch (e) {
+      checkout = null;
     }
-    return {
-      text:
-        "観測ログ＋ 入会はこちら👇\n" +
-        checkout.url,
-      stage: "plus_join",
-    };
+    const url = checkout?.url || env.SORA_PLUS_URL || null;
+    if (!url) {
+      return {
+        text: LINE_COPY.PLUS_UNAVAILABLE || "いま入会導線の準備中だよ。",
+        stage: "plus_join_unavailable",
+      };
+    }
+    const inviteText =
+      typeof LINE_COPY.PLUS_INVITE === "function"
+        ? LINE_COPY.PLUS_INVITE(url)
+        : `観測ログ＋ 入会はこちら👇\n${url}`;
+    return { text: inviteText, stage: "plus_join" };
   }
 
   if (intentKey === intent.INTENT.PLUS_CANCEL) {
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_cancel" };
     }
-    return { text: "観測ログ＋は現在準備中です。", stage: "plus_cancel_paused" };
+    if (!plusEnabled) {
+      return {
+        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
+        stage: "plus_cancel_paused",
+      };
+    }
     const portal = await createPortalUrl({ lineUserId, db });
     if (!portal?.ok || !portal.url) {
       return {
@@ -236,7 +252,12 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_status" };
     }
-    return { text: "観測ログ＋は現在準備中です。", stage: "plus_status_paused" };
+    if (!plusEnabled) {
+      return {
+        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
+        stage: "plus_status_paused",
+      };
+    }
     const sub = await getLineSubscription(db, lineUserId);
     const status = sub?.subscription_status || "inactive";
     const plan = sub?.plan || "-";
@@ -250,7 +271,12 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_expire" };
     }
-    return { text: "観測ログ＋は現在準備中です。", stage: "plus_expire_paused" };
+    if (!plusEnabled) {
+      return {
+        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
+        stage: "plus_expire_paused",
+      };
+    }
     const sub = await getLineSubscription(db, lineUserId);
     const date = formatEpochDate(sub?.current_period_end);
     if (!date) {
