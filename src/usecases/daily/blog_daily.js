@@ -657,6 +657,10 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
   if (mode === "block") {
     const parts = [];
     for (const block of blocks) {
+      if (block?.render === "raw") {
+        parts.push(renderRawBlock(block));
+        continue;
+      }
       const blockInput = blocksToInput([block]);
       const content = [
         BLOG_BLOCKS_USER_GUIDE,
@@ -675,6 +679,10 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
   if (mode === "item") {
     const out = [];
     for (const block of blocks) {
+      if (block?.render === "raw") {
+        out.push(renderRawBlock(block));
+        continue;
+      }
       const facts = Array.isArray(block?.facts) && block.facts.length
         ? `FACTS:\n- ${block.facts.join("\n- ")}`
         : "FACTS: none";
@@ -736,6 +744,22 @@ function escapeHtml(text) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function renderRawBlock(block = {}) {
+  const out = [];
+  if (block?.title) out.push(`<h2>${escapeHtml(block.title)}</h2>`);
+  if (Array.isArray(block?.facts) && block.facts.length) {
+    block.facts.forEach((fact) => out.push(`<p>${escapeHtml(fact)}</p>`));
+  }
+  if (Array.isArray(block?.items) && block.items.length) {
+    if (block.itemsAsH3) {
+      block.items.forEach((item) => out.push(`<h3>${escapeHtml(item)}</h3>`));
+    } else {
+      block.items.forEach((item) => out.push(`<p>${escapeHtml(item)}</p>`));
+    }
+  }
+  return out.join("\n");
 }
 
 function renderBlocksPreview(blocks = []) {
@@ -937,34 +961,57 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
 
   const sections = [];
 
-  // Houses
-  const { rows: houseRows } = buildHouseRowsPublic(story, asOfISO);
+  // Houses (score > 0 only)
+  const { rows: houseRowsAll } = buildHouseRowsPublic(story, asOfISO);
+  const houseRows = houseRowsAll.filter((row) => Number(row.score || 0) > 0);
   sections.push("<h2>🏠 はうす（全ハウス）</h2>");
-  houseRows.forEach((row) => {
-    sections.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
-  });
+  if (!houseRows.length) {
+    sections.push("<p>該当なし</p>");
+  } else {
+    houseRows.forEach((row) => {
+      sections.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
+    });
 
-  for (const row of houseRows) {
-    const title = `第${row.houseNo}ハウス`;
-    let body = "この領域に圧が集まり、動きの重さが残っている。";
-    if (enableAi) {
-      const prompt = [
-        BLOG_STRUCT_HOUSE_GUIDE,
-        "",
-        `日付: ${dateLocal}`,
-        `HOUSE: ${title}｜${row.signGlyph || ""}${row.signJa || ""}`.trim(),
-        `BODIES: ${row.items.length ? row.items.join(" ") : "—"}`,
-        `SCORE: ${Number(row.score || 0).toFixed(2)}`,
-      ].join("\n");
-      body = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
+    for (const row of houseRows) {
+      const title = `第${row.houseNo}ハウス`;
+      let body = "この領域に圧が集まり、動きの重さが残っている。";
+      if (enableAi) {
+        const prompt = [
+          BLOG_STRUCT_HOUSE_GUIDE,
+          "",
+          `日付: ${dateLocal}`,
+          `HOUSE: ${title}｜${row.signGlyph || ""}${row.signJa || ""}`.trim(),
+          `BODIES: ${row.items.length ? row.items.join(" ") : "—"}`,
+          `SCORE: ${Number(row.score || 0).toFixed(2)}`,
+        ].join("\n");
+        body = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
+      }
+      sections.push(`<h3>${escapeHtml(title)}</h3>`);
+      sections.push(`<p>${escapeHtml(body)}</p>`);
     }
-    sections.push(`<h3>${escapeHtml(title)}</h3>`);
-    sections.push(`<p>${escapeHtml(body)}</p>`);
+  }
+
+  // Elements / modalities
+  const { elementLine, modalityLine } = buildElementLinesPublic(story);
+  sections.push("<h2>🔥 元素／三区分（T）</h2>");
+  sections.push(`<p>${escapeHtml(elementLine)}</p>`);
+  sections.push(`<p>${escapeHtml(modalityLine)}</p>`);
+  if (enableAi) {
+    const prompt = [
+      BLOG_STRUCT_ELEMENT_GUIDE,
+      "",
+      `日付: ${dateLocal}`,
+      `ELEMENTS: ${elementLine}`,
+      `MODALITIES: ${modalityLine}`,
+    ].join("\n");
+    const comment = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 160 });
+    sections.push(`<p>${escapeHtml(comment)}</p>`);
   }
 
   // Tsukiji (long-term)
   const tsukijiRows = buildTsukijiRowsPublic(story, asOfISO);
   sections.push("<h2>🌙 つきじ（継続接近ログ）</h2>");
+  sections.push("<p>長期的に続く接近の記録です。短期の「近日」とは別に、じわじわ効く接点を追います。</p>");
   if (!tsukijiRows.length) {
     sections.push("<p>該当なし</p>");
   } else {
@@ -992,23 +1039,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       ].join("<br>");
       sections.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     });
-  }
-
-  // Elements / modalities
-  const { elementLine, modalityLine } = buildElementLinesPublic(story);
-  sections.push("<h2>🔥 元素／三区分（T）</h2>");
-  sections.push(`<p>${escapeHtml(elementLine)}</p>`);
-  sections.push(`<p>${escapeHtml(modalityLine)}</p>`);
-  if (enableAi) {
-    const prompt = [
-      BLOG_STRUCT_ELEMENT_GUIDE,
-      "",
-      `日付: ${dateLocal}`,
-      `ELEMENTS: ${elementLine}`,
-      `MODALITIES: ${modalityLine}`,
-    ].join("\n");
-    const comment = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 160 });
-    sections.push(`<p>${escapeHtml(comment)}</p>`);
   }
 
   // Kinjitsu
@@ -1042,9 +1072,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       sections.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     });
   }
-
-  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
-  todayMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
 
   const nextMoon = formatNextMoonLines({ asOfISO, dict });
   nextMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));

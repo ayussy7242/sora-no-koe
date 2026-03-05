@@ -13,6 +13,7 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../domain/canonical");
+const { formatTodayMoonLines } = require("../../domain/moon_info");
 
 const BODY_ORDER = [
   "sun",
@@ -100,47 +101,6 @@ function formatAspectLine(item, retroMap = {}) {
   return `${pair}｜${tail}`.trim();
 }
 
-function formatHouseCounts(counts = {}) {
-  const entries = Object.entries(counts)
-    .map(([h, c]) => [Number(h), Number(c)])
-    .filter(([h, c]) => Number.isFinite(h) && Number.isFinite(c) && c > 0)
-    .sort((a, b) => a[0] - b[0]);
-  if (!entries.length) return "";
-  return entries.map(([h, c]) => `${h}H:${c}`).join(" / ");
-}
-
-function formatKinjitsuLine(row = {}) {
-  const aKey = normalizeBodyKey(row?.a || "");
-  const bKey = normalizeBodyKey(row?.b || "");
-  const aGlyph = bodyGlyph(aKey);
-  const bGlyph = bodyGlyph(bKey);
-  const aLabel = bodyLabelJa(dict, aKey) || aKey;
-  const bLabel = bodyLabelJa(dict, bKey) || bKey;
-  const aSign = row?.a_sign_ja || signLabelJa(dict, row?.a_sign_key || "");
-  const bSign = row?.b_sign_ja || signLabelJa(dict, row?.b_sign_key || "");
-  const aspectDeg = Number.isFinite(Number(row?.aspect_deg)) ? Number(row.aspect_deg) : null;
-  const aspectLabel = aspectLabelJa(row?.aspect || row?.type, aspectDeg);
-  const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-  const orb = Number.isFinite(Number(row?.now_orb)) ? Number(row.now_orb) : null;
-  const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
-  const peak = row?.peak_label || "";
-
-  const left = `${aGlyph ? `${aGlyph} ` : ""}${aLabel}`.trim();
-  const right = `${bGlyph ? `${bGlyph} ` : ""}${bLabel}`.trim();
-  const signTextA = aSign ? `（${aSign}）` : "";
-  const signTextB = bSign ? `（${bSign}）` : "";
-  const pair = `${left}${signTextA} × ${right}${signTextB}`.trim();
-  const angle = [aspectLabel, degText].filter(Boolean).join(" ");
-  const tail = [
-    angle,
-    orbText ? `現在 orb ${orbText}` : "",
-    peak ? `最接近 ${peak}` : "",
-  ]
-    .filter(Boolean)
-    .join("｜");
-  return `${pair}｜${tail}`.trim();
-}
-
 function buildBlogBlocks(story, opts = {}) {
   const pub = story?.public || {};
   const dateLocal = opts.dateLocal || story?.meta?.date_local || "";
@@ -168,6 +128,7 @@ function buildBlogBlocks(story, opts = {}) {
   const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
   const resonancePool = skyAll.filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit);
   const resonanceItems = resonancePool.map((it) => formatAspectLine(it, retroMap)).filter(Boolean);
+  const resonanceTop = resonanceItems.slice(0, 3);
 
   const leadAspect = resonancePool?.[0] || skyAll?.[0] || null;
   const leadAspectLine = leadAspect ? formatAspectLine(leadAspect, retroMap) : "";
@@ -176,42 +137,19 @@ function buildBlogBlocks(story, opts = {}) {
   const elements = formatElementCount(strata.element_count || {});
   const modalities = formatModalityCount(strata.modality_count || {});
 
-  const retroBodies = BODY_ORDER.filter((key) => retroMap[key] && transitSigns[key]);
-  const retroItems = retroBodies.map((key) => {
-    const item = transitSigns[key];
-    const signKey = normalizeSignKey(item?.sign_key || "");
-    return formatPositionLine({
-      bodyKey: key,
-      signKey,
-      signJa: item?.sign_ja || "",
-      lonDeg: item?.lon_deg,
-      retro: retroMap[key],
-    });
-  });
-
-  const houseFocus = pub.house_focus || {};
-  const houseCounts = houseFocus.counts || {};
-  const houseCountLine = formatHouseCounts(houseCounts);
-  const houseTop = Array.isArray(houseFocus.top) ? houseFocus.top : [];
-  const houseItems = houseTop.map((row) => `第${row.house_no}ハウス｜${row.count}件`);
-
-  const kinjitsu = Array.isArray(pub.kinjitsu) ? pub.kinjitsu : [];
-  const kinjitsuItems = kinjitsu.map((row) => formatKinjitsuLine(row)).filter(Boolean);
-
-  const aftertaste = Array.isArray(pub?.tone_hints?.resonance_bullets)
-    ? pub.tone_hints.resonance_bullets
-    : [];
-
   const orbValues = resonancePool
     .map((it) => (Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null))
     .filter((n) => n != null);
   const orbMin = orbValues.length ? Math.min(...orbValues) : null;
   const orbMax = orbValues.length ? Math.max(...orbValues) : null;
 
+  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
+  const todayMoonItems = todayMoon.filter((line) => line && line !== "🌙 本日の月");
+
   const blocks = [
     {
       id: "lead",
-      title: "今日の空の輪郭",
+      title: "0｜今日の全体圧",
       facts: [
         dateLocal ? `日付: ${dateLocal}` : "",
         leadAspectLine ? `最接近: ${leadAspectLine}` : "",
@@ -221,61 +159,28 @@ function buildBlogBlocks(story, opts = {}) {
     },
     {
       id: "positions",
-      title: "天体の配置",
+      title: "1｜きょうのソラの配置",
       facts: [`対象: トランジット（${positions.length}件）`],
       items: positions,
       itemsAsH3: true,
     },
     {
+      id: "today_moon",
+      title: "🌙 本日の月",
+      items: todayMoonItems.length ? todayMoonItems : ["データなし"],
+      render: "raw",
+    },
+    {
       id: "resonance",
-      title: "今日いちばん近い角度",
+      title: "2｜共鳴",
       facts: [
-        `抽出: orb昇順（${resonanceItems.length}件）`,
+        `抽出: orb昇順（最大3件 / ${resonanceItems.length}件）`,
         orbMin != null && orbMax != null
           ? `orb範囲: ${orbMin.toFixed(2)}°〜${orbMax.toFixed(2)}°`
           : "",
       ].filter(Boolean),
-      items: resonanceItems.length ? resonanceItems : ["近接角度は観測されていない"],
+      items: resonanceTop.length ? resonanceTop : ["近接角度は観測されていない"],
       itemsAsH3: true,
-    },
-    {
-      id: "distribution",
-      title: "分布",
-      facts: [
-        elements ? `要素: ${elements}` : "",
-        modalities ? `区分: ${modalities}` : "",
-      ].filter(Boolean),
-    },
-    {
-      id: "retrograde",
-      title: "逆行",
-      facts: [`逆行中: ${retroBodies.length}件`],
-      items: retroItems.length ? retroItems : ["逆行中の天体は観測されていない"],
-      itemsAsH3: true,
-    },
-    {
-      id: "houses",
-      title: "ハウスの集中",
-      facts: [
-        `天体数: ${houseFocus.total || 0}件`,
-        houseCountLine ? `分布: ${houseCountLine}` : "",
-      ].filter(Boolean),
-      items: houseItems.length ? houseItems : ["集中は観測されていない"],
-      itemsAsH3: true,
-    },
-    {
-      id: "near_future",
-      title: "近日の接近",
-      facts: [
-        `抽出: orb≤3° / ${kinjitsuItems.length}件`,
-      ],
-      items: kinjitsuItems.length ? kinjitsuItems : ["近日の接近は観測されていない"],
-      itemsAsH3: true,
-    },
-    {
-      id: "aftertaste",
-      title: "余韻",
-      facts: aftertaste.length ? aftertaste : ["余韻の言葉はまだ薄い"],
     },
   ];
 

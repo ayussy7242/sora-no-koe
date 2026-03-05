@@ -112,7 +112,7 @@ const BLOG_BLOCKS_USER_GUIDE = `
 
 ブロック別の文章構造:
 - タイトルが「0｜今日の全体圧」なら: ${FLOW_OVERVIEW}
-- タイトルが「1｜配置」なら: ITEMSは ${FLOW_POSITION_ITEM}（各アイテムに適用）
+- タイトルが「1｜配置」または「1｜きょうのソラの配置」なら: ITEMSは ${FLOW_POSITION_ITEM}（各アイテムに適用）
 - タイトルが「2｜共鳴」なら: ${FLOW_RESONANCE}
 - タイトルが「3｜🏠 はうす」なら: ITEMSは ${FLOW_HOUSE}（ログは事実のみでOK）
 - タイトルが「4｜🔥 元素／三区分」なら: ${FLOW_ELEMENTS}
