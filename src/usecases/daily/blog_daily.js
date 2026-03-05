@@ -1236,7 +1236,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       `TITLE: ${title}`,
       `FACTS: ${facts.join(" / ")}`,
     ].join("\n");
-    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 180 });
+    const text = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 420 });
     lines.push(`<h3>${escapeHtml(title)}</h3>`);
     pushParagraphs(lines, text);
   }
