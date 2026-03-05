@@ -1073,9 +1073,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
     });
   }
 
-  const nextMoon = formatNextMoonLines({ asOfISO, dict });
-  nextMoon.lines.forEach((line) => sections.push(`<p>${escapeHtml(line)}</p>`));
-
   return sections.join("\n");
 }
 
