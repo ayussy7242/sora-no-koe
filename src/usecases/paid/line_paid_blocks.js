@@ -18,7 +18,9 @@ const {
   formatDateYmdHm,
   findNextMoonPhase,
   pickApplyingUpcomingAspects,
+  absAngularDistance,
 } = require("../../domain/astro_compute");
+const { normalizeAspectKey } = require("../../domain/canonical");
 const {
   glyphForBody,
   signJa,
@@ -58,9 +60,24 @@ function buildBunpuTop5(story, dict) {
   );
   const excludeKeys = new Set(todayPicked.map((it) => touchPointKey({ item: it })));
   const filtered = scored.filter((row) => !excludeKeys.has(touchPointKey({ item: row.item, nKey: row.nKey, tKey: row.tKey })));
-  const ura = filtered
+  const uraSorted = filtered
     .slice()
     .sort((a, b) => (a?.item?.orb_deg ?? 99) - (b?.item?.orb_deg ?? 99));
+  const ura = [];
+  const seenUra = new Set();
+  uraSorted.forEach((row) => {
+    const it = row?.item || {};
+    const nKey = row?.nKey || String(it?.natal_body_or_point || it?.natal_body || it?.a || "").toLowerCase();
+    const tKey = row?.tKey || String(it?.transit_body || it?.b || "").toLowerCase();
+    const aspectDeg = Number.isFinite(Number(it?.aspect_deg)) ? Math.round(Number(it.aspect_deg)) : "";
+    const aspectType = normalizeAspectKey(it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja || "", it?.aspect_deg);
+    const nSignKey = String(it?.natal_sign_key || it?.natal_sign || "").toLowerCase();
+    const tSignKey = String(it?.transit_sign_key || it?.transit_sign || "").toLowerCase();
+    const key = [nKey, tKey, aspectType, aspectDeg, nSignKey, tSignKey].join("|");
+    if (seenUra.has(key)) return;
+    seenUra.add(key);
+    ura.push(row);
+  });
 
   const stats = computeOrbStats(scored.map((row) => Number(row?.item?.orb_deg)));
   const quality = { same: 0, tension: 0, harmony: 0 };
@@ -221,6 +238,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
         ? Number(aspectMeta.deg)
         : null;
     const orb = Number.isFinite(Number(tp?.orb_deg)) ? Number(tp.orb_deg) : null;
+    const aspectTypeNorm = normalizeAspectKey(tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja || "", aspectDeg);
 
     const window = findAspectWindow({
       transitKey: tKey,
@@ -252,7 +270,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
         bSignKey: tp?.natal_sign_key || tp?.natal_sign || null,
         aSign: tSign,
         bSign: nSign,
-        aspectType: tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja || "",
+        aspectType: aspectTypeNorm,
         aspectDeg,
         orb,
         startText,
@@ -271,6 +289,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
       const bKey = String(r?.b || "").toLowerCase();
       const aspectDeg = Number.isFinite(Number(r?.aspect_deg)) ? Number(r.aspect_deg) : null;
       if (!aKey || !bKey || !Number.isFinite(aspectDeg)) return;
+      const aspectTypeNorm = normalizeAspectKey(r?.type || r?.aspT || r?.aspect || "", aspectDeg);
 
       const window = findTransitTransitWindow({
         aKey,
@@ -301,7 +320,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
           bSignKey: r?.b_sign_key || null,
           aSign: r?.a_sign_ja || null,
           bSign: r?.b_sign_ja || null,
-          aspectType: r?.type || r?.aspT || r?.aspect || "",
+          aspectType: aspectTypeNorm,
           aspectDeg,
           orb: Number.isFinite(Number(r?.orb_deg)) ? Number(r.orb_deg) : null,
           startText,
@@ -330,7 +349,17 @@ function buildTsukijiBlock(story, dict, asOfISO) {
     uniqApproach.push(row);
   });
 
-  const approachLimited = uniqApproach.slice(0, TSUKIJI_MAX_ITEMS);
+  const approachLimited = uniqApproach
+    .slice()
+    .sort((a, b) => {
+      const da = Number(a?.remainingDays ?? Infinity);
+      const db = Number(b?.remainingDays ?? Infinity);
+      if (da !== db) return da - db;
+      const oa = Number(a?.orb ?? 99);
+      const ob = Number(b?.orb ?? 99);
+      return oa - ob;
+    })
+    .slice(0, TSUKIJI_MAX_ITEMS);
 
   const retroData = [];
   TSUKIJI_RETRO_KEYS.forEach((key) => {
@@ -369,6 +398,36 @@ function buildKinjitsuBlock(story, dict, asOfISO) {
     Array.from(new Set(items.flatMap((it) => [it.aKey, it.bKey]).filter(Boolean)))
   );
 
+  const computeOrbAt = (aKey, bKey, aspectDeg, iso) => {
+    const lonA = calcTransitLon(aKey, iso);
+    const lonB = calcTransitLon(bKey, iso);
+    if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
+    const dist = absAngularDistance(lonA, lonB);
+    return Number.isFinite(Number(dist)) ? Math.abs(dist - Number(aspectDeg)) : null;
+  };
+
+  const refinePeakTime = (aKey, bKey, aspectDeg, seed, fallbackISO) => {
+    const base = seed instanceof Date ? seed : (seed ? new Date(seed) : null);
+    const fallback = fallbackISO ? new Date(fallbackISO) : null;
+    const center =
+      base && !Number.isNaN(base.getTime()) ? base :
+      fallback && !Number.isNaN(fallback.getTime()) ? fallback :
+      null;
+    if (!center) return seed;
+    const windowMs = 18 * 3600 * 1000;
+    const stepMs = 5 * 60 * 1000;
+    let best = { orb: Infinity, time: center };
+    const start = new Date(center.getTime() - windowMs);
+    const end = new Date(center.getTime() + windowMs);
+    for (let t = start.getTime(); t <= end.getTime(); t += stepMs) {
+      const iso = new Date(t).toISOString();
+      const orb = computeOrbAt(aKey, bKey, aspectDeg, iso);
+      if (!Number.isFinite(Number(orb))) continue;
+      if (orb < best.orb) best = { orb, time: new Date(t) };
+    }
+    return best.time;
+  };
+
   let newMoon = findNextMoonPhase(baseISO, 0);
   let fullMoon = findNextMoonPhase(baseISO, 180);
 
@@ -394,20 +453,23 @@ function buildKinjitsuBlock(story, dict, asOfISO) {
   if (fullMoon) moonEvents.push({ kind: "full", date: fullMoon });
   moonEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const itemsData = items.map((it) => ({
-    aKey: it.aKey,
-    bKey: it.bKey,
-    aSignKey: it.raw?.a_sign_key || null,
-    bSignKey: it.raw?.b_sign_key || null,
-    aSign: it.raw?.a_sign_ja || null,
-    bSign: it.raw?.b_sign_ja || null,
-    aRetro: retroMap[it.aKey] || false,
-    bRetro: retroMap[it.bKey] || false,
-    aspectType: it.raw?.type || it.raw?.aspT || it.raw?.aspect || "",
-    aspectDeg: it.aspectDeg,
-    nowOrb: it.nowOrb,
-    peak: it.peak,
-  }));
+  const itemsData = items.map((it) => {
+    const peak = refinePeakTime(it.aKey, it.bKey, it.aspectDeg, it.peak, baseISO);
+    return {
+      aKey: it.aKey,
+      bKey: it.bKey,
+      aSignKey: it.raw?.a_sign_key || null,
+      bSignKey: it.raw?.b_sign_key || null,
+      aSign: it.raw?.a_sign_ja || null,
+      bSign: it.raw?.b_sign_ja || null,
+      aRetro: retroMap[it.aKey] || false,
+      bRetro: retroMap[it.bKey] || false,
+      aspectType: it.raw?.type || it.raw?.aspT || it.raw?.aspect || "",
+      aspectDeg: it.aspectDeg,
+      nowOrb: it.nowOrb,
+      peak,
+    };
+  });
 
   const moonEventsData = moonEvents.map((ev) => {
     const lon = calcTransitLon("moon", ev.date.toISOString());
