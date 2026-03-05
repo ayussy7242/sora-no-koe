@@ -18,13 +18,16 @@ function createWpClient({ baseUrl, user, appPassword }) {
 
   const auth = buildAuthHeader(user, appPassword);
 
-  async function request(path, { method = "GET", body = null } = {}) {
+  async function request(path, { method = "GET", body = null, headers: extraHeaders = null } = {}) {
     const url = `${base}${path}`;
     const headers = {
       Authorization: auth,
       "Content-Type": "application/json",
       Accept: "application/json",
     };
+    if (extraHeaders && typeof extraHeaders === "object") {
+      Object.assign(headers, extraHeaders);
+    }
     const res = await fetch(url, {
       method,
       headers,
@@ -59,7 +62,40 @@ function createWpClient({ baseUrl, user, appPassword }) {
     return request(`/wp-json/wp/v2/posts/${id}`, { method: "POST", body: payload });
   }
 
-  return { getPostBySlug, createPost, updatePost };
+  async function uploadMedia({ filename, buffer, mimeType = "image/jpeg" } = {}) {
+    if (!buffer || !filename) {
+      throw new Error("uploadMedia requires filename and buffer");
+    }
+    const safeName = String(filename).replace(/[^\w.\-]/g, "_");
+    const headers = {
+      "Content-Type": mimeType,
+      "Content-Disposition": `attachment; filename="${safeName}"`,
+    };
+    const url = `${base}/wp-json/wp/v2/media`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: auth, ...headers },
+      body: buffer,
+    });
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (_) {
+      json = null;
+    }
+    if (!res.ok) {
+      const msg = json?.message || text || `HTTP ${res.status}`;
+      throw new Error(`WP media upload failed (${res.status}): ${msg}`);
+    }
+    return json;
+  }
+
+  async function updateMedia(id, payload) {
+    return request(`/wp-json/wp/v2/media/${id}`, { method: "POST", body: payload });
+  }
+
+  return { getPostBySlug, createPost, updatePost, uploadMedia, updateMedia };
 }
 
 module.exports = { createWpClient };

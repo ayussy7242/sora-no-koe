@@ -3,7 +3,14 @@
 const crypto = require("crypto");
 const { createWpClient } = require("../../integrations/wordpress/wp_client");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
-const { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml } = require("../../usecases/daily/blog_daily");
+const {
+  generateDailyDraft,
+  buildDailyTitle,
+  buildDailyEyecatchLines,
+  markdownToHtml,
+  escapeHtml,
+} = require("../../usecases/daily/blog_daily");
+const { renderBlogEyecatchJpeg } = require("../../integrations/media/blog_eyecatch");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -158,6 +165,40 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
 
   try {
     const existing = await wp.getPostBySlug(slug);
+    let featuredMediaId = existing?.featured_media || null;
+
+    if (!featuredMediaId && env.BLOG_EYECATCH_ENABLED) {
+      const { line1, line2, line3 } = buildDailyEyecatchLines(story, dateLocal);
+      const rendered = await renderBlogEyecatchJpeg({
+        bgPath: env.BLOG_EYECATCH_BG_PATH,
+        line1,
+        line2,
+        line3,
+        preset: env.BLOG_EYECATCH_PRESET || "C",
+      });
+      if (rendered?.ok && rendered.buffer) {
+        const filename = `sora-eyecatch-${slug}.jpg`;
+        const media = await wp.uploadMedia({
+          filename,
+          buffer: rendered.buffer,
+          mimeType: "image/jpeg",
+        });
+        featuredMediaId = media?.id || null;
+        if (featuredMediaId) {
+          const altText = [line1, line2].filter(Boolean).join("｜");
+          if (altText) {
+            await wp.updateMedia(featuredMediaId, { alt_text: altText, title: altText });
+          }
+        }
+      } else if (env.BLOG_EYECATCH_ENABLED) {
+        console.log("[cron/blog/daily] eyecatch skipped: bg_missing");
+      }
+    }
+
+    if (featuredMediaId) {
+      payload.featured_media = featuredMediaId;
+    }
+
     if (existing?.id) {
       const updated = await wp.updatePost(existing.id, payload);
       mark("wp_after", { updated: true, id: updated?.id });

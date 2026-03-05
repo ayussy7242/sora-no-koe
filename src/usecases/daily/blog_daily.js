@@ -30,6 +30,7 @@ const {
   findTransitTransitWindow,
   formatDateYmd,
   formatDateYmdHm,
+  findNextMoonPhase,
   calcTransitLon,
 } = require("../../domain/astro_compute");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../presenters/render/render_tokens");
@@ -80,6 +81,12 @@ const BLOG_BANNED_TERMS = [
   "促す",
   "影響する",
   "課題",
+  "日本語校正フェーズ",
+  "校正フェーズ",
+  "日本語校正",
+  "内部処理",
+  "処理しました",
+  "実行しました",
 ];
 
 function findBannedTerm(text) {
@@ -219,6 +226,26 @@ function signJa(signKey) {
 function signElement(signKey) {
   const k = String(signKey || "").toLowerCase();
   return dict?.SIGNS_V2?.signs?.[k]?.element || "";
+}
+
+function signLabelFromLon(dictObj, lon) {
+  if (!Number.isFinite(Number(lon))) return "—";
+  const order = dictObj?.SIGNS_V2?.order || dictObj?.SIGNS?.order || [
+    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+  ];
+  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
+  const key = order[idx];
+  return key ? signLabelJa(dict, key) : "—";
+}
+
+function findMoonPhaseInJstDate(dateLocal, phaseDeg) {
+  if (!dateLocal) return null;
+  const start = new Date(`${dateLocal}T00:00:00+09:00`);
+  const end = new Date(`${dateLocal}T23:59:59+09:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const next = findNextMoonPhase(start.toISOString(), phaseDeg);
+  if (next && next.getTime() <= end.getTime()) return next;
+  return null;
 }
 
 function elementBucket(element) {
@@ -505,6 +532,63 @@ function buildDailyTitle(story, dateLocal) {
   return buildSeoTitle({ story, dateLocal });
 }
 
+function stripAiLogs(text) {
+  if (!text) return text;
+  let out = String(text);
+  out = out.replace(/<p>[^<]*日本語校正フェーズ[^<]*<\/p>\s*/g, "");
+  out = out.replace(/<p>[^<]*以下が修正後の本文です[^<]*<\/p>\s*/g, "");
+  out = out.replace(/<p>[^<]*日本語校正[^<]*<\/p>\s*/g, "");
+  out = out.replace(/^.*日本語校正フェーズ.*$/gim, "");
+  out = out.replace(/^.*以下が修正後の本文です.*$/gim, "");
+  out = out.replace(/^.*日本語校正.*$/gim, "");
+  return out.trim();
+}
+
+function buildDailyEyecatchLines(story, dateLocal) {
+  const dateJa = formatDateJaFromLocal(dateLocal);
+  const sunSign = storySignJa(story, "sun");
+  const moonSign = storySignJa(story, "moon");
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const moonPhase = extractMoonPhaseLabel({ asOfISO, story });
+
+  const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
+  const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
+
+  if (newMoonAt instanceof Date) {
+    const sign = signLabelFromLon(dict, calcTransitLon("moon", newMoonAt.toISOString()));
+    const dateLabel = formatDateYmd(newMoonAt).replace(/-/g, ".");
+    return {
+      line1: sign ? `${sign}新月` : "新月",
+      line2: dateLabel,
+      line3: "New Moon",
+      kind: "new",
+    };
+  }
+
+  if (fullMoonAt instanceof Date) {
+    const sign = signLabelFromLon(dict, calcTransitLon("moon", fullMoonAt.toISOString()));
+    const dateLabel = formatDateYmd(fullMoonAt).replace(/-/g, ".");
+    const moonName = moonNameJaFromDate(fullMoonAt);
+    return {
+      line1: moonName || (sign ? `${sign}満月` : "満月"),
+      line2: sign ? `${sign}満月` : "満月",
+      line3: dateLabel,
+      kind: "full",
+    };
+  }
+
+  const line1 = dateJa ? `${dateJa}の星の配置` : "今日のソラ";
+  let line2 = "";
+  if (sunSign && moonSign && moonPhase) {
+    line2 = `${sunSign}太陽 × ${moonSign}${moonPhase}`;
+  } else if (sunSign && moonSign) {
+    line2 = `${sunSign}太陽 × ${moonSign}月`;
+  } else if (moonSign && moonPhase) {
+    line2 = `${moonSign}${moonPhase}`;
+  }
+  return { line1, line2 };
+}
+
 async function generateDailyDraft({ story, dateLocal, openai }) {
   const blocks = buildBlogBlocks(story, { dateLocal });
   const dataBlock = blocksToInput(blocks);
@@ -571,7 +655,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       enableAi: Boolean(openai?.apiKey),
     });
     const merged = [body, log].filter(Boolean).join("\n\n");
-    return enforceSingleClosing(merged, closing);
+    return stripAiLogs(enforceSingleClosing(merged, closing));
   };
 
   if (mode === "long_v2") {
@@ -582,7 +666,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       modelMain,
       modelParts,
     });
-    return enforceSingleClosing(html, closing);
+    return stripAiLogs(enforceSingleClosing(html, closing));
   }
 
   if (mode === "block") {
@@ -1030,9 +1114,21 @@ function splitIntoParagraphs(text) {
     return i < arr.length - 1 ? `${t}。` : t;
   }).filter(Boolean);
 
+  if (chunks.length >= 4) {
+    const first = Math.ceil(chunks.length / 3);
+    const second = Math.ceil((chunks.length - first) / 2);
+    return [
+      chunks.slice(0, first).join(""),
+      chunks.slice(first, first + second).join(""),
+      chunks.slice(first + second).join(""),
+    ].filter(Boolean);
+  }
   if (chunks.length >= 3) {
     const mid = Math.ceil(chunks.length / 2);
-    return [chunks.slice(0, mid).join(""), chunks.slice(mid).join("")].filter(Boolean);
+    return [
+      chunks.slice(0, mid).join(""),
+      chunks.slice(mid).join(""),
+    ].filter(Boolean);
   }
   return [s];
 }
@@ -1116,12 +1212,12 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const overviewText = await runWithRetry({ userContent: overviewPrompt, model: modelMain, maxTokens: 500 });
 
   const lines = [];
-  lines.push(`<h1>🌌 きょうのそら｜${dateLabel}</h1>`);
-  lines.push("<h2>0｜今日の全体圧（圧縮）</h2>");
+  lines.push("<h1>🌌 きょうのそら</h1>");
+  lines.push("<h2>0｜今日の全体圧</h2>");
   pushParagraphs(lines, overviewText);
 
   // 1) Positions
-  lines.push("<h2>1｜配置（全天体：短文化）</h2>");
+  lines.push("<h2>1｜配置</h2>");
   const transit = pub.transit_signs || {};
   for (const key of BLOG_STRUCT_BODY_ORDER) {
     const info = transit?.[key];
@@ -1157,7 +1253,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   }
 
   // 2) Resonance
-  lines.push("<h2>2｜共鳴（トップのみ／現状の並び維持）</h2>");
+  lines.push("<h2>2｜共鳴</h2>");
   if (!resonanceTop.length) {
     lines.push("<p>該当なし</p>");
   }
@@ -1191,11 +1287,16 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   }
 
   // 3) Houses
-  lines.push("<h2>3｜🏠 はうす（全ハウス）</h2>");
+  lines.push("<h2>3｜🏠 はうす</h2>");
   lines.push("<h3>■ ログ</h3>");
-  houseRows.forEach((row) => {
-    lines.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
-  });
+  const houseLogRows = houseRows.filter((row) => Number(row.score || 0) > 0);
+  if (!houseLogRows.length) {
+    lines.push("<p>集中は観測されていない</p>");
+  } else {
+    houseLogRows.forEach((row) => {
+      lines.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
+    });
+  }
 
   const detailHouseRows = houseRows.filter((row) => row.score > 0).slice(0, 3);
   for (const row of detailHouseRows) {
@@ -1222,7 +1323,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   }
 
   // 4) Elements
-  lines.push("<h2>4｜🔥 元素／三区分（圧縮）</h2>");
+  lines.push("<h2>4｜🔥 元素／三区分</h2>");
   lines.push(`<p>${escapeHtml(elementLine)}</p>`);
   lines.push(`<p>${escapeHtml(modalityLine)}</p>`);
   const elementsPrompt = [
@@ -1235,7 +1336,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   pushParagraphs(lines, elementsText);
 
   // 6) Kinjitsu log (lightweight)
-  lines.push("<h2>6｜📅 近日（軽量版）</h2>");
+  lines.push("<h2>6｜📅 近日</h2>");
   const kinjitsuRows = buildKinjitsuRowsPublic(story).slice(0, 3);
   if (!kinjitsuRows.length) {
     lines.push("<p>該当なし</p>");
@@ -1430,4 +1531,4 @@ function enforceSingleClosing(text, closing) {
   return `${body}\n\n${closing}`.trim();
 }
 
-module.exports = { generateDailyDraft, buildDailyTitle, markdownToHtml, escapeHtml };
+module.exports = { generateDailyDraft, buildDailyTitle, buildDailyEyecatchLines, markdownToHtml, escapeHtml };
