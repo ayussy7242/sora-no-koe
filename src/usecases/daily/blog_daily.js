@@ -1502,7 +1502,7 @@ function enforceSingleClosing(text, closing) {
   const closingRegex = new RegExp(closingPattern, "g");
 
   const body = s.replace(closingRegex, "").trim().replace(/\n+$/g, "").trim();
-  return `${body}\n\n${closing}`.trim();
+  return `${body}\n\n\n${closing}`.trim();
 }
 
 module.exports = { generateDailyDraft, buildDailyTitle, buildDailyEyecatchLines, markdownToHtml, escapeHtml };
