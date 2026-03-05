@@ -14,6 +14,11 @@ const {
   normalizeAspectKey,
 } = require("../../domain/canonical");
 const { formatTodayMoonLines, formatNextMoonLines } = require("../../domain/moon_info");
+const {
+  computeTokyoAscDeg,
+  signIndexFromKey,
+  houseNumberForSignIndex,
+} = require("../../domain/astro_compute");
 
 const BODY_ORDER = [
   "sun",
@@ -68,14 +73,17 @@ function formatSignConcentration(counts = {}) {
   return top.join(" / ");
 }
 
-function formatPositionLine({ bodyKey, signKey, signJa, retro, lonDeg }) {
+function formatPositionLine({ bodyKey, signKey, signJa, retro, lonDeg, houseNo }) {
   const glyph = bodyGlyph(bodyKey);
   const label = bodyLabelJa(dict, bodyKey) || bodyKey;
   const signLabel = formatSignDegree(signKey, signJa, lonDeg);
   const retroText = retro ? SPEC.retro.suffix : "";
   const left = `${glyph ? `${glyph} ` : ""}${label}${retroText}`.trim();
-  const right = signLabel ? `｜${signLabel}` : "";
-  return `${left}${right}`.trim();
+  const right = [
+    signLabel ? `${signLabel}` : "",
+    Number.isFinite(Number(houseNo)) ? `第${Number(houseNo)}ハウス` : "",
+  ].filter(Boolean).join("｜");
+  return right ? `${left}｜${right}`.trim() : `${left}`.trim();
 }
 
 function formatSignDegree(signKey, signJa, lonDeg) {
@@ -139,6 +147,13 @@ function formatResonanceHeading(item, retroMap = {}) {
   return `${pair}｜ ${angle}`.trim();
 }
 
+function houseNumberForSignKey(signKey, ascIndex) {
+  if (!signKey || ascIndex == null) return null;
+  const signIndex = signIndexFromKey(dict, signKey);
+  if (!Number.isFinite(signIndex) || signIndex < 0) return null;
+  return houseNumberForSignIndex(signIndex, ascIndex);
+}
+
 function buildBlogBlocks(story, opts = {}) {
   const pub = story?.public || {};
   const dateLocal = opts.dateLocal || story?.meta?.date_local || "";
@@ -147,15 +162,22 @@ function buildBlogBlocks(story, opts = {}) {
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, BODY_ORDER);
 
+  const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
+  const ascIndex = Number.isFinite(Number(ascDeg))
+    ? Math.floor((((Number(ascDeg) % 360) + 360) % 360) / 30)
+    : null;
+
   const positions = BODY_ORDER.map((key) => {
     const item = transitSigns[key];
     if (!item) return "";
     const signKey = normalizeSignKey(item?.sign_key || "");
+    const houseNo = houseNumberForSignKey(signKey, ascIndex);
     return formatPositionLine({
       bodyKey: key,
       signKey,
       signJa: item?.sign_ja || "",
       lonDeg: item?.lon_deg,
+      houseNo,
       retro: retroMap[key],
     });
   }).filter(Boolean);

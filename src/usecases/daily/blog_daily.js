@@ -994,37 +994,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
 
   const sections = [];
 
-  // Houses (score > 0 only)
-  const { rows: houseRowsAll } = buildHouseRowsPublic(story, asOfISO);
-  const houseRows = houseRowsAll.filter((row) => Number(row.score || 0) > 0);
-  sections.push("<h2>🏠 はうす（全ハウス）</h2>");
-  if (!houseRows.length) {
-    sections.push("<p>該当なし</p>");
-  } else {
-    houseRows.forEach((row) => {
-      sections.push(`<p>${escapeHtml(formatHouseLogLine(row))}</p>`);
-    });
-
-    for (const row of houseRows) {
-      const title = `第${row.houseNo}ハウス`;
-      const line = formatHouseLogLine(row);
-      let body = "この領域に圧が集まり、動きの重さが残っている。";
-      if (enableAi) {
-        const prompt = [
-          BLOG_STRUCT_HOUSE_GUIDE,
-          "",
-          `日付: ${dateLocal}`,
-          `HOUSE: ${title}｜${row.signGlyph || ""}${row.signJa || ""}`.trim(),
-          `BODIES: ${row.items.length ? row.items.join(" ") : "—"}`,
-        ].join("\n");
-        body = await runWithRetry({ userContent: prompt, model: modelParts, maxTokens: 200 });
-      }
-      sections.push(`<h3>${escapeHtml(title)}</h3>`);
-      sections.push(`<p>${escapeHtml(line)}</p>`);
-      sections.push(`<p>${escapeHtml(body)}</p>`);
-    }
-  }
-
   // Elements / modalities
   const { elementLine, modalityLine } = buildElementLinesPublic(story);
   sections.push("<h2>🔥 元素／三区分（T）</h2>");
@@ -1443,21 +1412,6 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const moonAfter = String(moonAfterRaw || "").split(/\r?\n/)[0].trim();
     lines.push(`<p>${escapeHtml(moonAfter)}</p>`);
   }
-
-  // 8) Aftertaste
-  lines.push("<h2>8｜余韻（短縮）</h2>");
-  const afterFacts = [
-    `重心: ${strata.top_element || "—"}×${strata.top_modality || "—"}`,
-    strongest ? `強い層: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)}` : "強い層: —",
-  ];
-  const afterPrompt = [
-    BLOG_LONG_AFTERTASTE_GUIDE,
-    "",
-    `日付: ${dateLabel}`,
-    `FACTS: ${afterFacts.join(" / ")}`,
-  ].join("\n");
-  const afterText = await runWithRetry({ userContent: afterPrompt, model: modelMain, maxTokens: 700 });
-  pushParagraphs(lines, afterText);
 
   return lines.join("\n");
 }
