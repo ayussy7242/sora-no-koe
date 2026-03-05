@@ -57,30 +57,8 @@ const BLOG_BANNED_TERMS = [
   "しよう",
   "求められる",
   "必要",
-  "可能性",
-  "かもしれない",
-  "調整",
-  "安定感",
-  "バランス",
-  "うまく",
-  "成功",
-  "失敗",
-  "成長",
-  "癒し",
-  "学び",
-  "導き",
-  "目覚め",
-  "示唆",
-  "問われる",
-  "大事",
-  "正しい",
-  "間違い",
   "べき",
-  "示す",
-  "意味する",
-  "促す",
-  "影響する",
-  "課題",
+  "これその配置のまま",
   "日本語校正フェーズ",
   "校正フェーズ",
   "日本語校正",
@@ -541,6 +519,13 @@ function stripAiLogs(text) {
   out = out.replace(/^.*日本語校正フェーズ.*$/gim, "");
   out = out.replace(/^.*以下が修正後の本文です.*$/gim, "");
   out = out.replace(/^.*日本語校正.*$/gim, "");
+  out = out.replace(/これその配置のまま/g, "");
+  out = out.replace(/置かれているされる/g, "置かれている");
+  out = out.replace(/残っているする/g, "残っている");
+  out = out.replace(/されるする/g, "される");
+  out = out.replace(/しているする/g, "している");
+  out = out.replace(/してるする/g, "してる");
+  out = out.replace(/残るする/g, "残る");
   return out.trim();
 }
 
@@ -1071,7 +1056,9 @@ function formatSignDegree(signKey, lonDeg) {
   const signJa = signLabelJa(dict, signKey) || signKey || "";
   if (!Number.isFinite(Number(lonDeg))) return signJa;
   const deg = ((Number(lonDeg) % 30) + 30) % 30;
-  return `${signJa} ${deg.toFixed(0)}°`.trim();
+  let degInt = Math.floor(deg + 1e-6);
+  if (degInt >= 30) degInt = 29;
+  return `${signJa} ${degInt}°`.trim();
 }
 
 function aspectLabelForLong(aspectKey, aspectDeg) {
