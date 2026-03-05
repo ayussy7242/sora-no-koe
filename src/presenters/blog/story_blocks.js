@@ -237,7 +237,7 @@ function buildBlogBlocks(story, opts = {}) {
       id: "today_moon",
       title: "🌙 本日の月",
       items: moonItems.length ? moonItems : ["データなし"],
-      render: "raw",
+      itemsAsH3: true,
     },
     {
       id: "resonance",
