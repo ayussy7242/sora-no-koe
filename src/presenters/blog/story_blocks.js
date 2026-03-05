@@ -54,14 +54,23 @@ function formatModalityCount(count = {}) {
   return `活動${count.cardinal || 0} 不動${count.fixed || 0} 柔軟${count.mutable || 0}`;
 }
 
-function formatPositionLine({ bodyKey, signKey, signJa, retro }) {
+function formatPositionLine({ bodyKey, signKey, signJa, retro, lonDeg }) {
   const glyph = bodyGlyph(bodyKey);
   const label = bodyLabelJa(dict, bodyKey) || bodyKey;
-  const signLabel = signJa || signLabelJa(dict, signKey) || signKey || "";
+  const signLabel = formatSignDegree(signKey, signJa, lonDeg);
   const retroText = retro ? SPEC.retro.suffix : "";
   const left = `${glyph ? `${glyph} ` : ""}${label}${retroText}`.trim();
   const right = signLabel ? `｜${signLabel}` : "";
   return `${left}${right}`.trim();
+}
+
+function formatSignDegree(signKey, signJa, lonDeg) {
+  const signLabel = signJa || signLabelJa(dict, signKey) || signKey || "";
+  if (!Number.isFinite(Number(lonDeg))) return signLabel;
+  const deg = ((Number(lonDeg) % 30) + 30) % 30;
+  let degInt = Math.floor(deg + 1e-6);
+  if (degInt >= 30) degInt = 29;
+  return `${signLabel} ${degInt}°`.trim();
 }
 
 function formatAspectLine(item, retroMap = {}) {
@@ -148,6 +157,7 @@ function buildBlogBlocks(story, opts = {}) {
       bodyKey: key,
       signKey,
       signJa: item?.sign_ja || "",
+      lonDeg: item?.lon_deg,
       retro: retroMap[key],
     });
   }).filter(Boolean);
@@ -174,6 +184,7 @@ function buildBlogBlocks(story, opts = {}) {
       bodyKey: key,
       signKey,
       signJa: item?.sign_ja || "",
+      lonDeg: item?.lon_deg,
       retro: retroMap[key],
     });
   });
