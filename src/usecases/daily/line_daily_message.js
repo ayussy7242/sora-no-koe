@@ -16,7 +16,11 @@ async function buildDailyLineMessage({ story, dict, isPaid500 } = {}) {
   const useDict = dict || require("../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
 
-  const freeSoraBody = await renderSoraLine(story, { dict: useDict, includeHeader: false });
+  const freeSoraBody = await renderSoraLine(story, {
+    dict: useDict,
+    includeHeader: false,
+    includeHouse: isPaid500 === true,
+  });
   const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false });
   const paidBody = isPaid500
     ? await renderDistributionLine(story, { dict: useDict })
