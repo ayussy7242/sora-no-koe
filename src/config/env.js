@@ -198,6 +198,7 @@ const STRIPE_PRICE_ID_LINE_500 = getEnv("STRIPE_PRICE_ID_LINE_500", { defaultVal
 const STRIPE_PAYMENT_LINK_LIGHT = getEnv("STRIPE_PAYMENT_LINK_LIGHT", { defaultValue: null });
 const STRIPE_SUCCESS_URL = getEnv("STRIPE_SUCCESS_URL", { defaultValue: "https://sora-no-koe.jp/thanks-light" });
 const STRIPE_CANCEL_URL = getEnv("STRIPE_CANCEL_URL", { defaultValue: "https://sora-no-koe.jp/cancel" });
+const SORA_PLUS_URL = getEnv("SORA_PLUS_URL", { defaultValue: null });
 
 // --------------------
 // Public URL / GCS
@@ -317,6 +318,7 @@ module.exports = {
   STRIPE_PAYMENT_LINK_LIGHT,
   STRIPE_SUCCESS_URL,
   STRIPE_CANCEL_URL,
+  SORA_PLUS_URL,
 
   // Public URL / GCS
   PUBLIC_BASE_URL,

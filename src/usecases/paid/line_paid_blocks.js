@@ -313,8 +313,24 @@ function buildTsukijiBlock(story, dict, asOfISO) {
 
   const approachData = approachRows
     .sort((a, b) => Number(a.orb || 0) - Number(b.orb || 0))
-    .slice(0, TSUKIJI_MAX_ITEMS)
     .map((row) => row.data);
+
+  const uniqApproach = [];
+  const seenApproach = new Set();
+  approachData.forEach((row) => {
+    const key = [
+      row?.aKind, row?.bKind,
+      row?.aKey, row?.bKey,
+      row?.aspectType, row?.aspectDeg,
+      row?.aSignKey, row?.bSignKey,
+      row?.startText, row?.endText,
+    ].join("|");
+    if (seenApproach.has(key)) return;
+    seenApproach.add(key);
+    uniqApproach.push(row);
+  });
+
+  const approachLimited = uniqApproach.slice(0, TSUKIJI_MAX_ITEMS);
 
   const retroData = [];
   TSUKIJI_RETRO_KEYS.forEach((key) => {
@@ -333,7 +349,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
   });
 
   return formatTsukiji({
-    approachRows: approachData,
+    approachRows: approachLimited,
     retroRows: retroData,
     dict,
   });
