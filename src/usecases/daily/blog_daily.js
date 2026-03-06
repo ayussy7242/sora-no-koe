@@ -1022,6 +1022,8 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
 
   // Tsukiji (long-term)
   const tsukijiRows = buildTsukijiRowsPublic(story, asOfISO);
+  sections.push("<p>ここから先は、今日の空をもう一歩だけ深く観測します。</p>");
+  sections.push("[pms-restrict subscription_plans=\"292\"]");
   sections.push("<h2>🌙 つきじ（継続接近ログ）</h2>");
   sections.push("<p>長期的に続く接近の記録です。短期の「近日」とは別に、じわじわ効く接点を追います。</p>");
   if (!tsukijiRows.length) {
