@@ -2,7 +2,7 @@
 
 const dict = require("../../content/dict");
 const { createChatCompletion } = require("../../integrations/openai/openai_client");
-const { buildBlogBlocks, blocksToInput } = require("../../presenters/blog/story_blocks");
+const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../presenters/blog/story_blocks");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
 } = require("../../content/prompts/sora_ai_prompts");
@@ -540,6 +540,21 @@ function stripAiLogs(text) {
   return out.trim();
 }
 
+function replaceMoonBlockHtml(html, moonHtml) {
+  if (!html || !moonHtml) return html;
+  const block = String(moonHtml).trim();
+  if (!block) return html;
+  const re = /<h2>🌙 本日の月<\/h2>[\\s\\S]*?(?=<h2>[^<]*<\\/h2>|$)/;
+  if (!re.test(html)) return html;
+  return String(html).replace(re, `${block}\n`);
+}
+
+function injectMoonBlock(html, { story, dateLocal }) {
+  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
+  const moonHtml = buildMoonBlockHtml({ story, asOfISO });
+  return replaceMoonBlockHtml(html, moonHtml);
+}
+
 function buildDailyEyecatchLines(story, dateLocal) {
   const dateJa = formatDateJaFromLocal(dateLocal);
   const sunSign = storySignJa(story, "sun");
@@ -662,7 +677,8 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       modelMain,
       modelParts,
     });
-    return stripAiLogs(enforceSingleClosing(html, closing));
+    const out = stripAiLogs(enforceSingleClosing(html, closing));
+    return injectMoonBlock(out, { story, dateLocal });
   }
 
   if (mode === "block") {
@@ -688,7 +704,8 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       const html = await runWithRetry({ userContent: content, model: modelParts, maxTokens: 1400 });
       parts.push(html.trim());
     }
-    return appendStructureLog(parts.join("\n\n").trim());
+    const out = await appendStructureLog(parts.join("\n\n").trim());
+    return injectMoonBlock(out, { story, dateLocal });
   }
 
   if (mode === "item") {
@@ -745,12 +762,14 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
         }
       }
     }
-    return appendStructureLog(out.join("\n\n").trim());
+    const outHtml = await appendStructureLog(out.join("\n\n").trim());
+    return injectMoonBlock(outHtml, { story, dateLocal });
   }
 
   const baseUser = userPrompt({ dateLocal, dataBlock });
   const text = await runWithRetry({ userContent: baseUser, model: modelMain, maxTokens: 2200 });
-  return appendStructureLog(text);
+  const out = await appendStructureLog(text);
+  return injectMoonBlock(out, { story, dateLocal });
 }
 
 function escapeHtml(text) {
