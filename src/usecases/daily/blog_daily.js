@@ -501,9 +501,16 @@ function buildSeoTitle({ story, dateLocal }) {
   const sunSign = storySignJa(story, "sun");
   const moonSign = storySignJa(story, "moon");
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const moonPhase = extractMoonPhaseLabel({ asOfISO, story });
+  let moonPhase = extractMoonPhaseLabel({ asOfISO, story });
+  const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
+  const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
+  if (newMoonAt instanceof Date) {
+    moonPhase = "新月";
+  } else if (fullMoonAt instanceof Date) {
+    moonPhase = "満月";
+  }
   if (!dateJa || !sunSign || !moonSign || !moonPhase) return fallback;
-  return `${dateJa}の星の配置｜${sunSign}太陽×${moonSign}${moonPhase}｜今日のソラ`;
+  return `${dateJa}の星の配置｜${sunSign}太陽×${moonSign} 月 ${moonPhase}｜今日のソラ`;
 }
 
 function buildDailyTitle(story, dateLocal) {
