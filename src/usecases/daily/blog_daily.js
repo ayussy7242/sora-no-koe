@@ -510,7 +510,7 @@ function buildSeoTitle({ story, dateLocal }) {
     moonPhase = "満月";
   }
   if (!dateJa || !sunSign || !moonSign || !moonPhase) return fallback;
-  return `${dateJa}の星の配置｜${sunSign}太陽×${moonSign} 月 ${moonPhase}｜今日のソラ`;
+  return `${dateJa}の星の配置｜${sunSign} 太陽 × ${moonSign} 月 ${moonPhase}｜今日のソラ`;
 }
 
 function buildDailyTitle(story, dateLocal) {
@@ -668,10 +668,14 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
   if (mode === "block") {
     const parts = [];
     for (const block of blocks) {
-      if (block?.render === "raw") {
-        parts.push(renderRawBlock(block));
-        continue;
-      }
+    if (block?.render === "html" && typeof block?.html === "string") {
+      parts.push(block.html.trim());
+      continue;
+    }
+    if (block?.render === "raw") {
+      parts.push(renderRawBlock(block));
+      continue;
+    }
       const blockInput = blocksToInput([block]);
       const content = [
         BLOG_BLOCKS_USER_GUIDE,

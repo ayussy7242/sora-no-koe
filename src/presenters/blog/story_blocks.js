@@ -13,7 +13,7 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../domain/canonical");
-const { formatTodayMoonLines, formatNextMoonLines } = require("../../domain/moon_info");
+const { formatTodayMoonLines, formatNextMoonLines, buildNextMoonEvents } = require("../../domain/moon_info");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -147,6 +147,57 @@ function formatResonanceHeading(item, retroMap = {}) {
   return `${pair}｜ ${angle}`.trim();
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function formatDateJaMd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const m = jst.getUTCMonth() + 1;
+  const d = jst.getUTCDate();
+  return `${m}月${d}日`;
+}
+
+function buildMoonBlockHtml({ story, asOfISO }) {
+  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
+  const todayItems = todayMoon.filter((line) => line && line !== "🌙 本日の月");
+
+  const events = buildNextMoonEvents(asOfISO, dict) || {};
+  const nextNew = events?.new;
+  const nextFull = events?.full;
+
+  const parts = [];
+  parts.push("<h2>🌙 本日の月</h2>");
+  todayItems.forEach((line) => {
+    parts.push(`<h3>${escapeHtml(line)}</h3>`);
+  });
+
+  if (nextNew?.line) {
+    const sign = nextNew?.signJa && nextNew.signJa !== "—" ? nextNew.signJa : "";
+    const dateMd = formatDateJaMd(nextNew.date);
+    const signText = sign ? `、${sign}で` : "、";
+    const desc = dateMd ? `次の新月は${dateMd}${signText}迎えます。新しいサイクルの始まりを予感させます。` : "";
+    parts.push(`<h3>${escapeHtml(nextNew.line)}</h3>`);
+    if (desc) parts.push(`<p>${escapeHtml(desc)}</p>`);
+  }
+
+  if (nextFull?.line) {
+    const sign = nextFull?.signJa && nextFull.signJa !== "—" ? nextFull.signJa : "";
+    const dateMd = formatDateJaMd(nextFull.date);
+    const signText = sign ? `${sign}で` : "";
+    const desc = dateMd ? `${dateMd}には${signText}満月が訪れます。調和と美を意識する時期です。` : "";
+    parts.push(`<h3>${escapeHtml(nextFull.line)}</h3>`);
+    if (desc) parts.push(`<p>${escapeHtml(desc)}</p>`);
+  }
+
+  return parts.join("\n");
+}
+
 function houseNumberForSignKey(signKey, ascIndex) {
   if (!signKey || ascIndex == null) return null;
   const signIndex = signIndexFromKey(dict, signKey);
@@ -211,10 +262,7 @@ function buildBlogBlocks(story, opts = {}) {
   const orbMin = orbValues.length ? Math.min(...orbValues) : null;
   const orbMax = orbValues.length ? Math.max(...orbValues) : null;
 
-  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
-  const todayMoonItems = todayMoon.filter((line) => line && line !== "🌙 本日の月");
-  const nextMoon = formatNextMoonLines({ asOfISO, dict }).lines || [];
-  const moonItems = [...todayMoonItems, ...nextMoon];
+  const moonBlockHtml = buildMoonBlockHtml({ story, asOfISO });
 
   const blocks = [
     {
@@ -236,8 +284,8 @@ function buildBlogBlocks(story, opts = {}) {
     {
       id: "today_moon",
       title: "🌙 本日の月",
-      items: moonItems.length ? moonItems : ["データなし"],
-      itemsAsH3: true,
+      render: "html",
+      html: moonBlockHtml,
     },
     {
       id: "resonance",
