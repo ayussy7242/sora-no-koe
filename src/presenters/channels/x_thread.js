@@ -23,6 +23,7 @@ const {
   formatDateYmdHm,
   pickApplyingUpcomingAspects,
 } = require("../../domain/astro_compute");
+const { formatTodayMoonLines, moonNameJaFromDate } = require("../../domain/moon_info");
 const { toDateLocalJST } = require("../../utils/time_utils");
 
 const THREAD_SEP = "\n\n---\n\n";
@@ -78,6 +79,30 @@ function formatMonthDayHm(date) {
   const hh = String(jst.getUTCHours()).padStart(2, "0");
   const mm = String(jst.getUTCMinutes()).padStart(2, "0");
   return `${ymd} ${hh}:${mm}`;
+}
+
+function moonEmojiFromPhaseDeg(phaseDeg) {
+  const v = Number(phaseDeg);
+  if (!Number.isFinite(v)) return "🌙";
+  const d = ((v % 360) + 360) % 360;
+  if (d < 22.5 || d >= 337.5) return "🌑";
+  if (d < 67.5) return "🌒";
+  if (d < 112.5) return "🌓";
+  if (d < 157.5) return "🌔";
+  if (d < 202.5) return "🌕";
+  if (d < 247.5) return "🌖";
+  if (d < 292.5) return "🌗";
+  return "🌘";
+}
+
+function signLabelFromLon(dict, lon) {
+  if (!Number.isFinite(Number(lon))) return "—";
+  const order = dict?.SIGNS_V2?.order || dict?.SIGNS?.order || [
+    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+  ];
+  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
+  const key = order[idx];
+  return key ? signJa(dict, key) : "—";
 }
 
 function moonPhaseDegAt(iso) {
@@ -288,23 +313,27 @@ function renderXThread(story, deps = {}) {
   // ---------- Part 2: 月相 + 今日の共鳴（上位1件） ----------
   const baseDate = new Date(asOfISO || Date.now());
 
-  const moonCandidates = [
-    { kind: "new", emoji: "🌑", label: "新月", deg: 0 },
-    { kind: "full", emoji: "🌕", label: "満月", deg: 180 },
-  ];
-
   const moonLines = (() => {
-    const state = computeMoonPhaseState(asOfISO);
-    if (!state) return [];
+    const today = formatTodayMoonLines({ asOfISO, story, dict });
+    if (!today?.lines?.length) return [];
 
     const lines = [];
-    lines.push("🌙 月相", "", `${state.emoji} ${state.label}`);
+    const todayEmoji = moonEmojiFromPhaseDeg(today.info?.phaseDeg);
+    lines.push("🌙 月相", "", `${todayEmoji} 本日の月`);
+    lines.push(...today.lines.slice(1));
 
-    if (state.kind === "new" || state.kind === "full" || state.kind === "full_near") {
-      const targetDeg = state.kind === "new" ? 0 : 180;
-      const peakStart = new Date(baseDate.getTime() - 3 * 86400000).toISOString();
-      const peak = findNextMoonPhaseContinuous(peakStart, targetDeg, 10);
-      if (isValidDate(peak)) lines.push(`ピーク：${formatDateYmdHm(peak)}（JST）`);
+    const prevStart = new Date(baseDate.getTime() - 40 * 86400000).toISOString();
+    let lastFull = findNextMoonPhaseContinuous(prevStart, 180, 60);
+    if (isValidDate(lastFull) && lastFull.getTime() > baseDate.getTime()) {
+      const prevStart2 = new Date(baseDate.getTime() - 70 * 86400000).toISOString();
+      lastFull = findNextMoonPhaseContinuous(prevStart2, 180, 90);
+      if (isValidDate(lastFull) && lastFull.getTime() > baseDate.getTime()) lastFull = null;
+    }
+
+    if (isValidDate(lastFull)) {
+      const fullName = moonNameJaFromDate(lastFull);
+      const fullLabel = fullName ? `🌕 ${fullName}` : "🌕 満月";
+      lines.push("", "直近の満月", fullLabel, `${formatDateYmdHm(lastFull)}（JST）`);
     }
 
     const nextNew = findNextMoonPhaseContinuous(asOfISO, 0);
@@ -312,16 +341,21 @@ function renderXThread(story, deps = {}) {
     let nextMajor = null;
     if (isValidDate(nextNew) && isValidDate(nextFull)) {
       nextMajor = nextNew.getTime() <= nextFull.getTime()
-        ? { ...moonCandidates[0], date: nextNew }
-        : { ...moonCandidates[1], date: nextFull };
+        ? { kind: "new", date: nextNew }
+        : { kind: "full", date: nextFull };
     } else if (isValidDate(nextNew)) {
-      nextMajor = { ...moonCandidates[0], date: nextNew };
+      nextMajor = { kind: "new", date: nextNew };
     } else if (isValidDate(nextFull)) {
-      nextMajor = { ...moonCandidates[1], date: nextFull };
+      nextMajor = { kind: "full", date: nextFull };
     }
 
     if (nextMajor) {
-      lines.push("", "次の月相", `${nextMajor.emoji} ${nextMajor.label}｜${formatDateYmdHm(nextMajor.date)}（JST）`);
+      const lon = calcTransitLon("moon", nextMajor.date.toISOString());
+      const signJaLabel = signLabelFromLon(dict, lon);
+      const kindText = nextMajor.kind === "new" ? "新月" : "満月";
+      const emoji = nextMajor.kind === "new" ? "🌑" : "🌕";
+      const labelCore = signJaLabel && signJaLabel !== "—" ? `${signJaLabel}${kindText}` : kindText;
+      lines.push("", "次の月相", `${emoji} ${labelCore}`, `${formatDateYmdHm(nextMajor.date)}（JST）`);
     }
 
     return lines;
