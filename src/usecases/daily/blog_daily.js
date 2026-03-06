@@ -533,6 +533,10 @@ function stripAiLogs(text) {
   out = out.replace(/しているする/g, "している");
   out = out.replace(/してるする/g, "してる");
   out = out.replace(/残るする/g, "残る");
+  // strip fenced code markers (``` / ```html) while keeping inner text
+  out = out.replace(/```[a-zA-Z0-9_-]*\s*\n/g, "");
+  out = out.replace(/\n```/g, "\n");
+  out = out.replace(/```/g, "");
   return out.trim();
 }
 
