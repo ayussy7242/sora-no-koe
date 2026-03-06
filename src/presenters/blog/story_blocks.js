@@ -324,4 +324,4 @@ function blocksToInput(blocks = []) {
     .join("\n\n");
 }
 
-module.exports = { buildBlogBlocks, blocksToInput };
+module.exports = { buildBlogBlocks, blocksToInput, buildMoonBlockHtml };
