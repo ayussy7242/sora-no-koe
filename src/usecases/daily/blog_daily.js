@@ -544,7 +544,7 @@ function replaceMoonBlockHtml(html, moonHtml) {
   if (!html || !moonHtml) return html;
   const block = String(moonHtml).trim();
   if (!block) return html;
-  const re = /<h2>🌙 本日の月<\/h2>[\\s\\S]*?(?=<h2>[^<]*<\\/h2>|$)/;
+  const re = /<h2>🌙 本日の月<\/h2>[\s\S]*?(?=<h2>[^<]*<\/h2>|$)/;
   if (!re.test(html)) return html;
   return String(html).replace(re, `${block}\n`);
 }
