@@ -999,7 +999,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const bLabel = `${bodyGlyph(row.bKey)}${bodyLabelJa(dict, row.bKey)}${retroMap[row.bKey] ? SPEC.retro.suffix : ""}`;
       const aSign = row.aSignJa || signLabelJa(dict, row.aSignKey);
       const bSign = row.bSignJa || signLabelJa(dict, row.bSignKey);
-      const aspectLabel = row.aspect ? row.aspect : "";
+      const aspectLabel = aspectLabelForLong(row.aspect || row.type, row.aspectDeg);
       const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(row.aspectDeg)}°` : "";
       const orbText = Number.isFinite(Number(row.orb)) ? `orb ${row.orb.toFixed(1)}°` : "";
       const startText = row.start ? formatDateYmd(row.start) : "-";
@@ -1032,7 +1032,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const bLabel = `${bodyGlyph(bKey)}${bodyLabelJa(dict, bKey)}`;
       const aSign = row?.a_sign_ja || signLabelJa(dict, row?.a_sign_key);
       const bSign = row?.b_sign_ja || signLabelJa(dict, row?.b_sign_key);
-      const aspectLabel = row?.aspect ? row.aspect : "";
+      const aspectLabel = aspectLabelForLong(row?.aspect || row?.type, row?.aspect_deg);
       const degText = Number.isFinite(Number(row?.aspect_deg)) ? `${Math.round(row.aspect_deg)}°` : "";
       const orbText = Number.isFinite(Number(row?.now_orb)) ? `現在 orb ${Number(row.now_orb).toFixed(1)}°` : "";
       const startText = row?.start_at ? formatDateYmd(new Date(row.start_at)) : "-";
