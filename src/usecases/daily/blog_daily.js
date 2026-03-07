@@ -777,7 +777,20 @@ function applyPremiumLayout(html, { story, dateLocal }) {
     .join("\n\n");
 
   const merged = [freeParts.join("\n\n"), premiumBlock].filter((s) => s && String(s).trim()).join("\n\n");
-  return [merged, closing].filter((s) => s && String(s).trim()).join("\n\n");
+  const withSpacing = addHeadingSpacing(merged);
+  return [withSpacing, closing].filter((s) => s && String(s).trim()).join("\n\n");
+}
+
+function addHeadingSpacing(html) {
+  if (!html) return html;
+  let first = true;
+  return String(html).replace(/<h2>/g, () => {
+    if (first) {
+      first = false;
+      return "<h2>";
+    }
+    return "<br>\n<h2>";
+  });
 }
 
 function buildDailyEyecatchLines(story, dateLocal) {

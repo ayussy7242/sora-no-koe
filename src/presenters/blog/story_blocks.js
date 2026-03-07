@@ -175,6 +175,9 @@ function buildMoonBlockHtml({ story, asOfISO }) {
   parts.push("<h2>3｜🌙 本日の月</h2>");
   todayItems.forEach((line) => {
     parts.push(`<h3>${escapeHtml(line)}</h3>`);
+    if (/^月齢/.test(line)) {
+      parts.push("<br>");
+    }
   });
 
   if (nextNew?.line) {
