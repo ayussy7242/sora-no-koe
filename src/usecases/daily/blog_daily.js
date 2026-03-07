@@ -781,48 +781,24 @@ function applyPremiumLayout(html, { story, dateLocal }) {
 }
 
 function buildDailyEyecatchLines(story, dateLocal) {
-  const dateJa = formatDateJaFromLocal(dateLocal);
-  const sunSign = storySignJa(story, "sun");
-  const moonSign = storySignJa(story, "moon");
-  const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const moonPhase = extractMoonPhaseLabel({ asOfISO, story });
+  const dateDots = formatDateDotsFromLocal(dateLocal) || "";
+  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
+  const title = buildLeadAspectTitle({ story, dateLocal });
 
-  const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
-  const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
-
-  if (newMoonAt instanceof Date) {
-    const sign = signLabelFromLon(dict, calcTransitLon("moon", newMoonAt.toISOString()));
-    const dateLabel = formatDateYmd(newMoonAt).replace(/-/g, ".");
-    return {
-      line1: sign ? `${sign}新月` : "新月",
-      line2: dateLabel,
-      line3: "New Moon",
-      kind: "new",
-    };
-  }
-
-  if (fullMoonAt instanceof Date) {
-    const sign = signLabelFromLon(dict, calcTransitLon("moon", fullMoonAt.toISOString()));
-    const dateLabel = formatDateYmd(fullMoonAt).replace(/-/g, ".");
-    const moonName = moonNameJaFromDate(fullMoonAt);
-    return {
-      line1: moonName || (sign ? `${sign}満月` : "満月"),
-      line2: sign ? `${sign}満月` : "満月",
-      line3: dateLabel,
-      kind: "full",
-    };
-  }
-
-  const line1 = dateJa ? `${dateJa}の星の配置` : "今日のソラ";
   let line2 = "";
-  if (sunSign && moonSign && moonPhase) {
-    line2 = `${sunSign}太陽 × ${moonSign}${moonPhase}`;
-  } else if (sunSign && moonSign) {
-    line2 = `${sunSign}太陽 × ${moonSign}月`;
-  } else if (moonSign && moonPhase) {
-    line2 = `${moonSign}${moonPhase}`;
+  if (title) {
+    const parts = String(title).split("｜");
+    if (parts.length >= 2) {
+      line2 = parts[1].trim();
+    }
   }
-  return { line1, line2 };
+
+  return {
+    line1: dateDots || "今日のソラ",
+    line2: line2 || "今日のソラ",
+    line3: "今日のソラ",
+    kind: "lead_aspect",
+  };
 }
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
