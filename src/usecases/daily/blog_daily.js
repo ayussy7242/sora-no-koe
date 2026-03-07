@@ -33,6 +33,7 @@ const {
   findNextMoonPhase,
   calcTransitLon,
 } = require("../../domain/astro_compute");
+const { toDateLocalJST } = require("../../utils/time_utils");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../presenters/render/render_tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../domain/canonical");
 const {
@@ -495,22 +496,61 @@ function extractMoonPhaseLabel({ asOfISO, story }) {
   return label;
 }
 
+function lastFullMoonDate(asOfISO) {
+  if (!asOfISO) return null;
+  const base = new Date(asOfISO);
+  if (Number.isNaN(base.getTime())) return null;
+  const start1 = new Date(base.getTime() - 25 * 86400000).toISOString();
+  let full = findNextMoonPhase(start1, 180);
+  if (full && full.getTime() > base.getTime()) {
+    const start2 = new Date(base.getTime() - 55 * 86400000).toISOString();
+    full = findNextMoonPhase(start2, 180);
+    if (full && full.getTime() > base.getTime()) return null;
+  }
+  return full;
+}
+
+function diffDaysJst(dateLocal, date) {
+  if (!dateLocal || !(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const fullLocal = toDateLocalJST(date);
+  if (!fullLocal) return null;
+  const a = new Date(`${dateLocal}T00:00:00+09:00`);
+  const b = new Date(`${fullLocal}T00:00:00+09:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+
+function moonPhaseTitleLabel({ dateLocal, asOfISO }) {
+  if (!dateLocal) return "";
+  const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
+  if (newMoonAt instanceof Date) return "新月";
+  const firstQuarterAt = findMoonPhaseInJstDate(dateLocal, 90);
+  if (firstQuarterAt instanceof Date) return "上弦";
+  const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
+  if (fullMoonAt instanceof Date) return "満月";
+  const lastQuarterAt = findMoonPhaseInJstDate(dateLocal, 270);
+  if (lastQuarterAt instanceof Date) return "下弦";
+
+  const lastFull = lastFullMoonDate(asOfISO);
+  const diff = diffDaysJst(dateLocal, lastFull);
+  if (!Number.isFinite(diff)) return "";
+  if (diff === 1) return "十六夜";
+  if (diff === 2) return "立待月";
+  if (diff === 3) return "居待月";
+  if (diff === 4) return "寝待月";
+  if (diff === 5) return "更待月";
+  return "";
+}
+
 function buildSeoTitle({ story, dateLocal }) {
   const fallback = `今日のソラ｜${dateLocal}`;
   const dateJa = formatDateJaFromLocal(dateLocal);
   const sunSign = storySignJa(story, "sun");
   const moonSign = storySignJa(story, "moon");
-  const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  let moonPhase = extractMoonPhaseLabel({ asOfISO, story });
-  const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
-  const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
-  if (newMoonAt instanceof Date) {
-    moonPhase = "新月";
-  } else if (fullMoonAt instanceof Date) {
-    moonPhase = "満月";
-  }
+  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
+  const moonPhase = moonPhaseTitleLabel({ dateLocal, asOfISO });
   if (!dateJa || !sunSign || !moonSign || !moonPhase) return fallback;
-  return `${dateJa}の星の配置｜${sunSign} 太陽 × ${moonSign} 月 ${moonPhase}｜今日のソラ`;
+  return `${dateJa}の星の配置｜${sunSign} 太陽 × ${moonSign} 月｜${moonPhase}｜今日のソラ`;
 }
 
 function buildDailyTitle(story, dateLocal) {
