@@ -247,8 +247,20 @@ function createStoryService({
       if (seenLong.has(key)) return;
       seenLong.add(key);
 
-      const window = findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays: 500, orbLimit: 3 });
+      const window = findTransitTransitWindow({
+        aKey,
+        bKey,
+        aspectDeg,
+        asOfISO,
+        maxDays: 500,
+        orbLimit: 3,
+        aSignKey: row?.a_sign_key || null,
+        bSignKey: row?.b_sign_key || null,
+      });
       if (!window?.start || !window?.end) return;
+      const now = new Date(asOfISO);
+      if (Number.isNaN(now.getTime())) return;
+      if (!(window.start <= now && now <= window.end)) return;
       const durationDays = Math.ceil((window.end.getTime() - window.start.getTime()) / 86400000);
       if (durationDays < 30) return;
 

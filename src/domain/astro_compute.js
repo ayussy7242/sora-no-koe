@@ -214,7 +214,17 @@ function findAspectWindow({ transitKey, natalLon, aspectDeg, asOfISO, maxDays = 
   return { start, end, peak, bestOrb };
 }
 
-function findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 240, orbLimit = 3 }) {
+const SIGN_ORDER = [
+  "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+];
+
+function signKeyFromLon(lon) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
+  return SIGN_ORDER[idx] || null;
+}
+
+function findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 240, orbLimit = 3, aSignKey = null, bSignKey = null }) {
   const now = new Date(asOfISO);
   if (Number.isNaN(now.getTime())) return null;
 
@@ -222,6 +232,7 @@ function findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 24
   let end = null;
   let peak = null;
   let bestOrb = Infinity;
+  const requireSign = Boolean(aSignKey || bSignKey);
 
   const steps = maxDays;
   for (let i = steps; i >= 0; i--) {
@@ -230,9 +241,12 @@ function findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 24
     const lonA = calcTransitLon(aKey, iso);
     const lonB = calcTransitLon(bKey, iso);
     if (lonA == null || lonB == null) continue;
+    const signOk = !requireSign
+      || ((aSignKey ? signKeyFromLon(lonA) === aSignKey : true)
+        && (bSignKey ? signKeyFromLon(lonB) === bSignKey : true));
     const dist = absAngularDistance(lonA, lonB);
     const orb = Math.abs(dist - aspectDeg);
-    if (orb <= orbLimit) {
+    if (orb <= orbLimit && signOk) {
       if (!start) start = new Date(d.getTime());
       if (orb < bestOrb) {
         bestOrb = orb;
@@ -249,9 +263,12 @@ function findTransitTransitWindow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 24
     const lonA = calcTransitLon(aKey, iso);
     const lonB = calcTransitLon(bKey, iso);
     if (lonA == null || lonB == null) continue;
+    const signOk = !requireSign
+      || ((aSignKey ? signKeyFromLon(lonA) === aSignKey : true)
+        && (bSignKey ? signKeyFromLon(lonB) === bSignKey : true));
     const dist = absAngularDistance(lonA, lonB);
     const orb = Math.abs(dist - aspectDeg);
-    if (orb <= orbLimit) {
+    if (orb <= orbLimit && signOk) {
       if (orb < bestOrb) {
         bestOrb = orb;
         peak = new Date(d.getTime());

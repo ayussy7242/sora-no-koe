@@ -27,7 +27,7 @@ const {
   computeTokyoAscDeg,
   signIndexFromKey,
   houseNumberForSignIndex,
-  findTransitTransitWindow,
+  absAngularDistance,
   formatDateYmd,
   formatDateYmdHm,
   findNextMoonPhase,
@@ -215,6 +215,15 @@ function signLabelFromLon(dictObj, lon) {
   const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
   const key = order[idx];
   return key ? signLabelJa(dict, key) : "—";
+}
+
+function signKeyFromLon(dictObj, lon) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const order = dictObj?.SIGNS_V2?.order || dictObj?.SIGNS?.order || [
+    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+  ];
+  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
+  return order[idx] || null;
 }
 
 function findMoonPhaseInJstDate(dateLocal, phaseDeg) {
@@ -1057,6 +1066,91 @@ const BLOG_STRUCT_TSUKIJI_MIN_DAYS = 30;
 const BLOG_STRUCT_TSUKIJI_ORB = SPEC?.orb?.paid ?? 3.0;
 const BLOG_STRUCT_TSUKIJI_MAX = 3;
 
+function toIsoAtJstNoonLocal(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}T03:00:00.000Z`;
+}
+
+function findTransitWindowAroundNow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 400, orbLimit = 3 }) {
+  const now = new Date(asOfISO);
+  if (Number.isNaN(now.getTime())) return null;
+  if (!Number.isFinite(Number(aspectDeg))) return null;
+
+  const calcOrb = (iso) => {
+    const lonA = calcTransitLon(aKey, iso);
+    const lonB = calcTransitLon(bKey, iso);
+    if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
+    const dist = absAngularDistance(lonA, lonB);
+    return Math.abs(dist - aspectDeg);
+  };
+
+  const nowIso = toIsoAtJstNoonLocal(now);
+  const nowLonA = nowIso ? calcTransitLon(aKey, nowIso) : null;
+  const nowLonB = nowIso ? calcTransitLon(bKey, nowIso) : null;
+  const nowOrb = nowIso ? calcOrb(nowIso) : null;
+  const baseSignA = Number.isFinite(Number(nowLonA)) ? signKeyFromLon(dict, nowLonA) : null;
+  const baseSignB = Number.isFinite(Number(nowLonB)) ? signKeyFromLon(dict, nowLonB) : null;
+  if (!baseSignA || !baseSignB) return null;
+  if (!Number.isFinite(Number(nowOrb)) || Number(nowOrb) > orbLimit) return null;
+
+  let start = new Date(now.getTime());
+  let end = new Date(now.getTime());
+
+  for (let i = 1; i <= maxDays; i++) {
+    const d = new Date(now.getTime() - i * 86400000);
+    const iso = toIsoAtJstNoonLocal(d);
+    const orb = iso ? calcOrb(iso) : null;
+    const lonA = iso ? calcTransitLon(aKey, iso) : null;
+    const lonB = iso ? calcTransitLon(bKey, iso) : null;
+    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
+      && signKeyFromLon(dict, lonA) === baseSignA
+      && signKeyFromLon(dict, lonB) === baseSignB;
+    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) {
+      break;
+    }
+    start = d;
+  }
+
+  for (let i = 1; i <= maxDays; i++) {
+    const d = new Date(now.getTime() + i * 86400000);
+    const iso = toIsoAtJstNoonLocal(d);
+    const orb = iso ? calcOrb(iso) : null;
+    const lonA = iso ? calcTransitLon(aKey, iso) : null;
+    const lonB = iso ? calcTransitLon(bKey, iso) : null;
+    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
+      && signKeyFromLon(dict, lonA) === baseSignA
+      && signKeyFromLon(dict, lonB) === baseSignB;
+    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) {
+      break;
+    }
+    end = d;
+  }
+
+  let peak = null;
+  let bestOrb = Infinity;
+  const totalDays = Math.min(maxDays, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+  for (let i = 0; i <= totalDays; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    const iso = toIsoAtJstNoonLocal(d);
+    const orb = iso ? calcOrb(iso) : null;
+    const lonA = iso ? calcTransitLon(aKey, iso) : null;
+    const lonB = iso ? calcTransitLon(bKey, iso) : null;
+    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
+      && signKeyFromLon(dict, lonA) === baseSignA
+      && signKeyFromLon(dict, lonB) === baseSignB;
+    if (!signOk || !Number.isFinite(Number(orb))) continue;
+    if (orb < bestOrb) {
+      bestOrb = orb;
+      peak = d;
+    }
+  }
+
+  return { start, end, peak, bestOrb };
+}
+
 function buildHouseRowsPublic(story, asOfISO) {
   const transitSigns = story?.public?.transit_signs || {};
   const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
@@ -1135,6 +1229,12 @@ function buildTsukijiRowsPublic(story, asOfISO) {
         if (!(r.start instanceof Date) || !(r.end instanceof Date)) return true;
         if (Number.isNaN(r.start.getTime()) || Number.isNaN(r.end.getTime())) return true;
         return r.start <= now && now <= r.end;
+      })
+      .filter((r) => {
+        const duration = Number.isFinite(Number(r.durationDays))
+          ? Number(r.durationDays)
+          : (r.start && r.end ? Math.ceil((r.end.getTime() - r.start.getTime()) / 86400000) : null);
+        return duration == null || duration >= BLOG_STRUCT_TSUKIJI_MIN_DAYS;
       });
   }
 
@@ -1157,7 +1257,7 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const aspectDeg = Number(row?.aspect_deg);
     if (!Number.isFinite(aspectDeg)) return;
 
-    const window = findTransitTransitWindow({
+    const window = findTransitWindowAroundNow({
       aKey,
       bKey,
       aspectDeg,
