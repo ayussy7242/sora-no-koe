@@ -129,6 +129,47 @@ function nearFullLabelByAge(moonAge) {
   return "有明月";
 }
 
+function lastFullMoonDate(asOfISO) {
+  if (!asOfISO) return null;
+  const base = new Date(asOfISO);
+  if (Number.isNaN(base.getTime())) return null;
+  const start1 = new Date(base.getTime() - 25 * 86400000).toISOString();
+  let full = findNextMoonPhase(start1, 180);
+  if (full && full.getTime() > base.getTime()) {
+    const start2 = new Date(base.getTime() - 55 * 86400000).toISOString();
+    full = findNextMoonPhase(start2, 180);
+    if (full && full.getTime() > base.getTime()) return null;
+  }
+  return full;
+}
+
+function daysDiffJst(a, b) {
+  if (!(a instanceof Date) || !(b instanceof Date)) return null;
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  const aStr = toDateLocalJST(a);
+  const bStr = toDateLocalJST(b);
+  if (!aStr || !bStr) return null;
+  const aStart = new Date(`${aStr}T00:00:00+09:00`);
+  const bStart = new Date(`${bStr}T00:00:00+09:00`);
+  if (Number.isNaN(aStart.getTime()) || Number.isNaN(bStart.getTime())) return null;
+  return Math.round((aStart.getTime() - bStart.getTime()) / 86400000);
+}
+
+function nearFullLabelByLastFull(asOfISO) {
+  const base = asOfISO ? new Date(asOfISO) : new Date();
+  const lastFull = lastFullMoonDate(asOfISO);
+  if (!(lastFull instanceof Date)) return "";
+  const diff = daysDiffJst(base, lastFull);
+  if (!Number.isFinite(diff)) return "";
+  if (diff === 1) return "十六夜";
+  if (diff === 2) return "立待月";
+  if (diff === 3) return "居待月";
+  if (diff === 4) return "寝待月";
+  if (diff === 5) return "更待月";
+  if (diff >= 6 && diff <= 12) return "有明月";
+  return "";
+}
+
 function formatTodayMoonLines({ asOfISO, story, dict }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const lines = [];
@@ -142,9 +183,14 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
       phaseLabelCore = "満月";
     } else if (isNewNow) {
       phaseLabelCore = "新月";
-    } else if (Number.isFinite(Number(info.moonAge)) && info.moonAge >= 12.5 && info.moonAge < 19.5) {
-      // Around full moon, use the day-name scale (十三夜〜更待月) to avoid a long "十六夜" band.
-      phaseLabelCore = nearFullLabelByAge(info.moonAge) || phaseLabelCore;
+    } else {
+      const nearByFull = nearFullLabelByLastFull(asOfISO);
+      if (nearByFull) {
+        phaseLabelCore = nearByFull;
+      } else if (Number.isFinite(Number(info.moonAge)) && info.moonAge >= 12.5 && info.moonAge < 19.5) {
+        // fallback: age-based label
+        phaseLabelCore = nearFullLabelByAge(info.moonAge) || phaseLabelCore;
+      }
     }
 
     let phaseLabel = phaseLabelCore;
