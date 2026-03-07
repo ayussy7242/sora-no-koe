@@ -473,6 +473,16 @@ function formatDateJaFromLocal(dateLocal) {
   return `${y}年${m}月${d}日`;
 }
 
+function formatDateDotsFromLocal(dateLocal) {
+  const parts = String(dateLocal || "").trim().split("-");
+  if (parts.length !== 3) return "";
+  const y = Number(parts[0]);
+  const m = String(Number(parts[1])).padStart(2, "0");
+  const d = String(Number(parts[2])).padStart(2, "0");
+  if (!Number.isFinite(y) || !Number.isFinite(Number(m)) || !Number.isFinite(Number(d))) return "";
+  return `${y}.${m}.${d}`;
+}
+
 function storySignJa(story, bodyKey) {
   const direct =
     story?.public?.transit_signs?.[bodyKey]?.sign_ja ||
@@ -553,8 +563,51 @@ function buildSeoTitle({ story, dateLocal }) {
   return `${dateJa}の星の配置｜${sunSign} 太陽 × ${moonSign} 月｜${moonPhase}｜今日のソラ`;
 }
 
+function buildLeadAspectTitle({ story, dateLocal }) {
+  const dateDots = formatDateDotsFromLocal(dateLocal);
+  if (!dateDots) return "";
+  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  if (!skyAll.length) return "";
+
+  const lead = [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
+  if (!lead) return "";
+
+  const aKey = normalizeBodyKey(lead?.a || "");
+  const bKey = normalizeBodyKey(lead?.b || "");
+  if (!aKey || !bKey) return "";
+
+  const order = {
+    sun: 1,
+    moon: 2,
+    mercury: 3,
+    venus: 4,
+    mars: 5,
+    jupiter: 6,
+    saturn: 7,
+    uranus: 8,
+    neptune: 9,
+    pluto: 10,
+    lilith: 11,
+    chiron: 12,
+  };
+  const aRank = order[aKey] ?? 99;
+  const bRank = order[bKey] ?? 99;
+  const leftKey = aRank <= bRank ? aKey : bKey;
+  const rightKey = aRank <= bRank ? bKey : aKey;
+
+  const retroMap = buildRetrogradeMap(asOfISO, [leftKey, rightKey]);
+  const leftLabel = `${bodyLabelJa(dict, leftKey)}${retroMap[leftKey] ? "R" : ""}`.trim();
+  const rightLabel = `${bodyLabelJa(dict, rightKey)}${retroMap[rightKey] ? "R" : ""}`.trim();
+
+  const aspectLabel = aspectLabelForLong(lead?.aspect || lead?.type, lead?.aspect_deg);
+  if (!leftLabel || !rightLabel || !aspectLabel) return "";
+
+  return `${dateDots}｜${leftLabel} × ${rightLabel} ${aspectLabel}｜今日のソラ`;
+}
+
 function buildDailyTitle(story, dateLocal) {
-  return buildSeoTitle({ story, dateLocal });
+  return buildLeadAspectTitle({ story, dateLocal }) || buildSeoTitle({ story, dateLocal });
 }
 
 function stripAiLogs(text) {
