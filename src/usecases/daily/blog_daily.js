@@ -594,13 +594,37 @@ function buildHouseBlockHtml({ story, asOfISO }) {
     parts.push("<p>集中は観測されていない</p>");
     return parts.join("\n");
   }
-  parts.push("<h3>今日の天体集中ハウス TOP3</h3>");
+
+  const houseDesc = {
+    1: ["自己の輪郭に天体が集中し、", "始まりや内側の動きが表面化しやすい配置。"],
+    2: ["所有や価値の領域に天体が集まり、", "資源の扱い方が浮かび上がりやすい配置。"],
+    3: ["ことばと近距離の領域に天体が集中し、", "情報の往来が密になりやすい配置。"],
+    4: ["基盤の領域に天体が集まり、", "居場所や感情の揺れが大きくなりやすい配置。"],
+    5: ["創造の領域に天体が集中し、", "表現や遊びの回路が開きやすい配置。"],
+    6: ["生活の領域に天体が集まり、", "日々の調整や整えが増えやすい配置。"],
+    7: ["対人の領域に天体が集中し、", "関係性の鏡がはっきり見えやすい配置。"],
+    8: ["深層の領域に天体が集まり、", "共有や変容のテーマが浮かびやすい配置。"],
+    9: ["視野の領域に天体が集中し、", "思想や方向性の調整が起こりやすい配置。"],
+    10: ["社会領域に天体が集中し、", "外側の役割や立場に関わる動きが浮かびやすい配置。"],
+    11: ["つながりの領域に天体が集まり、", "未来像や関係網の変化が出やすい配置。"],
+    12: ["静かな領域に天体が集まり、", "内面の整理や回復が進みやすい配置。"],
+  };
+
+  parts.push("<p>今日の天体集中ハウス TOP3</p>");
   top.forEach((row) => {
     const count = row.items.length;
     const title = `第${row.houseNo}ハウス｜${count}天体`;
     const bodies = row.items.length ? row.items.join("｜").replace(/\(R\)/g, "（R）") : "";
-    parts.push(`<p>${escapeHtml(title)}</p>`);
-    if (bodies) parts.push(`<p>${escapeHtml(bodies)}</p>`);
+    const desc = houseDesc[row.houseNo] || ["天体が集まり、", "その領域の動きが際立ちやすい配置。"];
+    const descHtml = `${escapeHtml(desc[0])}<br>${escapeHtml(desc[1])}`;
+
+    parts.push("<div class=\"house-block\">");
+    parts.push(`<strong>${escapeHtml(title)}</strong><br>`);
+    if (bodies) parts.push(`${escapeHtml(bodies)}`);
+    parts.push("<p>");
+    parts.push(descHtml);
+    parts.push("</p>");
+    parts.push("</div>");
   });
   return parts.join("\n");
 }
