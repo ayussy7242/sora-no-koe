@@ -120,7 +120,7 @@ function presetConfig(presetKey) {
       centerY: 350,
       line1Y: 300,
       line2Y: 400,
-      line3Y: 450,
+      line3Y: 470,
       line2Weight: "bold",
       lineHeightRatio: 1.35,
       lineGap: 10,
