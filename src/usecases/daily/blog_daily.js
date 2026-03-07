@@ -1117,6 +1117,8 @@ function shouldSkipTsukiji(aKey, bKey) {
 
 function buildTsukijiRowsPublic(story, asOfISO) {
   const longLogs = Array.isArray(story?.public?.kinjitsu_long) ? story.public.kinjitsu_long : [];
+  const now = new Date(asOfISO || new Date().toISOString());
+  if (Number.isNaN(now.getTime())) return [];
   if (longLogs.length) {
     return longLogs
       .map((row) => ({
@@ -1134,19 +1136,22 @@ function buildTsukijiRowsPublic(story, asOfISO) {
         end: row?.end_at ? new Date(row.end_at) : null,
         durationDays: Number(row?.duration_days),
       }))
-      .filter((r) => r.aKey && r.bKey && !shouldSkipTsukiji(r.aKey, r.bKey));
+      .filter((r) => r.aKey && r.bKey && !shouldSkipTsukiji(r.aKey, r.bKey))
+      .filter((r) => {
+        if (!(r.start instanceof Date) || !(r.end instanceof Date)) return true;
+        if (Number.isNaN(r.start.getTime()) || Number.isNaN(r.end.getTime())) return true;
+        return r.start <= now && now <= r.end;
+      });
   }
 
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const now = new Date(asOfISO || new Date().toISOString());
-  if (Number.isNaN(now.getTime())) return [];
 
   const rows = [];
   const seen = new Set();
 
   skyAll.forEach((row) => {
-    const orb = Number(row?.orb_deg);
-    if (!Number.isFinite(orb) || orb > BLOG_STRUCT_TSUKIJI_ORB) return;
+    const orbRaw = Number(row?.orb_deg);
+    const orb = Number.isFinite(orbRaw) ? orbRaw : null;
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     if (!aKey || !bKey) return;
@@ -1189,7 +1194,11 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     });
   });
 
-  rows.sort((a, b) => a.orb - b.orb);
+  rows.sort((a, b) => {
+    const ao = Number.isFinite(Number(a.orb)) ? Number(a.orb) : 999;
+    const bo = Number.isFinite(Number(b.orb)) ? Number(b.orb) : 999;
+    return ao - bo;
+  });
   return rows.slice(0, BLOG_STRUCT_TSUKIJI_MAX);
 }
 
