@@ -768,6 +768,7 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   if (moonHtml) freeParts.push(moonHtml);
 
   const gateLines = [
+    "<br><br>",
     "<p>ここから先は、今日の空をもう一歩だけ深く観測します。</p>",
     "<p>🏠 ハウス集中、星の共鳴、元素／三区分、継続接近ログ、近日の接近予定はソラのこえ＋に置いています。</p>",
     "[pms-restrict subscription_plans=\"292\"]",
