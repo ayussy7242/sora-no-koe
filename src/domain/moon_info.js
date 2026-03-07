@@ -142,8 +142,9 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
       phaseLabelCore = "満月";
     } else if (isNewNow) {
       phaseLabelCore = "新月";
-    } else if (info.phase.label === "満月") {
-      phaseLabelCore = nearFullLabelByAge(info.moonAge) || "小望月";
+    } else if (Number.isFinite(Number(info.moonAge)) && info.moonAge >= 12.5 && info.moonAge < 19.5) {
+      // Around full moon, use the day-name scale (十三夜〜更待月) to avoid a long "十六夜" band.
+      phaseLabelCore = nearFullLabelByAge(info.moonAge) || phaseLabelCore;
     }
 
     let phaseLabel = phaseLabelCore;
