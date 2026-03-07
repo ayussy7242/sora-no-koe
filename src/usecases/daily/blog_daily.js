@@ -1350,9 +1350,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const bLabel = `${bodyGlyph(row.bKey)}${bodyLabelJa(dict, row.bKey)}${retroMap[row.bKey] ? SPEC.retro.suffix : ""}`;
       const aSign = row.aSignJa || signLabelJa(dict, row.aSignKey);
       const bSign = row.bSignJa || signLabelJa(dict, row.bSignKey);
-      const aspectLabel = aspectLabelForLong(row.aspect || row.type, row.aspectDeg);
-      const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(row.aspectDeg)}°` : "";
-      const orbText = Number.isFinite(Number(row.orb)) ? `orb ${row.orb.toFixed(1)}°` : "";
+      const orbText = Number.isFinite(Number(row.orb)) ? `現在 orb ${row.orb.toFixed(1)}°` : "";
       const startText = row.start ? formatDateYmd(row.start) : "-";
       const peakText = row.peak ? formatDateYmd(row.peak) : "-";
       const endText = row.end ? formatDateYmd(row.end) : "-";
@@ -1360,12 +1358,12 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const line = [
         `(T) ${aLabel}（${aSign}）`,
         `× (T) ${bLabel}（${bSign}）`,
-        `${aspectLabel} ${degText}｜${orbText}`.trim(),
+        orbText,
         `開始 ${startText}`,
         `ピーク ${peakText}`,
         `終了予定 ${endText}`,
         durationText,
-      ].join("<br>");
+      ].filter(Boolean).join("<br>");
       sections.push(`<p>${escapeHtml(line).replace(/&lt;br&gt;/g, "<br>")}</p>`);
     });
   }
