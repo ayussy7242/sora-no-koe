@@ -172,7 +172,7 @@ function buildMoonBlockHtml({ story, asOfISO }) {
   const nextFull = events?.full;
 
   const parts = [];
-  parts.push("<h2>🌙 本日の月</h2>");
+  parts.push("<h2>3｜🌙 本日の月</h2>");
   todayItems.forEach((line) => {
     parts.push(`<h3>${escapeHtml(line)}</h3>`);
   });
@@ -298,6 +298,14 @@ function buildBlogBlocks(story, opts = {}) {
       ].filter(Boolean),
       items: resonanceTop.length ? resonanceTop : ["近接角度は観測されていない"],
       itemsAsH3: true,
+    },
+    {
+      id: "aftertaste",
+      title: "8｜余韻",
+      facts: [
+        dateLocal ? `日付: ${dateLocal}` : "",
+        resonanceTop.length ? `共鳴: ${resonanceTop.length}件` : "共鳴: 該当なし",
+      ].filter(Boolean),
     },
   ];
 

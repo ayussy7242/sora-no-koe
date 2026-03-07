@@ -544,7 +544,7 @@ function replaceMoonBlockHtml(html, moonHtml) {
   if (!html || !moonHtml) return html;
   const block = String(moonHtml).trim();
   if (!block) return html;
-  const re = /<h2>🌙 本日の月<\/h2>[\s\S]*?(?=<h2>[^<]*<\/h2>|$)/;
+  const re = /<h2>(?:\d+｜)?🌙 本日の月<\/h2>[\s\S]*?(?=<h2>[^<]*<\/h2>|$)/;
   if (!re.test(html)) return html;
   return String(html).replace(re, `${block}\n`);
 }
@@ -553,6 +553,114 @@ function injectMoonBlock(html, { story, dateLocal }) {
   const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
   const moonHtml = buildMoonBlockHtml({ story, asOfISO });
   return replaceMoonBlockHtml(html, moonHtml);
+}
+
+function splitH2Sections(html) {
+  const out = [];
+  const re = /<h2>([^<]+)<\/h2>/g;
+  let match = null;
+  let lastTitle = null;
+  let lastIndex = 0;
+  while ((match = re.exec(html))) {
+    if (lastTitle != null) {
+      out.push({
+        title: lastTitle,
+        html: html.slice(lastIndex, match.index).trim(),
+      });
+    }
+    lastTitle = match[1];
+    lastIndex = match.index;
+  }
+  if (lastTitle != null) {
+    out.push({
+      title: lastTitle,
+      html: html.slice(lastIndex).trim(),
+    });
+  }
+  return out;
+}
+
+function replaceH2Title(sectionHtml, newTitle) {
+  if (!sectionHtml || !newTitle) return sectionHtml;
+  return String(sectionHtml).replace(/<h2>[^<]*<\/h2>/, `<h2>${newTitle}</h2>`);
+}
+
+function buildHouseBlockHtml({ story, asOfISO }) {
+  const { rows } = buildHouseRowsPublic(story, asOfISO);
+  const top = rows.filter((row) => Number(row.score || 0) > 0).slice(0, 3);
+  const parts = [];
+  parts.push("<h2>4｜🏠 ハウス集中</h2>");
+  if (!top.length) {
+    parts.push("<p>集中は観測されていない</p>");
+    return parts.join("\n");
+  }
+  parts.push("<h3>今日の天体集中ハウス TOP3</h3>");
+  top.forEach((row) => {
+    const count = row.items.length;
+    const title = `第${row.houseNo}ハウス｜${count}天体`;
+    const bodies = row.items.length ? row.items.join("｜").replace(/\(R\)/g, "（R）") : "";
+    parts.push(`<p>${escapeHtml(title)}</p>`);
+    if (bodies) parts.push(`<p>${escapeHtml(bodies)}</p>`);
+  });
+  return parts.join("\n");
+}
+
+function applyPremiumLayout(html, { story, dateLocal }) {
+  if (!html) return html;
+  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
+
+  // detach closing lines if present
+  let closing = "";
+  let body = String(html).trim();
+  const closingMark = "星は答えを示さず、構造だけを置いています。";
+  const idx = body.indexOf(closingMark);
+  if (idx >= 0) {
+    closing = body.slice(idx).trim();
+    body = body.slice(0, idx).trim();
+  }
+
+  // ensure moon block is injected before splitting
+  body = injectMoonBlock(body, { story, dateLocal });
+
+  const sections = splitH2Sections(body);
+  const pick = (keywords = []) => sections.find((s) => keywords.some((k) => s.title.includes(k)));
+
+  const overview = pick(["全体圧"]);
+  const positions = pick(["きょうのソラの配置", "配置"]);
+  const resonance = pick(["共鳴"]);
+  const elements = pick(["元素／三区分", "元素"]);
+  const tsukiji = pick(["つきじ"]);
+  const kinjitsu = pick(["近日"]);
+  const aftertaste = pick(["余韻"]);
+
+  const moonHtml = buildMoonBlockHtml({ story, asOfISO });
+  const houseHtml = buildHouseBlockHtml({ story, asOfISO });
+
+  const freeParts = [];
+  if (overview?.html) freeParts.push(replaceH2Title(overview.html, "1｜全体圧"));
+  if (positions?.html) freeParts.push(replaceH2Title(positions.html, "2｜配置"));
+  if (moonHtml) freeParts.push(moonHtml);
+
+  const gateLines = [
+    "<p>ここから先は、今日の空をもう一歩だけ深く観測します。</p>",
+    "<p>🏠 ハウス集中、星の共鳴、元素／三区分、継続接近ログ、近日の接近予定はソラのこえ＋に置いています。</p>",
+    "[pms-restrict subscription_plans=\"292\"]",
+  ];
+
+  const premiumParts = [];
+  if (houseHtml) premiumParts.push(houseHtml);
+  if (resonance?.html) premiumParts.push(replaceH2Title(resonance.html, "5｜共鳴"));
+  if (elements?.html) premiumParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
+  if (tsukiji?.html) premiumParts.push(replaceH2Title(tsukiji.html, "7｜🌙 つきじ（継続接近ログ）"));
+  if (kinjitsu?.html) premiumParts.push(replaceH2Title(kinjitsu.html, "8｜📅 近日（接近予定）"));
+  if (aftertaste?.html) premiumParts.push(replaceH2Title(aftertaste.html, "9｜余韻"));
+
+  const premiumBlock = [gateLines.join("\n"), premiumParts.join("\n\n"), "[/pms-restrict]"]
+    .filter((s) => s && String(s).trim())
+    .join("\n\n");
+
+  const merged = [freeParts.join("\n\n"), premiumBlock].filter((s) => s && String(s).trim()).join("\n\n");
+  return [merged, closing].filter((s) => s && String(s).trim()).join("\n\n");
 }
 
 function buildDailyEyecatchLines(story, dateLocal) {
@@ -678,7 +786,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       modelParts,
     });
     const out = stripAiLogs(enforceSingleClosing(html, closing));
-    return injectMoonBlock(out, { story, dateLocal });
+    return applyPremiumLayout(out, { story, dateLocal });
   }
 
   if (mode === "block") {
@@ -705,7 +813,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       parts.push(html.trim());
     }
     const out = await appendStructureLog(parts.join("\n\n").trim());
-    return injectMoonBlock(out, { story, dateLocal });
+    return applyPremiumLayout(out, { story, dateLocal });
   }
 
   if (mode === "item") {
@@ -763,13 +871,13 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       }
     }
     const outHtml = await appendStructureLog(out.join("\n\n").trim());
-    return injectMoonBlock(outHtml, { story, dateLocal });
+    return applyPremiumLayout(outHtml, { story, dateLocal });
   }
 
   const baseUser = userPrompt({ dateLocal, dataBlock });
   const text = await runWithRetry({ userContent: baseUser, model: modelMain, maxTokens: 2200 });
   const out = await appendStructureLog(text);
-  return injectMoonBlock(out, { story, dateLocal });
+  return applyPremiumLayout(out, { story, dateLocal });
 }
 
 function escapeHtml(text) {
@@ -1022,8 +1130,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
 
   // Tsukiji (long-term)
   const tsukijiRows = buildTsukijiRowsPublic(story, asOfISO);
-  sections.push("<p>ここから先は、今日の空をもう一歩だけ深く観測します。</p>");
-  sections.push("[pms-restrict subscription_plans=\"292\"]");
   sections.push("<h2>🌙 つきじ（継続接近ログ）</h2>");
   sections.push("<p>長期的に続く接近の記録です。短期の「近日」とは別に、じわじわ効く接点を追います。</p>");
   if (!tsukijiRows.length) {
