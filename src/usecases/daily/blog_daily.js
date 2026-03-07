@@ -226,6 +226,33 @@ function signKeyFromLon(dictObj, lon) {
   return order[idx] || null;
 }
 
+const TSUKIJI_BODY_THEME = {
+  sun: "意志",
+  moon: "感情",
+  mercury: "思考",
+  venus: "愛",
+  mars: "行動",
+  jupiter: "拡張",
+  saturn: "現実",
+  uranus: "変革",
+  neptune: "理想",
+  pluto: "変容",
+  chiron: "癒し",
+  lilith: "影",
+};
+
+function tsukijiThemeForBody(bodyKey) {
+  const key = String(bodyKey || "").toLowerCase();
+  return TSUKIJI_BODY_THEME[key] || bodyLabelJa(dict, key) || key || "";
+}
+
+function buildTsukijiThemeLine(aKey, bKey) {
+  const a = tsukijiThemeForBody(aKey);
+  const b = tsukijiThemeForBody(bKey);
+  if (!a || !b) return "";
+  return `構造：${a} × ${b}`;
+}
+
 function findMoonPhaseInJstDate(dateLocal, phaseDeg) {
   if (!dateLocal) return null;
   const start = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -1350,6 +1377,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const bLabel = `${bodyGlyph(row.bKey)}${bodyLabelJa(dict, row.bKey)}${retroMap[row.bKey] ? SPEC.retro.suffix : ""}`;
       const aSign = row.aSignJa || signLabelJa(dict, row.aSignKey);
       const bSign = row.bSignJa || signLabelJa(dict, row.bSignKey);
+      const themeLine = buildTsukijiThemeLine(row.aKey, row.bKey);
       const orbText = Number.isFinite(Number(row.orb)) ? `現在 orb ${row.orb.toFixed(1)}°` : "";
       const startText = row.start ? formatDateYmd(row.start) : "-";
       const peakText = row.peak ? formatDateYmd(row.peak) : "-";
@@ -1358,6 +1386,7 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
       const line = [
         `(T) ${aLabel}（${aSign}）`,
         `× (T) ${bLabel}（${bSign}）`,
+        themeLine,
         orbText,
         `開始 ${startText}`,
         `ピーク ${peakText}`,
