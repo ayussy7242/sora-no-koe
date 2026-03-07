@@ -1109,12 +1109,6 @@ function formatHouseLogLine(row) {
   return `第${row.houseNo}ハウス｜${signText}｜${bodies}`;
 }
 
-const TSUKIJI_EXCLUDE_BODIES = new Set(["sun", "moon", "mercury", "venus", "mars"]);
-
-function shouldSkipTsukiji(aKey, bKey) {
-  return TSUKIJI_EXCLUDE_BODIES.has(aKey) || TSUKIJI_EXCLUDE_BODIES.has(bKey);
-}
-
 function buildTsukijiRowsPublic(story, asOfISO) {
   const longLogs = Array.isArray(story?.public?.kinjitsu_long) ? story.public.kinjitsu_long : [];
   const now = new Date(asOfISO || new Date().toISOString());
@@ -1136,7 +1130,7 @@ function buildTsukijiRowsPublic(story, asOfISO) {
         end: row?.end_at ? new Date(row.end_at) : null,
         durationDays: Number(row?.duration_days),
       }))
-      .filter((r) => r.aKey && r.bKey && !shouldSkipTsukiji(r.aKey, r.bKey))
+      .filter((r) => r.aKey && r.bKey)
       .filter((r) => {
         if (!(r.start instanceof Date) || !(r.end instanceof Date)) return true;
         if (Number.isNaN(r.start.getTime()) || Number.isNaN(r.end.getTime())) return true;
@@ -1155,7 +1149,6 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const aKey = normalizeBodyKey(row?.a || "");
     const bKey = normalizeBodyKey(row?.b || "");
     if (!aKey || !bKey) return;
-    if (shouldSkipTsukiji(aKey, bKey)) return;
 
     const sig = [aKey, bKey].sort().join("|");
     if (seen.has(sig)) return;
