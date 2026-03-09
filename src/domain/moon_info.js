@@ -143,6 +143,45 @@ function lastFullMoonDate(asOfISO) {
   return full;
 }
 
+function lastNewMoonDate(asOfISO) {
+  if (!asOfISO) return null;
+  const base = new Date(asOfISO);
+  if (Number.isNaN(base.getTime())) return null;
+  const start1 = new Date(base.getTime() - 25 * 86400000).toISOString();
+  let next = findNextMoonPhase(start1, 0);
+  if (next && next.getTime() > base.getTime()) {
+    const start2 = new Date(base.getTime() - 55 * 86400000).toISOString();
+    next = findNextMoonPhase(start2, 0);
+    if (next && next.getTime() > base.getTime()) return null;
+  }
+  return next;
+}
+
+function lastMajorMoonEvent(asOfISO) {
+  const lastNew = lastNewMoonDate(asOfISO);
+  const lastFull = lastFullMoonDate(asOfISO);
+  const newTime = lastNew instanceof Date ? lastNew.getTime() : null;
+  const fullTime = lastFull instanceof Date ? lastFull.getTime() : null;
+
+  if (newTime == null && fullTime == null) return null;
+  if (newTime != null && (fullTime == null || newTime >= fullTime)) {
+    return { kind: "new", date: lastNew };
+  }
+  return { kind: "full", date: lastFull };
+}
+
+function nextMajorMoonEvent(asOfISO) {
+  if (!asOfISO) return null;
+  const base = new Date(asOfISO);
+  if (Number.isNaN(base.getTime())) return null;
+  const events = buildNextMoonEvents(asOfISO, dictDefault);
+  const candidates = [events?.new, events?.full]
+    .filter((ev) => ev?.date instanceof Date)
+    .filter((ev) => ev.date.getTime() > base.getTime())
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  return candidates[0] || null;
+}
+
 function daysDiffJst(a, b) {
   if (!(a instanceof Date) || !(b instanceof Date)) return null;
   if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
@@ -176,29 +215,47 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
   if (info.phase.label || info.moonSign || Number.isFinite(info.moonAge)) {
     const baseDate = asOfISO ? new Date(asOfISO) : new Date();
     const moonName = moonNameJaFromDate(baseDate);
-    const isFullNow = Number.isFinite(Number(info.illumination)) && Number(info.illumination) >= 0.98;
-    const isNewNow = Number.isFinite(Number(info.illumination)) && Number(info.illumination) <= 0.02;
     let phaseLabelCore = info.phase.label || "—";
-    if (isFullNow) {
-      phaseLabelCore = "満月";
-    } else if (isNewNow) {
-      phaseLabelCore = "新月";
+    let phaseAlt = info.phase.alt || "";
+    let overridden = false;
+    const lastEvent = lastMajorMoonEvent(asOfISO);
+    const lastEventDateLocal = lastEvent?.date ? toDateLocalJST(lastEvent.date) : null;
+    const todayLocal = toDateLocalJST(baseDate);
+    const lastEventPassed =
+      lastEvent?.date instanceof Date && lastEvent.date.getTime() <= baseDate.getTime();
+    if (lastEvent && lastEventPassed && lastEventDateLocal && todayLocal && lastEventDateLocal === todayLocal) {
+      phaseLabelCore = lastEvent.kind === "full" ? "満月" : "新月";
     } else {
       const nearByFull = nearFullLabelByLastFull(asOfISO);
       if (nearByFull) {
         phaseLabelCore = nearByFull;
+        phaseAlt = "";
+        overridden = true;
       } else if (Number.isFinite(Number(info.moonAge)) && info.moonAge >= 12.5 && info.moonAge < 19.5) {
         // fallback: age-based label
-        phaseLabelCore = nearFullLabelByAge(info.moonAge) || phaseLabelCore;
+        const byAge = nearFullLabelByAge(info.moonAge);
+        if (byAge) {
+          phaseLabelCore = byAge;
+          phaseAlt = "";
+          overridden = true;
+        }
+      } else if (phaseLabelCore === "新月") {
+        // If the actual new moon is still ahead, avoid labeling as 新月.
+        const nextMajor = nextMajorMoonEvent(asOfISO);
+        if (nextMajor?.kind === "new") {
+          phaseLabelCore = "有明月";
+          phaseAlt = "";
+          overridden = true;
+        }
       }
     }
 
     let phaseLabel = phaseLabelCore;
-    const alt = info.phase.alt || "";
-    if (phaseLabelCore === "満月" || phaseLabelCore === "新月") {
+    const alt = phaseAlt || "";
+    if (!overridden && (phaseLabelCore === "満月" || phaseLabelCore === "新月")) {
       const name = moonName || alt;
       if (name) phaseLabel = `${phaseLabelCore}（${name}）`;
-    } else if (alt && alt !== phaseLabelCore) {
+    } else if (!overridden && alt && alt !== phaseLabelCore) {
       phaseLabel = `${phaseLabelCore}（${alt}）`;
     }
 
@@ -286,4 +343,8 @@ module.exports = {
   buildNextMoonEvents,
   orderedMoonEvents,
   formatNextMoonLines,
+  lastNewMoonDate,
+  lastFullMoonDate,
+  lastMajorMoonEvent,
+  nextMajorMoonEvent,
 };
