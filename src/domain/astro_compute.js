@@ -332,53 +332,70 @@ function formatDateYmdHm(d) {
   return `${y}.${m}.${day} ${hh}:${mm}`;
 }
 
+function moonPhaseDegAt(iso) {
+  const sunLon = calcTransitLon("sun", iso);
+  const moonLon = calcTransitLon("moon", iso);
+  if (!Number.isFinite(Number(sunLon)) || !Number.isFinite(Number(moonLon))) return null;
+  return norm360(Number(moonLon) - Number(sunLon));
+}
+
+function phaseContNear(iso, ref) {
+  const deg = moonPhaseDegAt(iso);
+  if (!Number.isFinite(Number(deg))) return null;
+  let cont = Number(deg);
+  while (cont - ref > 180) cont -= 360;
+  while (cont - ref < -180) cont += 360;
+  return cont;
+}
+
 function findNextMoonPhase(asOfISO, targetDeg, maxDays = 40) {
   if (!asOfISO) return null;
   const start = new Date(asOfISO);
   if (Number.isNaN(start.getTime())) return null;
 
+  const startDeg = moonPhaseDegAt(asOfISO);
+  if (!Number.isFinite(Number(startDeg))) return null;
+
+  let target = Number(targetDeg);
+  if (!Number.isFinite(target)) return null;
+  while (target <= Number(startDeg)) target += 360;
+
   const stepHours = 6;
-  let prev = null;
-  let prevTime = null;
-
   const totalSteps = Math.ceil((maxDays * 24) / stepHours);
-  for (let i = 0; i <= totalSteps; i++) {
-    const t = new Date(start.getTime() + i * stepHours * 3600 * 1000);
-    const iso = t.toISOString();
-    const sunLon = calcTransitLon("sun", iso);
-    const moonLon = calcTransitLon("moon", iso);
-    if (sunLon == null || moonLon == null) continue;
-    const diff = norm360(moonLon - sunLon);
-    const offset = normalizeAngleDiff(diff - targetDeg);
-    if (offset == null) continue;
+  let prevTime = null;
+  let prevCont = Number(startDeg);
+  let prevOffset = prevCont - target;
 
-    if (prev != null && offset != null && prev * offset <= 0) {
-      let left = prevTime;
+  for (let i = 1; i <= totalSteps; i++) {
+    const t = new Date(start.getTime() + i * stepHours * 3600 * 1000);
+    const cont = phaseContNear(t.toISOString(), prevCont);
+    if (!Number.isFinite(Number(cont))) continue;
+    const offset = cont - target;
+
+    if (prevOffset * offset <= 0) {
+      let left = prevTime || start;
       let right = t;
-      let leftVal = prev;
-      let rightVal = offset;
+      let leftCont = prevCont;
+      let leftOffset = prevOffset;
       for (let k = 0; k < 24; k++) {
         const mid = new Date((left.getTime() + right.getTime()) / 2);
-        const midIso = mid.toISOString();
-        const sunMid = calcTransitLon("sun", midIso);
-        const moonMid = calcTransitLon("moon", midIso);
-        if (sunMid == null || moonMid == null) break;
-        const midDiff = norm360(moonMid - sunMid);
-        const midOffset = normalizeAngleDiff(midDiff - targetDeg);
-        if (midOffset == null) break;
-        if (leftVal * midOffset <= 0) {
+        const midCont = phaseContNear(mid.toISOString(), leftCont);
+        if (!Number.isFinite(Number(midCont))) break;
+        const midOffset = midCont - target;
+        if (leftOffset * midOffset <= 0) {
           right = mid;
-          rightVal = midOffset;
         } else {
           left = mid;
-          leftVal = midOffset;
+          leftCont = midCont;
+          leftOffset = midOffset;
         }
       }
       return right;
     }
 
-    prev = offset;
     prevTime = t;
+    prevCont = cont;
+    prevOffset = offset;
   }
 
   return null;
