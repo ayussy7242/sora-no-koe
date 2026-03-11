@@ -7,13 +7,13 @@ const {
   bodyGlyph,
   bodyLabelJa,
   signLabelJa,
-} = require("../render/render_tokens");
+} = require("../shared/text/tokens");
 const {
   normalizeBodyKey,
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../domain/canonical");
-const { formatTodayMoonLines, formatNextMoonLines, buildNextMoonEvents } = require("../../domain/moon_info");
+const { formatTodayMoonLines, buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon_info");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -164,12 +164,10 @@ function formatDateJaMd(date) {
 }
 
 function buildMoonBlockHtml({ story, asOfISO }) {
-  const todayMoon = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
-  const todayItems = todayMoon.filter((line) => line && line !== "🌙 本日の月");
+  const todayItems = formatTodayMoonLines({ asOfISO, story, dict }).lines || [];
 
   const events = buildNextMoonEvents(asOfISO, dict) || {};
-  const nextNew = events?.new;
-  const nextFull = events?.full;
+  const ordered = orderedMoonEvents(events);
 
   const parts = [];
   parts.push("<h2>3｜🌙 本日の月</h2>");
@@ -180,23 +178,23 @@ function buildMoonBlockHtml({ story, asOfISO }) {
     }
   });
 
-  if (nextNew?.line) {
-    const sign = nextNew?.signJa && nextNew.signJa !== "—" ? nextNew.signJa : "";
-    const dateMd = formatDateJaMd(nextNew.date);
-    const signText = sign ? `、${sign}で` : "、";
-    const desc = dateMd ? `次の新月は${dateMd}${signText}迎えます。新しいサイクルの始まりを予感させます。` : "";
-    parts.push(`<h3>${escapeHtml(nextNew.line)}</h3>`);
+  ordered.forEach((ev) => {
+    const display = formatMoonEventDisplay(ev);
+    if (!display?.line1) return;
+    const sign = ev?.signJa && ev.signJa !== "—" ? ev.signJa : "";
+    const dateMd = formatDateJaMd(ev.date);
+    let desc = "";
+    if (ev.kind === "new") {
+      const signText = sign ? `、${sign}で` : "、";
+      desc = dateMd ? `次の新月は${dateMd}${signText}迎えます。新しいサイクルの始まりを予感させます。` : "";
+    } else if (ev.kind === "full") {
+      const signText = sign ? `${sign}で` : "";
+      desc = dateMd ? `${dateMd}には${signText}満月が訪れます。調和と美を意識する時期です。` : "";
+    }
+    parts.push(`<h3>${escapeHtml(display.line1)}</h3>`);
+    if (display.line2) parts.push(`<h3>${escapeHtml(display.line2)}</h3>`);
     if (desc) parts.push(`<p>${escapeHtml(desc)}</p>`);
-  }
-
-  if (nextFull?.line) {
-    const sign = nextFull?.signJa && nextFull.signJa !== "—" ? nextFull.signJa : "";
-    const dateMd = formatDateJaMd(nextFull.date);
-    const signText = sign ? `${sign}で` : "";
-    const desc = dateMd ? `${dateMd}には${signText}満月が訪れます。調和と美を意識する時期です。` : "";
-    parts.push(`<h3>${escapeHtml(nextFull.line)}</h3>`);
-    if (desc) parts.push(`<p>${escapeHtml(desc)}</p>`);
-  }
+  });
 
   return parts.join("\n");
 }

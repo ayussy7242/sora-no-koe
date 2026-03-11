@@ -3,13 +3,31 @@
 const dictDefault = require("../content/dict");
 const { swisseph } = require("../config/swisseph");
 const { jdUtFromIso, calcTransitLon, findNextMoonPhase, formatDateYmdHm, absAngularDistance } = require("./astro_compute");
-const { signLabelJa } = require("../presenters/render/render_tokens");
+const { signLabelJa } = require("../presenters/shared/text/tokens");
 const { toDateLocalJST } = require("../utils/time_utils");
 
 const SYNODIC_MONTH_DAYS = 29.53059;
 const KM_PER_AU = 149597870.7;
 
-function moonNameJaFromDate(date) {
+function moonPhaseSymbolFromDeg(phaseDeg) {
+  return astroPhaseFromDeg(phaseDeg).symbol;
+}
+
+function astroPhaseFromDeg(phaseDeg) {
+  const v = Number(phaseDeg);
+  if (!Number.isFinite(v)) return { key: "", name: "", symbol: "🌙" };
+  const d = ((v % 360) + 360) % 360;
+  if (d < 22.5 || d >= 337.5) return { key: "new", name: "新月", symbol: "🌑" };
+  if (d < 67.5) return { key: "waxing_crescent", name: "三日月", symbol: "🌒" };
+  if (d < 112.5) return { key: "first_quarter", name: "上弦", symbol: "🌓" };
+  if (d < 157.5) return { key: "waxing_gibbous", name: "満ちていく月", symbol: "🌔" };
+  if (d < 202.5) return { key: "full", name: "満月", symbol: "🌕" };
+  if (d < 247.5) return { key: "waning_gibbous", name: "欠けていく月", symbol: "🌖" };
+  if (d < 292.5) return { key: "last_quarter", name: "下弦", symbol: "🌗" };
+  return { key: "waning_crescent", name: "残月", symbol: "🌘" };
+}
+
+function fullMoonNameJaFromDate(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
   const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
   const month = jst.getUTCMonth() + 1;
@@ -31,31 +49,7 @@ function moonNameJaFromDate(date) {
 }
 
 function moonPhaseInfo(phaseDeg) {
-  const v = Number(phaseDeg);
-  if (!Number.isFinite(v)) return { label: "", alt: "" };
-  const d = ((v % 360) + 360) % 360;
-  let label = "";
-  if (d < 22.5 || d >= 337.5) label = "新月";
-  else if (d < 67.5) label = "三日月";
-  else if (d < 112.5) label = "上弦の月";
-  else if (d < 157.5) label = "十三夜";
-  else if (d < 202.5) label = "満月";
-  else if (d < 247.5) label = "十六夜";
-  else if (d < 292.5) label = "下弦の月";
-  else label = "有明月";
-
-  const altMap = {
-    新月: "朔",
-    三日月: "眉月",
-    "上弦の月": "上弦",
-    十三夜: "十三夜",
-    満月: "望月",
-    十六夜: "十六夜",
-    "下弦の月": "下弦",
-    有明月: "有明月",
-  };
-  const alt = altMap[label] || "";
-  return { label, alt };
+  return astroPhaseFromDeg(phaseDeg);
 }
 
 function calcMoonDistanceKm(asOfISO) {
@@ -113,20 +107,6 @@ function getFullMoonForDate(asOfISO) {
   const nextFull = findNextMoonPhase(start.toISOString(), 180);
   if (nextFull && nextFull.getTime() <= end.getTime()) return nextFull;
   return null;
-}
-
-function nearFullLabelByAge(moonAge) {
-  if (!Number.isFinite(Number(moonAge))) return "";
-  const age = Number(moonAge);
-  if (age < 12.5) return "上弦の月";
-  if (age < 13.5) return "十三夜";
-  if (age < 14.5) return "小望月";
-  if (age < 15.5) return "十六夜";
-  if (age < 16.5) return "立待月";
-  if (age < 17.5) return "居待月";
-  if (age < 18.5) return "寝待月";
-  if (age < 19.5) return "更待月";
-  return "有明月";
 }
 
 function lastFullMoonDate(asOfISO) {
@@ -194,87 +174,17 @@ function daysDiffJst(a, b) {
   return Math.round((aStart.getTime() - bStart.getTime()) / 86400000);
 }
 
-function nearFullLabelByLastFull(asOfISO) {
-  const base = asOfISO ? new Date(asOfISO) : new Date();
-  const lastFull = lastFullMoonDate(asOfISO);
-  if (!(lastFull instanceof Date)) return "";
-  const diff = daysDiffJst(base, lastFull);
-  if (!Number.isFinite(diff)) return "";
-  if (diff === 1) return "十六夜";
-  if (diff === 2) return "立待月";
-  if (diff === 3) return "居待月";
-  if (diff === 4) return "寝待月";
-  if (diff === 5) return "更待月";
-  if (diff >= 6 && diff <= 12) return "有明月";
-  return "";
-}
-
 function formatTodayMoonLines({ asOfISO, story, dict }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const lines = [];
-  if (info.phase.label || info.moonSign || Number.isFinite(info.moonAge)) {
-    const baseDate = asOfISO ? new Date(asOfISO) : new Date();
-    const moonName = moonNameJaFromDate(baseDate);
-    let phaseLabelCore = info.phase.label || "—";
-    let phaseAlt = info.phase.alt || "";
-    let overridden = false;
-    const lastEvent = lastMajorMoonEvent(asOfISO);
-    const lastEventDateLocal = lastEvent?.date ? toDateLocalJST(lastEvent.date) : null;
-    const todayLocal = toDateLocalJST(baseDate);
-    const lastEventPassed =
-      lastEvent?.date instanceof Date && lastEvent.date.getTime() <= baseDate.getTime();
-    if (lastEvent && lastEventPassed && lastEventDateLocal && todayLocal && lastEventDateLocal === todayLocal) {
-      phaseLabelCore = lastEvent.kind === "full" ? "満月" : "新月";
-    } else {
-      const nearByFull = nearFullLabelByLastFull(asOfISO);
-      if (nearByFull) {
-        phaseLabelCore = nearByFull;
-        phaseAlt = "";
-        overridden = true;
-      } else if (Number.isFinite(Number(info.moonAge)) && info.moonAge >= 12.5 && info.moonAge < 19.5) {
-        // fallback: age-based label
-        const byAge = nearFullLabelByAge(info.moonAge);
-        if (byAge) {
-          phaseLabelCore = byAge;
-          phaseAlt = "";
-          overridden = true;
-        }
-      } else if (phaseLabelCore === "新月") {
-        // If the actual new moon is still ahead, avoid labeling as 新月.
-        const nextMajor = nextMajorMoonEvent(asOfISO);
-        if (nextMajor?.kind === "new") {
-          phaseLabelCore = "有明月";
-          phaseAlt = "";
-          overridden = true;
-        }
-      }
-    }
-
-    let phaseLabel = phaseLabelCore;
-    const alt = phaseAlt || "";
-    if (!overridden && (phaseLabelCore === "満月" || phaseLabelCore === "新月")) {
-      const name = moonName || alt;
-      if (name) phaseLabel = `${phaseLabelCore}（${name}）`;
-    } else if (!overridden && alt && alt !== phaseLabelCore) {
-      phaseLabel = `${phaseLabelCore}（${alt}）`;
-    }
-
-    const moonAgeText = Number.isFinite(info.moonAge) ? info.moonAge.toFixed(1) : "—";
-    const illuminationPct = Number.isFinite(info.illumination) ? Math.round(info.illumination * 100) : null;
-    lines.push("🌙 本日の月");
-    lines.push(`${phaseLabel}｜${info.moonSign || "—"}`);
-    lines.push(illuminationPct != null ? `月齢 ${moonAgeText}｜照度 ${illuminationPct}%` : `月齢 ${moonAgeText}`);
-  }
-  return { lines, info };
+  const display = buildMoonStatus({ asOfISO, story, dict, info });
+  if (display?.line1) lines.push(display.line1);
+  if (display?.line2) lines.push(display.line2);
+  return { lines, info: display?.info || info, display };
 }
 
 function isBlackMoon(nextNew) {
-  if (!(nextNew instanceof Date) || Number.isNaN(nextNew.getTime())) return false;
-  const prevNew = findNextMoonPhase(new Date(nextNew.getTime() - 35 * 86400000).toISOString(), 0);
-  if (!(prevNew instanceof Date)) return false;
-  const nextMonth = toDateLocalJST(nextNew).slice(0, 7);
-  const prevMonth = toDateLocalJST(prevNew).slice(0, 7);
-  return nextMonth === prevMonth;
+  return isSecondMoonInMonth(nextNew, 0);
 }
 
 function buildNextMoonEvent(kind, date, dict) {
@@ -282,24 +192,13 @@ function buildNextMoonEvent(kind, date, dict) {
   const useDict = dict || dictDefault;
   const lon = calcTransitLon("moon", date.toISOString());
   const signJa = signLabelFromLon(useDict, lon);
-  const moonName = moonNameJaFromDate(date);
-  const labelCore = kind === "new" ? "🌑 次の新月" : "🌕 次の満月";
-
-  const tags = [];
-  if (kind === "full" && moonName) tags.push(moonName);
-
-  if (kind === "new") {
-    if (isBlackMoon(date)) tags.push("ブラックムーン");
-    const distKm = calcMoonDistanceKm(date.toISOString());
-    if (Number.isFinite(Number(distKm))) {
-      if (distKm <= 360000) tags.push("スーパーニュームーン");
-      if (distKm >= 405000) tags.push("ダークムーン");
-    }
-  }
-
-  const label = tags.length ? `${labelCore}（${tags.join("・")}）` : labelCore;
-  const line = `${label}｜${formatDateYmdHm(date)}｜${signJa}`;
-  return { kind, date, signJa, label, line, tags };
+  const display = formatMoonEventDisplay({ kind, date, dict: useDict, signJa });
+  return {
+    kind,
+    date,
+    signJa,
+    ...display,
+  };
 }
 
 function buildNextMoonEvents(asOfISO, dict) {
@@ -331,15 +230,165 @@ function orderedMoonEvents(events) {
 
 function formatNextMoonLines({ asOfISO, dict }) {
   const events = buildNextMoonEvents(asOfISO, dict);
-  const lines = orderedMoonEvents(events).map((ev) => ev.line).filter(Boolean);
-  return { lines, events };
+  const ordered = orderedMoonEvents(events);
+  const items = ordered
+    .map((ev) => formatMoonEventDisplay(ev))
+    .filter((ev) => ev?.lines?.length);
+  const lines = items.flatMap((item) => item.lines);
+  return { lines, items, events };
+}
+
+function waNameFromMoonAge(moonAge) {
+  if (!Number.isFinite(Number(moonAge))) return "";
+  const ageRaw = Number(moonAge);
+  const age = Math.max(0, Math.min(29, Math.floor(ageRaw + 1e-6)));
+  const map = {
+    0: "新月",
+    1: "二日月",
+    2: "三日月",
+    3: "三日月",
+    4: "四日月",
+    5: "五日月",
+    6: "六日月",
+    7: "上弦",
+    8: "九夜月",
+    9: "十日夜",
+    10: "十日余月",
+    11: "宵月",
+    12: "十三夜",
+    13: "小望月",
+    14: "満月",
+    15: "十六夜",
+    16: "立待月",
+    17: "居待月",
+    18: "寝待月",
+    19: "更待月",
+    20: "二十日余月",
+    21: "有明月",
+    22: "有明月",
+    23: "有明月",
+    24: "有明月",
+    25: "有明月",
+    26: "有明月",
+    27: "残月",
+    28: "残月",
+    29: "晦",
+  };
+  return map[age] || "";
+}
+
+function formatMoonPhaseLabel({ phaseName, waName }) {
+  const core = String(phaseName || "").trim() || "—";
+  const wa = String(waName || "").trim();
+  if (wa && wa !== core) return `${core}（${wa}）`;
+  return core;
+}
+
+function buildMoonStatus({ asOfISO, story, dict, info }) {
+  const useDict = dict || dictDefault;
+  const moonInfo = info || buildTodayMoonInfo({ asOfISO, story, dict: useDict });
+  if (!moonInfo) return null;
+
+  const phase = moonInfo.phase || astroPhaseFromDeg(moonInfo.phaseDeg);
+  const phaseName = phase?.name || "—";
+  const phaseSymbol = phase?.symbol || moonPhaseSymbolFromDeg(moonInfo.phaseDeg);
+  const waNameRaw = waNameFromMoonAge(moonInfo.moonAge);
+  const waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
+
+  const signJa = moonInfo.moonSign || "—";
+  const moonAge = Number.isFinite(Number(moonInfo.moonAge)) ? Number(moonInfo.moonAge) : null;
+  const illumination = Number.isFinite(Number(moonInfo.illumination)) ? Number(moonInfo.illumination) : null;
+
+  const phaseLabel = formatMoonPhaseLabel({ phaseName, waName });
+  const line1 = `${phaseSymbol} ${phaseLabel}｜${signJa}`.trim();
+  const moonAgeText = Number.isFinite(moonAge) ? moonAge.toFixed(1) : "—";
+  const illuminationPct = Number.isFinite(illumination) ? Math.round(illumination * 100) : null;
+  const line2 = illuminationPct != null
+    ? `月齢 ${moonAgeText}｜照度 ${illuminationPct}%`
+    : `月齢 ${moonAgeText}`;
+
+  return {
+    info: moonInfo,
+    phaseSymbol,
+    phaseName,
+    waName,
+    signJa,
+    moonAge,
+    illumination,
+    phaseLabel,
+    line1,
+    line2,
+  };
+}
+
+function isSecondMoonInMonth(date, phaseDeg) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
+  const prevStart = new Date(date.getTime() - 40 * 86400000).toISOString();
+  const prev = findNextMoonPhase(prevStart, phaseDeg);
+  if (!(prev instanceof Date)) return false;
+  if (prev.getTime() >= date.getTime()) return false;
+  const prevMonth = toDateLocalJST(prev).slice(0, 7);
+  const curMonth = toDateLocalJST(date).slice(0, 7);
+  return prevMonth === curMonth;
+}
+
+function isBlueMoon(fullDate) {
+  return isSecondMoonInMonth(fullDate, 180);
+}
+
+function formatMoonEventDisplay(ev = {}) {
+  const kind = ev?.kind || "";
+  const date = ev?.date instanceof Date ? ev.date : null;
+  const dict = ev?.dict || dictDefault;
+  if (!date || (kind !== "new" && kind !== "full")) return null;
+
+  const phaseSymbol = kind === "new" ? "🌑" : "🌕";
+  const phaseName = kind === "new" ? "新月" : "満月";
+  const signJa = ev?.signJa || signLabelFromLon(dict, calcTransitLon("moon", date.toISOString()));
+  const moonName = fullMoonNameJaFromDate(date);
+  const specialName = kind === "new"
+    ? (isBlackMoon(date) ? "ブラックムーン" : "")
+    : (isBlueMoon(date) ? "ブルームーン" : "");
+
+  const core = signJa && signJa !== "—" ? `${signJa}${phaseName}` : phaseName;
+  let label = core;
+  if (specialName) {
+    label = `${specialName}｜${core}`;
+  } else if (kind === "full" && moonName) {
+    label = `${moonName}｜${core}`;
+  }
+
+  const line1 = `${phaseSymbol} ${label}`.trim();
+  const dateLabel = formatDateYmdHm(date);
+  const line2 = dateLabel || "";
+  const line = [line1, line2].filter(Boolean).join(" ");
+  const lines = [line1, line2].filter(Boolean);
+
+  return {
+    kind,
+    date,
+    phaseSymbol,
+    phaseName,
+    specialName,
+    signJa,
+    moonName,
+    label,
+    line1,
+    line2,
+    line,
+    lines,
+    dateLabel,
+  };
 }
 
 module.exports = {
-  moonNameJaFromDate,
+  fullMoonNameJaFromDate,
+  moonPhaseSymbolFromDeg,
+  astroPhaseFromDeg,
   moonPhaseInfo,
   buildTodayMoonInfo,
   formatTodayMoonLines,
+  buildMoonStatus,
   buildNextMoonEvents,
   orderedMoonEvents,
   formatNextMoonLines,
@@ -347,4 +396,10 @@ module.exports = {
   lastFullMoonDate,
   lastMajorMoonEvent,
   nextMajorMoonEvent,
+  formatMoonEventDisplay,
+  formatMoonPhaseLabel,
+  waNameFromMoonAge,
+  isBlackMoon,
+  isBlueMoon,
+  isSecondMoonInMonth,
 };
