@@ -61,14 +61,10 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - core_tagline
 - core_snapshot
 - dashboard（element_balance / modality_balance / dominant_signs / dominant_houses / planet_distribution / energy_flow / cosmic_structure）
-- pattern_name
 - cosmic_focus
 - cosmic_traits
 - cosmic_signature
-- chart_pattern
-- life_direction
 - natal_observation
-- closing_summary
 
 強調すること：
 - 全体の偏り
@@ -80,7 +76,6 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - ほかの配置との関係を1回は含める（一般論で終わらない）
 - dashboard.energy_flow は「エネルギーフロー」を書く
 - dashboard.cosmic_structure は「構造まとめ」を書く
-- pattern_name は短い名称のみ
 - cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
 
 役割の分離（被り防止）：
@@ -98,12 +93,6 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.energy_flow：どこに集まるか → どこへ流れるか → どこで滞留するか
 - dashboard.cosmic_structure：核になる配置 → 支える配置 → 構造型
 - natal_observation：核の配置 → 補助・補正する配置 → このチャートの読み
-- life_direction：外へ向かう流れ → 内へ戻る流れ → 全体の進行方向
-
-closing_summary の構成：
-1) 核となる構造を1文で再統合
-2) その配置が生む張力を1文で示す
-3) 最後に設計図としてのまとまりを書く
 
 文字量の目安（中心＋上限）：
 - core_tagline: 約30文字（最大40文字）
@@ -115,14 +104,10 @@ closing_summary の構成：
 - dashboard.planet_distribution: 約110文字（最大140文字）
 - dashboard.energy_flow: 約180文字（最大240文字）
 - dashboard.cosmic_structure: 約300文字（最大340文字）
-- pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
 - cosmic_signature: 約300文字（最大340文字）
-- chart_pattern: 約35文字（最大50文字）
-- life_direction: 約180文字（最大220文字）
 - natal_observation: 約200文字（最大260文字）
-- closing_summary: 約160文字（最大200文字）
 
 避けること：
 - 担当外の要素（planet_roles / aspect_map）をまとめること
@@ -269,6 +254,53 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - 断片語の羅列
 `.trim();
 
+const BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+このバッチの役割は「最後の統合と締め」です。
+COREの繰り返しを避け、結晶化された最終像だけを書いてください。
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- 配置情報は「本文の主語」ではなく「意味を支える材料」として扱う
+- 配置の事実表示はUI側に任せ、本文は意味・力学・方向性を書く
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
+
+担当範囲：
+- chart_pattern
+- life_direction
+- closing_summary
+- pattern_name
+
+役割の分離（被り防止）：
+- chart_pattern：型の再統合。COREやOBSの再説明をしない
+- life_direction：外と内の方向性だけを書く
+- closing_summary：締め。新しい配置説明は追加しない
+
+文章の流れ（この順で書く）：
+- chart_pattern：構造の再統合 → 張力 → まとまり
+- life_direction：外へ向かう流れ → 内へ戻る流れ → 進行方向
+- closing_summary：核の再統合 → 張力 → 余韻
+
+文字量の目安：
+- pattern_name: 約12文字（最大18文字）
+- chart_pattern: 約120文字（最大160文字）
+- life_direction: 約180文字（最大220文字）
+- closing_summary: 約160文字（最大200文字）
+
+避けること：
+- core_snapshot / cosmic_signature の言い換え
+- OBSやMAPの再説明
+- 配置の読み上げ
+`.trim();
+
 module.exports = Object.freeze({
   SYSTEM_BLUEPRINT_LIGHT,
   USER_GUIDE_BLUEPRINT_LIGHT,
@@ -277,4 +309,5 @@ module.exports = Object.freeze({
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING,
 });
