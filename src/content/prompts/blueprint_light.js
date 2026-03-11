@@ -162,39 +162,39 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - ページごとの役割を守る
 - 同じ説明を複数キーで繰り返さない
 
-文字量の目安：
-- core_snapshot: 170〜240字
-- dashboard.element_balance: 130〜200字
-- dashboard.modality_balance: 130〜200字
-- dashboard.dominant_signs: 60〜100字
-- dashboard.dominant_houses: 60〜100字
-- dashboard.planet_distribution: 90〜140字
-- dashboard.energy_flow: 130〜200字
-- dashboard.cosmic_structure: 90〜140字
-- planet_roles.sun / moon: 24〜36字
-- planet_roles.mercury / venus / mars: 24〜36字
-- planet_roles.jupiter〜pluto: 24〜36字
-- system_layers.core: 90〜140字
-- system_layers.personal: 80〜120字
-- system_layers.collective: 80〜120字
-- system_layers.flow: 60〜100字
-- deep_axis.nodes: 24〜36字
-- deep_axis.chiron: 24〜36字
-- deep_axis.lilith: 24〜36字
-- deep_axis.pattern: 24〜36字
-- angles.intro: 70〜110字
-- angles.asc / mc / ic / dc: 24〜36字
-- angles.axis_structure: 80〜120字
-- natal_observation: 130〜200字
-- aspect_map 各text: 50〜80字
-- aspect_dynamics: 35〜60字（1文）
-- pattern_name: 8〜18字
-- cosmic_focus: 28〜50字
-- cosmic_traits: 35〜60字
-- cosmic_signature: 70〜110字
-- chart_pattern: 28〜50字
-- life_direction: 40〜70字
-- closing_summary: 40〜80字
+文字量の目安（中心＋上限）：
+- core_snapshot: 約180文字（最大220文字）
+- dashboard.element_balance: 約150文字（最大200文字）
+- dashboard.modality_balance: 約150文字（最大200文字）
+- dashboard.dominant_signs: 約80文字（最大100文字）
+- dashboard.dominant_houses: 約80文字（最大100文字）
+- dashboard.planet_distribution: 約110文字（最大140文字）
+- dashboard.energy_flow: 約150文字（最大200文字）
+- dashboard.cosmic_structure: 約110文字（最大140文字）
+- planet_roles.sun / moon: 約30文字（最大36文字）
+- planet_roles.mercury / venus / mars: 約30文字（最大36文字）
+- planet_roles.jupiter〜pluto: 約30文字（最大36文字）
+- system_layers.core: 約110文字（最大140文字）
+- system_layers.personal: 約100文字（最大120文字）
+- system_layers.collective: 約100文字（最大120文字）
+- system_layers.flow: 約80文字（最大100文字）
+- deep_axis.nodes: 約30文字（最大36文字）
+- deep_axis.chiron: 約30文字（最大36文字）
+- deep_axis.lilith: 約30文字（最大36文字）
+- deep_axis.pattern: 約30文字（最大36文字）
+- angles.intro: 約90文字（最大110文字）
+- angles.asc / mc / ic / dc: 約30文字（最大36文字）
+- angles.axis_structure: 約90文字（最大120文字）
+- natal_observation: 約160文字（最大200文字）
+- aspect_map 各text: 約60文字（最大80文字）
+- aspect_dynamics: 約45文字（最大60文字・1文）
+- pattern_name: 約12文字（最大18文字）
+- cosmic_focus: 約35文字（最大50文字）
+- cosmic_traits: 約45文字（最大60文字）
+- cosmic_signature: 約90文字（最大110文字）
+- chart_pattern: 約35文字（最大50文字）
+- life_direction: 約55文字（最大70文字）
+- closing_summary: 約55文字（最大80文字）
 
 必須構成：
 - core_snapshot は SYS-01 用の要約として書く
@@ -297,23 +297,23 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - pattern_name は短い名称のみ
 - cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
 
-文字量の目安：
-- core_snapshot: 170〜240字
-- dashboard.element_balance: 130〜200字
-- dashboard.modality_balance: 130〜200字
-- dashboard.dominant_signs: 60〜100字
-- dashboard.dominant_houses: 60〜100字
-- dashboard.planet_distribution: 90〜140字
-- dashboard.energy_flow: 130〜200字
-- dashboard.cosmic_structure: 90〜140字
-- pattern_name: 8〜18字
-- cosmic_focus: 28〜50字
-- cosmic_traits: 35〜60字
-- cosmic_signature: 70〜110字
-- chart_pattern: 28〜50字
-- life_direction: 40〜70字
-- natal_observation: 130〜200字
-- closing_summary: 40〜80字
+文字量の目安（中心＋上限）：
+- core_snapshot: 約180文字（最大220文字）
+- dashboard.element_balance: 約150文字（最大200文字）
+- dashboard.modality_balance: 約150文字（最大200文字）
+- dashboard.dominant_signs: 約80文字（最大100文字）
+- dashboard.dominant_houses: 約80文字（最大100文字）
+- dashboard.planet_distribution: 約110文字（最大140文字）
+- dashboard.energy_flow: 約150文字（最大200文字）
+- dashboard.cosmic_structure: 約110文字（最大140文字）
+- pattern_name: 約12文字（最大18文字）
+- cosmic_focus: 約35文字（最大50文字）
+- cosmic_traits: 約45文字（最大60文字）
+- cosmic_signature: 約90文字（最大110文字）
+- chart_pattern: 約35文字（最大50文字）
+- life_direction: 約55文字（最大70文字）
+- natal_observation: 約160文字（最大200文字）
+- closing_summary: 約55文字（最大80文字）
 
 避けること：
 - 担当外の要素（planet_roles / aspect_map）をまとめること
