@@ -89,7 +89,7 @@ function buildPageNumber(index) {
 }
 
 const PAGE_INTROS = {
-  sys: "この設計図の入口と核を短く示す。",
+  sys: "この星図の中心となる性質と方向性。",
   map: "配置の偏りと構造を地図として読む。",
   obs: "このチャートに現れる配置を観測として整理する。",
   ang: "四つの角度から世界への接続を読む。",
@@ -431,9 +431,9 @@ function buildWireframeData(input, placeholders) {
           : "陰が優勢で、内側へエネルギーが集まりやすい構造になる。";
       }
       p.structureLines = [
-        p.structureLines?.[0] || "Cluster（集中型）",
-        yang >= yin ? "Upper Hemisphere（上半球）" : "Lower Hemisphere（下半球）",
-        yang >= yin ? "Yang dominant（陽優勢）" : "Yin dominant（陰優勢）",
+        p.structureLines?.[0] || "集中型（クラスター）",
+        yang >= yin ? "上半球" : "下半球",
+        yang >= yin ? "陽優勢" : "陰優勢",
       ];
     }
 
@@ -455,11 +455,31 @@ function buildWireframeData(input, placeholders) {
 
     const elementDominant = kernel?.summary?.element?.dominant?.[0];
     const modalityDominant = kernel?.summary?.modality?.dominant?.[0];
+    const elementJaMap = {
+      Fire: "火",
+      Earth: "地",
+      Air: "風",
+      Water: "水",
+      fire: "火",
+      earth: "地",
+      air: "風",
+      water: "水",
+    };
+    const modalityJaMap = {
+      Cardinal: "活動",
+      Fixed: "固定",
+      Mutable: "柔軟",
+      cardinal: "活動",
+      fixed: "固定",
+      mutable: "柔軟",
+    };
     const topHouse = houseSorted[0]?.house;
     if (elementDominant || modalityDominant || topHouse) {
+      const elementText = elementJaMap[elementDominant] || elementDominant;
+      const modalityText = modalityJaMap[modalityDominant] || modalityDominant;
       p.dominanceLines = [
-        elementDominant ? `エレメント　${elementDominant}` : p.dominanceLines[0],
-        modalityDominant ? `モード　　　${modalityDominant}宮` : p.dominanceLines[1],
+        elementText ? `エレメント　${elementText}` : p.dominanceLines[0],
+        modalityText ? `モード　　　${modalityText}宮` : p.dominanceLines[1],
         topHouse ? `強調ハウス　${topHouse}H` : p.dominanceLines[2],
       ];
     }
@@ -526,7 +546,7 @@ function buildWireframeData(input, placeholders) {
     }
   }
 
-  if (!kernel && masterChart) {
+  if (masterChart) {
     const toNumber = (val) => (Number.isFinite(Number(val)) ? Number(val) : 0);
     const planetByKey = new Map((masterChart.planets || []).map((p) => [p.key, p]));
     const formatSignDeg = (planet) => {
@@ -545,30 +565,41 @@ function buildWireframeData(input, placeholders) {
       });
     }
 
-    if (!p.systemLayerLines || !p.systemLayerLines.core?.length) {
-      const formatLine = (key) => {
-        const planet = planetByKey.get(key);
-        if (!planet) return "";
-        const sign = planet.sign_ja || planet.sign || "";
-        const degText = Number.isFinite(Number(planet.degree)) ? ` ${Number(planet.degree)}°` : "";
-        const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
-        const glyph = BODY_GLYPH[key] || "";
-        const label = BODY_LABEL_JA[key] || key;
-        return `${glyph}${label}${sign}${degText}${house}`.trim();
-      };
-      const ascSign = masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "";
-      p.systemLayerLines = {
-        core: [formatLine("sun"), formatLine("moon"), ascSign ? `ASC${ascSign}` : ""].filter(Boolean),
-        personal: [formatLine("mercury"), formatLine("venus"), formatLine("mars")].filter(Boolean),
-        collective: [
-          formatLine("jupiter"),
-          formatLine("saturn"),
-          formatLine("uranus"),
-          formatLine("neptune"),
-          formatLine("pluto"),
-        ].filter(Boolean),
-      };
-    }
+    const formatLine = (key) => {
+      const planet = planetByKey.get(key);
+      if (!planet) return "";
+      const sign = planet.sign_ja || planet.sign || "";
+      const degText = Number.isFinite(Number(planet.degree)) ? ` ${Number(planet.degree)}°` : "";
+      const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
+      const glyph = BODY_GLYPH[key] || "";
+      const label = BODY_LABEL_JA[key] || key;
+      return `${glyph}${label}${sign}${degText}${house}`.trim();
+    };
+    const ascSign = masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "";
+    const formatAxisLine = (key, label) => {
+      const planet = planetByKey.get(key);
+      if (!planet) return "";
+      const sign = planet.sign_ja || planet.sign || "";
+      const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
+      const glyph = BODY_GLYPH[key] || "";
+      return `${glyph}${label} ${sign}${house}`.trim();
+    };
+    p.coreAxisLines = [
+      formatAxisLine("sun", "太陽"),
+      formatAxisLine("moon", "月"),
+      ascSign ? `ASC ${ascSign}` : "",
+    ].filter(Boolean);
+    p.systemLayerLines = {
+      core: [formatLine("sun"), formatLine("moon"), ascSign ? `ASC${ascSign}` : ""].filter(Boolean),
+      personal: [formatLine("mercury"), formatLine("venus"), formatLine("mars")].filter(Boolean),
+      collective: [
+        formatLine("jupiter"),
+        formatLine("saturn"),
+        formatLine("uranus"),
+        formatLine("neptune"),
+        formatLine("pluto"),
+      ].filter(Boolean),
+    };
 
     if (!p.aspectNetwork && Array.isArray(masterChart.aspects) && masterChart.aspects.length) {
       const nodes = new Set();
@@ -659,7 +690,7 @@ function buildWireframeData(input, placeholders) {
         .map(([house, labels]) => `${house}H ${labels.join(" ")}`);
       if (rows.length) p.planetDistribution = rows;
     }
-    if (!p.angleMeta && masterChart?.angles) {
+    if (masterChart?.angles) {
       const formatAngleMeta = (angle, label) => {
         if (!angle) return "";
         const sign = angle.sign_ja || angle.sign || "";
@@ -673,7 +704,7 @@ function buildWireframeData(input, placeholders) {
         dc: formatAngleMeta(masterChart.angles.dc, "DC"),
       };
     }
-    if (!p.deepAxisMeta && masterChart?.nodes) {
+    if (masterChart?.nodes) {
       const formatJaDeg = (sign, deg, houseNo) => {
         const degText = Number.isFinite(Number(deg)) ? ` ${Number(deg)}°` : "";
         const houseText = Number.isFinite(Number(houseNo)) ? `｜${Number(houseNo)}H` : "";
@@ -697,7 +728,7 @@ function buildWireframeData(input, placeholders) {
     if (masterChart?.angular_planets) {
       p.angularPlanets = masterChart.angular_planets;
     }
-    if ((!p.nodeSigns || !p.nodeSigns.length) && masterChart?.nodes) {
+    if (masterChart?.nodes) {
       const north = masterChart.nodes?.north || {};
       const south = masterChart.nodes?.south || {};
       const nodeSigns = [];
@@ -1364,6 +1395,12 @@ body {
   color: var(--muted);
 }
 
+.title-en {
+  font-size: calc(var(--fs-title) * 0.6);
+  letter-spacing: var(--ls-sub);
+  color: var(--muted);
+}
+
 .page-intro {
   font-size: calc(14px * var(--ui));
   opacity: 0.7;
@@ -2008,10 +2045,9 @@ body {
     <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
-        <div class="label">SYS-01</div>
         <div class="title">あなたの星の設計図</div>
         ${p.coreTagline ? `<div class="tagline">${escapeHtml(p.coreTagline)}</div>` : ""}
-        <div class="subtext">BIRTH STAR BLUEPRINT</div>
+        <div class="subtext title-en">BIRTH STAR BLUEPRINT</div>
         <div class="page-intro">${escapeHtml(PAGE_INTROS.sys)}</div>
         <div class="subtext" style="margin-top:24px; letter-spacing:0.2em;">${escapeHtml(p.signatureLineSymbols)}</div>
         <div class="text" style="margin-top:28px;">${escapeHtml(p.ownerName)}</div>
@@ -2061,9 +2097,7 @@ body {
           </div>
         </div>
       </div>
-      <div class="bottom">
-        ${buildCosmicNav(0)}
-      </div>
+      <div class="bottom"></div>
     </div>
   </section>
 
@@ -2077,7 +2111,7 @@ body {
       <div class="top">
         <div class="label">STAR MAP</div>
         <div class="title">星の構造マップ</div>
-        <div class="subtext">STAR STRUCTURE MAP</div>
+        <div class="subtext title-en">STAR STRUCTURE MAP</div>
         <div class="page-intro">${escapeHtml(PAGE_INTROS.map)}</div>
       </div>
       <div class="middle">
@@ -2158,7 +2192,6 @@ body {
             <div class="card-body text-block">${renderRichText(p.structureSummaryText)}</div>
           </div>
         </div>
-        ${buildCosmicNav(1)}
       </div>
     </div>
   </section>
@@ -2185,7 +2218,6 @@ body {
           <div class="card-sub">CHART OBSERVATION</div>
           <div class="card-body text-block">${renderRichText(p.natalObservation)}</div>
         </div>
-        ${buildCosmicNav(2)}
       </div>
     </div>
   </section>
@@ -2200,7 +2232,7 @@ body {
       <div class="top">
         <div class="label">STAR AXIS</div>
         <div class="title">星の接続軸</div>
-        <div class="subtext">ANGLES AXIS</div>
+        <div class="subtext title-en">ANGLES AXIS</div>
         <div class="page-intro">${escapeHtml(PAGE_INTROS.ang)}</div>
         <div class="angles-intro text-block">${renderRichText(p.anglesIntro || "")}</div>
       </div>
@@ -2238,7 +2270,6 @@ body {
           <div class="card-sub">AXIS STRUCTURE</div>
           <div class="card-body text-block">${renderRichText(p.anglesText?.axis_structure || "")}</div>
         </div>
-        ${buildCosmicNav(3)}
       </div>
     </div>
   </section>
@@ -2266,9 +2297,7 @@ body {
           </div>
         </div>
       </div>
-      <div class="bottom">
-        ${buildCosmicNav(4)}
-      </div>
+      <div class="bottom"></div>
     </div>
   </section>
 
@@ -2295,9 +2324,7 @@ body {
           </div>
         </div>
       </div>
-      <div class="bottom">
-        ${buildCosmicNav(6)}
-      </div>
+      <div class="bottom"></div>
     </div>
   </section>
 
@@ -2346,9 +2373,7 @@ body {
           </div>
         </div>
       </div>
-      <div class="bottom">
-        ${buildCosmicNav(6)}
-      </div>
+      <div class="bottom"></div>
     </div>
   </section>
 
@@ -2398,7 +2423,6 @@ body {
           <div class="card-sub">DEEP PATTERN</div>
           <div class="card-body text-block">${renderRichText(p.deepPatternText)}</div>
         </div>
-        ${buildCosmicNav(7)}
       </div>
     </div>
   </section>
@@ -2438,7 +2462,6 @@ body {
             <div class="card-body text-block">${renderRichText(p.aspectEnergyText)}</div>
           </div>
         </div>
-        ${buildCosmicNav(8)}
       </div>
     </div>
   </section>
@@ -2469,11 +2492,6 @@ body {
             <div class="card-body text-block">${renderRichText(p.chartPattern)}</div>
           </div>
           <div class="chart-box">
-            <div class="card-head">星のシグネチャ</div>
-            <div class="card-sub">STAR SIGNATURE</div>
-            <div class="card-body text-block">${renderRichText(p.cosmicSignatureText || "")}</div>
-          </div>
-          <div class="chart-box">
             <div class="card-head">人生の方向</div>
             <div class="card-sub">LIFE DIRECTION</div>
             <div class="card-body text-block">${renderRichText(p.lifeDirection)}</div>
@@ -2487,7 +2505,6 @@ body {
           <div class="card-body text-block">${renderRichText(p.closingSummary)}</div>
         </div>
         <div class="subtext">This chart is a living system.</div>
-        ${buildCosmicNav(9)}
       </div>
     </div>
   </section>
