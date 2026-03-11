@@ -2136,14 +2136,14 @@ body {
             </div>
             <div class="card-body">${escapeHtml(p.planetGroups.socialTranspersonal || p.planetGroups.social)}</div>
           </div>
+          <div class="chart-box">
+            <div class="card-head">LAYER FLOW</div>
+            <div class="card-sub">レイヤーの流れ</div>
+            <div class="card-body">${escapeHtml(p.planetGroups.flow || p.planetGroups.core)}</div>
+          </div>
         </div>
       </div>
       <div class="bottom">
-        <div class="chart-box">
-          <div class="card-head">LAYER FLOW</div>
-          <div class="card-sub">レイヤーの流れ</div>
-          <div class="card-body">${escapeHtml(p.planetGroups.flow || p.planetGroups.core)}</div>
-        </div>
         ${buildCosmicNav(5)}
       </div>
     </div>
