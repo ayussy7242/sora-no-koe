@@ -119,6 +119,8 @@ function buildWireframeData(input, placeholders) {
 
   if (blueprint?.core_snapshot) p.coreSnapshot = blueprint.core_snapshot;
   const masterChart = blueprint?.master_chart || src?.master_chart || null;
+  const elementCountsInput = src?.elementCounts || src?.element_counts || null;
+  const modalityCountsInput = src?.modalityCounts || src?.modality_counts || null;
   if (blueprint?.core_snapshot && !p.cosmicStructureText) p.cosmicStructureText = blueprint.core_snapshot;
   if (blueprint?.dashboard?.element_balance) p.elementBalanceText = blueprint.dashboard.element_balance;
   if (blueprint?.dashboard?.modality_balance) p.modalityBalanceText = blueprint.dashboard.modality_balance;
@@ -706,6 +708,48 @@ function buildWireframeData(input, placeholders) {
   };
   if (p.angularPlanets && !Array.isArray(p.angularPlanets)) {
     p.angularPlanets = formatAngularPlanets(p.angularPlanets);
+  }
+
+  if (elementCountsInput && !p.elementCounts) {
+    p.elementCounts = {
+      fire: toNumber(elementCountsInput.fire),
+      earth: toNumber(elementCountsInput.earth),
+      air: toNumber(elementCountsInput.air),
+      water: toNumber(elementCountsInput.water),
+    };
+  }
+  if (modalityCountsInput && !p.modalityCounts) {
+    p.modalityCounts = {
+      cardinal: toNumber(modalityCountsInput.cardinal),
+      fixed: toNumber(modalityCountsInput.fixed),
+      mutable: toNumber(modalityCountsInput.mutable),
+    };
+  }
+  if (p.elementCounts && !p.elementBars) {
+    const total =
+      (p.elementCounts.fire || 0) +
+      (p.elementCounts.earth || 0) +
+      (p.elementCounts.air || 0) +
+      (p.elementCounts.water || 0) ||
+      1;
+    p.elementBars = {
+      fire: Math.round(((p.elementCounts.fire || 0) / total) * 100),
+      earth: Math.round(((p.elementCounts.earth || 0) / total) * 100),
+      air: Math.round(((p.elementCounts.air || 0) / total) * 100),
+      water: Math.round(((p.elementCounts.water || 0) / total) * 100),
+    };
+  }
+  if (p.modalityCounts && !p.modalityBars) {
+    const total =
+      (p.modalityCounts.cardinal || 0) +
+      (p.modalityCounts.fixed || 0) +
+      (p.modalityCounts.mutable || 0) ||
+      1;
+    p.modalityBars = {
+      cardinal: Math.round(((p.modalityCounts.cardinal || 0) / total) * 100),
+      fixed: Math.round(((p.modalityCounts.fixed || 0) / total) * 100),
+      mutable: Math.round(((p.modalityCounts.mutable || 0) / total) * 100),
+    };
   }
 
   if (!p.deepAxis) p.deepAxis = placeholders.deepAxis || {};
@@ -1855,19 +1899,19 @@ body {
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">🜂</span> 火 ${p.elementCounts?.fire ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire || 62}%; --bar-color:#FF6B6B;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire ?? 62}%; --bar-color:#FF6B6B;"></div></div>
               </div>
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">🜃</span> 地 ${p.elementCounts?.earth ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.earth || 42}%; --bar-color:#E6C36D;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.earth ?? 42}%; --bar-color:#E6C36D;"></div></div>
               </div>
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">🜁</span> 風 ${p.elementCounts?.air ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.air || 54}%; --bar-color:#7FBF8F;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.air ?? 54}%; --bar-color:#7FBF8F;"></div></div>
               </div>
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">🜄</span> 水 ${p.elementCounts?.water ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.water || 30}%; --bar-color:#7AA7FF;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.water ?? 30}%; --bar-color:#7AA7FF;"></div></div>
               </div>
             </div>
           </div>
@@ -1877,15 +1921,15 @@ body {
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">△</span> 活動宮 ${p.modalityCounts?.cardinal ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal || 46}%; --bar-color:#FFB27A;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal ?? 46}%; --bar-color:#FFB27A;"></div></div>
               </div>
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">□</span> 固定宮 ${p.modalityCounts?.fixed ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed || 64}%; --bar-color:#9EC5FF;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed ?? 64}%; --bar-color:#9EC5FF;"></div></div>
               </div>
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol">◇</span> 柔軟宮 ${p.modalityCounts?.mutable ?? ""}</div>
-                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable || 36}%; --bar-color:#9FD3A8;"></div></div>
+                <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable ?? 36}%; --bar-color:#9FD3A8;"></div></div>
               </div>
             </div>
           </div>
