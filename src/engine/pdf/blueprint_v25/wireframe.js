@@ -1381,16 +1381,12 @@ body {
   display: block;
 }
 
-.page--obs .middle {
-  margin-top: calc(var(--section-gap) * 0.35);
-}
-
 .page--obs .bottom {
-  margin-top: calc(var(--section-gap) * 0.24);
+  margin-top: calc(var(--section-gap) * 0.17);
 }
 
 .page--obs .middle {
-  margin-top: -12px;
+  margin-top: -18px;
 }
 
 .page--map .slide {
@@ -1426,7 +1422,7 @@ body {
 }
 
 .metric-count {
-  margin-left: 8px;
+  margin-left: 12px;
   opacity: 0.95;
 }
 
