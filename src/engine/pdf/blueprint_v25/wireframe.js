@@ -1382,7 +1382,7 @@ body {
 }
 
 .page--obs .bottom {
-  margin-top: calc(var(--section-gap) * 0.17);
+  margin-top: calc(var(--section-gap) * 0.12);
 }
 
 .page--obs .middle {
@@ -2102,17 +2102,6 @@ body {
           <div class="card-head">軸の構造</div>
           <div class="card-sub">AXIS STRUCTURE</div>
           <div class="card-body">${escapeHtml(p.anglesText?.axis_structure || "")}</div>
-          <div class="axis-mini">ASC ↔ DC / MC ↔ IC</div>
-          <div class="axis-mini-diagram">
-            <span>ASC</span>
-            <span class="axis-line"></span>
-            <span>DC</span>
-          </div>
-          <div class="axis-mini-diagram">
-            <span>MC</span>
-            <span class="axis-line"></span>
-            <span>IC</span>
-          </div>
         </div>
         <div class="angular-block">
           <div class="chart-box">
