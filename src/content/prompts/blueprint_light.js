@@ -174,27 +174,27 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - planet_roles.sun / moon: 約30文字（最大36文字）
 - planet_roles.mercury / venus / mars: 約30文字（最大36文字）
 - planet_roles.jupiter〜pluto: 約30文字（最大36文字）
-- system_layers.core: 約110文字（最大140文字）
-- system_layers.personal: 約100文字（最大120文字）
-- system_layers.collective: 約100文字（最大120文字）
-- system_layers.flow: 約80文字（最大100文字）
+- system_layers.core: 約60文字（最大80文字）
+- system_layers.personal: 約50文字（最大70文字）
+- system_layers.collective: 約50文字（最大70文字）
+- system_layers.flow: 約40文字（最大60文字）
 - deep_axis.nodes: 約30文字（最大36文字）
 - deep_axis.chiron: 約30文字（最大36文字）
 - deep_axis.lilith: 約30文字（最大36文字）
-- deep_axis.pattern: 約30文字（最大36文字）
+- deep_axis.pattern: 約20文字（最大30文字）
 - angles.intro: 約90文字（最大110文字）
 - angles.asc / mc / ic / dc: 約30文字（最大36文字）
-- angles.axis_structure: 約90文字（最大120文字）
+- angles.axis_structure: 約190文字（最大220文字）
 - natal_observation: 約160文字（最大200文字）
 - aspect_map 各text: 約60文字（最大80文字）
-- aspect_dynamics: 約45文字（最大60文字・1文）
+- aspect_dynamics: 約25文字（最大30文字・1文）
 - pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
 - cosmic_signature: 約190文字（最大220文字）
 - chart_pattern: 約35文字（最大50文字）
-- life_direction: 約55文字（最大70文字）
-- closing_summary: 約55文字（最大80文字）
+- life_direction: 約130文字（最大170文字）
+- closing_summary: 約130文字（最大170文字）
 
 必須構成：
 - core_snapshot は SYS-01 用の要約として書く
@@ -385,19 +385,19 @@ planet_roles の禁止：
 - 文中に「役割名」を一度だけ入れる（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
 
 文字量の目安：
-- planet_roles.sun / moon: 20〜30字
-- planet_roles.mercury / venus / mars: 20〜30字
-- planet_roles.jupiter〜pluto: 20〜30字
-- system_layers.core: 240〜380字
-- system_layers.personal: 220〜340字
-- system_layers.collective: 220〜340字
-- system_layers.flow: 180〜280字
-- deep_axis.nodes: 40〜160字
-- deep_axis.chiron: 60〜160字
-- deep_axis.lilith: 60〜160字
-- deep_axis.pattern: 70〜200字
-- angles.asc / mc / ic / dc: 120〜185字
-- angles.axis_structure: 140〜220字
+- planet_roles.sun / moon: 約30文字（最大36文字）
+- planet_roles.mercury / venus / mars: 約30文字（最大36文字）
+- planet_roles.jupiter〜pluto: 約30文字（最大36文字）
+- system_layers.core: 約60文字（最大80文字）
+- system_layers.personal: 約50文字（最大70文字）
+- system_layers.collective: 約50文字（最大70文字）
+- system_layers.flow: 約40文字（最大60文字）
+- deep_axis.nodes: 約30文字（最大36文字）
+- deep_axis.chiron: 約30文字（最大36文字）
+- deep_axis.lilith: 約30文字（最大36文字）
+- deep_axis.pattern: 約20文字（最大30文字）
+- angles.asc / mc / ic / dc: 約30文字（最大36文字）
+- angles.axis_structure: 約190文字（最大220文字）
 
 避けること：
 - 担当外の要素（chart_pattern / dashboard）をまとめること

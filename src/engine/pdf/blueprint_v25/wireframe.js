@@ -1532,6 +1532,18 @@ body {
 .card-meta { font-size: var(--fs-card-meta); color: var(--muted); margin-top: 6px; }
 .card-text { font-size: var(--fs-card-text); line-height: 2.05; margin-top: 8px; color: var(--text); }
 
+.pln-grid .card-title {
+  margin-bottom: 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.pln-grid .card-meta-inline {
+  font-size: var(--fs-card-meta);
+  color: var(--muted);
+}
+
 .card-head {
   font-size: var(--fs-card-head);
   letter-spacing: var(--ls-title);
@@ -1685,6 +1697,10 @@ body {
   word-break: break-word;
 }
 
+.page--aspect .bottom {
+  margin-top: -10px;
+}
+
 .asp-energy {
   margin-top: 12px;
 }
@@ -1694,7 +1710,7 @@ body {
   width: 100%;
   height: 70px;
   border-top: 1px dashed rgba(237,238,255,0.4);
-  margin: 32px 0 -24px;
+  margin: 16px 0 -16px;
 }
 
 .axis-line::before {
@@ -1706,7 +1722,7 @@ body {
 }
 
 .node-meta {
-  margin-bottom: 72px;
+  margin-bottom: 36px;
 }
 
 .node-body {
@@ -2103,15 +2119,6 @@ body {
           <div class="card-sub">AXIS STRUCTURE</div>
           <div class="card-body">${escapeHtml(p.anglesText?.axis_structure || "")}</div>
         </div>
-        <div class="angular-block">
-          <div class="chart-box">
-            <div class="card-head">角度近接天体</div>
-            <div class="card-sub">ANGULAR PLANETS</div>
-            <div class="card-list">
-              ${(p.angularPlanets || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
-          </div>
-        </div>
         ${buildCosmicNav(3)}
       </div>
     </div>
@@ -2131,9 +2138,8 @@ body {
           <div class="pln-grid">
             ${p.planetRolesAll.map((card) => `
             <div class="card">
-              <div class="card-title">${escapeHtml(card.label)}</div>
-              <div class="card-meta">${escapeHtml(card.meta)}</div>
-              <div class="card-text">${escapeHtml(card.text)}</div>
+            <div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>
+            <div class="card-text">${escapeHtml(card.text)}</div>
             </div>`).join("\n")}
           </div>
         </div>
