@@ -28,9 +28,9 @@ const {
   getLineUserIdFromUserDoc,
 } = require("./cron_utils");
 const dict = require("../../content/dict");
-const { buildDailyLineMessage } = require("../../usecases/daily/line_daily_message");
+const { buildDailyLineMessage } = require("../../usecases/channels/line/line_daily_message");
 const { getLineSubscription, isPaidLine500 } = require("../../integrations/firebase/subscription");
-const { buildAndStoreSoraWheel } = require("../../integrations/media/sora_wheel");
+const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
 
 // Temporary: disable sorazu image push in daily 08:00
 const DISABLE_DAILY8_SORA_IMAGE = true;

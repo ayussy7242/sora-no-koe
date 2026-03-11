@@ -12,6 +12,21 @@ function getBlueprintLightPaths(lineUserId, variant = "print") {
   };
 }
 
+function getBlueprintLightBgPaths(lineUserId) {
+  if (!lineUserId) return { bgDir: null, files: {} };
+  const bgDir = `blueprints/light/${lineUserId}/bg`;
+  return {
+    bgDir,
+    files: {
+      sys: `${bgDir}/bg_sys.png`,
+      obs: `${bgDir}/bg_obs.png`,
+      asp: `${bgDir}/bg_asp.png`,
+      pat: `${bgDir}/bg_pat.png`,
+    },
+  };
+}
+
 module.exports = {
   getBlueprintLightPaths,
+  getBlueprintLightBgPaths,
 };

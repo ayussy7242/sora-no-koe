@@ -46,7 +46,7 @@ async function main() {
   const dict = require("../src/content/dict");
 
   // ✅ renderer（←これが抜けてた/壊れてた）
-  const { createRenderers } = require("../src/presenters/render");
+  const { createRenderers } = require("../src/presenters/shared/text");
 
   const r = createRenderers({
     dict,

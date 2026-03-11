@@ -14,8 +14,8 @@ const {
   buildTsukijiBlock,
   buildElementModalityBlock,
   buildKinjitsuBlock,
-} = require("../../usecases/paid/line_paid_500");
-const { buildAndStoreSoraWheel } = require("../media/sora_wheel");
+} = require("../../usecases/channels/line/line_paid_500");
+const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
 
 const PAID_INTENTS = new Set(env.PAID_INTENTS || []);
 
@@ -481,27 +481,23 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       blueprint = null;
     }
 
-    let result = null;
     let resultMobile = null;
     try {
-      result = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId, variant: "print" });
       resultMobile = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId, variant: "mobile" });
     } catch (e) {
       console.log("[blueprint] error", { message: e?.message || String(e) });
-      result = null;
+      resultMobile = null;
     }
     console.log("[blueprint] result", {
-      ok: !!result?.ok || !!resultMobile?.ok,
-      code: result?.code || resultMobile?.code || null,
-      has_url: !!result?.url || !!resultMobile?.url,
+      ok: !!resultMobile?.ok,
+      code: resultMobile?.code || null,
+      has_url: !!resultMobile?.url,
     });
-    if ((!result || !result.ok) && (!resultMobile || !resultMobile.ok)) {
+    if (!resultMobile || !resultMobile.ok) {
       const msg =
-        result?.code === "not_purchased" || resultMobile?.code === "not_purchased"
+        resultMobile?.code === "not_purchased"
           ? LINE_COPY.BLUEPRINT_NEED_PURCHASE
-          : result?.code === "natal_not_ready" ||
-            result?.code === "not_ready" ||
-            resultMobile?.code === "natal_not_ready" ||
+          : resultMobile?.code === "natal_not_ready" ||
             resultMobile?.code === "not_ready"
             ? LINE_COPY.BLUEPRINT_NOT_READY
             : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
@@ -512,23 +508,20 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     if (resultMobile?.ok && resultMobile?.url) {
       actions.push({ type: "uri", label: "📱 モバイル版", uri: resultMobile.url });
     }
-    if (result?.ok && result?.url) {
-      actions.push({ type: "uri", label: "🖨 印刷版", uri: result.url });
-    }
     const templateMessage = {
       type: "template",
       altText: "魂の設計図（LIGHT）はこちら",
       template: {
         type: "buttons",
         title: "魂の設計図（LIGHT）",
-        text: "📱スマホ最適／🖨印刷（A4）",
+        text: "📱スマホ最適",
         actions: actions.length
           ? actions
           : [
               {
                 type: "uri",
                 label: "設計図を開く",
-                uri: result?.url || resultMobile?.url || "",
+                uri: resultMobile?.url || "",
               },
             ],
       },

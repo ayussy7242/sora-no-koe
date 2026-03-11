@@ -21,7 +21,7 @@
  */
 
 const crypto = require("crypto");
-const { createRenderers } = require("../../presenters/render");
+const { createRenderers } = require("../../presenters/shared/text");
 const dict = require("../../content/dict");
 const { renderNatalListFromcache } = createRenderers({ dict });
 

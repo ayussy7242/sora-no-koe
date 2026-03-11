@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Master Chart",
+  "type": "object",
+  "required": ["planets", "ascendant", "nodes", "aspects"],
+  "properties": {
+    "planets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "sign", "degree", "house"],
+        "properties": {
+          "key": { "type": "string" },
+          "name": { "type": "string" },
+          "sign": { "type": "string" },
+          "sign_ja": { "type": "string" },
+          "sign_key": { "type": "string" },
+          "degree": { "type": ["number", "null"] },
+          "house": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "ascendant": {
+      "type": "object",
+      "properties": {
+        "sign": { "type": "string" },
+        "sign_ja": { "type": "string" },
+        "sign_key": { "type": "string" },
+        "house": { "type": ["number", "null"] }
+      }
+    },
+    "angles": {
+      "type": "object",
+      "properties": {
+        "asc": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        },
+        "mc": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        },
+        "ic": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        },
+        "dc": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
+    "nodes": {
+      "type": "object",
+      "properties": {
+        "north": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        },
+        "south": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
+    "extras": {
+      "type": "object",
+      "properties": {
+        "chiron": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        },
+        "lilith": {
+          "type": "object",
+          "properties": {
+            "sign": { "type": "string" },
+            "sign_ja": { "type": "string" },
+            "sign_key": { "type": "string" },
+            "degree": { "type": ["number", "null"] },
+            "house": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
+    "aspects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["p1", "p2", "type"],
+        "properties": {
+          "p1": { "type": "string" },
+          "p2": { "type": "string" },
+          "p1_key": { "type": "string" },
+          "p2_key": { "type": "string" },
+          "type": { "type": "string" },
+          "orb": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "angular_planets": {
+      "type": ["object", "null"],
+      "properties": {
+        "asc": { "type": "array" },
+        "mc": { "type": "array" },
+        "ic": { "type": "array" },
+        "dc": { "type": "array" }
+      }
+    },
+    "element_balance": {
+      "type": "object",
+      "properties": {
+        "fire": { "type": "number" },
+        "earth": { "type": "number" },
+        "air": { "type": "number" },
+        "water": { "type": "number" }
+      }
+    },
+    "modality_balance": {
+      "type": "object",
+      "properties": {
+        "cardinal": { "type": "number" },
+        "fixed": { "type": "number" },
+        "mutable": { "type": "number" }
+      }
+    },
+    "house_counts": { "type": "object" },
+    "planet_distribution": { "type": "object" }
+  }
+}

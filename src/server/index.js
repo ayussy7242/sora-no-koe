@@ -44,8 +44,8 @@ const geocoder = createGeocoder({
 
 // -------------------- Engine --------------------
 const { createStoryService } = require("../usecases/story/story");
-const { createRenderers } = require("../presenters/render");
-const { buildResonanceBullets } = require("../presenters/render/resonance");
+const { createRenderers } = require("../presenters/shared/text");
+const { buildResonanceBullets } = require("../presenters/shared/text/resonance");
 const { Storage } = require("@google-cloud/storage");
 
 // -------------------- Helpers (minimal / for storyService) --------------------

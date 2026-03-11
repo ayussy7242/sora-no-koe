@@ -1,43 +1,35 @@
 "use strict";
 
+const {
+  SYSTEM_COMMON,
+  STYLE_COMMON,
+  PROHIBITED_COMMON,
+  TONE_COMMON,
+  SENTENCE_COMMON,
+  REPETITION_COMMON,
+  POLITE_TONE_COMMON,
+} = require("./common");
+
 /**
  * sora-no-koe blog prompt set (block-specific flow)
- * - 共通憲法は固定
- * - ブロックごとに“流れ”だけ変える（単調さを回避）
+ * - 共通思想は common から読む
+ * - ブロックごとに“流れ”だけ変える
  */
 
-// const BLOG_STYLE_CORE = `
-// 共通ルール:
-// - 本文で「あなた」禁止。
-// - 占い化しない（未来断定/指示/救済/運命固定/絶対語は禁止）。
-// - 因果の講義にしない。
-// - 断片列挙にしない。必ず述語で閉じる。
-// - 主語は構造（配置/角度/組み合わせ/回路/層/圧/方向/切り替え/残り方）。
-// - 内部処理（校正/フェーズ/生成/処理しました等）を本文に出力しない。
-// - やわらかい物腰で書く。
-// `.trim();
-
 const BLOG_STYLE_CORE = `
-共通ルール:
-- 本文で「あなた」禁止。
-- 占い化しない（未来断定/指示/救済/運命固定/絶対語は禁止）。
-- 因果の講義にしない。
-- 断片列挙にしない。必ず述語で閉じる。
-- 人を主語にして断定しない。配置や角度などの構造を中心に記述する。
-- 内部処理（校正/フェーズ/生成/処理しました等）を本文に出力しない。
-- やわらかい物腰で書く。
-`.trim();
+${SYSTEM_COMMON}
 
+${STYLE_COMMON}
 
-const BLOG_REPEAT_SOFT = `
-【反復抑制】
-- 同一ブロック内で「余地」「感じられる」「促される」「見受けられる」は繰り返さない（各1回まで）。
-- 「これその配置のまま」は出力しない。
-- 語尾を固定しない（「〜が残る」で連続して閉じない）。
-- 同じ意味の重ね書きを避ける。
-- 「示す/意味する/促す/影響する」を連発しない。
-- 助詞が連結した不自然文は言い換える（例：「置かれているされる」「残っているする」）。
-- 命令・提案の文末（「〜してください」「〜してみて」「〜が大切」「〜べき」）を使わない。
+${PROHIBITED_COMMON}
+
+${TONE_COMMON}
+
+${SENTENCE_COMMON}
+
+${REPETITION_COMMON}
+
+${POLITE_TONE_COMMON}
 `.trim();
 
 const BLOG_ANCHOR_RULE = `
@@ -159,7 +151,6 @@ const BLOG_BLOCKS_USER_GUIDE = `
 - タイトルが「8｜余韻」なら: ${FLOW_AFTERTASTE}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim();
 
@@ -173,7 +164,6 @@ const BLOG_BLOCK_SECTION_GUIDE = `
 - タイトルに応じて、上の「ブロック別の文章構造」を適用する。
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim();
 
@@ -191,7 +181,6 @@ const BLOG_BLOCK_ITEM_GUIDE = `
 - 事実 → 構造 → 余韻（結論なし）。
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim();
 
@@ -210,7 +199,6 @@ module.exports = Object.freeze({
 - 段落2：出入口（何が入りやすく何が出にくいか）→残り方（結論なし）を2文。
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
   `.trim(),
 
@@ -224,7 +212,6 @@ ${BLOG_ANCHOR_RULE}
 - 段落2：モード数で速度と切り替えを書き、最後は余韻で閉じる（結論なし）2〜3文。
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
   `.trim(),
 
@@ -234,7 +221,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_OVERVIEW}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -244,7 +230,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_POSITION_ITEM}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -254,7 +239,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_RESONANCE}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -264,7 +248,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_HOUSE}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -274,7 +257,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_HOUSE_FOCUS_ITEM}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -284,7 +266,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_ELEMENTS}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -297,7 +278,6 @@ ${BLOG_ANCHOR_RULE}
 - 一般論で埋めず、FACTSから書く。
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 
@@ -307,7 +287,6 @@ ${BLOG_ANCHOR_RULE}
 ${FLOW_AFTERTASTE}
 
 ${BLOG_STYLE_CORE}
-${BLOG_REPEAT_SOFT}
 ${BLOG_ANCHOR_RULE}
 `.trim(),
 });

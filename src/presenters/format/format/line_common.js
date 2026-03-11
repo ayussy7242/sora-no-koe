@@ -9,7 +9,7 @@ const {
   bodyGlyph,
   signGlyph,
   signLabelJa,
-} = require("../../render/render_tokens");
+} = require("../../shared/text/tokens");
 
 function formatDateLabel(dateLocal) {
   return String(dateLocal || "").replace(/-/g, ".");

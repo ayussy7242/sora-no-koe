@@ -51,17 +51,34 @@ async function attachOutputs({ story, renderMap, primaryKey, primaryText, includ
     return;
   }
 
-  const outputs = OUTPUT_KEYS.reduce((acc, k) => {
-    acc[k] = "";
-    return acc;
-  }, {});
-  outputs[primaryKey] = primaryText;
+  const outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+  OUTPUT_KEYS.forEach((k) => {
+    if (outputs[k] === undefined) outputs[k] = "";
+  });
+
+  const ensureIgObject = () => {
+    if (!outputs.ig || typeof outputs.ig !== "object") {
+      outputs.ig = outputs.ig ? { caption: String(outputs.ig) } : { caption: "" };
+    }
+    if (!outputs.ig.carousel) outputs.ig.carousel = {};
+    return outputs.ig;
+  };
+
+  if (primaryKey === "ig") {
+    ensureIgObject().caption = primaryText;
+  } else {
+    outputs[primaryKey] = primaryText;
+  }
 
   const errors = {};
   for (const k of OUTPUT_KEYS) {
     if (k === primaryKey) continue;
     try {
-      outputs[k] = await renderMap[k]();
+      if (k === "ig") {
+        ensureIgObject().caption = await renderMap[k]();
+      } else {
+        outputs[k] = await renderMap[k]();
+      }
     } catch (e) {
       errors[k] = e?.message || String(e);
     }

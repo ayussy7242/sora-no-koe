@@ -139,8 +139,8 @@ async function main() {
 
   const { renderSoraLine } = require("../src/presenters/channels/line/sora");
   const { renderLine } = require("../src/presenters/channels/line/today");
-  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../src/usecases/paid/line_paid_500");
-  const { buildSoraWheelSvg } = require("../src/integrations/media/sora_wheel");
+  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../src/usecases/channels/line/line_paid_500");
+  const { buildSoraWheelSvg } = require("../src/engine/graphics/sora_wheel");
 
   const dateLabel = date.replace(/-/g, ".");
 

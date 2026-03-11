@@ -14,12 +14,12 @@ const MANIFESTS = Object.freeze({
   }),
   mobile: Object.freeze({
     product: "blueprint_light",
-    version: DEFAULT_VERSION,
+    version: "v25",
     variant: "mobile",
     layout: "mobile_9x16",
     theme: "sora_light",
-    sections: ["cover", "quick_map", "structure", "planets", "closing"],
-    outputFile: `${DEFAULT_VERSION}.mobile.pdf`,
+    sections: ["sys", "map", "obs", "ang", "pln", "lay", "dep", "asp", "pat"],
+    outputFile: `v25.mobile.pdf`,
   }),
 });
 

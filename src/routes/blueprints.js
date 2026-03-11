@@ -2,7 +2,7 @@
 
 const express = require("express");
 const { createBlueprintLightService } = require("../usecases/blueprint_light");
-const { enqueueBlueprintGenerate } = require("../integrations/cloudtasks/tasks_queue");
+const { enqueueBlueprintGenerate, enqueueBlueprintPdfGenerate } = require("../integrations/cloudtasks/tasks_queue");
 const { createLineApi } = require("../integrations/line/line_api");
 const dict = require("../content/dict");
 
@@ -119,7 +119,7 @@ function createBlueprintsRouter(deps = {}) {
     });
 
     if (currentStatus === "done") {
-      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
+      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
       if (signed?.ok && signed?.url) currentSignedUrl = signed.url;
       return res.status(200).json({ ok: true, status: "done", signed_url: currentSignedUrl });
     }
@@ -159,9 +159,9 @@ function createBlueprintsRouter(deps = {}) {
     const job = snap.data() || {};
     const nowMs = getNowMillis();
     if (job.status === "running" && !isLeaseActive(job, nowMs)) {
-      const exists = await blueprint.hasPdf({ lineUserId }).catch(() => null);
+      const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
       if (exists?.ok && exists.exists) {
-        const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
+        const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
         const updates = {
           status: "done",
           error: signed?.ok ? null : signed?.error || job.error || null,
@@ -190,8 +190,26 @@ function createBlueprintsRouter(deps = {}) {
       );
       job.status = "failed";
     }
+    if (job.status !== "done") {
+      const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
+      if (exists?.ok && exists.exists) {
+        const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+        await jobRef.set(
+          {
+            status: "done",
+            error: signed?.ok ? null : (signed?.error || null),
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            finished_at: admin.firestore.FieldValue.serverTimestamp(),
+            lease_until: null,
+            signed_url_mobile: signed?.ok ? signed.url : (job.signed_url_mobile || null),
+          },
+          { merge: true }
+        );
+        return res.status(200).json({ ok: true, status: "done", signed_url: signed?.ok ? signed.url : null });
+      }
+    }
     if (job.status === "done") {
-      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId });
+      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
       if (signed?.ok && signed?.url) {
         await jobRef.set(
           { signed_url: signed.url, updated_at: admin.firestore.FieldValue.serverTimestamp() },
@@ -225,7 +243,7 @@ function createBlueprintsRouter(deps = {}) {
     });
   });
 
-  const workerHandler = async (req, res) => {
+  const createWorkerHandler = ({ pdfOnlyRequired = false } = {}) => async (req, res) => {
     const auth = requireTasksCaller(env, req);
     if (!auth.ok) {
       const maybeLineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
@@ -262,6 +280,8 @@ function createBlueprintsRouter(deps = {}) {
     const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
     const forceRun = forceHint || toBool(body?.force || body?.forceRegen || body?.forcePush);
     const forceRegen = forceHint || toBool(body?.forceRegen || body?.force) || forceRun;
+    const pdfOnly = pdfOnlyRequired ? true : toBool(body?.pdf_only || body?.pdfOnly);
+    const pdfAttempt = Number(body?.pdf_attempt || 0);
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
@@ -303,66 +323,110 @@ function createBlueprintsRouter(deps = {}) {
 
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     try {
-      const genPrint = await blueprint.generateAndStore({ lineUserId, forceRegen, variant: "print" });
-      const genMobile = await blueprint.generateAndStore({ lineUserId, forceRegen, variant: "mobile" });
-      const signedPrint = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "print" });
-      const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
-      const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
-      if ((!signedPrint?.ok || !signedPrint?.url) && (!signedMobile?.ok || !signedMobile?.url)) {
-        if (!allowUnsigned) {
+      if (pdfOnly) {
+        const genPdf = await blueprint.renderPdfFromStoredJson({ lineUserId, variant: "mobile", forceRegen });
+        const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+        const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
+        if ((!signedMobile?.ok || !signedMobile?.url) && !allowUnsigned) {
           throw new Error("signed url missing after generate");
         }
-        console.log("[blueprint] signed url unavailable (dev)", {
-          code: signedPrint?.code || signedMobile?.code || null,
-          error: signedPrint?.error || signedMobile?.error || null,
+        if (signedMobile?.ok && signedMobile?.url) {
+          const lineApiClient = createLineApi({
+            accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+            maxText: Number(env.MAX_LINE_TEXT || 4800),
+          });
+          const templateMessage = {
+            type: "template",
+            altText: "星の設計図はこちら",
+            template: {
+              type: "buttons",
+              title: "星の設計図",
+              text: "📱スマホ版",
+              actions: [
+                {
+                  type: "uri",
+                  label: "📱 スマホ版",
+                  uri: signedMobile.url,
+                },
+              ],
+            },
+          };
+          await lineApiClient.pushMessages(lineUserId, templateMessage);
+        }
+        await jobRef.set(
+          {
+            status: "done",
+            file_path_mobile: genPdf?.filePath || null,
+            signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            finished_at: admin.firestore.FieldValue.serverTimestamp(),
+            lease_until: null,
+          },
+          { merge: true }
+        );
+        return res.json({ ok: true, code: "pdf_generated" });
+      }
+
+      const pdfAsync = toBool(env?.BLUEPRINT_PDF_ASYNC || process.env.BLUEPRINT_PDF_ASYNC || "");
+      const genMobile = await blueprint.generateAndStore({
+        lineUserId,
+        forceRegen,
+        variant: "mobile",
+        skipPdf: pdfAsync,
+      });
+
+      if (pdfAsync) {
+        await enqueueBlueprintPdfGenerate({
+          env,
+          lineUserId,
+          blueprintType: "light",
+          forceRegen,
+          extraPayload: { pdf_only: true, pdf_attempt: 0 },
         });
-      } else {
+        await jobRef.set(
+          {
+            status: "queued_pdf",
+            file_path_mobile: genMobile?.filePath || null,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            lease_until: null,
+          },
+          { merge: true }
+        );
+        return res.json({ ok: true, code: "queued_pdf" });
+      }
+
+      const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+      const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
+      if ((!signedMobile?.ok || !signedMobile?.url) && !allowUnsigned) {
+        throw new Error("signed url missing after generate");
+      }
+      if (signedMobile?.ok && signedMobile?.url) {
         const lineApiClient = createLineApi({
           accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
           maxText: Number(env.MAX_LINE_TEXT || 4800),
         });
-
-        const actions = [];
-        if (signedMobile?.ok && signedMobile?.url) {
-          actions.push({
-            type: "uri",
-            label: "📱 モバイル版",
-            uri: signedMobile.url,
-          });
-        }
-        if (signedPrint?.ok && signedPrint?.url) {
-          actions.push({
-            type: "uri",
-            label: "🖨 印刷版",
-            uri: signedPrint.url,
-          });
-        }
-
         const templateMessage = {
           type: "template",
           altText: "星の設計図はこちら",
           template: {
             type: "buttons",
             title: "星の設計図",
-            text: "📱スマホ最適／🖨印刷（A4）",
-            actions: actions.length ? actions : [
+            text: "📱スマホ版",
+            actions: [
               {
                 type: "uri",
-                label: "設計図を開く",
-                uri: signedPrint?.url || signedMobile?.url || "",
+                label: "📱 スマホ版",
+                uri: signedMobile.url,
               },
             ],
           },
         };
-
         await lineApiClient.pushMessages(lineUserId, templateMessage);
       }
       await jobRef.set(
         {
           status: "done",
-          file_path: genPrint?.filePath || null,
           file_path_mobile: genMobile?.filePath || null,
-          signed_url: signedPrint?.ok ? signedPrint.url : null,
           signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -370,8 +434,7 @@ function createBlueprintsRouter(deps = {}) {
         },
         { merge: true }
       );
-      const skipped = genPrint?.skipped && genMobile?.skipped;
-      return res.json({ ok: true, code: skipped ? "already_exists" : "generated" });
+      return res.json({ ok: true, code: genMobile?.skipped ? "already_exists" : "generated" });
     } catch (e) {
       const message = String(e?.message || e || "");
       const code = String(e?.code || "");
@@ -386,6 +449,29 @@ function createBlueprintsRouter(deps = {}) {
         code === "PERMISSION_DENIED";
 
       console.log("[blueprint] worker failed:", message);
+
+      if (pdfOnly) {
+        const maxRetry = Number(env?.BLUEPRINT_PDF_RETRY_MAX || process.env.BLUEPRINT_PDF_RETRY_MAX || 3);
+        if (pdfAttempt < maxRetry) {
+          await enqueueBlueprintPdfGenerate({
+            env,
+            lineUserId,
+            blueprintType: "light",
+            forceRegen,
+            extraPayload: { pdf_only: true, pdf_attempt: pdfAttempt + 1 },
+          });
+          await jobRef.set(
+            {
+              status: "queued_pdf",
+              error: message,
+              updated_at: admin.firestore.FieldValue.serverTimestamp(),
+              lease_until: nextLeaseMs(nowMs),
+            },
+            { merge: true }
+          );
+          return res.status(200).json({ ok: true, code: "queued_pdf_retry" });
+        }
+      }
 
       if (nonRetry) {
         await markFailed_(db, admin, lineUserId, { stage: "worker", error: message }).catch(() => {});
@@ -405,8 +491,11 @@ function createBlueprintsRouter(deps = {}) {
     }
   };
 
+  const workerHandler = createWorkerHandler({ pdfOnlyRequired: false });
+  const pdfWorkerHandler = createWorkerHandler({ pdfOnlyRequired: true });
   router.post("/light/run", express.json({ limit: "1mb" }), workerHandler);
   router.post("/light/worker", express.json({ limit: "1mb" }), workerHandler);
+  router.post("/light/pdf_worker", express.json({ limit: "1mb" }), pdfWorkerHandler);
 
   return router;
 }
