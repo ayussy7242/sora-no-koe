@@ -411,7 +411,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - 一般論で埋めない
 - このチャートの中で何をつなぎ、どこに流れ/緊張/補正を作るかを書く
 - sign / house / aspect / orb は、INPUTにあるものだけを材料として使う
-- aspect_dynamics は **主要アスペクトの共鳴だけ** を材料に書く
+- aspect_dynamics は **主要アスペクトの統合要約（1行）** として書く
 - aspect_dynamics では、チャート固有の接続（主要アスペクト / サイン / ハウス）を最低1つは明示する
 - aspect_dynamics は **1文・約60文字** にまとめる
 - 新しい情報を足さない
