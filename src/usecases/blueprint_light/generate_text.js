@@ -43,37 +43,38 @@ const MAX_TOKENS_ALL_BATCH = 5000;
 const MIN_BODY_CHARS = 80;
 const MIN_SUMMARY_CHARS = 0;
 const MIN_CLOSING_CHARS = 90;
-const MIN_V2_CORE_CHARS = 170;
-const MIN_V2_DASH_ELEMENT_CHARS = 130;
-const MIN_V2_DASH_MODALITY_CHARS = 130;
+const MIN_V2_CORE_TAGLINE_CHARS = 25;
+const MIN_V2_CORE_CHARS = 200;
+const MIN_V2_DASH_ELEMENT_CHARS = 160;
+const MIN_V2_DASH_MODALITY_CHARS = 160;
 const MIN_V2_DASH_DOMINANT_CHARS = 60;
 const MIN_V2_DASH_HOUSE_CHARS = 60;
 const MIN_V2_DASH_DIST_CHARS = 90;
-const MIN_V2_DASH_FLOW_CHARS = 130;
-const MIN_V2_DASH_STRUCTURE_CHARS = 190;
-const MIN_V2_ROLE_LUM_CHARS = 18;
-const MIN_V2_ROLE_PERSONAL_CHARS = 18;
-const MIN_V2_ROLE_OUTER_CHARS = 18;
-const MIN_V2_LAYER_CORE_CHARS = 40;
-const MIN_V2_LAYER_PERSONAL_CHARS = 30;
-const MIN_V2_LAYER_COLLECTIVE_CHARS = 30;
-const MIN_V2_LAYER_FLOW_CHARS = 20;
-const MIN_V2_DEEP_NODES_CHARS = 18;
-const MIN_V2_DEEP_CHIRON_CHARS = 18;
-const MIN_V2_DEEP_LILITH_CHARS = 18;
-const MIN_V2_DEEP_PATTERN_CHARS = 8;
-const MIN_V2_NATAL_OBS_CHARS = 130;
-const MIN_V2_ANGLE_CHARS = 18;
-const MIN_V2_ANGLE_AXIS_CHARS = 180;
+const MIN_V2_DASH_FLOW_CHARS = 180;
+const MIN_V2_DASH_STRUCTURE_CHARS = 230;
+const MIN_V2_ROLE_LUM_CHARS = 70;
+const MIN_V2_ROLE_PERSONAL_CHARS = 70;
+const MIN_V2_ROLE_OUTER_CHARS = 70;
+const MIN_V2_LAYER_CORE_CHARS = 90;
+const MIN_V2_LAYER_PERSONAL_CHARS = 80;
+const MIN_V2_LAYER_COLLECTIVE_CHARS = 80;
+const MIN_V2_LAYER_FLOW_CHARS = 60;
+const MIN_V2_DEEP_NODES_CHARS = 70;
+const MIN_V2_DEEP_CHIRON_CHARS = 70;
+const MIN_V2_DEEP_LILITH_CHARS = 70;
+const MIN_V2_DEEP_PATTERN_CHARS = 90;
+const MIN_V2_NATAL_OBS_CHARS = 200;
+const MIN_V2_ANGLE_CHARS = 60;
+const MIN_V2_ANGLE_AXIS_CHARS = 80;
 const MIN_V2_ANGLE_INTRO_CHARS = 70;
-const MIN_V2_ASPECT_CHARS = 50;
-const MIN_V2_ASPECT_DYNAMICS_CHARS = 20;
+const MIN_V2_ASPECT_CHARS = 80;
+const MIN_V2_ASPECT_DYNAMICS_CHARS = 60;
 const MIN_V2_PATTERN_NAME_CHARS = 8;
-const MIN_V2_LIFE_DIRECTION_CHARS = 120;
-const MIN_V2_PATTERN_CHARS = 28;
+const MIN_V2_LIFE_DIRECTION_CHARS = 130;
+const MIN_V2_PATTERN_CHARS = 35;
 const MIN_V2_COSMIC_FOCUS_CHARS = 28;
 const MIN_V2_COSMIC_TRAITS_CHARS = 35;
-const MIN_V2_COSMIC_SIGNATURE_CHARS = 170;
+const MIN_V2_COSMIC_SIGNATURE_CHARS = 220;
 const MIN_V2_CLOSING_CHARS = 120;
 
 const HARD_BANNED_PATTERNS = [
@@ -991,7 +992,7 @@ function normalizeV2AspectText(text) {
     minSentences: 1,
     maxSentences: 2,
     minChars: MIN_V2_ASPECT_CHARS,
-    maxChars: MIN_V2_ASPECT_CHARS + 50,
+    maxChars: 120,
   });
 }
 
@@ -1099,6 +1100,7 @@ function hasTooShortSectionsV2(source) {
   const aspectMap = Array.isArray(source?.aspect_map) ? source.aspect_map : [];
 
   const checks = [
+    { text: source?.core_tagline, min: MIN_V2_CORE_TAGLINE_CHARS },
     { text: source?.core_snapshot, min: MIN_V2_CORE_CHARS },
     { text: dashboard?.element_balance, min: MIN_V2_DASH_ELEMENT_CHARS },
     { text: dashboard?.modality_balance, min: MIN_V2_DASH_MODALITY_CHARS },
@@ -1210,6 +1212,7 @@ function collectV2ValidationIssues(source) {
   const checkShort = (key, value, minChars) => {
     if (isTooShort(value, minChars)) issues.tooShort.push(key);
   };
+  checkShort("core_tagline", source?.core_tagline, MIN_V2_CORE_TAGLINE_CHARS);
   checkShort("core_snapshot", source?.core_snapshot, MIN_V2_CORE_CHARS);
   checkShort("dashboard.element_balance", dashboard?.element_balance, MIN_V2_DASH_ELEMENT_CHARS);
   checkShort("dashboard.modality_balance", dashboard?.modality_balance, MIN_V2_DASH_MODALITY_CHARS);
@@ -1506,6 +1509,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
   };
 
   const shapeCore = `{
+  "core_tagline": "...",
   "core_snapshot": "...",
   "dashboard": {
     "element_balance": "...",
@@ -1621,21 +1625,30 @@ async function generateBlueprintLightTextV2({ env, input }) {
 
   const data = {
     version: "blueprint_light_v2",
+    core_tagline: normalizeV2Text(source?.core_tagline || "", {
+      minSentences: 1,
+      maxSentences: 1,
+      minChars: MIN_V2_CORE_TAGLINE_CHARS,
+      maxChars: 40,
+    }),
     core_snapshot: normalizeV2Text(source?.core_snapshot || "", {
       minSentences: 3,
       maxSentences: 5,
       minChars: MIN_V2_CORE_CHARS,
+      maxChars: 260,
     }),
     dashboard: {
       element_balance: normalizeV2Text(dashboard?.element_balance || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DASH_ELEMENT_CHARS,
+        maxChars: 220,
       }),
       modality_balance: normalizeV2Text(dashboard?.modality_balance || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DASH_MODALITY_CHARS,
+        maxChars: 220,
       }),
       dominant_signs: normalizeV2Text(dashboard?.dominant_signs || "", {
         minSentences: 1,
@@ -1651,16 +1664,19 @@ async function generateBlueprintLightTextV2({ env, input }) {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DASH_DIST_CHARS,
+        maxChars: 140,
       }),
       energy_flow: normalizeV2Text(dashboard?.energy_flow || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DASH_FLOW_CHARS,
+        maxChars: 240,
       }),
       cosmic_structure: normalizeV2Text(dashboard?.cosmic_structure || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_DASH_STRUCTURE_CHARS,
+        maxChars: 300,
       }),
     },
     planet_roles: {
@@ -1668,51 +1684,61 @@ async function generateBlueprintLightTextV2({ env, input }) {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
+        maxChars: 90,
       })),
       moon: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.moon || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
+        maxChars: 90,
       })),
       mercury: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mercury || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+        maxChars: 90,
       })),
       venus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.venus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+        maxChars: 90,
       })),
       mars: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mars || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+        maxChars: 90,
       })),
       jupiter: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.jupiter || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
+        maxChars: 90,
       })),
       saturn: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.saturn || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
+        maxChars: 90,
       })),
       uranus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.uranus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
+        maxChars: 90,
       })),
       neptune: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.neptune || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
+        maxChars: 90,
       })),
       pluto: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.pluto || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
+        maxChars: 90,
       })),
     },
     system_layers: {
@@ -1720,21 +1746,25 @@ async function generateBlueprintLightTextV2({ env, input }) {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_CORE_CHARS,
+        maxChars: 120,
       }),
       personal: normalizeV2Text(systemLayers?.personal || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_PERSONAL_CHARS,
+        maxChars: 120,
       }),
       collective: normalizeV2Text(systemLayers?.collective || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_COLLECTIVE_CHARS,
+        maxChars: 120,
       }),
       flow: normalizeV2Text(systemLayers?.flow || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_FLOW_CHARS,
+        maxChars: 100,
       }),
     },
     deep_axis: {
@@ -1742,21 +1772,25 @@ async function generateBlueprintLightTextV2({ env, input }) {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_NODES_CHARS,
+        maxChars: 90,
       })),
       chiron: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.chiron || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_CHIRON_CHARS,
+        maxChars: 90,
       })),
       lilith: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.lilith || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_LILITH_CHARS,
+        maxChars: 90,
       })),
       pattern: normalizeV2Text(deepAxis?.pattern || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_DEEP_PATTERN_CHARS,
+        maxChars: 120,
       }),
     },
     angles: {
@@ -1764,26 +1798,31 @@ async function generateBlueprintLightTextV2({ env, input }) {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_INTRO_CHARS,
+        maxChars: 110,
       }),
       asc: stripLeadingPlacementClause(normalizeV2Text(angles?.asc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
+        maxChars: 80,
       })),
       mc: stripLeadingPlacementClause(normalizeV2Text(angles?.mc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
+        maxChars: 80,
       })),
       ic: stripLeadingPlacementClause(normalizeV2Text(angles?.ic || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
+        maxChars: 80,
       })),
       dc: stripLeadingPlacementClause(normalizeV2Text(angles?.dc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
+        maxChars: 80,
       })),
       axis_structure: normalizeV2Text(
         angles?.axis_structure || angles?.axis_summary || "",
@@ -1791,6 +1830,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
           minSentences: 2,
           maxSentences: 4,
           minChars: MIN_V2_ANGLE_AXIS_CHARS,
+          maxChars: 110,
         }
       ),
     },
@@ -1802,7 +1842,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
       minSentences: 1,
       maxSentences: 1,
       minChars: MIN_V2_ASPECT_DYNAMICS_CHARS,
-      maxChars: 30,
+      maxChars: 80,
     }),
     pattern_name: normalizeV2Text(source?.pattern_name || "", {
       minSentences: 1,
@@ -1823,26 +1863,31 @@ async function generateBlueprintLightTextV2({ env, input }) {
       minSentences: 2,
       maxSentences: 4,
       minChars: MIN_V2_COSMIC_SIGNATURE_CHARS,
+      maxChars: 300,
     }),
     chart_pattern: normalizeV2Text(source?.chart_pattern || "", {
-      minSentences: 4,
-      maxSentences: 6,
+      minSentences: 2,
+      maxSentences: 4,
       minChars: MIN_V2_PATTERN_CHARS,
+      maxChars: 50,
     }),
     life_direction: normalizeV2Text(source?.life_direction || "", {
       minSentences: 2,
       maxSentences: 4,
       minChars: MIN_V2_LIFE_DIRECTION_CHARS,
+      maxChars: 170,
     }),
     natal_observation: normalizeV2Text(source?.natal_observation || "", {
       minSentences: 3,
       maxSentences: 6,
       minChars: MIN_V2_NATAL_OBS_CHARS,
+      maxChars: 260,
     }),
     closing_summary: normalizeV2Text(source?.closing_summary || "", {
       minSentences: 3,
       maxSentences: 5,
       minChars: MIN_V2_CLOSING_CHARS,
+      maxChars: 160,
     }),
   };
   data.master_chart = masterChart;

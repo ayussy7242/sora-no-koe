@@ -44,7 +44,12 @@ function getMapPageData(master) {
         reason: `count:${row.count ?? ""}`,
       }))
     : pickDominantSignsWithReason(master);
-  const dominantHouses = pickDominantHousesWithReason(master?.house_counts);
+  const dominantHouses = Array.isArray(master?.dominant_houses) && master.dominant_houses.length
+    ? master.dominant_houses.map((row) => ({
+        house: row.house,
+        reason: `count:${row.count ?? ""}`,
+      }))
+    : pickDominantHousesWithReason(master?.house_counts);
   const dominantElement = pickDominantElement(master?.element_balance);
   const dominantModality = pickDominantModality(master?.modality_balance);
   const secondaryElement = pickSecondaryElement(master?.element_balance, dominantElement);
@@ -174,7 +179,11 @@ function getPatternPageData(master) {
       dominant_element: pickDominantElement(master?.element_balance),
       dominant_modality: pickDominantModality(master?.modality_balance),
       dominant_house: pickDominantHouse(master?.house_counts),
-      chart_type: buildChartType(master).pattern || "",
+      chart_type: master?.chart_pattern || buildChartType(master).pattern || "",
+      dominant_signs: master?.dominant_signs || [],
+      dominant_houses: master?.dominant_houses || [],
+      energy_center: master?.energy_center || null,
+      major_aspects: master?.major_aspects || [],
       outer_theme: "social expression / public role",
       inner_theme: "inner safety / emotional nourishment",
       key_tension: "",

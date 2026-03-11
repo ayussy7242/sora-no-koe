@@ -158,6 +158,27 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
   const modalityCounts = kernel?.summary?.modality?.counts || {};
   const houseCounts = kernel?.houses?.counts || {};
 
+  const dominantHouses = (() => {
+    const entries = Object.entries(houseCounts || {}).map(([k, v]) => [Number(k), Number(v || 0)]);
+    const sorted = entries.sort((a, b) => b[1] - a[1]);
+    const top = sorted.filter(([, v]) => v > 0).slice(0, 2).map(([k, v]) => ({ house: k, count: v }));
+    return top;
+  })();
+
+  const majorAspects = (() => {
+    const list = aspects
+      .filter((a) => a && a.p1 && a.p2)
+      .sort((a, b) => (a.orb ?? 99) - (b.orb ?? 99));
+    return list.slice(0, 6);
+  })();
+
+  const energyCenter = (() => {
+    if (dominantHouses.length) return dominantHouses[0];
+    return null;
+  })();
+
+  const chartPattern = kernel?.summary?.pattern?.name || kernel?.summary?.chart_pattern || kernel?.summary?.pattern || null;
+
   const dominantSigns = (() => {
     const counts = new Map();
     planets.forEach((p) => {
@@ -194,6 +215,10 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
     angles,
     angular_planets: angularPlanets,
     dominant_signs: dominantSigns,
+    dominant_houses: dominantHouses,
+    energy_center: energyCenter,
+    major_aspects: majorAspects,
+    chart_pattern: chartPattern,
     element_balance: {
       fire: elementCounts.fire ?? 0,
       earth: elementCounts.earth ?? 0,
