@@ -9,8 +9,8 @@ const {
   buildDailyEyecatchLines,
   markdownToHtml,
   escapeHtml,
-} = require("../../usecases/daily/blog_daily");
-const { renderBlogEyecatchJpeg } = require("../../integrations/media/blog_eyecatch");
+} = require("../../usecases/channels/blog/blog_daily");
+const { renderBlogEyecatchJpeg } = require("../../engine/channels/blog/blog_eyecatch");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);

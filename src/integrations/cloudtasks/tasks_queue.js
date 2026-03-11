@@ -6,11 +6,11 @@ function createTasksClient() {
   return new CloudTasksClient();
 }
 
-function requireTasksEnv(env) {
+function requireTasksEnv(env, overrides = {}) {
   const project = env?.CLOUD_TASKS_PROJECT || null;
   const location = env?.CLOUD_TASKS_LOCATION || null;
   const queue = env?.CLOUD_TASKS_QUEUE || null;
-  const url = env?.BLUEPRINT_WORKER_URL || env?.BLUEPRINT_GENERATE_URL || null;
+  const url = overrides.url || env?.BLUEPRINT_WORKER_URL || env?.BLUEPRINT_GENERATE_URL || null;
   const saEmail = env?.TASKS_CALLER_SA_EMAIL || null;
   const token = env?.INTERNAL_TASKS_TOKEN || null;
 
@@ -20,7 +20,13 @@ function requireTasksEnv(env) {
   return { project, location, queue, url, saEmail, token };
 }
 
-async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "light", forceRegen = false }) {
+async function enqueueBlueprintGenerate({
+  env,
+  lineUserId,
+  blueprintType = "light",
+  forceRegen = false,
+  extraPayload = null,
+} = {}) {
   if (!lineUserId) throw new Error("lineUserId is required");
   const { project, location, queue, url, saEmail, token } = requireTasksEnv(env);
 
@@ -31,6 +37,9 @@ async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "ligh
     line_user_id: lineUserId,
     blueprint_type: blueprintType,
   };
+  if (extraPayload && typeof extraPayload === "object") {
+    Object.assign(payload, extraPayload);
+  }
   if (forceRegen) {
     payload.forceRegen = true;
     payload.force = true;
@@ -53,4 +62,48 @@ async function enqueueBlueprintGenerate({ env, lineUserId, blueprintType = "ligh
   return response;
 }
 
-module.exports = { enqueueBlueprintGenerate };
+async function enqueueBlueprintPdfGenerate({
+  env,
+  lineUserId,
+  blueprintType = "light",
+  forceRegen = false,
+  extraPayload = null,
+} = {}) {
+  if (!lineUserId) throw new Error("lineUserId is required");
+  const pdfUrl = env?.BLUEPRINT_PDF_WORKER_URL || env?.BLUEPRINT_WORKER_URL || env?.BLUEPRINT_GENERATE_URL || null;
+  const { project, location, queue, url, saEmail, token } = requireTasksEnv(env, { url: pdfUrl });
+  if (!url) throw new Error("tasks env missing");
+
+  const client = createTasksClient();
+  const parent = client.queuePath(project, location, queue);
+
+  const payload = {
+    line_user_id: lineUserId,
+    blueprint_type: blueprintType,
+  };
+  if (forceRegen) {
+    payload.forceRegen = true;
+    payload.force = true;
+  }
+  if (extraPayload && typeof extraPayload === "object") {
+    Object.assign(payload, extraPayload);
+  }
+
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["x-internal-tasks-token"] = token;
+
+  const task = {
+    httpRequest: {
+      httpMethod: "POST",
+      url,
+      headers,
+      body: Buffer.from(JSON.stringify(payload)).toString("base64"),
+      oidcToken: { serviceAccountEmail: saEmail },
+    },
+  };
+
+  const [response] = await client.createTask({ parent, task });
+  return response;
+}
+
+module.exports = { enqueueBlueprintGenerate, enqueueBlueprintPdfGenerate };

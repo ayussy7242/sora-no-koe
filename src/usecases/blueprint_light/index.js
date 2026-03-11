@@ -1,24 +1,33 @@
 "use strict";
 
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const { createNatalService } = require("../story/story_natal");
-const { generateBlueprintLightText } = require("./generate_text");
-const { renderPdfBuffer } = require("./pdf/render");
+const { generateBlueprintLightText, generateBlueprintLightTextV2 } = require("./generate_text");
+const { renderPdfBuffer } = require("../../engine/pdf/blueprint_light/render");
 const { createBlueprintLightStorage } = require("./storage");
 const { getBlueprintLightPaths } = require("./paths");
 const { getBlueprintLightManifest } = require("./manifest");
+const { buildBlueprintV25BgImages, buildStoryStub, BG_IMAGE_KEYS } = require("../../engine/pdf/blueprint_v25/backgrounds");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
 const {
   SIGN_KEYS,
   BODY_ORDER_MAIN,
   BODY_ORDER_EXTRA,
   BODY_LABEL,
   BODY_GLYPH,
-} = require("./shared");
+} = require("../../engine/pdf/blueprint_light/shared");
 
 function norm360(x) {
   const n = Number(x);
   if (!Number.isFinite(n)) return null;
   return ((n % 360) + 360) % 360;
+}
+
+function absAngularDistance(a, b) {
+  const d = Math.abs(norm360(a) - norm360(b));
+  return d > 180 ? 360 - d : d;
 }
 
 function toSignMeta(dict, lon) {
@@ -51,6 +60,53 @@ function formatSignPipe(meta) {
   if (!meta) return "";
   const mm = String(meta.min).padStart(2, "0");
   return `${meta.sign_ja}｜${meta.deg}°${mm}’`;
+}
+
+function buildBlueprintLightRows({ longitudes, dict }) {
+  const rowsMain = [];
+  const rowsAngles = [];
+  const rowsExtra = [];
+  const element = { fire: 0, earth: 0, air: 0, water: 0 };
+  const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+
+  const pushRow = (rows, key, lon, { count = false } = {}) => {
+    const meta = toSignMeta(dict, lon);
+    if (!meta) return;
+    rows.push({
+      key,
+      glyph: BODY_GLYPH[key] || "",
+      label: BODY_LABEL[key] || key,
+      value: formatSignText(meta),
+      meta,
+    });
+    if (count) {
+      if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
+      if (meta.modality && modality[meta.modality] !== undefined) modality[meta.modality] += 1;
+    }
+  };
+
+  BODY_ORDER_MAIN.forEach((k) => {
+    const lon = longitudes?.[k];
+    if (Number.isFinite(Number(lon))) pushRow(rowsMain, k, lon, { count: true });
+  });
+
+  const asc = longitudes?.asc;
+  const mc = longitudes?.mc;
+  const ic = Number.isFinite(Number(mc)) ? norm360(Number(mc) + 180) : null;
+  const dc = Number.isFinite(Number(asc)) ? norm360(Number(asc) + 180) : null;
+  if (Number.isFinite(Number(asc))) pushRow(rowsAngles, "asc", asc);
+  if (Number.isFinite(Number(mc))) pushRow(rowsAngles, "mc", mc);
+  if (Number.isFinite(Number(ic))) pushRow(rowsAngles, "ic", ic);
+  if (Number.isFinite(Number(dc))) pushRow(rowsAngles, "dc", dc);
+
+  BODY_ORDER_EXTRA.forEach((k) => {
+    const lon = longitudes?.[k];
+    if (!Number.isFinite(Number(lon))) return;
+    const count = k === "chiron" || k === "lilith";
+    pushRow(rowsExtra, k, lon, { count });
+  });
+
+  return { rowsMain, rowsAngles, rowsExtra, element, modality };
 }
 
 function buildBirthText(birth) {
@@ -781,7 +837,7 @@ function pickN(list, count, seed) {
   return chosen;
 }
 
-function buildKernelForItem({ key, sign, signKey, deg, label, elementBias, modalityBias, dict }) {
+function buildKernelForItem({ key, sign, signKey, deg, label, houseNo, elementBias, modalityBias, dict }) {
   const seed = hashString(`${key}|${sign}|${deg ?? ""}`);
   const phaseKey = pickDegreeBand(deg);
   const degreePhase = DEGREE_PHASE_MAP[phaseKey] || DEGREE_PHASE_MAP.P3;
@@ -847,6 +903,7 @@ function buildKernelForItem({ key, sign, signKey, deg, label, elementBias, modal
       sign_ja: sign || "",
       sign_key: signKey || "",
       deg: deg ?? null,
+      house_no: Number.isFinite(Number(houseNo)) ? Number(houseNo) : null,
     },
     function: functionWords,
     sign_trait: signTraits,
@@ -1028,11 +1085,134 @@ function buildModalityBiasTerms(balance) {
   return Array.from(new Set(terms.filter(Boolean)));
 }
 
-function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict }) {
+function buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) {
+  const ascRow = (rowsAngles || []).find((row) => row.key === "asc");
+  const ascKey = ascRow?.meta?.sign_key || "";
+  const ascIndex = signIndexFromKey(dict, ascKey);
+  if (!ascKey || ascIndex < 0) return null;
+
+  const counts = {};
+  const placements = [];
+  const rows = [...(rowsMain || []), ...(rowsExtra || [])];
+  rows.forEach((row) => {
+    const signKey = row?.meta?.sign_key || "";
+    if (!signKey) return;
+    const signIndex = signIndexFromKey(dict, signKey);
+    if (signIndex < 0) return;
+    const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+    if (!houseNo) return;
+    counts[houseNo] = (counts[houseNo] || 0) + 1;
+    placements.push({
+      key: row.key,
+      label: row.label,
+      house_no: houseNo,
+      sign_key: signKey,
+      sign_ja: row.meta?.sign_ja || "",
+    });
+  });
+
+  const sorted = Object.entries(counts)
+    .map(([houseNo, count]) => ({ house_no: Number(houseNo), count }))
+    .sort((a, b) => (b.count - a.count) || (a.house_no - b.house_no));
+  const emphasis = sorted.filter((row) => row.count >= 2).map((row) => row.house_no);
+  return {
+    asc_sign_key: ascKey,
+    asc_sign_ja: ascRow?.meta?.sign_ja || "",
+    counts,
+    top: sorted.slice(0, 3),
+    emphasis,
+    placements,
+  };
+}
+
+function buildMajorAspectDefs(dict) {
+  const major = dict?.ASPECTS?.major || {};
+  const orbRules = dict?.ORB_RULES_V1?.aspect_by_type || {};
+  const defaults = {
+    conjunction: { deg: 0, orb: 6.0 },
+    opposition: { deg: 180, orb: 6.0 },
+    square: { deg: 90, orb: 5.0 },
+    trine: { deg: 120, orb: 5.0 },
+    sextile: { deg: 60, orb: 4.5 },
+  };
+  const order = ["conjunction", "opposition", "square", "trine", "sextile"];
+  return order
+    .map((key) => {
+      const base = defaults[key] || {};
+      const aspect = major[key] || {};
+      const deg = Number.isFinite(Number(aspect.deg)) ? Number(aspect.deg) : base.deg;
+      const orb = Number.isFinite(Number(orbRules?.[key]?.orb_deg)) ? Number(orbRules[key].orb_deg) : base.orb;
+      if (!Number.isFinite(deg)) return null;
+      return { key, deg, orb, label_ja: aspect.label_ja || "" };
+    })
+    .filter(Boolean);
+}
+
+function buildNatalAspects({ longitudes, rowsMain, dict, max = 5 } = {}) {
+  if (!longitudes) return [];
+  const aspectDefs = buildMajorAspectDefs(dict);
+  if (!aspectDefs.length) return [];
+  const order = aspectDefs.map((d) => d.key);
+  const priority = new Map(order.map((key, idx) => [key, idx]));
+  const bodies = BODY_ORDER_MAIN.filter((k) => Number.isFinite(Number(longitudes[k])));
+  const signByKey = new Map((rowsMain || []).map((row) => [row.key, row.meta?.sign_ja || ""]));
+  const signKeyByKey = new Map((rowsMain || []).map((row) => [row.key, row.meta?.sign_key || ""]));
+  const labelByKey = new Map((rowsMain || []).map((row) => [row.key, row.label || ""]));
+  const out = [];
+
+  for (let i = 0; i < bodies.length; i += 1) {
+    for (let j = i + 1; j < bodies.length; j += 1) {
+      const aKey = bodies[i];
+      const bKey = bodies[j];
+      const lonA = Number(longitudes[aKey]);
+      const lonB = Number(longitudes[bKey]);
+      if (!Number.isFinite(lonA) || !Number.isFinite(lonB)) continue;
+      const dist = absAngularDistance(lonA, lonB);
+      let best = null;
+      for (const aspect of aspectDefs) {
+        const orb = Math.abs(dist - aspect.deg);
+        if (orb > aspect.orb) continue;
+        if (!best || orb < best.orb) {
+          best = {
+            a: aKey,
+            b: bKey,
+            type: aspect.key,
+            aspect_deg: aspect.deg,
+            orb_deg: Number(orb.toFixed(2)),
+          };
+        }
+      }
+      if (best) {
+        out.push({
+          ...best,
+          a_label: labelByKey.get(aKey) || aKey,
+          b_label: labelByKey.get(bKey) || bKey,
+          a_sign_ja: signByKey.get(aKey) || "",
+          b_sign_ja: signByKey.get(bKey) || "",
+          a_sign_key: signKeyByKey.get(aKey) || "",
+          b_sign_key: signKeyByKey.get(bKey) || "",
+        });
+      }
+    }
+  }
+
+  out.sort((a, b) => {
+    if (a.orb_deg !== b.orb_deg) return a.orb_deg - b.orb_deg;
+    const pa = priority.get(a.type) ?? 99;
+    const pb = priority.get(b.type) ?? 99;
+    return pa - pb;
+  });
+
+  return out.slice(0, max);
+}
+
+function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict, longitudes, identity }) {
   const elementKernel = buildElementKernel(element || {});
   const modalityKernel = buildModalityKernel(modality || {});
   const elementBiasTerms = buildElementBiasTerms(element || {});
   const modalityBiasTerms = buildModalityBiasTerms(modality || {});
+  const houseEmphasis = buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) || {};
+  const houseNoByKey = new Map((houseEmphasis.placements || []).map((row) => [row.key, row.house_no]));
 
   const bodies = rowsMain.map((row) => ({
     key: row.key,
@@ -1042,6 +1222,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
       sign: row.meta?.sign_ja || "",
       signKey: row.meta?.sign_key || "",
       deg: row.meta?.deg ?? null,
+      houseNo: houseNoByKey.get(row.key),
       elementBias: elementBiasTerms,
       modalityBias: modalityBiasTerms,
       dict,
@@ -1056,6 +1237,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
       sign: row.meta?.sign_ja || "",
       signKey: row.meta?.sign_key || "",
       deg: row.meta?.deg ?? null,
+      houseNo: houseNoByKey.get(row.key),
       elementBias: elementBiasTerms,
       modalityBias: modalityBiasTerms,
       dict,
@@ -1086,6 +1268,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
           sign: chironRow.meta?.sign_ja || "",
           signKey: chironRow.meta?.sign_key || "",
           deg: chironRow.meta?.deg ?? null,
+          houseNo: houseNoByKey.get("chiron"),
           elementBias: elementBiasTerms,
           modalityBias: modalityBiasTerms,
           dict,
@@ -1101,6 +1284,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
           sign: lilithRow.meta?.sign_ja || "",
           signKey: lilithRow.meta?.sign_key || "",
           deg: lilithRow.meta?.deg ?? null,
+          houseNo: houseNoByKey.get("lilith"),
           elementBias: elementBiasTerms,
           modalityBias: modalityBiasTerms,
           dict,
@@ -1117,6 +1301,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
             sign: southNodeRow.meta?.sign_ja || "",
             signKey: southNodeRow.meta?.sign_key || "",
             deg: southNodeRow.meta?.deg ?? null,
+            houseNo: houseNoByKey.get("south_node"),
             elementBias: elementBiasTerms,
             modalityBias: modalityBiasTerms,
             dict,
@@ -1132,6 +1317,7 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
             sign: northNodeRow.meta?.sign_ja || "",
             signKey: northNodeRow.meta?.sign_key || "",
             deg: northNodeRow.meta?.deg ?? null,
+            houseNo: houseNoByKey.get("north_node"),
             elementBias: elementBiasTerms,
             modalityBias: modalityBiasTerms,
             dict,
@@ -1140,17 +1326,26 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
         : null,
     },
     angles,
+    houses: houseEmphasis,
+    aspects: buildNatalAspects({ longitudes, rowsMain, dict, max: 5 }),
   };
 
   return {
     product: "blueprint_light_v1",
     tone: "静か・誠実・やわらかいが曖昧すぎない",
+    longitudes,
     rules: {
       no_prediction: true,
       no_advice: true,
       no_commands: true,
       no_fear: true,
       no_fortune: true,
+    },
+    identity: {
+      name: identity?.name || displayName || "",
+      birth_date: identity?.birth_date || "",
+      birth_time: identity?.birth_time || "",
+      birth_place: identity?.birth_place || "",
     },
     user: {
       display_name: displayName || "",
@@ -1282,7 +1477,12 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     return { ok: true, exists: !!result?.exists, filePath: result?.filePath || null };
   }
 
-  async function generateAndStore({ lineUserId, forceRegen = false, variant = "print" } = {}) {
+  async function generateAndStore({
+    lineUserId,
+    forceRegen = false,
+    variant = "print",
+    skipPdf = false,
+  } = {}) {
     if (!lineUserId) throw new Error("lineUserId is required");
     if (!bucketName || !bucket || !blueprintStorage) throw new Error("bucket not configured");
 
@@ -1316,48 +1516,13 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     const { ok, longitudes } = natalService.extractNatalLongitudes(natalCache);
     if (!ok) throw new Error("natal_cache invalid");
 
-    const rowsMain = [];
-    const rowsAngles = [];
-    const rowsExtra = [];
-    const element = { fire: 0, earth: 0, air: 0, water: 0 };
-    const modality = { cardinal: 0, fixed: 0, mutable: 0 };
-
-    const pushRow = (rows, key, lon, { count = false } = {}) => {
-      const meta = toSignMeta(dict, lon);
-      if (!meta) return;
-      rows.push({
-        key,
-        glyph: BODY_GLYPH[key] || "",
-        label: BODY_LABEL[key] || key,
-        value: formatSignText(meta),
-        meta,
-      });
-      if (count) {
-        if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
-        if (meta.modality && modality[meta.modality] !== undefined) modality[meta.modality] += 1;
-      }
-    };
-
-    BODY_ORDER_MAIN.forEach((k) => {
-      const lon = longitudes[k];
-      if (Number.isFinite(Number(lon))) pushRow(rowsMain, k, lon, { count: true });
-    });
-
-    const asc = longitudes.asc;
-    const mc = longitudes.mc;
-    const ic = Number.isFinite(Number(mc)) ? norm360(Number(mc) + 180) : null;
-    const dc = Number.isFinite(Number(asc)) ? norm360(Number(asc) + 180) : null;
-    if (Number.isFinite(Number(asc))) pushRow(rowsAngles, "asc", asc);
-    if (Number.isFinite(Number(mc))) pushRow(rowsAngles, "mc", mc);
-    if (Number.isFinite(Number(ic))) pushRow(rowsAngles, "ic", ic);
-    if (Number.isFinite(Number(dc))) pushRow(rowsAngles, "dc", dc);
-
-    BODY_ORDER_EXTRA.forEach((k) => {
-      const lon = longitudes[k];
-      if (!Number.isFinite(Number(lon))) return;
-      const count = k === "chiron" || k === "lilith";
-      pushRow(rowsExtra, k, lon, { count });
-    });
+    const {
+      rowsMain,
+      rowsAngles,
+      rowsExtra,
+      element,
+      modality,
+    } = buildBlueprintLightRows({ longitudes, dict });
 
     const titleForRow = (row) => {
       if (!row) return "";
@@ -1404,12 +1569,15 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
     const skipAi = toBool(env?.BLUEPRINT_SKIP_AI || process.env.BLUEPRINT_SKIP_AI || "");
     let aiData = null;
+    const useV25 = manifest?.version === "v25";
     if (skipAi) {
       if (jsonExists) {
         try {
           const download = await blueprintStorage.downloadJson(lineUserId);
           aiData = JSON.parse(String(download?.data || ""));
-          aiData = applyFactLinesToAiData(aiData, rowsMain, rowsExtra, rowsAngles);
+          if (!useV25) {
+            aiData = applyFactLinesToAiData(aiData, rowsMain, rowsExtra, rowsAngles);
+          }
           console.log("[blueprint] skip ai (cached json)", { file_path: filePath });
         } catch (e) {
           console.log("[blueprint] skip ai json parse failed", { error: e?.message || String(e) });
@@ -1423,22 +1591,50 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       try {
         const download = await blueprintStorage.downloadJson(lineUserId);
         aiData = JSON.parse(String(download?.data || ""));
-        aiData = applyFactLinesToAiData(aiData, rowsMain, rowsExtra, rowsAngles);
+        if (!useV25) {
+          aiData = applyFactLinesToAiData(aiData, rowsMain, rowsExtra, rowsAngles);
+        } else if (aiData?.version !== "blueprint_light_v2") {
+          aiData = null;
+        }
       } catch (e) {
         throw new Error(`json_parse_failed: ${e?.message || String(e)}`);
       }
-    } else {
-      const aiInput = buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict });
-      const aiRes = await generateBlueprintLightText({ env, input: aiInput });
+    }
+    if (!aiData) {
+      const aiIdentity = {
+        name: displayName || "",
+        birth_date: natalCache?.birth?.date_local || "",
+        birth_time: natalCache?.birth?.time_hm || "",
+        birth_place: natalCache?.birth?.place_text || natalCache?.birth?.place_formatted || "",
+      };
+      const aiInput = buildAiInput({
+        displayName,
+        rowsMain,
+        rowsAngles,
+        rowsExtra,
+        element,
+        modality,
+        dict,
+        longitudes,
+        identity: aiIdentity,
+      });
+      const aiRes = useV25
+        ? await generateBlueprintLightTextV2({ env, input: aiInput })
+        : await generateBlueprintLightText({ env, input: aiInput });
       if (!aiRes?.ok) {
         throw new Error(`ai_failed:${aiRes?.reason || "unknown"}`);
       }
-      aiData = applyFactLinesToAiData(aiRes.data, rowsMain, rowsExtra, rowsAngles);
+      aiData = useV25 ? aiRes.data : applyFactLinesToAiData(aiRes.data, rowsMain, rowsExtra, rowsAngles);
       await blueprintStorage.saveJson(lineUserId, JSON.stringify(aiData, null, 2));
     }
 
-    const mapped = aiData ? mapAiContent(aiData) : null;
+    const mapped = !useV25 && aiData ? mapAiContent(aiData) : null;
     const summary = mapped?.summary || null;
+
+    if (skipPdf) {
+      console.log("[blueprint] skip pdf generation", { file_path: filePath });
+      return { ok: true, filePath, skipped: false, skippedPdf: true };
+    }
 
     if (pdfExists && !shouldForceRegen) {
       console.log("[blueprint] generate skip (exists)", { file_path: filePath });
@@ -1503,6 +1699,38 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       row.fact_line = buildFactLine(row);
     });
 
+    let bgImages = null;
+    let story = null;
+    if (useV25 && variant === "mobile") {
+      const elementCounts = aiData?.master_chart?.element_balance || element;
+      const dateLabel = birthText || "";
+      story = buildStoryStub({ rowsMain, rowsExtra, elementCounts, dateLabel });
+      const bgDir = path.join(process.cwd(), "tmp", "blueprint_bg", lineUserId);
+      await buildBlueprintV25BgImages({
+        blueprint: aiData,
+        rowsMain,
+        rowsExtra,
+        elementCounts,
+        dateLabel,
+        outDir: bgDir,
+        inline: false,
+      });
+      const bgKeys = BG_IMAGE_KEYS;
+      const bgBuffers = {};
+      bgKeys.forEach((key) => {
+        const filePath = path.join(bgDir, `bg_${key}.png`);
+        if (fs.existsSync(filePath)) {
+          bgBuffers[key] = fs.readFileSync(filePath);
+        }
+      });
+      for (const key of bgKeys) {
+        const buf = bgBuffers[key];
+        if (buf) await blueprintStorage.saveBgImage(lineUserId, key, buf);
+      }
+      const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
+      if (signedBg?.ok && signedBg.urls) bgImages = signedBg.urls;
+    }
+
     const pdfBuffer = await renderPdfBuffer({
       manifest,
       displayName,
@@ -1513,6 +1741,9 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       summary,
       element,
       modality,
+      blueprintText: useV25 ? aiData : null,
+      bgImages,
+      story,
       bodyTextByKey: mapped?.bodyTextByKey,
       angleTextByKey: mapped?.angleTextByKey,
       chironText: mapped?.chironText,
@@ -1529,12 +1760,105 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     return { ok: true, filePath, skipped: false };
   }
 
+  async function renderPdfFromStoredJson({ lineUserId, variant = "mobile", forceRegen = false } = {}) {
+    if (!lineUserId) throw new Error("lineUserId is required");
+    if (!bucketName || !bucket || !blueprintStorage) throw new Error("bucket not configured");
+
+    const manifest = getBlueprintLightManifest({ variant });
+    const { pdfPath: filePath } = getBlueprintLightPaths(lineUserId, manifest.variant);
+    const pdfExistsResult = await blueprintStorage.existsPdf(lineUserId, variant);
+    const pdfExists = !!pdfExistsResult?.exists;
+    if (pdfExists && !forceRegen) {
+      return { ok: true, filePath, skipped: true };
+    }
+
+    const jsonExistsResult = await blueprintStorage.existsJson(lineUserId);
+    if (!jsonExistsResult?.exists) throw new Error("json_missing");
+    const download = await blueprintStorage.downloadJson(lineUserId);
+    const aiData = JSON.parse(String(download?.data || ""));
+
+    const lineUser = await getLineUser(lineUserId);
+    if (!lineUser) throw new Error("line user not found");
+    const appUserId = lineUser.app_user_id || null;
+    if (!appUserId) throw new Error("app_user_id missing");
+
+    const natalCache = await natalService.loadNatalFromcache(appUserId);
+    if (!natalCache) throw new Error("natal_cache missing");
+
+    const { ok, longitudes } = natalService.extractNatalLongitudes(natalCache);
+    if (!ok) throw new Error("natal_cache invalid");
+
+    const {
+      rowsMain,
+      rowsAngles,
+      rowsExtra,
+      element,
+      modality,
+    } = buildBlueprintLightRows({ longitudes, dict });
+
+    const birthText = buildBirthText(natalCache?.birth || {});
+    const displayName = lineUser?.line_profile?.display_name || "";
+
+    let bgImages = null;
+    let story = null;
+    const elementCounts = aiData?.master_chart?.element_balance || element;
+    const dateLabel = birthText || "";
+    story = buildStoryStub({ rowsMain, rowsExtra, elementCounts, dateLabel });
+    const bgDir = path.join(process.cwd(), "tmp", "blueprint_bg", lineUserId);
+    await buildBlueprintV25BgImages({
+      blueprint: aiData,
+      rowsMain,
+      rowsExtra,
+      elementCounts,
+      dateLabel,
+      outDir: bgDir,
+      inline: false,
+    });
+    const bgKeys = BG_IMAGE_KEYS;
+    const bgBuffers = {};
+    bgKeys.forEach((key) => {
+      const filePath = path.join(bgDir, `bg_${key}.png`);
+      if (fs.existsSync(filePath)) {
+        bgBuffers[key] = fs.readFileSync(filePath);
+      }
+    });
+    for (const key of bgKeys) {
+      const buf = bgBuffers[key];
+      if (buf) await blueprintStorage.saveBgImage(lineUserId, key, buf);
+    }
+    const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
+    if (signedBg?.ok && signedBg.urls) bgImages = signedBg.urls;
+
+    const pdfBuffer = await renderPdfBuffer({
+      manifest,
+      displayName,
+      birthText,
+      rowsMain,
+      rowsAngles,
+      rowsExtra,
+      summary: null,
+      element,
+      modality,
+      blueprintText: aiData,
+      bgImages,
+      story,
+    });
+
+    await blueprintStorage.savePdf(lineUserId, pdfBuffer, manifest.variant);
+    return { ok: true, filePath, skipped: false };
+  }
+
   return {
     hasPurchase,
     getOrCreateSignedUrl,
     hasPdf,
     generateAndStore,
+    renderPdfFromStoredJson,
   };
 }
 
-module.exports = { createBlueprintLightService };
+module.exports = {
+  createBlueprintLightService,
+  buildBlueprintLightRows,
+  buildAiInput,
+};

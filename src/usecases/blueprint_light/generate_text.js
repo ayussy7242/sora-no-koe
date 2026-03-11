@@ -3,8 +3,27 @@
 const { createChatCompletion } = require("../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT,
-  BLUEPRINT_LIGHT_USER_PROMPT_PREFIX,
+  BLUEPRINT_LIGHT_USER_PROMPT_TEMPLATE,
+  BLUEPRINT_LIGHT_V2_USER_PROMPT_TEMPLATE,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
 } = require("../../content/prompts/sora_ai_prompts");
+const {
+  buildMasterChartFromKernel,
+  writeMasterChartTmp,
+} = require("./build_master_chart");
+const {
+  getSysPageData,
+  getMapPageData,
+  getObsPageData,
+  getAnglesPageData,
+  getPlanetPageData,
+  getLayersPageData,
+  getDeepPageData,
+  getAspectPageData,
+  getPatternPageData,
+} = require("./page_extractors");
 
 const REQUIRED_BODY_KEYS = [
   "sun",
@@ -21,9 +40,41 @@ const REQUIRED_BODY_KEYS = [
 const REQUIRED_ANGLE_KEYS = ["asc", "mc", "ic", "dc"];
 
 const MAX_TOKENS_ALL_BATCH = 5000;
-const MIN_BODY_CHARS = 100;
+const MIN_BODY_CHARS = 80;
 const MIN_SUMMARY_CHARS = 0;
-const MIN_CLOSING_CHARS = 140;
+const MIN_CLOSING_CHARS = 90;
+const MIN_V2_CORE_CHARS = 220;
+const MIN_V2_DASH_ELEMENT_CHARS = 200;
+const MIN_V2_DASH_MODALITY_CHARS = 200;
+const MIN_V2_DASH_DOMINANT_CHARS = 90;
+const MIN_V2_DASH_HOUSE_CHARS = 90;
+const MIN_V2_DASH_DIST_CHARS = 140;
+const MIN_V2_DASH_FLOW_CHARS = 200;
+const MIN_V2_DASH_STRUCTURE_CHARS = 120;
+const MIN_V2_ROLE_LUM_CHARS = 20;
+const MIN_V2_ROLE_PERSONAL_CHARS = 15;
+const MIN_V2_ROLE_OUTER_CHARS = 12;
+const MIN_V2_LAYER_CORE_CHARS = 130;
+const MIN_V2_LAYER_PERSONAL_CHARS = 120;
+const MIN_V2_LAYER_COLLECTIVE_CHARS = 120;
+const MIN_V2_LAYER_FLOW_CHARS = 100;
+const MIN_V2_DEEP_NODES_CHARS = 30;
+const MIN_V2_DEEP_CHIRON_CHARS = 40;
+const MIN_V2_DEEP_LILITH_CHARS = 40;
+const MIN_V2_DEEP_PATTERN_CHARS = 50;
+const MIN_V2_NATAL_OBS_CHARS = 200;
+const MIN_V2_ANGLE_CHARS = 120;
+const MIN_V2_ANGLE_AXIS_CHARS = 160;
+const MIN_V2_ANGLE_INTRO_CHARS = 120;
+const MIN_V2_ASPECT_CHARS = 90;
+const MIN_V2_ASPECT_DYNAMICS_CHARS = 60;
+const MIN_V2_PATTERN_NAME_CHARS = 10;
+const MIN_V2_LIFE_DIRECTION_CHARS = 60;
+const MIN_V2_PATTERN_CHARS = 40;
+const MIN_V2_COSMIC_FOCUS_CHARS = 60;
+const MIN_V2_COSMIC_TRAITS_CHARS = 80;
+const MIN_V2_COSMIC_SIGNATURE_CHARS = 120;
+const MIN_V2_CLOSING_CHARS = 60;
 
 const HARD_BANNED_PATTERNS = [
   /あなた/,
@@ -142,6 +193,20 @@ function escapeNewlinesInJsonStrings(text) {
     out += ch;
   }
   return out;
+}
+
+function parseJsonWithRepair(text) {
+  if (!text) return { ok: false, error: "empty" };
+  try {
+    return { ok: true, data: JSON.parse(text) };
+  } catch (err) {
+    try {
+      const repaired = escapeNewlinesInJsonStrings(text);
+      return { ok: true, data: JSON.parse(repaired) };
+    } catch (err2) {
+      return { ok: false, error: err2?.message || String(err2) };
+    }
+  }
 }
 
 function normalizeParagraph(text) {
@@ -579,93 +644,59 @@ function buildSimpleBundle(input) {
         north: nodes?.north?.sign || "",
       },
     },
+    focus: {
+      dominant_signs: dominantSigns,
+      dominant_houses: (() => {
+        const houseCounts = input?.kernel?.houses?.counts || {};
+        return Object.entries(houseCounts)
+          .map(([house, count]) => ({ house: Number(house), count: Number(count) }))
+          .sort((a, b) => (b.count - a.count) || (a.house - b.house))
+          .slice(0, 3)
+          .map((row) => `${row.house}H`);
+      })(),
+      element_dominant: element?.dominant || [],
+      modality_dominant: modality?.dominant || [],
+      core_axis: {
+        sun: bodies.find((row) => row.key === "sun") || null,
+        moon: bodies.find((row) => row.key === "moon") || null,
+        asc: angles.find((row) => row.key === "asc") || null,
+      },
+    },
   };
 }
 
 function buildAllBatchPromptSimple({ input, retryNote = "" }) {
-  const header = `
-${BLUEPRINT_LIGHT_USER_PROMPT_PREFIX}
-
-以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
-出力JSONの形：
-{
-  "summary": { "element": "...", "modality": "..." },
-  "bodies": {
-    "sun": "...", "moon": "...", "mercury": "...", "venus": "...", "mars": "...",
-    "jupiter": "...", "saturn": "...", "uranus": "...", "neptune": "...", "pluto": "..."
-  },
-  "chiron": "...",
-  "lilith": "...",
-  "nodes": { "south": "...", "north": "..." },
-  "angles": { "asc": "...", "mc": "...", "ic": "...", "dc": "..." },
-  "closing_summary": "..."
-}
-
-========================
-まず最初に（ここだけ守れば勝つ）
-========================
-- ここは占いじゃない。未来を断言しない。指示もしない。吉凶もしない。
-- 新情報を足さない。INPUTにあるものだけで書く。
-- INPUTの sign / phase / element / modality は全部「材料」としてもう渡ってる前提。ちゃんと使う。
-- “意味”より先に入るものがある。まず「感触」「重さ」「気配」から書いていい。
-
-========================
-書き方の芯（温度）
-========================
-- 文章は「出来事の入り方」を描く。
-  1) 先に入るもの（最初に届く層 / 反応する層）
-  2) 後から来るもの（あとで言葉になる層 / 整う層）
-  3) 残り方（余韻 / 定着 / 消えにくさ）
-- この3つは **全項目に必須**。
-  ただし、毎回同じ言い回しは禁止。項目ごとに言い換える。
-- 分析っぽい説明で逃げない。体感の描写でいく。けど押しつけない（余白を残す）。
-
-========================
-言葉のNG（テンプレ化の元を切る）
-========================
-- 禁止語（本文に入れない）：
-  あなた／すべき／した方がいい／したほうがいい／しよう／必ず／確実／絶対／運命／使命
-- “分析語”に逃げない（本文に入れない）：
-  示唆／象徴／可能性／課題／促す／影響
-
-========================
-テンプレ禁止（ここ超大事）
-========================
-- 同じ文型の使い回し禁止（語尾・動詞・流れを毎回変える）。
-- 「A、B、C。」みたいな断片羅列は禁止。ちゃんと文として閉じる。
-- “安全な型”を連発しない。項目ごとに視点と動きを変える。
-- 1項目ごとに語感を変える（同じ動詞で始めない）。
-
-========================
-表記のルール（軽めに固定）
-========================
-- 星座名は各本文に **1回だけ** 入れる（列挙しない）。
-- 天体名・度数は任意。必要なら1回だけ使ってよい（数値の羅列は避ける）。
-
-========================
-項目ごとの書き方
-========================
-[summary]
-- counts_line は書かない（UI側で出る）。
-- 4~6文。
-- 要素／三区分の“手触り”を、そのまま書く。
-  ※「先に入る→後から来る→残り方」を summary にも入れてOK（むしろ強い）。
-
-[本文（bodies / chiron / lilith / nodes / angles）]
-- 各本文は 6〜10文、改行なし。
-- 必ず「先に入るもの／後から来るもの／残り方」を入れる（言い方は毎回変える）。
-- “断言”で閉じない。余白を残して終える。
-
-[closing_summary]
-- 上のJSON全部をまたいで、全体の“入り方”と“残り方”をまとめる。
-- 分析で閉じない。結論で断定しない。
-- 10行くらい。改行OK。
-
-`.trim();
+  const header = BLUEPRINT_LIGHT_USER_PROMPT_TEMPLATE;
 
   const payload = buildSimpleBundle(input);
   const note = retryNote ? `\n\n【追加指示】${retryNote}\n` : "";
   return `${header}${note}\nINPUT:\n${JSON.stringify(payload || {}, null, 2)}`;
+}
+
+function buildV2Bundle(input) {
+  const base = buildSimpleBundle(input);
+  const aspects = Array.isArray(input?.kernel?.aspects) ? input.kernel.aspects : [];
+  const houses = input?.kernel?.houses || null;
+  return {
+    ...base,
+    aspects,
+    houses,
+  };
+}
+
+function buildAllBatchPromptV2({ input, retryNote = "" }) {
+  const header = BLUEPRINT_LIGHT_V2_USER_PROMPT_TEMPLATE;
+  const payload = input?.page_payload ? input.page_payload : buildV2Bundle(input);
+  const note = retryNote ? `\n\n【追加指示】${retryNote}\n` : "";
+  return `${header}${note}\nINPUT:\n${JSON.stringify(payload || {}, null, 2)}`;
+}
+
+function buildAllBatchPromptV2Segment({ input, outputShape, retryNote = "", template }) {
+  const header = template || BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE;
+  const payload = input?.page_payload ? input.page_payload : buildV2Bundle(input);
+  const note = retryNote ? `\n\n【追加指示】${retryNote}\n` : "";
+  const shape = outputShape ? `\n\n出力JSONの形：\n${outputShape}\n` : "";
+  return `${header}${shape}${note}\nINPUT:\n${JSON.stringify(payload || {}, null, 2)}`;
 }
 
 async function generateAllBatchSimple({ apiKey, baseUrl, model, input, retryNote = "" }) {
@@ -684,15 +715,89 @@ async function generateAllBatchSimple({ apiKey, baseUrl, model, input, retryNote
   if (content === "__RETRY__") return { ok: false, reason: "retry" };
   const jsonText = extractJson(content);
   if (!jsonText) return { ok: false, reason: "json_extract_failed" };
-  let parsed = null;
+  const parsed = parseJsonWithRepair(jsonText);
+  if (!parsed.ok) return { ok: false, reason: "json_parse_failed", error: parsed.error };
+  if (!parsed.data || typeof parsed.data !== "object") return { ok: false, reason: "shape_invalid" };
+  return { ok: true, data: parsed.data };
+}
+
+function writeDebugJsonArtifacts({ content, jsonText, tag }) {
   try {
-    parsed = JSON.parse(jsonText);
-  } catch (err) {
-    const repaired = escapeNewlinesInJsonStrings(jsonText);
-    parsed = JSON.parse(repaired);
+    const fs = require("fs");
+    const safeTag = String(tag || "v2");
+    const base = `/tmp/blueprint_${safeTag}_${Date.now()}`;
+    fs.writeFileSync(`${base}_raw.txt`, String(content || ""));
+    if (jsonText) fs.writeFileSync(`${base}_json.txt`, String(jsonText));
+    return base;
+  } catch (_) {
+    return null;
   }
-  if (!parsed || typeof parsed !== "object") return { ok: false, reason: "shape_invalid" };
-  return { ok: true, data: parsed };
+}
+
+async function generateAllBatchV2({ apiKey, baseUrl, model, input, retryNote = "", debug = false, debugTag = "v2" }) {
+  const prompt = buildAllBatchPromptV2({ input, retryNote });
+  const content = await createChatCompletion({
+    apiKey,
+    baseUrl,
+    model,
+    messages: [
+      { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.9,
+    maxTokens: MAX_TOKENS_ALL_BATCH,
+  });
+  if (content === "__RETRY__") return { ok: false, reason: "retry" };
+  const jsonText = extractJson(content);
+  if (!jsonText) {
+    const debugPath = debug ? writeDebugJsonArtifacts({ content, jsonText: null, tag: `${debugTag}_extract` }) : null;
+    return { ok: false, reason: "json_extract_failed", debugPath };
+  }
+  const parsed = parseJsonWithRepair(jsonText);
+  if (!parsed.ok) {
+    const debugPath = debug ? writeDebugJsonArtifacts({ content, jsonText, tag: `${debugTag}_parse` }) : null;
+    return { ok: false, reason: "json_parse_failed", error: parsed.error, debugPath };
+  }
+  if (!parsed.data || typeof parsed.data !== "object") return { ok: false, reason: "shape_invalid" };
+  return { ok: true, data: parsed.data };
+}
+
+async function generateAllBatchV2Segment({
+  apiKey,
+  baseUrl,
+  model,
+  input,
+  outputShape,
+  retryNote = "",
+  template,
+  debug = false,
+  debugTag = "v2_segment",
+}) {
+  const prompt = buildAllBatchPromptV2Segment({ input, outputShape, retryNote, template });
+  const content = await createChatCompletion({
+    apiKey,
+    baseUrl,
+    model,
+    messages: [
+      { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.9,
+    maxTokens: MAX_TOKENS_ALL_BATCH,
+  });
+  if (content === "__RETRY__") return { ok: false, reason: "retry" };
+  const jsonText = extractJson(content);
+  if (!jsonText) {
+    const debugPath = debug ? writeDebugJsonArtifacts({ content, jsonText: null, tag: `${debugTag}_extract` }) : null;
+    return { ok: false, reason: "json_extract_failed", debugPath };
+  }
+  const parsed = parseJsonWithRepair(jsonText);
+  if (!parsed.ok) {
+    const debugPath = debug ? writeDebugJsonArtifacts({ content, jsonText, tag: `${debugTag}_parse` }) : null;
+    return { ok: false, reason: "json_parse_failed", error: parsed.error, debugPath };
+  }
+  if (!parsed.data || typeof parsed.data !== "object") return { ok: false, reason: "shape_invalid" };
+  return { ok: true, data: parsed.data };
 }
 
 function buildSummaryExampleLines(kernel, label = "") {
@@ -777,11 +882,11 @@ function normalizeSummaryText(text, kernel, label) {
   // 禁止語の除去は行わない（プロンプト側で禁止）
   out = out.replace(/モダリティ|モード/gi, "三区分");
   if (!out) return buildSummaryExampleText(kernel, label);
-  out = tidyConsolidatedText(out, { minSentences: 3, maxSentences: 6 });
+  out = tidyConsolidatedText(out, { minSentences: 3, maxSentences: 5 });
   return ensureCountsLine(out, kernel?.counts_line || "");
 }
 
-function normalizeClosingText(text, { minSentences = 4, maxSentences = 8, minChars = MIN_CLOSING_CHARS } = {}) {
+function normalizeClosingText(text, { minSentences = 3, maxSentences = 5, minChars = MIN_CLOSING_CHARS } = {}) {
   let out = normalizeParagraph(coerceText(text));
   if (!out) return "";
   // 禁止語の除去は行わない（プロンプト側で禁止）
@@ -827,7 +932,7 @@ function buildFallbackText(core, seedKey) {
   return `${lead}${order}${residue}`;
 }
 
-function normalizeSectionText(text, { minSentences = 3, maxSentences = 5, minChars = MIN_BODY_CHARS } = {}) {
+function normalizeSectionText(text, { minSentences = 2, maxSentences = 4, minChars = MIN_BODY_CHARS } = {}) {
   let out = normalizeParagraph(coerceText(text));
   if (!out) return "";
   // 禁止語の除去は行わない（プロンプト側で禁止）
@@ -836,6 +941,20 @@ function normalizeSectionText(text, { minSentences = 3, maxSentences = 5, minCha
   out = tidyConsolidatedText(out, { minSentences, maxSentences });
   if (isTooShort(out, minChars)) return out;
   return out;
+}
+
+function normalizeV2Text(text, { minSentences, maxSentences, minChars }) {
+  let out = normalizeParagraph(coerceText(text));
+  if (!out) return "";
+  out = out.replace(/モダリティ|モード/gi, "三区分");
+  if (!out) return "";
+  out = tidyConsolidatedText(out, { minSentences, maxSentences });
+  if (isTooShort(out, minChars)) return out;
+  return out;
+}
+
+function normalizeV2AspectText(text) {
+  return normalizeV2Text(text, { minSentences: 1, maxSentences: 2, minChars: MIN_V2_ASPECT_CHARS });
 }
 
 function hasAllRequiredKeys(source) {
@@ -852,8 +971,258 @@ function hasAllRequiredKeys(source) {
   const chironOk = typeof source?.chiron === "string" && source.chiron.trim();
   const lilithOk = typeof source?.lilith === "string" && source.lilith.trim();
   const summaryOk = typeof source?.summary?.element === "string" && typeof source?.summary?.modality === "string";
+  const natalOk = typeof source?.natal_observation === "string" && source.natal_observation.trim();
   const closingOk = typeof source?.closing_summary === "string" && source.closing_summary.trim();
   return bodiesOk && anglesOk && nodesOk && chironOk && lilithOk && summaryOk && closingOk;
+}
+
+function hasAllRequiredKeysV2(source) {
+  const dashboard = source?.dashboard || {};
+  const planetRoles = source?.planet_roles || {};
+  const systemLayers = source?.system_layers || {};
+  const deepAxis = source?.deep_axis || {};
+  const anglesV2 = source?.angles || {};
+  const aspectMap = Array.isArray(source?.aspect_map) ? source.aspect_map : [];
+
+  const coreOk = typeof source?.core_snapshot === "string" && source.core_snapshot.trim();
+  const dashboardOk =
+    typeof dashboard?.element_balance === "string" &&
+    typeof dashboard?.modality_balance === "string" &&
+    typeof dashboard?.dominant_signs === "string" &&
+    typeof dashboard?.dominant_houses === "string" &&
+    typeof dashboard?.planet_distribution === "string" &&
+    typeof dashboard?.energy_flow === "string" &&
+    typeof dashboard?.cosmic_structure === "string";
+  const rolesOk =
+    typeof planetRoles?.sun === "string" &&
+    typeof planetRoles?.moon === "string" &&
+    typeof planetRoles?.mercury === "string" &&
+    typeof planetRoles?.venus === "string" &&
+    typeof planetRoles?.mars === "string" &&
+    typeof planetRoles?.jupiter === "string" &&
+    typeof planetRoles?.saturn === "string" &&
+    typeof planetRoles?.uranus === "string" &&
+    typeof planetRoles?.neptune === "string" &&
+    typeof planetRoles?.pluto === "string";
+  const systemOk =
+    typeof systemLayers?.core === "string" &&
+    typeof systemLayers?.personal === "string" &&
+    typeof systemLayers?.collective === "string" &&
+    typeof systemLayers?.flow === "string";
+  const deepOk =
+    typeof deepAxis?.nodes === "string" &&
+    typeof deepAxis?.chiron === "string" &&
+    typeof deepAxis?.lilith === "string" &&
+    typeof deepAxis?.pattern === "string";
+  const anglesOk =
+    typeof anglesV2?.intro === "string" &&
+    typeof anglesV2?.asc === "string" &&
+    typeof anglesV2?.mc === "string" &&
+    typeof anglesV2?.ic === "string" &&
+    typeof anglesV2?.dc === "string" &&
+    typeof (anglesV2?.axis_structure || anglesV2?.axis_summary) === "string";
+  const aspectOk = aspectMap.length >= 1 && aspectMap.every((row) => typeof row?.text === "string");
+  const aspectDynamicsOk = typeof source?.aspect_dynamics === "string" && source.aspect_dynamics.trim();
+  const patternNameOk = typeof source?.pattern_name === "string" && source.pattern_name.trim();
+  const cosmicFocusOk = typeof source?.cosmic_focus === "string" && source.cosmic_focus.trim();
+  const cosmicTraitsOk = typeof source?.cosmic_traits === "string" && source.cosmic_traits.trim();
+  const cosmicSignatureOk = typeof source?.cosmic_signature === "string" && source.cosmic_signature.trim();
+  const patternOk = typeof source?.chart_pattern === "string" && source.chart_pattern.trim();
+  const lifeDirectionOk = typeof source?.life_direction === "string" && source.life_direction.trim();
+  const natalOk = typeof source?.natal_observation === "string" && source.natal_observation.trim();
+  const closingOk = typeof source?.closing_summary === "string" && source.closing_summary.trim();
+  return (
+    coreOk &&
+    dashboardOk &&
+    rolesOk &&
+    systemOk &&
+    deepOk &&
+    anglesOk &&
+    aspectOk &&
+    aspectDynamicsOk &&
+    patternNameOk &&
+    cosmicFocusOk &&
+    cosmicTraitsOk &&
+    cosmicSignatureOk &&
+    patternOk &&
+    lifeDirectionOk &&
+    natalOk &&
+    closingOk
+  );
+}
+
+function hasTooShortSectionsV2(source) {
+  if (!source || typeof source !== "object") return true;
+  const dashboard = source?.dashboard || {};
+  const planetRoles = source?.planet_roles || {};
+  const systemLayers = source?.system_layers || {};
+  const deepAxis = source?.deep_axis || {};
+  const angles = source?.angles || {};
+  const aspectMap = Array.isArray(source?.aspect_map) ? source.aspect_map : [];
+
+  const checks = [
+    { text: source?.core_snapshot, min: MIN_V2_CORE_CHARS },
+    { text: dashboard?.element_balance, min: MIN_V2_DASH_ELEMENT_CHARS },
+    { text: dashboard?.modality_balance, min: MIN_V2_DASH_MODALITY_CHARS },
+    { text: dashboard?.dominant_signs, min: MIN_V2_DASH_DOMINANT_CHARS },
+    { text: dashboard?.dominant_houses, min: MIN_V2_DASH_HOUSE_CHARS },
+    { text: dashboard?.planet_distribution, min: MIN_V2_DASH_DIST_CHARS },
+    { text: dashboard?.energy_flow, min: MIN_V2_DASH_FLOW_CHARS },
+    { text: dashboard?.cosmic_structure, min: MIN_V2_DASH_STRUCTURE_CHARS },
+    { text: planetRoles?.sun, min: MIN_V2_ROLE_LUM_CHARS },
+    { text: planetRoles?.moon, min: MIN_V2_ROLE_LUM_CHARS },
+    { text: planetRoles?.mercury, min: MIN_V2_ROLE_PERSONAL_CHARS },
+    { text: planetRoles?.venus, min: MIN_V2_ROLE_PERSONAL_CHARS },
+    { text: planetRoles?.mars, min: MIN_V2_ROLE_PERSONAL_CHARS },
+    { text: planetRoles?.jupiter, min: MIN_V2_ROLE_OUTER_CHARS },
+    { text: planetRoles?.saturn, min: MIN_V2_ROLE_OUTER_CHARS },
+    { text: planetRoles?.uranus, min: MIN_V2_ROLE_OUTER_CHARS },
+    { text: planetRoles?.neptune, min: MIN_V2_ROLE_OUTER_CHARS },
+    { text: planetRoles?.pluto, min: MIN_V2_ROLE_OUTER_CHARS },
+    { text: systemLayers?.core, min: MIN_V2_LAYER_CORE_CHARS },
+    { text: systemLayers?.personal, min: MIN_V2_LAYER_PERSONAL_CHARS },
+    { text: systemLayers?.collective, min: MIN_V2_LAYER_COLLECTIVE_CHARS },
+    { text: systemLayers?.flow, min: MIN_V2_LAYER_FLOW_CHARS },
+    { text: deepAxis?.nodes, min: MIN_V2_DEEP_NODES_CHARS },
+    { text: deepAxis?.chiron, min: MIN_V2_DEEP_CHIRON_CHARS },
+    { text: deepAxis?.lilith, min: MIN_V2_DEEP_LILITH_CHARS },
+    { text: deepAxis?.pattern, min: MIN_V2_DEEP_PATTERN_CHARS },
+    { text: angles?.intro, min: MIN_V2_ANGLE_INTRO_CHARS },
+    { text: angles?.asc, min: MIN_V2_ANGLE_CHARS },
+    { text: angles?.mc, min: MIN_V2_ANGLE_CHARS },
+    { text: angles?.ic, min: MIN_V2_ANGLE_CHARS },
+    { text: angles?.dc, min: MIN_V2_ANGLE_CHARS },
+    { text: angles?.axis_structure || angles?.axis_summary, min: MIN_V2_ANGLE_AXIS_CHARS },
+    { text: source?.aspect_dynamics, min: MIN_V2_ASPECT_DYNAMICS_CHARS },
+    { text: source?.pattern_name, min: MIN_V2_PATTERN_NAME_CHARS },
+    { text: source?.cosmic_focus, min: MIN_V2_COSMIC_FOCUS_CHARS },
+    { text: source?.cosmic_traits, min: MIN_V2_COSMIC_TRAITS_CHARS },
+    { text: source?.cosmic_signature, min: MIN_V2_COSMIC_SIGNATURE_CHARS },
+    { text: source?.chart_pattern, min: MIN_V2_PATTERN_CHARS },
+    { text: source?.life_direction, min: MIN_V2_LIFE_DIRECTION_CHARS },
+    { text: source?.natal_observation, min: MIN_V2_NATAL_OBS_CHARS },
+    { text: source?.closing_summary, min: MIN_V2_CLOSING_CHARS },
+  ];
+
+  const tooShort = checks.some((row) => isTooShort(row.text, row.min));
+  if (tooShort) return true;
+
+  if (aspectMap.length < 1) return true;
+  return aspectMap.some((row) => isTooShort(row?.text, MIN_V2_ASPECT_CHARS));
+}
+
+function collectV2ValidationIssues(source) {
+  const issues = { missing: [], tooShort: [], aspectCount: null };
+  if (!source || typeof source !== "object") {
+    issues.missing.push("source");
+    return issues;
+  }
+  const dashboard = source?.dashboard || {};
+  const planetRoles = source?.planet_roles || {};
+  const systemLayers = source?.system_layers || {};
+  const deepAxis = source?.deep_axis || {};
+  const angles = source?.angles || {};
+  const aspectMap = Array.isArray(source?.aspect_map) ? source.aspect_map : [];
+
+  const requireText = (key, value) => {
+    if (typeof value !== "string" || !value.trim()) issues.missing.push(key);
+  };
+  requireText("core_snapshot", source?.core_snapshot);
+  requireText("dashboard.element_balance", dashboard?.element_balance);
+  requireText("dashboard.modality_balance", dashboard?.modality_balance);
+  requireText("dashboard.dominant_signs", dashboard?.dominant_signs);
+  requireText("dashboard.dominant_houses", dashboard?.dominant_houses);
+  requireText("dashboard.planet_distribution", dashboard?.planet_distribution);
+  requireText("dashboard.energy_flow", dashboard?.energy_flow);
+  requireText("dashboard.cosmic_structure", dashboard?.cosmic_structure);
+  requireText("planet_roles.sun", planetRoles?.sun);
+  requireText("planet_roles.moon", planetRoles?.moon);
+  requireText("planet_roles.mercury", planetRoles?.mercury);
+  requireText("planet_roles.venus", planetRoles?.venus);
+  requireText("planet_roles.mars", planetRoles?.mars);
+  requireText("planet_roles.jupiter", planetRoles?.jupiter);
+  requireText("planet_roles.saturn", planetRoles?.saturn);
+  requireText("planet_roles.uranus", planetRoles?.uranus);
+  requireText("planet_roles.neptune", planetRoles?.neptune);
+  requireText("planet_roles.pluto", planetRoles?.pluto);
+  requireText("system_layers.core", systemLayers?.core);
+  requireText("system_layers.personal", systemLayers?.personal);
+  requireText("system_layers.collective", systemLayers?.collective);
+  requireText("system_layers.flow", systemLayers?.flow);
+  requireText("deep_axis.nodes", deepAxis?.nodes);
+  requireText("deep_axis.chiron", deepAxis?.chiron);
+  requireText("deep_axis.lilith", deepAxis?.lilith);
+  requireText("deep_axis.pattern", deepAxis?.pattern);
+  requireText("angles.asc", angles?.asc);
+  requireText("angles.mc", angles?.mc);
+  requireText("angles.ic", angles?.ic);
+  requireText("angles.dc", angles?.dc);
+  requireText("angles.axis_structure", angles?.axis_structure || angles?.axis_summary);
+  requireText("angles.intro", angles?.intro);
+  requireText("aspect_dynamics", source?.aspect_dynamics);
+  requireText("pattern_name", source?.pattern_name);
+  requireText("cosmic_focus", source?.cosmic_focus);
+  requireText("cosmic_traits", source?.cosmic_traits);
+  requireText("cosmic_signature", source?.cosmic_signature);
+  requireText("chart_pattern", source?.chart_pattern);
+  requireText("life_direction", source?.life_direction);
+  requireText("natal_observation", source?.natal_observation);
+  requireText("closing_summary", source?.closing_summary);
+
+  const checkShort = (key, value, minChars) => {
+    if (isTooShort(value, minChars)) issues.tooShort.push(key);
+  };
+  checkShort("core_snapshot", source?.core_snapshot, MIN_V2_CORE_CHARS);
+  checkShort("dashboard.element_balance", dashboard?.element_balance, MIN_V2_DASH_ELEMENT_CHARS);
+  checkShort("dashboard.modality_balance", dashboard?.modality_balance, MIN_V2_DASH_MODALITY_CHARS);
+  checkShort("dashboard.dominant_signs", dashboard?.dominant_signs, MIN_V2_DASH_DOMINANT_CHARS);
+  checkShort("dashboard.dominant_houses", dashboard?.dominant_houses, MIN_V2_DASH_HOUSE_CHARS);
+  checkShort("dashboard.planet_distribution", dashboard?.planet_distribution, MIN_V2_DASH_DIST_CHARS);
+  checkShort("dashboard.energy_flow", dashboard?.energy_flow, MIN_V2_DASH_FLOW_CHARS);
+  checkShort("dashboard.cosmic_structure", dashboard?.cosmic_structure, MIN_V2_DASH_STRUCTURE_CHARS);
+  checkShort("planet_roles.sun", planetRoles?.sun, MIN_V2_ROLE_LUM_CHARS);
+  checkShort("planet_roles.moon", planetRoles?.moon, MIN_V2_ROLE_LUM_CHARS);
+  checkShort("planet_roles.mercury", planetRoles?.mercury, MIN_V2_ROLE_PERSONAL_CHARS);
+  checkShort("planet_roles.venus", planetRoles?.venus, MIN_V2_ROLE_PERSONAL_CHARS);
+  checkShort("planet_roles.mars", planetRoles?.mars, MIN_V2_ROLE_PERSONAL_CHARS);
+  checkShort("planet_roles.jupiter", planetRoles?.jupiter, MIN_V2_ROLE_OUTER_CHARS);
+  checkShort("planet_roles.saturn", planetRoles?.saturn, MIN_V2_ROLE_OUTER_CHARS);
+  checkShort("planet_roles.uranus", planetRoles?.uranus, MIN_V2_ROLE_OUTER_CHARS);
+  checkShort("planet_roles.neptune", planetRoles?.neptune, MIN_V2_ROLE_OUTER_CHARS);
+  checkShort("planet_roles.pluto", planetRoles?.pluto, MIN_V2_ROLE_OUTER_CHARS);
+  checkShort("system_layers.core", systemLayers?.core, MIN_V2_LAYER_CORE_CHARS);
+  checkShort("system_layers.personal", systemLayers?.personal, MIN_V2_LAYER_PERSONAL_CHARS);
+  checkShort("system_layers.collective", systemLayers?.collective, MIN_V2_LAYER_COLLECTIVE_CHARS);
+  checkShort("system_layers.flow", systemLayers?.flow, MIN_V2_LAYER_FLOW_CHARS);
+  checkShort("deep_axis.nodes", deepAxis?.nodes, MIN_V2_DEEP_NODES_CHARS);
+  checkShort("deep_axis.chiron", deepAxis?.chiron, MIN_V2_DEEP_CHIRON_CHARS);
+  checkShort("deep_axis.lilith", deepAxis?.lilith, MIN_V2_DEEP_LILITH_CHARS);
+  checkShort("deep_axis.pattern", deepAxis?.pattern, MIN_V2_DEEP_PATTERN_CHARS);
+  checkShort("angles.asc", angles?.asc, MIN_V2_ANGLE_CHARS);
+  checkShort("angles.mc", angles?.mc, MIN_V2_ANGLE_CHARS);
+  checkShort("angles.ic", angles?.ic, MIN_V2_ANGLE_CHARS);
+  checkShort("angles.dc", angles?.dc, MIN_V2_ANGLE_CHARS);
+  checkShort("angles.axis_structure", angles?.axis_structure || angles?.axis_summary, MIN_V2_ANGLE_AXIS_CHARS);
+  checkShort("angles.intro", angles?.intro, MIN_V2_ANGLE_INTRO_CHARS);
+  checkShort("aspect_dynamics", source?.aspect_dynamics, MIN_V2_ASPECT_DYNAMICS_CHARS);
+  checkShort("pattern_name", source?.pattern_name, MIN_V2_PATTERN_NAME_CHARS);
+  checkShort("cosmic_focus", source?.cosmic_focus, MIN_V2_COSMIC_FOCUS_CHARS);
+  checkShort("cosmic_traits", source?.cosmic_traits, MIN_V2_COSMIC_TRAITS_CHARS);
+  checkShort("cosmic_signature", source?.cosmic_signature, MIN_V2_COSMIC_SIGNATURE_CHARS);
+  checkShort("chart_pattern", source?.chart_pattern, MIN_V2_PATTERN_CHARS);
+  checkShort("life_direction", source?.life_direction, MIN_V2_LIFE_DIRECTION_CHARS);
+  checkShort("natal_observation", source?.natal_observation, MIN_V2_NATAL_OBS_CHARS);
+  checkShort("closing_summary", source?.closing_summary, MIN_V2_CLOSING_CHARS);
+
+  issues.aspectCount = aspectMap.length;
+  if (aspectMap.length < 3) issues.tooShort.push("aspect_map.count");
+  aspectMap.forEach((row, idx) => {
+    if (isTooShort(row?.text, MIN_V2_ASPECT_CHARS)) {
+      issues.tooShort.push(`aspect_map[${idx}].text`);
+    }
+  });
+
+  return issues;
 }
 
 async function generateBlueprintLightText({ env, input }) {
@@ -887,7 +1256,7 @@ async function generateBlueprintLightText({ env, input }) {
       model,
       input,
       retryNote:
-        `各項目で動詞と語感を変える。sign/phase/element/modality のどれかを必ず1回入れる。文型の使い回しは禁止。${repeatedNote}`,
+        `各項目で動詞と語感を変える。sign/phase/element/modality は必要な範囲で1回入れてよい。文型の使い回しは禁止。${repeatedNote}`,
     });
   }
   if (batch?.ok && hasAllRequiredKeys(batch.data)) {
@@ -916,16 +1285,6 @@ async function generateBlueprintLightText({ env, input }) {
       });
     }
   }
-  if (batch?.ok && hasAllRequiredKeys(batch.data) && hasMissingSigns(batch.data, input)) {
-    batch = await generateAllBatchSimple({
-      apiKey,
-      baseUrl,
-      model,
-      input,
-      retryNote:
-        "各本文にその項目の星座名を必ず1回入れる。星座名が入っていない本文は不正。",
-    });
-  }
   if (batch?.ok && hasAllRequiredKeys(batch.data) && hasTemplateReuse(batch.data)) {
     batch = await generateAllBatchSimple({
       apiKey,
@@ -933,7 +1292,7 @@ async function generateBlueprintLightText({ env, input }) {
       model,
       input,
       retryNote:
-        "テンプレの再利用は禁止。各本文は固有の語彙で書く。sign/phase/element/modality を必ず1回入れる。",
+        "テンプレの再利用は禁止。各本文は固有の語彙で書く。sign/phase/element/modality は必要な範囲で1回入れてよい。",
     });
   }
   if (batch?.ok && hasAllRequiredKeys(batch.data) && hasTooShortSections(batch.data)) {
@@ -943,7 +1302,7 @@ async function generateBlueprintLightText({ env, input }) {
       model,
       input,
       retryNote:
-        "短すぎるので厚みを足す。各本文は3〜5文、120〜200字を目安にする。断片の羅列は禁止。",
+        "短すぎるので厚みを足す。各本文は2〜4文、80〜180字を目安にする。断片の羅列は禁止。",
     });
   }
   if (!batch?.ok) return { ok: false, reason: batch.reason || "ai_failed" };
@@ -1058,6 +1417,421 @@ async function generateBlueprintLightText({ env, input }) {
   return { ok: true, data };
 }
 
+async function generateBlueprintLightTextV2({ env, input }) {
+  const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
+  if (!apiKey) return { ok: false, reason: "no_api_key" };
+  const model =
+    env?.OPENAI_MODEL_BLUEPRINT_LIGHT ||
+    process.env.OPENAI_MODEL_BLUEPRINT_LIGHT ||
+    "gpt-4o";
+  const baseUrl = process.env.OPENAI_BASE_URL || env?.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const debug = String(env?.BLUEPRINT_DEBUG_JSON || process.env.BLUEPRINT_DEBUG_JSON || "") === "1";
+  const kernel = input?.kernel || {};
+  const slug =
+    input?.slug ||
+    input?.line_user_id ||
+    input?.userId ||
+    input?.user_id ||
+    "local";
+  const identity = input?.identity || input?.profile || {};
+
+  const masterChart = buildMasterChartFromKernel(kernel, input?.longitudes || null);
+  const masterPath = writeMasterChartTmp(slug, masterChart);
+
+  const sysData = getSysPageData(masterChart, identity);
+  const mapData = getMapPageData(masterChart);
+  const obsData = getObsPageData(masterChart);
+  const anglesData = getAnglesPageData(masterChart);
+  const planetData = getPlanetPageData(masterChart);
+  const layersData = getLayersPageData(masterChart);
+  const deepData = getDeepPageData(masterChart);
+  const aspectData = getAspectPageData(masterChart);
+  const patternData = getPatternPageData(masterChart);
+
+  const corePayload = {
+    page: "CORE",
+    sys: sysData,
+    map: mapData,
+    obs: obsData,
+    pattern: patternData,
+  };
+  const rolesPayload = {
+    page: "ROLES",
+    planets: planetData,
+    layers: layersData,
+    deep: deepData,
+    angles: anglesData?.angles || {},
+  };
+  const aspectsPayload = {
+    page: "ASPECTS",
+    aspects: aspectData,
+  };
+
+  const shapeCore = `{
+  "core_snapshot": "...",
+  "dashboard": {
+    "element_balance": "...",
+    "modality_balance": "...",
+    "dominant_signs": "...",
+    "dominant_houses": "...",
+    "planet_distribution": "...",
+    "energy_flow": "...",
+    "cosmic_structure": "..."
+  },
+  "pattern_name": "...",
+  "cosmic_focus": "...",
+  "cosmic_traits": "...",
+  "cosmic_signature": "...",
+  "natal_observation": "...",
+  "chart_pattern": "...",
+  "life_direction": "...",
+  "closing_summary": "..."
+}`;
+  const shapeRoles = `{
+  "planet_roles": {
+    "sun": "...",
+    "moon": "...",
+    "mercury": "...",
+    "venus": "...",
+    "mars": "...",
+    "jupiter": "...",
+    "saturn": "...",
+    "uranus": "...",
+    "neptune": "...",
+    "pluto": "..."
+  },
+  "system_layers": {
+    "core": "...",
+    "personal": "...",
+    "collective": "...",
+    "flow": "..."
+  },
+  "deep_axis": {
+    "nodes": "...",
+    "chiron": "...",
+    "lilith": "...",
+    "pattern": "..."
+  },
+  "angles": {
+    "intro": "...",
+    "asc": "...",
+    "mc": "...",
+    "ic": "...",
+    "dc": "...",
+    "axis_structure": "..."
+  }
+}`;
+  const shapeAspects = `{
+  "aspect_map": [
+    { "key": "aspect_1", "text": "..." },
+    { "key": "aspect_2", "text": "..." },
+    { "key": "aspect_3", "text": "..." }
+  ],
+  "aspect_dynamics": "..."
+}`;
+
+  const segment1 = await generateAllBatchV2Segment({
+    apiKey,
+    baseUrl,
+    model,
+    input: { page_payload: corePayload },
+    outputShape: shapeCore,
+    template: BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
+    retryNote: "出力は厳密なJSONのみ。末尾カンマ禁止。ダブルクォートのみ。",
+    debug,
+    debugTag: "v2_seg_core",
+  });
+  if (!segment1?.ok) return { ok: false, reason: segment1.reason || "ai_failed", debugPath: segment1.debugPath };
+
+  const segment2 = await generateAllBatchV2Segment({
+    apiKey,
+    baseUrl,
+    model,
+    input: { page_payload: rolesPayload },
+    outputShape: shapeRoles,
+    template: BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
+    retryNote: "出力は厳密なJSONのみ。末尾カンマ禁止。ダブルクォートのみ。",
+    debug,
+    debugTag: "v2_seg_roles",
+  });
+  if (!segment2?.ok) return { ok: false, reason: segment2.reason || "ai_failed", debugPath: segment2.debugPath };
+
+  const segment3 = await generateAllBatchV2Segment({
+    apiKey,
+    baseUrl,
+    model,
+    input: { page_payload: aspectsPayload },
+    outputShape: shapeAspects,
+    template: BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
+    retryNote: "出力は厳密なJSONのみ。末尾カンマ禁止。ダブルクォートのみ。",
+    debug,
+    debugTag: "v2_seg_aspects",
+  });
+  if (!segment3?.ok) return { ok: false, reason: segment3.reason || "ai_failed", debugPath: segment3.debugPath };
+
+  const source = {
+    ...(segment1.data || {}),
+    ...(segment2.data || {}),
+    ...(segment3.data || {}),
+  };
+  const dashboard = source?.dashboard || {};
+  const planetRoles = source?.planet_roles || {};
+  const systemLayers = source?.system_layers || {};
+  const deepAxis = source?.deep_axis || {};
+  const angles = source?.angles || {};
+  const aspectMap = Array.isArray(source?.aspect_map) ? source.aspect_map : [];
+
+  const data = {
+    version: "blueprint_light_v2",
+    core_snapshot: normalizeV2Text(source?.core_snapshot || "", {
+      minSentences: 3,
+      maxSentences: 5,
+      minChars: MIN_V2_CORE_CHARS,
+    }),
+    dashboard: {
+      element_balance: normalizeV2Text(dashboard?.element_balance || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DASH_ELEMENT_CHARS,
+      }),
+      modality_balance: normalizeV2Text(dashboard?.modality_balance || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DASH_MODALITY_CHARS,
+      }),
+      dominant_signs: normalizeV2Text(dashboard?.dominant_signs || "", {
+        minSentences: 1,
+        maxSentences: 3,
+        minChars: MIN_V2_DASH_DOMINANT_CHARS,
+      }),
+      dominant_houses: normalizeV2Text(dashboard?.dominant_houses || "", {
+        minSentences: 1,
+        maxSentences: 3,
+        minChars: MIN_V2_DASH_HOUSE_CHARS,
+      }),
+      planet_distribution: normalizeV2Text(dashboard?.planet_distribution || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DASH_DIST_CHARS,
+      }),
+      energy_flow: normalizeV2Text(dashboard?.energy_flow || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DASH_FLOW_CHARS,
+      }),
+      cosmic_structure: normalizeV2Text(dashboard?.cosmic_structure || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_DASH_STRUCTURE_CHARS,
+      }),
+    },
+    planet_roles: {
+      sun: normalizeV2Text(planetRoles?.sun || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_LUM_CHARS,
+      }),
+      moon: normalizeV2Text(planetRoles?.moon || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_LUM_CHARS,
+      }),
+      mercury: normalizeV2Text(planetRoles?.mercury || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+      }),
+      venus: normalizeV2Text(planetRoles?.venus || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+      }),
+      mars: normalizeV2Text(planetRoles?.mars || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_PERSONAL_CHARS,
+      }),
+      jupiter: normalizeV2Text(planetRoles?.jupiter || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_OUTER_CHARS,
+      }),
+      saturn: normalizeV2Text(planetRoles?.saturn || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_OUTER_CHARS,
+      }),
+      uranus: normalizeV2Text(planetRoles?.uranus || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_OUTER_CHARS,
+      }),
+      neptune: normalizeV2Text(planetRoles?.neptune || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_OUTER_CHARS,
+      }),
+      pluto: normalizeV2Text(planetRoles?.pluto || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ROLE_OUTER_CHARS,
+      }),
+    },
+    system_layers: {
+      core: normalizeV2Text(systemLayers?.core || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_LAYER_CORE_CHARS,
+      }),
+      personal: normalizeV2Text(systemLayers?.personal || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_LAYER_PERSONAL_CHARS,
+      }),
+      collective: normalizeV2Text(systemLayers?.collective || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_LAYER_COLLECTIVE_CHARS,
+      }),
+      flow: normalizeV2Text(systemLayers?.flow || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_LAYER_FLOW_CHARS,
+      }),
+    },
+    deep_axis: {
+      nodes: normalizeV2Text(deepAxis?.nodes || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DEEP_NODES_CHARS,
+      }),
+      chiron: normalizeV2Text(deepAxis?.chiron || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DEEP_CHIRON_CHARS,
+      }),
+      lilith: normalizeV2Text(deepAxis?.lilith || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_DEEP_LILITH_CHARS,
+      }),
+      pattern: normalizeV2Text(deepAxis?.pattern || "", {
+        minSentences: 3,
+        maxSentences: 5,
+        minChars: MIN_V2_DEEP_PATTERN_CHARS,
+      }),
+    },
+    angles: {
+      intro: normalizeV2Text(angles?.intro || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ANGLE_INTRO_CHARS,
+      }),
+      asc: normalizeV2Text(angles?.asc || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ANGLE_CHARS,
+      }),
+      mc: normalizeV2Text(angles?.mc || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ANGLE_CHARS,
+      }),
+      ic: normalizeV2Text(angles?.ic || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ANGLE_CHARS,
+      }),
+      dc: normalizeV2Text(angles?.dc || "", {
+        minSentences: 2,
+        maxSentences: 4,
+        minChars: MIN_V2_ANGLE_CHARS,
+      }),
+      axis_structure: normalizeV2Text(
+        angles?.axis_structure || angles?.axis_summary || "",
+        {
+          minSentences: 2,
+          maxSentences: 4,
+          minChars: MIN_V2_ANGLE_AXIS_CHARS,
+        }
+      ),
+    },
+    aspect_map: aspectMap.slice(0, 5).map((row, idx) => ({
+      key: String(row?.key || `aspect_${idx + 1}`).trim(),
+      text: normalizeV2AspectText(row?.text || ""),
+    })),
+    aspect_dynamics: normalizeV2Text(source?.aspect_dynamics || "", {
+      minSentences: 1,
+      maxSentences: 1,
+      minChars: MIN_V2_ASPECT_DYNAMICS_CHARS,
+    }),
+    pattern_name: normalizeV2Text(source?.pattern_name || "", {
+      minSentences: 1,
+      maxSentences: 1,
+      minChars: MIN_V2_PATTERN_NAME_CHARS,
+    }),
+    cosmic_focus: normalizeV2Text(source?.cosmic_focus || "", {
+      minSentences: 1,
+      maxSentences: 3,
+      minChars: MIN_V2_COSMIC_FOCUS_CHARS,
+    }),
+    cosmic_traits: normalizeV2Text(source?.cosmic_traits || "", {
+      minSentences: 1,
+      maxSentences: 4,
+      minChars: MIN_V2_COSMIC_TRAITS_CHARS,
+    }),
+    cosmic_signature: normalizeV2Text(source?.cosmic_signature || "", {
+      minSentences: 2,
+      maxSentences: 4,
+      minChars: MIN_V2_COSMIC_SIGNATURE_CHARS,
+    }),
+    chart_pattern: normalizeV2Text(source?.chart_pattern || "", {
+      minSentences: 4,
+      maxSentences: 6,
+      minChars: MIN_V2_PATTERN_CHARS,
+    }),
+    life_direction: normalizeV2Text(source?.life_direction || "", {
+      minSentences: 2,
+      maxSentences: 4,
+      minChars: MIN_V2_LIFE_DIRECTION_CHARS,
+    }),
+    natal_observation: normalizeV2Text(source?.natal_observation || "", {
+      minSentences: 3,
+      maxSentences: 6,
+      minChars: MIN_V2_NATAL_OBS_CHARS,
+    }),
+    closing_summary: normalizeV2Text(source?.closing_summary || "", {
+      minSentences: 3,
+      maxSentences: 5,
+      minChars: MIN_V2_CLOSING_CHARS,
+    }),
+  };
+  data.master_chart = masterChart;
+  if (masterChart?.angular_planets) {
+    data.angular_planets = masterChart.angular_planets;
+  }
+
+  if (!hasAllRequiredKeysV2(source)) {
+    const issues = collectV2ValidationIssues(source);
+    return { ok: false, reason: "validation_failed", issues };
+  }
+
+  const warnings = collectV2ValidationIssues(source);
+  const warnOut = {};
+  if (warnings?.tooShort?.length) warnOut.tooShort = warnings.tooShort;
+  if (typeof warnings?.aspectCount === "number" && warnings.aspectCount < 3) {
+    warnOut.aspectCount = warnings.aspectCount;
+  }
+
+  return {
+    ok: true,
+    data,
+    warnings: Object.keys(warnOut).length ? warnOut : undefined,
+    master_path: masterPath,
+  };
+}
+
 module.exports = Object.freeze({
   generateBlueprintLightText,
+  generateBlueprintLightTextV2,
 });

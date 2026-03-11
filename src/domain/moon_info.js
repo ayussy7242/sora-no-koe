@@ -3,7 +3,15 @@
 const dictDefault = require("../content/dict");
 const { swisseph } = require("../config/swisseph");
 const { jdUtFromIso, calcTransitLon, findNextMoonPhase, formatDateYmdHm, absAngularDistance } = require("./astro_compute");
-const { signLabelJa } = require("../presenters/shared/text/tokens");
+let signLabelJa = () => "";
+try {
+  ({ signLabelJa } = require("../presenters/shared/text/tokens"));
+} catch (_err) {
+  signLabelJa = (dictObj, key) => {
+    const k = String(key || "").toLowerCase();
+    return dictObj?.SIGNS?.[k]?.label_ja || dictObj?.SIGNS?.[k]?.label || "";
+  };
+}
 const { toDateLocalJST } = require("../utils/time_utils");
 
 const SYNODIC_MONTH_DAYS = 29.53059;

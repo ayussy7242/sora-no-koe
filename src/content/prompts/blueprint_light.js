@@ -13,12 +13,425 @@ const RULES_BLUEPRINT_LIGHT_PROSE = `
 
 const USER_GUIDE_BLUEPRINT_LIGHT = `
 目的：
-占星術が扱う意味・機能・段階性を、構造として、
-読みやすく、自己認識しやすい形で記述する。
+占星術が扱う構造を、読み応えのある出生図資料として記述する。
+これは性格診断ではなく、チャート理解のための資料である。
 予測や助言は書かない。
 
 INPUT（kernelのみ）から「星の設計図」本文を生成する。
 これは所有構造（one_time）の記述。時間層（layer）とは混ぜない。
+
+方針：
+- 一般的な説明ではなく、このチャートでの働きを書く
+- 単体説明より、組み合わせ・偏り・重心を優先する
+- 構造が分かる文章にする
+- 文中で「宇宙」という語は使わず「星」で統一する
+`.trim();
+
+const BLUEPRINT_LIGHT_USER_PROMPT_TEMPLATE = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+出力JSONの形：
+{
+  "summary": { "element": "...", "modality": "..." },
+  "bodies": {
+    "sun": "...", "moon": "...", "mercury": "...", "venus": "...", "mars": "...",
+    "jupiter": "...", "saturn": "...", "uranus": "...", "neptune": "...", "pluto": "..."
+  },
+  "chiron": "...",
+  "lilith": "...",
+  "nodes": { "south": "...", "north": "..." },
+  "angles": { "asc": "...", "mc": "...", "ic": "...", "dc": "..." },
+  "closing_summary": "..."
+}
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- このチャートで何が強いか、どこに重心があるか、何がどう組み合わさっているかを書く
+- sign / house / aspect / phase / element / modality は、INPUTにあるものだけを材料として使う
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 占星術用語を使いすぎず、読める文章にする
+- 体感描写だけで逃げず、構造が分かる文にする
+
+文字量の目安：
+- summary: 3〜5文
+- bodies / chiron / lilith / nodes / angles: 各2〜4文、改行なし
+- closing_summary: 3〜5文
+
+優先順位：
+1) チャート全体の偏りと重心
+2) 天体同士の関係
+3) サイン・ハウス・軸の意味
+4) 個別天体の説明
+
+避けること：
+- 「太陽は自己表現を表す」のような教科書的説明
+- 各項目で同じ言い回しを繰り返すこと
+- 断片語の羅列
+- 抽象語だけで終わること
+`.trim();
+
+const BLUEPRINT_LIGHT_V2_USER_PROMPT_TEMPLATE = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+
+出力JSONの形：
+{
+  "core_snapshot": "...",
+  "dashboard": {
+    "element_balance": "...",
+    "modality_balance": "...",
+    "dominant_signs": "...",
+    "dominant_houses": "...",
+    "planet_distribution": "...",
+    "energy_flow": "...",
+    "cosmic_structure": "..."
+  },
+  "planet_roles": {
+    "sun": "...",
+    "moon": "...",
+    "mercury": "...",
+    "venus": "...",
+    "mars": "...",
+    "jupiter": "...",
+    "saturn": "...",
+    "uranus": "...",
+    "neptune": "...",
+    "pluto": "..."
+  },
+  "system_layers": {
+    "core": "...",
+    "personal": "...",
+    "collective": "...",
+    "flow": "..."
+  },
+  "deep_axis": {
+    "nodes": "...",
+    "chiron": "...",
+    "lilith": "...",
+    "pattern": "..."
+  },
+  "angles": {
+    "intro": "...",
+    "asc": "...",
+    "mc": "...",
+    "ic": "...",
+    "dc": "...",
+    "axis_structure": "..."
+  },
+  "natal_observation": "...",
+  "aspect_map": [
+    { "key": "aspect_1", "text": "..." },
+    { "key": "aspect_2", "text": "..." },
+    { "key": "aspect_3", "text": "..." }
+  ],
+  "aspect_dynamics": "...",
+  "pattern_name": "...",
+  "cosmic_focus": "...",
+  "cosmic_traits": "...",
+  "cosmic_signature": "...",
+  "chart_pattern": "...",
+  "life_direction": "...",
+  "closing_summary": "..."
+}
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- このチャートで何が強いか、どこに重心があるか、何がどう組み合わさっているかを書く
+- sign / house / degree / aspect / orb / element / modality / phase / strength は、INPUTにあるものだけを材料として使う
+- 各項目で、INPUT由来の固有要素（サイン名 / ハウス番号 / 度数 / 主要アスペクト / エレメント / モード）を最低1つは明示する
+- サイン表記は **日本語（獅子座 / 蠍座 など）**、度数は **「°」** を用いる
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 占星術用語を使いすぎず、読める文章にする
+- 体感描写だけで逃げず、構造が分かる文にする
+- 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
+- ページごとの役割を守る
+- 同じ説明を複数キーで繰り返さない
+
+文字量の目安：
+- core_snapshot: 240〜420字
+- dashboard.element_balance: 200〜320字
+- dashboard.modality_balance: 200〜320字
+- dashboard.dominant_signs: 80〜160字
+- dashboard.dominant_houses: 80〜160字
+- dashboard.planet_distribution: 120〜220字
+- dashboard.energy_flow: 180〜300字
+- dashboard.cosmic_structure: 120〜240字
+- planet_roles.sun / moon: 20〜80字
+- planet_roles.mercury / venus / mars: 15〜70字
+- planet_roles.jupiter〜pluto: 15〜60字
+- system_layers.core: 160〜260字
+- system_layers.personal: 150〜240字
+- system_layers.collective: 150〜240字
+- system_layers.flow: 120〜200字
+- deep_axis.nodes: 40〜140字
+- deep_axis.chiron: 60〜140字
+- deep_axis.lilith: 60〜140字
+- deep_axis.pattern: 80〜160字
+- angles.intro: 120〜200字
+- angles.asc / mc / ic / dc: 110〜170字
+- angles.axis_structure: 120〜200字
+- natal_observation: 200〜360字
+- aspect_map 各text: 70〜130字
+- aspect_dynamics: 60〜70字（1文）
+- pattern_name: 10〜30字
+- cosmic_focus: 50〜100字
+- cosmic_traits: 60〜120字
+- cosmic_signature: 120〜220字
+- chart_pattern: 60〜180字
+- life_direction: 80〜200字
+- closing_summary: 60〜180字
+
+必須構成：
+- core_snapshot は SYS-01 用の要約として書く
+- core_snapshot では「誰の設計図か」「中心構造は何か」が見える文章にする
+- dashboard は MAP-02 用として書く
+- dashboard.element_balance / modality_balance は それぞれの性質と偏りを書く
+- dashboard.dominant_signs / dominant_houses / planet_distribution は ダッシュボード用の短い構造説明にする
+- dashboard.energy_flow は 旧STRUCTUREの「エネルギーの流れ」を引き継ぐ
+- dashboard.cosmic_structure は MAPページの最終まとめとして書く
+- planet_roles は **天体ごとの辞書説明ではなく、このチャート内での役割を書く**
+- planet_roles は **文中に「役割名」を一度だけ入れる**（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
+- planet_roles は **サインと度数を日本語で必ず明記** する（例：獅子座 23°）
+- system_layers.core / personal / collective は、対象天体群がどういう層を形成しているかを書く
+- system_layers は **その層に含まれる天体が何かを前提に書く**
+- aspect_map は **主要アスペクトの内容を回路図へ渡せる短文** として書く
+- aspect_map は **「このチャート内で何をつなぎ、どこに流れ/緊張を作るか」** を書く
+- aspect_dynamics は **主要アスペクト全体のエネルギーの動き** だけを書く
+- deep_axis.nodes は **南ノードから北ノードへ向かう軸** として書く
+- deep_axis.nodes / chiron / lilith は **サインと度数を必ず明記** する
+- angles.asc / mc / ic / dc は **サインと度数を必ず明記** する
+- angles.axis_structure は **ASC-DC / MC-IC の軸構造** を書く
+- angles.intro は **構造説明寄りで簡潔に** 書く（詩的に寄せすぎない）
+- cosmic_focus は **短い焦点行（1〜2行）** にする
+- cosmic_traits は **特性を箇条書きでまとめる**（短いフレーズ）
+- cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
+- cosmic_signature は **SYS-01の締め文** として書く（2〜3行）
+- natal_observation は **ホイール観測の短い観測文** として書く
+- life_direction は **外と内の方向性のバランス** を書く（助言ではなく構造として）
+- chart_pattern は以下を必ず含む
+  核（中心熱）
+  外側の出方
+  一番強い偏り
+  一番強い緊張 or 補正
+  全体を一つにする回路
+- chart_pattern / closing_summary は **配置・共鳴・全データの結合** から書く
+
+優先順位：
+1) 太陽・月・ASC の関係
+2) サイン集中とハウス集中
+3) 主要アスペクトがどこをつなぐか
+4) ノード / キロン / リリスがその構造にどう影を落とすか
+5) planet_roles（各天体の役割）
+6) 個別天体の説明
+
+避けること：
+- 単体の天体・サイン・アスペクトの一般説明を主文にすること
+- 「太陽は自己表現を表す」のような教科書的説明
+- 各項目で同じ言い回しを繰り返すこと
+- 断片語の羅列
+- 抽象語だけで終わること
+- dashboard と chart_pattern で同じ文章を繰り返すこと
+- system_layers と planet_roles で同じ役割説明を焼き直すこと
+`.trim();
+
+const BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+このバッチの役割は「全体の偏りと重心」を明確にすることです。
+担当外の内容を要約しようとせず、このバッチが扱う構造だけを書いてください。
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- このチャートで何が強いか、どこに重心があるか、何がどう組み合わさっているかを書く
+- sign / house / degree / element / modality / phase / strength は、INPUTにあるものだけを材料として使う
+- 各項目で、INPUT由来の固有要素（サイン名 / ハウス番号 / 度数 / エレメント / モード）を最低1つは明示する
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 占星術用語を使いすぎず、読める文章にする
+- 体感描写だけで逃げず、構造が分かる文にする
+- 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
+
+担当範囲：
+- core_snapshot
+- dashboard（element_balance / modality_balance / dominant_signs / dominant_houses / planet_distribution / energy_flow / cosmic_structure）
+- pattern_name
+- cosmic_focus
+- cosmic_traits
+- cosmic_signature
+- chart_pattern
+- life_direction
+- natal_observation
+- closing_summary
+
+強調すること：
+- 全体の偏り
+- 重心
+- サイン集中
+- ハウス集中
+- 全体パターン
+- 偏りが「どういう力学になるか」まで踏み込む
+- ほかの配置との関係を1回は含める（一般論で終わらない）
+- dashboard.energy_flow は「エネルギーフロー」を書く
+- dashboard.cosmic_structure は「構造まとめ」を書く
+- pattern_name は短い名称のみ
+- cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
+
+文字量の目安：
+- core_snapshot: 220〜360字
+- dashboard.element_balance: 240〜360字
+- dashboard.modality_balance: 240〜360字
+- dashboard.dominant_signs: 90〜180字
+- dashboard.dominant_houses: 90〜180字
+- dashboard.planet_distribution: 140〜240字
+- dashboard.energy_flow: 220〜320字
+- dashboard.cosmic_structure: 160〜300字
+- pattern_name: 10〜30字
+- cosmic_focus: 50〜110字
+- cosmic_traits: 60〜140字
+- cosmic_signature: 120〜240字
+- chart_pattern: 80〜220字
+- life_direction: 90〜220字
+- natal_observation: 240〜420字
+- closing_summary: 80〜200字
+
+避けること：
+- 担当外の要素（planet_roles / aspect_map）をまとめること
+- 単体の天体・サイン・アスペクトの一般説明を主文にすること
+- 「太陽は自己表現を表す」のような教科書的説明
+- 断片語の羅列
+- 抽象語だけで終わること
+`.trim();
+
+const BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+このバッチの役割は「個別の担い手と回路」を明確にすることです。
+担当外の内容を要約しようとせず、このバッチが扱う構造だけを書いてください。
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- このチャートで何が強いか、どこに重心があるか、何がどう組み合わさっているかを書く
+- sign / house / degree / aspect / phase / strength は、INPUTにあるものだけを材料として使う
+- 各項目で、INPUT由来の固有要素（サイン名 / ハウス番号 / 度数 / 主要アスペクト）を最低1つは明示する
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 占星術用語を使いすぎず、読める文章にする
+- 体感描写だけで逃げず、構造が分かる文にする
+- 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
+
+担当範囲：
+- planet_roles
+- system_layers
+- deep_axis
+- angles
+
+planet_roles の優先順：
+1) その天体のサイン
+2) その天体の度数
+3) その天体のハウス
+4) 主要な接続（合・スクエア・オポジションなど）
+5) この出生図全体の中で、その天体が何を担っているか
+
+planet_roles の必須：
+- 度数がある場合は **必ず1箇所で明記** する（例：獅子座 23°）
+- サイン表記は **日本語（獅子座 / 蠍座 など）** にする
+
+deep_axis の必須：
+- nodes / chiron / lilith は **サインと度数を必ず明記** する
+
+angles の必須：
+- intro は **角度の役割と十字軸** を構造説明として短く書く
+- asc / mc / ic / dc は **サインと度数を必ず明記** する
+- axis_structure は **ASC-DC / MC-IC の軸構造** を書く
+
+system_layers の必須：
+- core / personal / collective それぞれで、含まれる天体群がどういう層を形成しているかを書く
+- core / personal / collective は **その層に入る天体群が前提で分かる内容** にする
+- flow は **各層がどうつながるか** を書く
+
+planet_roles の禁止：
+- 一般的な天体説明で始めない
+- 「〇〇座の太陽は〜」だけで終わらせない
+- 他の要素との関係を1つ以上含める
+- 文中に「役割名」を一度だけ入れる（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
+
+文字量の目安：
+- planet_roles.sun / moon: 30〜100字
+- planet_roles.mercury / venus / mars: 20〜80字
+- planet_roles.jupiter〜pluto: 15〜60字
+- system_layers.core: 240〜380字
+- system_layers.personal: 220〜340字
+- system_layers.collective: 220〜340字
+- system_layers.flow: 180〜280字
+- deep_axis.nodes: 40〜160字
+- deep_axis.chiron: 60〜160字
+- deep_axis.lilith: 60〜160字
+- deep_axis.pattern: 70〜200字
+- angles.asc / mc / ic / dc: 120〜185字
+- angles.axis_structure: 140〜220字
+
+避けること：
+- 担当外の要素（chart_pattern / dashboard）をまとめること
+- 単体の天体・サイン・アスペクトの一般説明を主文にすること
+- 「太陽は自己表現を表す」のような教科書的説明
+- 断片語の羅列
+- 抽象語だけで終わること
+`.trim();
+
+const BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS = `
+${USER_GUIDE_BLUEPRINT_LIGHT}
+
+このバッチの役割は「天体同士の力学」を短く示すことです。
+担当外の内容を要約しようとせず、このバッチが扱う構造だけを書いてください。
+
+以下のINPUTから本文を生成する。出力は **JSONのみ**（前後に文章を付けない）。
+
+書き方：
+- 出力は占星術資料として読める内容にする
+- 一般論で埋めない
+- このチャートの中で何をつなぎ、どこに流れ/緊張/補正を作るかを書く
+- sign / house / aspect / orb は、INPUTにあるものだけを材料として使う
+- aspect_dynamics は **主要アスペクトの共鳴だけ** を材料に書く
+- aspect_dynamics では、チャート固有の接続（主要アスペクト / サイン / ハウス）を最低1つは明示する
+- aspect_dynamics は **1文・約60文字** にまとめる
+- 新しい情報を足さない
+- 断定しすぎず、構造として記述する
+- 「あなた」は使わない
+- 助言・指示・予測・吉凶判断は書かない
+- 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
+
+担当範囲：
+- aspect_map
+- aspect_dynamics
+
+文字量の目安：
+- aspect_map 各text: 70〜140字
+- aspect_dynamics: 55〜70字
+
+避けること：
+- 単体アスペクトの一般解説
+- 「成功」「幸運」などの評価語で終わること
+- 断片語の羅列
 `.trim();
 
 module.exports = Object.freeze({
@@ -26,4 +439,9 @@ module.exports = Object.freeze({
   USER_GUIDE_BLUEPRINT_LIGHT,
   RULES_BLUEPRINT_LIGHT_PROSE,
   BLUEPRINT_LIGHT_USER_PROMPT_PREFIX: `${USER_GUIDE_BLUEPRINT_LIGHT}`.trim(),
+  BLUEPRINT_LIGHT_USER_PROMPT_TEMPLATE,
+  BLUEPRINT_LIGHT_V2_USER_PROMPT_TEMPLATE,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
 });

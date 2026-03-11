@@ -5,7 +5,7 @@ const {
   buildHouseBlock,
   buildTsukijiBlock,
   buildKinjitsuBlock,
-} = require("../../../usecases/paid/line_paid_500");
+} = require("../../../usecases/channels/line/line_paid_500");
 const { SPEC } = require("../../../config/sora_spec");
 
 function formatDateLabel(dateLocal) {

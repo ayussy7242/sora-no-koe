@@ -1,6 +1,6 @@
 "use strict";
 
-const { getBlueprintLightPaths } = require("./paths");
+const { getBlueprintLightPaths, getBlueprintLightBgPaths } = require("./paths");
 
 function createBlueprintLightStorage({ bucket, urlExpireDays = 7 } = {}) {
   if (!bucket) throw new Error("bucket is required");
@@ -46,7 +46,7 @@ async function downloadJson(lineUserId) {
     return { ok: true, filePath: jsonPath };
   }
 
-async function savePdf(lineUserId, buffer, variant) {
+  async function savePdf(lineUserId, buffer, variant) {
   const { pdfPath } = getBlueprintLightPaths(lineUserId, normalizeVariantInput(variant));
   if (!pdfPath) return { ok: false, code: "missing_line_user" };
   const file = bucket.file(pdfPath);
@@ -58,7 +58,44 @@ async function savePdf(lineUserId, buffer, variant) {
     return { ok: true, filePath: pdfPath };
   }
 
-async function getSignedUrl(lineUserId, variant) {
+  async function saveBgImage(lineUserId, key, buffer) {
+    const { files } = getBlueprintLightBgPaths(lineUserId);
+    const path = files?.[key];
+    if (!path) return { ok: false, code: "missing_line_user" };
+    const file = bucket.file(path);
+    await file.save(buffer, {
+      contentType: "image/png",
+      resumable: false,
+      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+    });
+    return { ok: true, filePath: path };
+  }
+
+  async function getBgSignedUrls(lineUserId) {
+    const { files } = getBlueprintLightBgPaths(lineUserId);
+    if (!files) return { ok: false, code: "missing_line_user" };
+    const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
+    const out = {};
+    const entries = Object.entries(files);
+    for (const [key, filePath] of entries) {
+      const file = bucket.file(filePath);
+      const [exists] = await file.exists();
+      if (!exists) continue;
+      try {
+        const [url] = await file.getSignedUrl({
+          action: "read",
+          expires: Date.now() + expiresMs,
+          version: "v4",
+        });
+        out[key] = url;
+      } catch (e) {
+        return { ok: false, code: "signing_failed", error: String(e?.message || e) };
+      }
+    }
+    return { ok: true, urls: out };
+  }
+
+  async function getSignedUrl(lineUserId, variant) {
   const { pdfPath } = getBlueprintLightPaths(lineUserId, normalizeVariantInput(variant));
   if (!pdfPath) return { ok: false, code: "missing_line_user" };
     const file = bucket.file(pdfPath);
@@ -84,6 +121,8 @@ async function getSignedUrl(lineUserId, variant) {
     downloadJson,
     saveJson,
     savePdf,
+    saveBgImage,
+    getBgSignedUrls,
     getSignedUrl,
   };
 }

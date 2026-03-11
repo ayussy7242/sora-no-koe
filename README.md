@@ -26,6 +26,29 @@ Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Fra
 
 ---
 
+## 0.5 レイヤー役割（責務）
+
+- `src/engine`: 描画・生成の本体レイヤー。IGカルーセル/宇宙背景/画像・SVGレンダリングなどをここで育てる。
+- `src/integrations`: 外部サービス接続 + 公開用/互換入口。`integrations/media` は互換入口の薄い層として維持。
+- `src/domain`: 宇宙/占星データの意味・計算ルール（例: アスペクト、月相、天体計算）。
+- `src/usecases`: 何を作るかの業務フロー（例: story/blueprint/daily 生成）。
+- `src/presenters`: チャンネル向け整形（例: LINE/X/ブログ/IGキャプション）。
+
+`space_background` 内の役割
+
+- `world.js`: 全宇宙の組み立て（生成の中心）
+- `render.js`: slice と公開API
+- `layers/*`: 表現パーツ
+- `theme` / `fields` / `regions`: 世界生成の基盤
+
+互換入口の削除条件
+
+- 参照元がすべて `src/engine` へ移行済み
+- `scripts` / `routes` / `integrations` 側に旧参照が残っていない
+- 2〜3回の生成確認が完了している
+
+---
+
 ## 1. Production URL（Cloud Run）
 
 https://sora-no-koe-v2-256321662770.asia-northeast1.run.app

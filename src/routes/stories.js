@@ -4,6 +4,10 @@
 const express = require("express");
 const { normalizeStoryArgs } = require("../usecases/story/story_args");
 const { buildRenderMap, resolvePrimaryKey, attachOutputs } = require("./stories_render");
+const { generateIgResonanceText } = require("../usecases/channels/ig/ig_resonance_ai");
+const { generateIgObservationText } = require("../usecases/channels/ig/ig_observation_ai");
+const { generateIgTsukijiStructureText } = require("../usecases/channels/ig/ig_tsukiji_structure_ai");
+const { generateIgMoonText } = require("../usecases/channels/ig/ig_moon_ai");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -113,6 +117,9 @@ function createStoriesRouter(deps = {}) {
   const db = deps.db;
   const storyService = deps.storyService;
   const renderers = deps.renderers;
+  const env = deps.env || {};
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dict = deps.dict || require("../content/dict");
 
   if (!db) throw new Error("deps.db is required for stories router");
   if (!storyService?.buildStoryForUser) throw new Error("deps.storyService.buildStoryForUser is missing");
@@ -127,6 +134,272 @@ function createStoriesRouter(deps = {}) {
     !renderers?.renderThreads
   ) {
     throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderXThread/renderIG/renderThreads) is missing");
+  }
+
+  async function maybeAttachIgResonanceText({ story, wantAi, appUserId, dateLocal }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    if (story.outputs?.ig?.resonance_text) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    const canGenerate = !!apiKey;
+
+    // If saved story exists, reuse stored IG outputs first
+    try {
+      if (db && appUserId && dateLocal) {
+        const docId = `${appUserId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(docId).get();
+        const saved = snap.exists ? snap.data() : null;
+        const savedIg = saved?.outputs?.ig || null;
+        const savedText = savedIg?.resonance_text || savedIg?.carousel?.slide3_text || null;
+        if (savedText) {
+          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+          story.outputs.ig.resonance_text = savedText;
+          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+          story.outputs.ig.carousel.slide3_text = savedIg?.carousel?.slide3_text || savedText;
+          story.meta = story.meta || {};
+          story.meta.ig_resonance_source = "saved";
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore saved lookup failure
+    }
+
+    if (!canGenerate) return;
+
+    try {
+      const result = await generateIgResonanceText({
+        story,
+        dict,
+        openai: {
+          apiKey,
+          baseUrl: env2.OPENAI_BASE_URL,
+          model: env2.OPENAI_MODEL,
+        },
+      });
+
+      if (result?.ok && result?.text) {
+        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+        story.outputs.ig.resonance_text = result.text;
+        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+        story.outputs.ig.carousel.slide3_text = result.text;
+        story.meta = story.meta || {};
+        story.meta.ig_resonance_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+        story.meta.ig_resonance_source = "generated";
+      } else {
+        story.meta = story.meta || {};
+        story.meta.ig_resonance_ai_error = result?.error || "unknown";
+      }
+    } catch (e) {
+      story.meta = story.meta || {};
+      story.meta.ig_resonance_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachIgTsukijiStructure({ story, wantAi, appUserId, dateLocal }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    if (story.outputs?.ig?.carousel?.slide4_structure || story.outputs?.ig?.tsukiji_structure_text) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    const canGenerate = !!apiKey;
+
+    try {
+      if (db && appUserId && dateLocal) {
+        const docId = `${appUserId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(docId).get();
+        const saved = snap.exists ? snap.data() : null;
+        const savedIg = saved?.outputs?.ig || null;
+        const savedText = savedIg?.carousel?.slide4_structure || savedIg?.tsukiji_structure_text || null;
+        if (savedText) {
+          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+          story.outputs.ig.tsukiji_structure_text = savedText;
+          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+          story.outputs.ig.carousel.slide4_structure = savedText;
+          story.meta = story.meta || {};
+          story.meta.ig_tsukiji_source = "saved";
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore saved lookup failure
+    }
+
+    if (!canGenerate) return;
+
+    try {
+      const result = await generateIgTsukijiStructureText({
+        story,
+        dict,
+        openai: {
+          apiKey,
+          baseUrl: env2.OPENAI_BASE_URL,
+          model: env2.OPENAI_MODEL,
+        },
+      });
+
+      if (result?.ok && result?.text) {
+        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+        story.outputs.ig.tsukiji_structure_text = result.text;
+        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+        story.outputs.ig.carousel.slide4_structure = result.text;
+        story.meta = story.meta || {};
+        story.meta.ig_tsukiji_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+        story.meta.ig_tsukiji_source = "generated";
+      } else {
+        story.meta = story.meta || {};
+        story.meta.ig_tsukiji_ai_error = result?.error || "unknown";
+      }
+    } catch (e) {
+      story.meta = story.meta || {};
+      story.meta.ig_tsukiji_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachIgMoonText({ story, wantAi, appUserId, dateLocal }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    if (story.outputs?.ig?.moon_text) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    const canGenerate = !!apiKey;
+
+    try {
+      if (db && appUserId && dateLocal) {
+        const docId = `${appUserId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(docId).get();
+        const saved = snap.exists ? snap.data() : null;
+        const savedIg = saved?.outputs?.ig || null;
+        const savedText = savedIg?.moon_text || savedIg?.carousel?.slide2_text || null;
+        if (savedText) {
+          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+          story.outputs.ig.moon_text = savedText;
+          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+          story.outputs.ig.carousel.slide2_text = savedIg?.carousel?.slide2_text || savedText;
+          story.meta = story.meta || {};
+          story.meta.ig_moon_source = "saved";
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore saved lookup failure
+    }
+
+    if (!canGenerate) return;
+
+    try {
+      const result = await generateIgMoonText({
+        story,
+        dict,
+        openai: {
+          apiKey,
+          baseUrl: env2.OPENAI_BASE_URL,
+          model: env2.OPENAI_MODEL,
+        },
+      });
+
+      if (result?.ok && result?.text) {
+        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+        story.outputs.ig.moon_text = result.text;
+        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+        story.outputs.ig.carousel.slide2_text = result.text;
+        story.meta = story.meta || {};
+        story.meta.ig_moon_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+        story.meta.ig_moon_source = "generated";
+      } else {
+        story.meta = story.meta || {};
+        story.meta.ig_moon_ai_error = result?.error || "unknown";
+      }
+    } catch (e) {
+      story.meta = story.meta || {};
+      story.meta.ig_moon_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachIgObservationText({ story, wantAi, appUserId, dateLocal }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    if (story.outputs?.ig?.carousel?.slide1_observation || story.outputs?.ig?.observation_text) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    const canGenerate = !!apiKey;
+
+    // If saved story exists, reuse stored IG outputs first
+    try {
+      if (db && appUserId && dateLocal) {
+        const docId = `${appUserId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(docId).get();
+        const saved = snap.exists ? snap.data() : null;
+        const savedIg = saved?.outputs?.ig || null;
+        const savedText = savedIg?.carousel?.slide1_observation || savedIg?.observation_text || null;
+        if (savedText) {
+          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+          story.outputs.ig.observation_text = savedText;
+          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+          story.outputs.ig.carousel.slide1_observation = savedText;
+          story.meta = story.meta || {};
+          story.meta.ig_observation_source = "saved";
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore saved lookup failure
+    }
+
+    if (!canGenerate) return;
+
+    try {
+      const result = await generateIgObservationText({
+        story,
+        dict,
+        openai: {
+          apiKey,
+          baseUrl: env2.OPENAI_BASE_URL,
+          model: env2.OPENAI_MODEL,
+        },
+      });
+
+      if (result?.ok && result?.text) {
+        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
+        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
+        story.outputs.ig.observation_text = result.text;
+        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
+        story.outputs.ig.carousel.slide1_observation = result.text;
+        story.meta = story.meta || {};
+        story.meta.ig_observation_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+        story.meta.ig_observation_source = "generated";
+      } else {
+        story.meta = story.meta || {};
+        story.meta.ig_observation_ai_error = result?.error || "unknown";
+      }
+    } catch (e) {
+      story.meta = story.meta || {};
+      story.meta.ig_observation_ai_error = e?.message || String(e);
+    }
   }
 
   router.get("/", async (req, res) => {
@@ -195,6 +468,10 @@ function createStoriesRouter(deps = {}) {
 
       // outputs をレスポンスに含めるか（default true）
       const includeOutputs = req.query.outputs === undefined ? true : boolish(req.query.outputs);
+      const igAiParam = String(req.query.ig_ai || "").trim().toLowerCase();
+      const igAiOff = igAiParam === "0" || igAiParam === "false" || igAiParam === "off";
+      const igAiOn = boolish(req.query.ig_ai);
+      const wantIgAi = !igAiOff && (igAiOn || save || format === "ig" || ch === "ig" || includeOutputs);
 
       // build story
       const story = await storyService.buildStoryForUser(
@@ -230,6 +507,12 @@ function createStoriesRouter(deps = {}) {
       const aiDebugOn = boolish(req.query.ai_debug) || boolish(req.query.debug);
       if (aiDebugOn) story.meta.ai_debug_on = true;
 
+      // IG resonance AI (optional)
+      await maybeAttachIgObservationText({ story, wantAi: wantIgAi, appUserId, dateLocal });
+      await maybeAttachIgMoonText({ story, wantAi: wantIgAi, appUserId, dateLocal });
+      await maybeAttachIgResonanceText({ story, wantAi: wantIgAi, appUserId, dateLocal });
+      await maybeAttachIgTsukijiStructure({ story, wantAi: wantIgAi, appUserId, dateLocal });
+
       // --------------------
       // render only what is requested (NO collateral failures)
       // --------------------
@@ -264,7 +547,15 @@ function createStoriesRouter(deps = {}) {
           }
 
           const toSave = JSON.parse(JSON.stringify(story));
-          delete toSave.outputs;
+          if (toSave.outputs && typeof toSave.outputs === "object") {
+            const igOut = toSave.outputs.ig;
+            delete toSave.outputs;
+            if (igOut && typeof igOut === "object") {
+              toSave.outputs = { ig: igOut };
+            }
+          } else {
+            delete toSave.outputs;
+          }
 
           toSave.meta = toSave.meta || {};
 
