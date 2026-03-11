@@ -135,6 +135,8 @@ function getArg(name, fallback = null) {
         elementCounts: res.data?.master_chart?.element_balance || element,
         dateLabel: birthText,
       }),
+      elementCounts: res.data?.master_chart?.element_balance || element,
+      modalityCounts: res.data?.master_chart?.modality_balance || modality,
       bg_images: await buildBlueprintV25BgImages({
         blueprint: res.data,
         rowsMain,

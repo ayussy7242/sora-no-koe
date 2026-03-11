@@ -166,6 +166,15 @@ function collectElementCounts(rowsMain = []) {
   return counts;
 }
 
+function collectModalityCounts(rowsMain = []) {
+  const counts = { cardinal: 0, fixed: 0, mutable: 0 };
+  rowsMain.forEach((row) => {
+    const modality = row?.meta?.modality;
+    if (modality && counts[modality] !== undefined) counts[modality] += 1;
+  });
+  return counts;
+}
+
 function buildParagraphs(text) {
   const raw = String(text || "").replace(/\r/g, "").trim();
   if (!raw) return [];
@@ -1251,6 +1260,8 @@ async function renderPdfBufferMobileV25({
       birthText,
       story,
       bg_images: bgImages,
+      elementCounts,
+      modalityCounts: blueprintText?.master_chart?.modality_balance || collectModalityCounts(rowsMain || []),
     },
     useSpace: true,
   });
