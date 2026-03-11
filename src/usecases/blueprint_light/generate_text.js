@@ -953,6 +953,28 @@ function normalizeV2Text(text, { minSentences, maxSentences, minChars }) {
   return out;
 }
 
+function stripLeadingPlacementClause(text) {
+  let out = coerceText(text);
+  if (!out) return "";
+  const sentences = out.split("。");
+  const firstSentence = sentences[0] || "";
+  const hasPlacement =
+    /(座).*(°|度)/.test(firstSentence) ||
+    /(°|度).*(座)/.test(firstSentence) ||
+    /(ASC|MC|IC|DC)/.test(firstSentence);
+  if (hasPlacement && sentences.length > 1) {
+    out = sentences.slice(1).join("。").trim();
+  } else {
+    const clauses = out.split(/、|，/);
+    const firstClause = clauses[0] || "";
+    const clauseHasPlacement = /(座).*(°|度)/.test(firstClause) || /(°|度).*(座)/.test(firstClause);
+    if (clauseHasPlacement && clauses.length > 1) {
+      out = clauses.slice(1).join("、").trim();
+    }
+  }
+  return out.replace(/^[、。]+/, "").trim();
+}
+
 function normalizeV2AspectText(text) {
   return normalizeV2Text(text, { minSentences: 1, maxSentences: 2, minChars: MIN_V2_ASPECT_CHARS });
 }
@@ -1626,56 +1648,56 @@ async function generateBlueprintLightTextV2({ env, input }) {
       }),
     },
     planet_roles: {
-      sun: normalizeV2Text(planetRoles?.sun || "", {
+      sun: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.sun || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
-      }),
-      moon: normalizeV2Text(planetRoles?.moon || "", {
+      })),
+      moon: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.moon || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
-      }),
-      mercury: normalizeV2Text(planetRoles?.mercury || "", {
+      })),
+      mercury: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mercury || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
-      }),
-      venus: normalizeV2Text(planetRoles?.venus || "", {
+      })),
+      venus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.venus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
-      }),
-      mars: normalizeV2Text(planetRoles?.mars || "", {
+      })),
+      mars: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mars || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
-      }),
-      jupiter: normalizeV2Text(planetRoles?.jupiter || "", {
+      })),
+      jupiter: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.jupiter || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
-      }),
-      saturn: normalizeV2Text(planetRoles?.saturn || "", {
+      })),
+      saturn: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.saturn || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
-      }),
-      uranus: normalizeV2Text(planetRoles?.uranus || "", {
+      })),
+      uranus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.uranus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
-      }),
-      neptune: normalizeV2Text(planetRoles?.neptune || "", {
+      })),
+      neptune: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.neptune || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
-      }),
-      pluto: normalizeV2Text(planetRoles?.pluto || "", {
+      })),
+      pluto: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.pluto || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
-      }),
+      })),
     },
     system_layers: {
       core: normalizeV2Text(systemLayers?.core || "", {
@@ -1700,21 +1722,21 @@ async function generateBlueprintLightTextV2({ env, input }) {
       }),
     },
     deep_axis: {
-      nodes: normalizeV2Text(deepAxis?.nodes || "", {
+      nodes: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.nodes || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_NODES_CHARS,
-      }),
-      chiron: normalizeV2Text(deepAxis?.chiron || "", {
+      })),
+      chiron: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.chiron || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_CHIRON_CHARS,
-      }),
-      lilith: normalizeV2Text(deepAxis?.lilith || "", {
+      })),
+      lilith: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.lilith || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_LILITH_CHARS,
-      }),
+      })),
       pattern: normalizeV2Text(deepAxis?.pattern || "", {
         minSentences: 3,
         maxSentences: 5,
@@ -1727,26 +1749,26 @@ async function generateBlueprintLightTextV2({ env, input }) {
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_INTRO_CHARS,
       }),
-      asc: normalizeV2Text(angles?.asc || "", {
+      asc: stripLeadingPlacementClause(normalizeV2Text(angles?.asc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
-      }),
-      mc: normalizeV2Text(angles?.mc || "", {
+      })),
+      mc: stripLeadingPlacementClause(normalizeV2Text(angles?.mc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
-      }),
-      ic: normalizeV2Text(angles?.ic || "", {
+      })),
+      ic: stripLeadingPlacementClause(normalizeV2Text(angles?.ic || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
-      }),
-      dc: normalizeV2Text(angles?.dc || "", {
+      })),
+      dc: stripLeadingPlacementClause(normalizeV2Text(angles?.dc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
-      }),
+      })),
       axis_structure: normalizeV2Text(
         angles?.axis_structure || angles?.axis_summary || "",
         {
