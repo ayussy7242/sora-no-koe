@@ -1,0 +1,96 @@
+"use strict";
+
+const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const {
+  SORA_AI_SYSTEM_PROMPT_COMMON,
+  SORA_AI_USER_GUIDE_IG_MOON,
+} = require("../../../content/prompts/sora_ai_prompts");
+const { buildTodayMoonInfo } = require("../../../domain/moon_info");
+
+function safeText(x) {
+  return String(x || "").trim();
+}
+
+function countSentences(text) {
+  return String(text || "")
+    .split(/[。！？]/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+}
+
+function buildIgMoonPrompt({ story, dict, asOfISO }) {
+  const info = buildTodayMoonInfo({ asOfISO, story, dict });
+  const moonSign = safeText(info?.moonSign || "");
+  const phaseLabel = safeText(info?.phase?.name || "");
+
+  return [
+    SORA_AI_USER_GUIDE_IG_MOON,
+    "",
+    "INPUT:",
+    `MOON_SIGN: ${moonSign}`,
+    `PHASE_LABEL: ${phaseLabel}`,
+  ].join("\n");
+}
+
+function validateMoonText(text, { allowNewFull } = {}) {
+  const t = String(text || "").trim();
+  if (!t) return { ok: false, reason: "empty" };
+  if (/\r|\n/.test(t)) return { ok: false, reason: "has_newline" };
+  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
+  if (/[0-9０-９]/.test(t)) return { ok: false, reason: "has_number" };
+  if (/(月齢|照度|次の月相|次の満月|次の新月|時刻|日時|%)/.test(t)) return { ok: false, reason: "has_numeric_terms" };
+  if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
+  const sentences = countSentences(t);
+  if (sentences !== 2) return { ok: false, reason: `sentence_count:${sentences}` };
+  return { ok: true, text: t, sentences };
+}
+
+async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO }) {
+  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
+  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
+
+  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+
+  let retryNote = "";
+  let lastReason = "";
+  let lastText = "";
+
+  const info = buildTodayMoonInfo({ asOfISO, story, dict });
+  const illumination = Number(info?.illumination || 0);
+  const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
+  const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
+  const allowNewFull = isNewNow || isFullNow;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +
+      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
+      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
+
+    const text = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      messages: [
+        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.4,
+      maxTokens: 160,
+    });
+
+    const verdict = validateMoonText(text, { allowNewFull });
+    if (verdict.ok) return { ok: true, text: verdict.text, model };
+
+    lastReason = verdict.reason || "";
+    lastText = String(text || "").trim();
+    retryNote = "前回は条件外でした。2文固定・改行なし・数値/月齢/照度/次の月相/時刻は禁止・新月/満月は今日が新月/満月のときのみ可・「あなた」禁止で再出力。";
+  }
+
+  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+}
+
+module.exports = {
+  buildIgMoonPrompt,
+  generateIgMoonText,
+};
