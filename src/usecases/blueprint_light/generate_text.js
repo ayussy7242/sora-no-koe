@@ -8,6 +8,7 @@ const {
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
+  BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING,
 } = require("../../content/prompts/sora_ai_prompts");
 const {
   buildMasterChartFromKernel,
@@ -71,7 +72,7 @@ const MIN_V2_ASPECT_CHARS = 80;
 const MIN_V2_ASPECT_DYNAMICS_CHARS = 80;
 const MIN_V2_PATTERN_NAME_CHARS = 8;
 const MIN_V2_LIFE_DIRECTION_CHARS = 180;
-const MIN_V2_PATTERN_CHARS = 35;
+const MIN_V2_PATTERN_CHARS = 120;
 const MIN_V2_COSMIC_FOCUS_CHARS = 28;
 const MIN_V2_COSMIC_TRAITS_CHARS = 35;
 const MIN_V2_COSMIC_SIGNATURE_CHARS = 300;
@@ -1507,7 +1508,6 @@ async function generateBlueprintLightTextV2({ env, input }) {
     sys: sysData,
     map: mapData,
     obs: obsData,
-    pattern: patternData,
   };
   const rolesPayload = {
     page: "ROLES",
@@ -1519,6 +1519,10 @@ async function generateBlueprintLightTextV2({ env, input }) {
   const aspectsPayload = {
     page: "ASPECTS",
     aspects: aspectData,
+  };
+  const closingPayload = {
+    page: "CLOSING",
+    pattern: patternData,
   };
 
   const shapeCore = `{
@@ -1533,14 +1537,10 @@ async function generateBlueprintLightTextV2({ env, input }) {
     "energy_flow": "...",
     "cosmic_structure": "..."
   },
-  "pattern_name": "...",
   "cosmic_focus": "...",
   "cosmic_traits": "...",
   "cosmic_signature": "...",
-  "natal_observation": "...",
-  "chart_pattern": "...",
-  "life_direction": "...",
-  "closing_summary": "..."
+  "natal_observation": "..."
 }`;
   const shapeRoles = `{
   "planet_roles": {
@@ -1584,6 +1584,12 @@ async function generateBlueprintLightTextV2({ env, input }) {
   ],
   "aspect_dynamics": "..."
 }`;
+  const shapeClosing = `{
+  "pattern_name": "...",
+  "chart_pattern": "...",
+  "life_direction": "...",
+  "closing_summary": "..."
+}`;
 
   const segment1 = await generateAllBatchV2Segment({
     apiKey,
@@ -1624,10 +1630,24 @@ async function generateBlueprintLightTextV2({ env, input }) {
   });
   if (!segment3?.ok) return { ok: false, reason: segment3.reason || "ai_failed", debugPath: segment3.debugPath };
 
+  const segment4 = await generateAllBatchV2Segment({
+    apiKey,
+    baseUrl,
+    model,
+    input: { page_payload: closingPayload },
+    outputShape: shapeClosing,
+    template: BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING,
+    retryNote: "出力は厳密なJSONのみ。末尾カンマ禁止。ダブルクォートのみ。",
+    debug,
+    debugTag: "v2_seg_closing",
+  });
+  if (!segment4?.ok) return { ok: false, reason: segment4.reason || "ai_failed", debugPath: segment4.debugPath };
+
   const source = {
     ...(segment1.data || {}),
     ...(segment2.data || {}),
     ...(segment3.data || {}),
+    ...(segment4.data || {}),
   };
   const dashboard = source?.dashboard || {};
   const planetRoles = source?.planet_roles || {};
