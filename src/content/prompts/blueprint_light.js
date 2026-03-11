@@ -25,6 +25,8 @@ INPUT（kernelのみ）から「星の設計図」本文を生成する。
 - 単体説明より、組み合わせ・偏り・重心を優先する
 - 構造が分かる文章にする
 - 文中で「宇宙」という語は使わず「星」で統一する
+- モード表記は日本語（活動宮 / 固定宮 / 柔軟宮）にする
+- 英語の構造語は日本語訳を添える（例：集中型（クラスター））
 - 重要語は **太字** で強調する（1〜2箇所）
 - 2〜3文ごとに改行し、段落を作る
 `.trim();
@@ -111,15 +113,15 @@ closing_summary の構成：
 - dashboard.dominant_houses: 約80文字（最大100文字）
 - dashboard.planet_distribution: 約110文字（最大140文字）
 - dashboard.energy_flow: 約180文字（最大240文字）
-- dashboard.cosmic_structure: 約230文字（最大300文字）
+- dashboard.cosmic_structure: 約300文字（最大340文字）
 - pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
-- cosmic_signature: 約220文字（最大300文字）
+- cosmic_signature: 約300文字（最大340文字）
 - chart_pattern: 約35文字（最大50文字）
-- life_direction: 約130文字（最大170文字）
+- life_direction: 約180文字（最大220文字）
 - natal_observation: 約200文字（最大260文字）
-- closing_summary: 約120文字（最大160文字）
+- closing_summary: 約160文字（最大200文字）
 
 避けること：
 - 担当外の要素（planet_roles / aspect_map）をまとめること
@@ -216,7 +218,7 @@ planet_roles の禁止：
 - deep_axis.lilith: 約70文字（最大90文字）
 - deep_axis.pattern: 約90文字（最大120文字）
 - angles.asc / mc / ic / dc: 約60文字（最大80文字）
-- angles.axis_structure: 約80文字（最大110文字）
+- angles.axis_structure: 約180文字（最大220文字）
 
 避けること：
 - 担当外の要素（chart_pattern / dashboard）をまとめること
