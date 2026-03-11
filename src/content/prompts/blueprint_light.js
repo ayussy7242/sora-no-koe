@@ -170,9 +170,9 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.planet_distribution: 120〜220字
 - dashboard.energy_flow: 180〜300字
 - dashboard.cosmic_structure: 120〜240字
-- planet_roles.sun / moon: 20〜80字
-- planet_roles.mercury / venus / mars: 15〜70字
-- planet_roles.jupiter〜pluto: 15〜60字
+- planet_roles.sun / moon: 20〜30字
+- planet_roles.mercury / venus / mars: 20〜30字
+- planet_roles.jupiter〜pluto: 20〜30字
 - system_layers.core: 160〜260字
 - system_layers.personal: 150〜240字
 - system_layers.collective: 150〜240字
@@ -384,9 +384,9 @@ planet_roles の禁止：
 - 文中に「役割名」を一度だけ入れる（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
 
 文字量の目安：
-- planet_roles.sun / moon: 30〜100字
-- planet_roles.mercury / venus / mars: 20〜80字
-- planet_roles.jupiter〜pluto: 15〜60字
+- planet_roles.sun / moon: 20〜30字
+- planet_roles.mercury / venus / mars: 20〜30字
+- planet_roles.jupiter〜pluto: 20〜30字
 - system_layers.core: 240〜380字
 - system_layers.personal: 220〜340字
 - system_layers.collective: 220〜340字
