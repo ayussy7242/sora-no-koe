@@ -1268,8 +1268,8 @@ body {
 .wheel.medium { width: 660px; height: 660px; }
 
 .wheel-svg {
-  width: 92%;
-  max-width: 900px;
+  width: 101%;
+  max-width: 990px;
   aspect-ratio: 1 / 1;
 }
 
@@ -1576,10 +1576,13 @@ body {
   gap: 18px;
 }
 
-.single-line {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.page--aspect .card-body {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.asp-energy {
+  margin-top: 12px;
 }
 
 .axis-line {
@@ -1890,21 +1893,21 @@ body {
       </div>
       <div class="bottom">
         <div class="grid-6">
-          <div class="chart-box span-2">
+          <div class="chart-box span-3">
             <div class="card-head">支配サイン</div>
             <div class="card-sub">DOMINANT SIGNS</div>
             <div class="card-list">
               ${dominantSignRows.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
           </div>
-          <div class="chart-box span-2">
+          <div class="chart-box span-3">
             <div class="card-head">支配ハウス</div>
             <div class="card-sub">DOMINANT HOUSES</div>
             <div class="card-list">
               ${p.dominantHouses.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
           </div>
-          <div class="chart-box span-2">
+          <div class="chart-box span-6">
             <div class="card-head">天体分布</div>
             <div class="card-sub">PLANET DISTRIBUTION</div>
             <div class="card-list">
@@ -1989,15 +1992,6 @@ body {
             <div class="card-body">${escapeHtml(p.anglesText?.dc || "")}</div>
           </div>
         </div>
-        <div class="angular-block">
-          <div class="chart-box">
-            <div class="card-head">角度近接天体</div>
-            <div class="card-sub">ANGULAR PLANETS</div>
-            <div class="card-list">
-              ${(p.angularPlanets || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
-          </div>
-        </div>
       </div>
       <div class="bottom">
         <div class="chart-box">
@@ -2014,6 +2008,15 @@ body {
             <span>MC</span>
             <span class="axis-line"></span>
             <span>IC</span>
+          </div>
+        </div>
+        <div class="angular-block">
+          <div class="chart-box">
+            <div class="card-head">角度近接天体</div>
+            <div class="card-sub">ANGULAR PLANETS</div>
+            <div class="card-list">
+              ${(p.angularPlanets || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
+            </div>
           </div>
         </div>
         ${buildCosmicNav(3)}
@@ -2170,10 +2173,10 @@ body {
               ${p.aspectMap.map((text) => `• ${escapeHtml(text)}`).join("<br/>")}
             </div>
           </div>
-          <div class="chart-box">
+          <div class="chart-box asp-energy">
             <div class="card-head">エネルギーの動き</div>
             <div class="card-sub">ENERGY DYNAMICS</div>
-            <div class="card-body single-line">${escapeHtml(p.aspectEnergyText)}</div>
+            <div class="card-body">${escapeHtml(p.aspectEnergyText)}</div>
           </div>
         </div>
         ${buildCosmicNav(7)}
