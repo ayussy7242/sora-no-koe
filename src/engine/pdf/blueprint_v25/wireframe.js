@@ -96,6 +96,36 @@ const BODY_LABEL_JA = {
   asc: "ASC",
 };
 
+const SIGN_ELEMENT_MAP = {
+  aries: "fire",
+  leo: "fire",
+  sagittarius: "fire",
+  taurus: "earth",
+  virgo: "earth",
+  capricorn: "earth",
+  gemini: "air",
+  libra: "air",
+  aquarius: "air",
+  cancer: "water",
+  scorpio: "water",
+  pisces: "water",
+};
+
+const SIGN_MODALITY_MAP = {
+  aries: "cardinal",
+  cancer: "cardinal",
+  libra: "cardinal",
+  capricorn: "cardinal",
+  taurus: "fixed",
+  leo: "fixed",
+  scorpio: "fixed",
+  aquarius: "fixed",
+  gemini: "mutable",
+  virgo: "mutable",
+  sagittarius: "mutable",
+  pisces: "mutable",
+};
+
 function buildWireframeData(input, placeholders) {
   const p = { ...placeholders };
   const src = input || {};
@@ -548,6 +578,28 @@ function buildWireframeData(input, placeholders) {
         fixed: toNumber(masterChart.modality_balance.fixed),
         mutable: toNumber(masterChart.modality_balance.mutable),
       };
+    }
+    const elementSum =
+      (p.elementCounts?.fire || 0) +
+      (p.elementCounts?.earth || 0) +
+      (p.elementCounts?.air || 0) +
+      (p.elementCounts?.water || 0);
+    const modalitySum =
+      (p.modalityCounts?.cardinal || 0) +
+      (p.modalityCounts?.fixed || 0) +
+      (p.modalityCounts?.mutable || 0);
+    if ((!elementSum || !modalitySum) && Array.isArray(masterChart?.planets)) {
+      const elementFallback = { fire: 0, earth: 0, air: 0, water: 0 };
+      const modalityFallback = { cardinal: 0, fixed: 0, mutable: 0 };
+      masterChart.planets.forEach((row) => {
+        const signKey = String(row?.sign_key || row?.sign || "").toLowerCase();
+        const element = SIGN_ELEMENT_MAP[signKey];
+        const modality = SIGN_MODALITY_MAP[signKey];
+        if (element && elementFallback[element] !== undefined) elementFallback[element] += 1;
+        if (modality && modalityFallback[modality] !== undefined) modalityFallback[modality] += 1;
+      });
+      if (!elementSum) p.elementCounts = elementFallback;
+      if (!modalitySum) p.modalityCounts = modalityFallback;
     }
     if (p.elementCounts && !p.elementBars) {
       const total = (p.elementCounts.fire || 0) + (p.elementCounts.earth || 0) + (p.elementCounts.air || 0) + (p.elementCounts.water || 0) || 1;
