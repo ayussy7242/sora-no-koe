@@ -27,8 +27,9 @@ INPUT（kernelのみ）から「星の設計図」本文を生成する。
 - 文中で「宇宙」という語は使わず「星」で統一する
 - モード表記は日本語（活動宮 / 固定宮 / 柔軟宮）にする
 - 英語の構造語は日本語訳を添える（例：集中型（クラスター））
-- 重要語は **太字** で強調する（1〜2箇所）
-- 2〜3文ごとに改行し、段落を作る
+- 本文・intro・説明文は日本語を優先する（カタカナ英語の構造語は使わない）
+- 配置情報（サイン/ハウス/度数/アスペクト）は内部判断の材料として使い、本文での読み上げは最小限にする
+- 配置の事実表示はUI側に任せ、本文は意味・役割・偏り・力学を書く
 `.trim();
 
 
@@ -206,9 +207,9 @@ planet_roles の禁止：
 - 文中に「役割名」を一度だけ入れる（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
 
 文字量の目安：
-- planet_roles.sun / moon: 約70文字（最大90文字）
-- planet_roles.mercury / venus / mars: 約70文字（最大90文字）
-- planet_roles.jupiter〜pluto: 約70文字（最大90文字）
+- planet_roles.sun / moon: 約100文字（最大120文字）
+- planet_roles.mercury / venus / mars: 約100文字（最大120文字）
+- planet_roles.jupiter〜pluto: 約100文字（最大120文字）
 - system_layers.core: 約90文字（最大120文字）
 - system_layers.personal: 約80文字（最大120文字）
 - system_layers.collective: 約80文字（最大120文字）
@@ -243,7 +244,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - sign / house / aspect / orb は、INPUTにあるものだけを材料として使う
 - aspect_dynamics は **主要アスペクトの統合要約（1行）** として書く
 - aspect_dynamics では、チャート固有の接続（主要アスペクト / サイン / ハウス）を最低1つは明示する
-- aspect_dynamics は **1文・約60文字（最大80文字）** にまとめる
+- aspect_dynamics は **1〜2文・約80文字（最大100文字）** にまとめる
 - 新しい情報を足さない
 - 断定しすぎず、構造として記述する
 - 「あなた」は使わない
@@ -260,7 +261,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 
 文字量の目安：
 - aspect_map 各text: 約80文字（最大120文字）
-- aspect_dynamics: 約60文字（最大80文字）
+- aspect_dynamics: 約80文字（最大100文字）
 
 避けること：
 - 単体アスペクトの一般解説
