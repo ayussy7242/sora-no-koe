@@ -1808,6 +1808,11 @@ body {
   max-width: 520px;
 }
 
+.full-width .text-block,
+.full-width.text-block {
+  max-width: 100%;
+}
+
 .text-block p,
 .card-body p,
 .card-text p {
@@ -2172,7 +2177,7 @@ body {
     const text = `${(row.lines || []).join(" ")} ${row.text || ""}`.trim();
     const height = estimateBlockHeight({ text });
     const html = [
-      `<div class="chart-box">`,
+      `<div class="chart-box full-width">`,
       `<div class="card-head">${row.title}</div>`,
       `<div class="card-sub">${row.sub}</div>`,
       row.lines?.length ? `<div class="card-list inline">${row.lines.map((l) => `<div>${escapeHtml(l)}</div>`).join("")}</div>` : "",
@@ -2209,7 +2214,7 @@ body {
       : "";
     const bodyClass = row.extra === "axis" ? "card-body node-body text-block" : "card-body text-block";
     const html = [
-      `<div class="chart-box">`,
+      `<div class="chart-box full-width">`,
       `<div class="card-head">${row.title}</div>`,
       `<div class="card-sub">${row.sub}</div>`,
       metaHtml,
@@ -2228,7 +2233,7 @@ body {
       sub: "CORE ASPECTS",
       text: (p.aspectMap || []).join(" "),
       html: [
-        `<div class="chart-box">`,
+        `<div class="chart-box full-width">`,
         `<div class="card-head">主要アスペクト</div>`,
         `<div class="card-sub">CORE ASPECTS</div>`,
         `<div class="card-body text-block">${(p.aspectMap || []).map((text) => `• ${renderInlineText(text)}`).join("<br/>")}</div>`,
@@ -2241,7 +2246,7 @@ body {
       sub: "ENERGY DYNAMICS",
       text: p.aspectEnergyText || "",
       html: [
-        `<div class="chart-box asp-energy">`,
+        `<div class="chart-box asp-energy full-width">`,
         `<div class="card-head">エネルギーの動き</div>`,
         `<div class="card-sub">ENERGY DYNAMICS</div>`,
         `<div class="card-body text-block">${renderRichText(p.aspectEnergyText)}</div>`,
@@ -2412,7 +2417,7 @@ body {
               ${(p.cosmicTraitsLines || []).map((row) => `<div>・${escapeHtml(row)}</div>`).join("")}
             </div>
           </div>
-          <div class="chart-box span-2">
+          <div class="chart-box span-2 full-width">
             <div class="card-head">星のシグネチャ</div>
             <div class="card-sub">STAR SIGNATURE</div>
             <div class="card-body text-block">${renderRichText(p.cosmicSignatureText || "")}</div>
@@ -2508,7 +2513,7 @@ body {
             <div class="card-sub">ENERGY FLOW</div>
             <div class="card-body text-block">${renderRichText(p.energyFlowText)}</div>
           </div>
-          <div class="chart-box span-6">
+          <div class="chart-box span-6 full-width">
             <div class="card-head">星の構造まとめ</div>
             <div class="card-sub">STAR STRUCTURE</div>
             <div class="card-body text-block">${renderRichText(p.structureSummaryText)}</div>
@@ -2535,7 +2540,7 @@ body {
         ${natalWheelMarkup}
       </div>
       <div class="bottom">
-        <div class="chart-box">
+        <div class="chart-box full-width">
           <div class="card-head">チャート観測</div>
           <div class="card-sub">CHART OBSERVATION</div>
           <div class="card-body text-block">${renderRichText(p.natalObservation)}</div>
@@ -2587,7 +2592,7 @@ body {
         </div>
       </div>
       <div class="bottom">
-        <div class="chart-box">
+        <div class="chart-box full-width">
           <div class="card-head">軸の構造</div>
           <div class="card-sub">AXIS STRUCTURE</div>
           <div class="card-body text-block">${renderRichText(p.anglesText?.axis_structure || "")}</div>
@@ -2626,7 +2631,7 @@ body {
             <div class="card-sub">STAR STRUCTURE</div>
             <div class="card-body text-block">${renderRichText(p.chartPattern)}</div>
           </div>
-          <div class="chart-box">
+          <div class="chart-box full-width">
             <div class="card-head">人生の方向</div>
             <div class="card-sub">LIFE DIRECTION</div>
             <div class="card-body text-block">${renderRichText(p.lifeDirection)}</div>
@@ -2634,7 +2639,7 @@ body {
         </div>
       </div>
       <div class="bottom">
-        <div class="chart-box">
+        <div class="chart-box full-width">
           <div class="card-head">最後のメッセージ</div>
           <div class="card-sub">FINAL NOTE</div>
           <div class="card-body text-block">${renderRichText(p.closingSummary)}</div>
