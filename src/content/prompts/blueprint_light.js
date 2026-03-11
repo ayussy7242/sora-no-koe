@@ -53,6 +53,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
 
 担当範囲：
+- core_tagline
 - core_snapshot
 - dashboard（element_balance / modality_balance / dominant_signs / dominant_houses / planet_distribution / energy_flow / cosmic_structure）
 - pattern_name
@@ -85,6 +86,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.cosmic_structure：骨格（核→支え→構造型）
 
 文章の流れ（この順で書く）：
+- core_tagline：一言で設計図の核を示す（短いラベル）
 - core_snapshot：中心核 → 最も強い偏り → この設計図のひと掴み
 - dashboard.element_balance：多い要素 → 少ない要素 → 質感
 - dashboard.modality_balance：強い動き方 → 弱い動き方 → 速度感
@@ -93,23 +95,29 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - natal_observation：核の配置 → 補助・補正する配置 → このチャートの読み
 - life_direction：外へ向かう流れ → 内へ戻る流れ → 全体の進行方向
 
+closing_summary の構成：
+1) 核となる構造を1文で再統合
+2) その配置が生む張力を1文で示す
+3) 最後に設計図としてのまとまりを書く
+
 文字量の目安（中心＋上限）：
-- core_snapshot: 約180文字（最大220文字）
-- dashboard.element_balance: 約150文字（最大200文字）
-- dashboard.modality_balance: 約150文字（最大200文字）
+- core_tagline: 約30文字（最大40文字）
+- core_snapshot: 約200文字（最大260文字）
+- dashboard.element_balance: 約160文字（最大220文字）
+- dashboard.modality_balance: 約160文字（最大220文字）
 - dashboard.dominant_signs: 約80文字（最大100文字）
 - dashboard.dominant_houses: 約80文字（最大100文字）
 - dashboard.planet_distribution: 約110文字（最大140文字）
-- dashboard.energy_flow: 約150文字（最大200文字）
-- dashboard.cosmic_structure: 約210文字（最大240文字）
+- dashboard.energy_flow: 約180文字（最大240文字）
+- dashboard.cosmic_structure: 約230文字（最大300文字）
 - pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
-- cosmic_signature: 約190文字（最大220文字）
+- cosmic_signature: 約220文字（最大300文字）
 - chart_pattern: 約35文字（最大50文字）
-- life_direction: 約55文字（最大70文字）
-- natal_observation: 約160文字（最大200文字）
-- closing_summary: 約55文字（最大80文字）
+- life_direction: 約130文字（最大170文字）
+- natal_observation: 約200文字（最大260文字）
+- closing_summary: 約120文字（最大160文字）
 
 避けること：
 - 担当外の要素（planet_roles / aspect_map）をまとめること
@@ -194,18 +202,18 @@ planet_roles の禁止：
 - 文中に「役割名」を一度だけ入れる（例：中心熱 / 発火点 / 接続点 / 調整役 / 抑制点 / 変容核 / 保護層）
 
 文字量の目安：
-- planet_roles.sun / moon: 約30文字（最大36文字）
-- planet_roles.mercury / venus / mars: 約30文字（最大36文字）
-- planet_roles.jupiter〜pluto: 約30文字（最大36文字）
-- system_layers.core: 約70文字（最大90文字）
-- system_layers.personal: 約60文字（最大80文字）
-- system_layers.collective: 約60文字（最大80文字）
-- system_layers.flow: 約45文字（最大65文字）
-- deep_axis.nodes: 約30文字（最大36文字）
-- deep_axis.chiron: 約30文字（最大36文字）
-- deep_axis.lilith: 約30文字（最大36文字）
-- deep_axis.pattern: 約35文字（最大50文字）
-- angles.asc / mc / ic / dc: 約30文字（最大36文字）
+- planet_roles.sun / moon: 約70文字（最大90文字）
+- planet_roles.mercury / venus / mars: 約70文字（最大90文字）
+- planet_roles.jupiter〜pluto: 約70文字（最大90文字）
+- system_layers.core: 約90文字（最大120文字）
+- system_layers.personal: 約80文字（最大120文字）
+- system_layers.collective: 約80文字（最大120文字）
+- system_layers.flow: 約60文字（最大100文字）
+- deep_axis.nodes: 約70文字（最大90文字）
+- deep_axis.chiron: 約70文字（最大90文字）
+- deep_axis.lilith: 約70文字（最大90文字）
+- deep_axis.pattern: 約90文字（最大120文字）
+- angles.asc / mc / ic / dc: 約60文字（最大80文字）
 - angles.axis_structure: 約80文字（最大110文字）
 
 避けること：
@@ -231,7 +239,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - sign / house / aspect / orb は、INPUTにあるものだけを材料として使う
 - aspect_dynamics は **主要アスペクトの統合要約（1行）** として書く
 - aspect_dynamics では、チャート固有の接続（主要アスペクト / サイン / ハウス）を最低1つは明示する
-- aspect_dynamics は **1文・約25文字（最大30文字）** にまとめる
+- aspect_dynamics は **1文・約60文字（最大80文字）** にまとめる
 - 新しい情報を足さない
 - 断定しすぎず、構造として記述する
 - 「あなた」は使わない
@@ -247,8 +255,8 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - aspect_dynamics：全アスペクトを通して、どこに流れ/緊張が集まるかを1文で書く
 
 文字量の目安：
-- aspect_map 各text: 約60文字（最大80文字）
-- aspect_dynamics: 約25文字（最大30文字）
+- aspect_map 各text: 約80文字（最大120文字）
+- aspect_dynamics: 約60文字（最大80文字）
 
 避けること：
 - 単体アスペクトの一般解説

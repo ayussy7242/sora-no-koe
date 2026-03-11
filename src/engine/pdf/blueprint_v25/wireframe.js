@@ -147,6 +147,7 @@ function buildWireframeData(input, placeholders) {
   if (src.birth_text) p.birthText = src.birth_text;
   if (src.owner_name) p.ownerName = src.owner_name;
 
+  if (blueprint?.core_tagline) p.coreTagline = blueprint.core_tagline;
   if (blueprint?.core_snapshot) p.coreSnapshot = blueprint.core_snapshot;
   const masterChart = blueprint?.master_chart || src?.master_chart || null;
   const elementCountsInput = src?.elementCounts || src?.element_counts || null;
@@ -845,6 +846,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
     displayLabel: "Owner: Ayussy",
     birthText: "1993.07.04 18:45 / Tokyo, Japan",
     ownerName: "あゆっさい",
+    coreTagline: "火の推進力が社会方向へ集中する設計図",
     coreAxisLines: [
       "☉ 太陽　獅子座｜10H",
       "☽ 月　　獅子座｜10H",
@@ -1326,6 +1328,13 @@ body {
   font-size: var(--fs-sub);
   line-height: 2.28;
   color: var(--muted);
+}
+
+.tagline {
+  font-size: calc(16px * var(--ui) * 0.95);
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 10px;
 }
 
 .angles-intro {
@@ -1900,6 +1909,7 @@ body {
       <div class="top">
         <div class="label">SYS-01</div>
         <div class="title">あなたの星の設計図</div>
+        ${p.coreTagline ? `<div class="tagline">${escapeHtml(p.coreTagline)}</div>` : ""}
         <div class="subtext">BIRTH STAR BLUEPRINT</div>
         <div class="subtext" style="margin-top:24px; letter-spacing:0.2em;">${escapeHtml(p.signatureLineSymbols)}</div>
         <div class="text" style="margin-top:28px;">${escapeHtml(p.ownerName)}</div>

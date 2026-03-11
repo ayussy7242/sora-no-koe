@@ -167,5 +167,11 @@
     },
     "house_counts": { "type": "object" },
     "planet_distribution": { "type": "object" }
+    ,
+    "dominant_signs": { "type": "array" },
+    "dominant_houses": { "type": "array" },
+    "energy_center": { "type": ["object", "null"] },
+    "major_aspects": { "type": "array" },
+    "chart_pattern": { "type": ["string", "object", "null"] }
   }
 }
