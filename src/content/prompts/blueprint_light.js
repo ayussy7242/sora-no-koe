@@ -49,6 +49,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - 助言・指示・予測・吉凶判断は書かない
 - 占星術用語を使いすぎず、読める文章にする
 - 体感描写だけで逃げず、構造が分かる文にする
+- 文章の流れを意識して書く（流れがあるほど自然に読める）
 - 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
 
 担当範囲：
@@ -75,6 +76,15 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.cosmic_structure は「構造まとめ」を書く
 - pattern_name は短い名称のみ
 - cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
+
+文章の流れ（この順で書く）：
+- core_snapshot：中心核 → 重心 → 全体印象
+- dashboard.element_balance：多い要素 → 少ない要素 → 質感
+- dashboard.modality_balance：強い動き方 → 弱い動き方 → 速度感
+- dashboard.energy_flow：どこに集まるか → 何が動くか → 何が残るか
+- dashboard.cosmic_structure：重心 → 支える配置 → 全体の像
+- natal_observation：核の配置 → 補助配置 → 全体の見え方
+- life_direction：外側の方向 → 内側の方向 → そのバランス
 
 文字量の目安（中心＋上限）：
 - core_snapshot: 約180文字（最大220文字）
@@ -123,6 +133,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - 助言・指示・予測・吉凶判断は書かない
 - 占星術用語を使いすぎず、読める文章にする
 - 体感描写だけで逃げず、構造が分かる文にする
+- 文章の流れを意識して書く（流れがあるほど自然に読める）
 - 出力は厳密なJSON。末尾カンマ禁止。ダブルクォートのみ。
 
 担当範囲：
@@ -142,6 +153,12 @@ planet_roles の必須：
 - 配置の読み上げで始めない
 - 1文目で役割を書く
 - 2文目で必要な配置要素を補助的に添える
+
+文章の流れ（この順で書く）：
+- planet_roles：役割 → その役割を支える配置 → 現れ方
+- system_layers：層の主成分 → 層の働き → 他層とのつながり
+- deep_axis：深層の引力 → 反対側の方向 → 全体との関係
+- angles：軸の役割 → その軸の質感
 
 deep_axis の必須：
 - 配置情報を材料にしつつ、軸や深層テーマを優先して書く
@@ -211,6 +228,10 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 担当範囲：
 - aspect_map
 - aspect_dynamics
+
+文章の流れ（この順で書く）：
+- aspect_map：何がつながるか → どんな回路になるか
+- aspect_dynamics：全アスペクトを通して、どこに流れ/緊張が集まるかを1文で書く
 
 文字量の目安：
 - aspect_map 各text: 70〜140字
