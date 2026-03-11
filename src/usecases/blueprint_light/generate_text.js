@@ -987,6 +987,19 @@ function stripLeadingPlacementClause(text) {
   return out.replace(/^[、。]+/, "").trim();
 }
 
+function stripPlacementTokens(text) {
+  let out = coerceText(text);
+  if (!out) return "";
+  out = out.replace(/(牡羊座|牡牛座|双子座|蟹座|獅子座|乙女座|天秤座|蠍座|射手座|山羊座|水瓶座|魚座)/g, "");
+  out = out.replace(/\b(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces)\b/gi, "");
+  out = out.replace(/\d+\s*(?:°|度)/g, "");
+  out = out.replace(/\b\d+\s*H\b/gi, "");
+  out = out.replace(/\b\d+\s*ハウス\b/g, "");
+  out = out.replace(/[|｜]/g, " ");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  return out;
+}
+
 function normalizeV2AspectText(text) {
   return normalizeV2Text(text, {
     minSentences: 1,
@@ -1680,151 +1693,151 @@ async function generateBlueprintLightTextV2({ env, input }) {
       }),
     },
     planet_roles: {
-      sun: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.sun || "", {
+      sun: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.sun || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
         maxChars: 90,
-      })),
-      moon: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.moon || "", {
+      }))),
+      moon: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.moon || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_LUM_CHARS,
         maxChars: 90,
-      })),
-      mercury: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mercury || "", {
+      }))),
+      mercury: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mercury || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
         maxChars: 90,
-      })),
-      venus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.venus || "", {
+      }))),
+      venus: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.venus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
         maxChars: 90,
-      })),
-      mars: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mars || "", {
+      }))),
+      mars: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.mars || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_PERSONAL_CHARS,
         maxChars: 90,
-      })),
-      jupiter: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.jupiter || "", {
+      }))),
+      jupiter: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.jupiter || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
         maxChars: 90,
-      })),
-      saturn: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.saturn || "", {
+      }))),
+      saturn: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.saturn || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
         maxChars: 90,
-      })),
-      uranus: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.uranus || "", {
+      }))),
+      uranus: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.uranus || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
         maxChars: 90,
-      })),
-      neptune: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.neptune || "", {
+      }))),
+      neptune: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.neptune || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
         maxChars: 90,
-      })),
-      pluto: stripLeadingPlacementClause(normalizeV2Text(planetRoles?.pluto || "", {
+      }))),
+      pluto: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(planetRoles?.pluto || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ROLE_OUTER_CHARS,
         maxChars: 90,
-      })),
+      }))),
     },
     system_layers: {
-      core: normalizeV2Text(systemLayers?.core || "", {
+      core: stripPlacementTokens(normalizeV2Text(systemLayers?.core || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_CORE_CHARS,
         maxChars: 120,
-      }),
-      personal: normalizeV2Text(systemLayers?.personal || "", {
+      })),
+      personal: stripPlacementTokens(normalizeV2Text(systemLayers?.personal || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_PERSONAL_CHARS,
         maxChars: 120,
-      }),
-      collective: normalizeV2Text(systemLayers?.collective || "", {
+      })),
+      collective: stripPlacementTokens(normalizeV2Text(systemLayers?.collective || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_COLLECTIVE_CHARS,
         maxChars: 120,
-      }),
-      flow: normalizeV2Text(systemLayers?.flow || "", {
+      })),
+      flow: stripPlacementTokens(normalizeV2Text(systemLayers?.flow || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_LAYER_FLOW_CHARS,
         maxChars: 100,
-      }),
+      })),
     },
     deep_axis: {
-      nodes: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.nodes || "", {
+      nodes: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(deepAxis?.nodes || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_NODES_CHARS,
         maxChars: 90,
-      })),
-      chiron: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.chiron || "", {
+      }))),
+      chiron: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(deepAxis?.chiron || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_CHIRON_CHARS,
         maxChars: 90,
-      })),
-      lilith: stripLeadingPlacementClause(normalizeV2Text(deepAxis?.lilith || "", {
+      }))),
+      lilith: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(deepAxis?.lilith || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_DEEP_LILITH_CHARS,
         maxChars: 90,
-      })),
-      pattern: normalizeV2Text(deepAxis?.pattern || "", {
+      }))),
+      pattern: stripPlacementTokens(normalizeV2Text(deepAxis?.pattern || "", {
         minSentences: 3,
         maxSentences: 5,
         minChars: MIN_V2_DEEP_PATTERN_CHARS,
         maxChars: 120,
-      }),
+      })),
     },
     angles: {
-      intro: normalizeV2Text(angles?.intro || "", {
+      intro: stripPlacementTokens(normalizeV2Text(angles?.intro || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_INTRO_CHARS,
         maxChars: 110,
-      }),
-      asc: stripLeadingPlacementClause(normalizeV2Text(angles?.asc || "", {
+      })),
+      asc: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(angles?.asc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
         maxChars: 80,
-      })),
-      mc: stripLeadingPlacementClause(normalizeV2Text(angles?.mc || "", {
+      }))),
+      mc: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(angles?.mc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
         maxChars: 80,
-      })),
-      ic: stripLeadingPlacementClause(normalizeV2Text(angles?.ic || "", {
+      }))),
+      ic: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(angles?.ic || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
         maxChars: 80,
-      })),
-      dc: stripLeadingPlacementClause(normalizeV2Text(angles?.dc || "", {
+      }))),
+      dc: stripPlacementTokens(stripLeadingPlacementClause(normalizeV2Text(angles?.dc || "", {
         minSentences: 2,
         maxSentences: 4,
         minChars: MIN_V2_ANGLE_CHARS,
         maxChars: 80,
-      })),
-      axis_structure: normalizeV2Text(
+      }))),
+      axis_structure: stripPlacementTokens(normalizeV2Text(
         angles?.axis_structure || angles?.axis_summary || "",
         {
           minSentences: 2,
@@ -1832,7 +1845,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
           minChars: MIN_V2_ANGLE_AXIS_CHARS,
           maxChars: 110,
         }
-      ),
+      )),
     },
     aspect_map: aspectMap.slice(0, 5).map((row, idx) => ({
       key: String(row?.key || `aspect_${idx + 1}`).trim(),
