@@ -77,14 +77,21 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - pattern_name は短い名称のみ
 - cosmic_traits は **配置の特徴のみを書く（性格解釈をしない）**
 
+役割の分離（被り防止）：
+- core_snapshot：顔／一発で掴む文。分布詳細や長い観測は書かない
+- natal_observation：観測文。核＋補助配置から「どう読むか」を書く
+- closing_summary：締め。再説明しない／短く閉じる
+- dashboard.energy_flow：動線（集まる→流れる→滞留）
+- dashboard.cosmic_structure：骨格（核→支え→構造型）
+
 文章の流れ（この順で書く）：
-- core_snapshot：中心核 → 重心 → 全体印象
+- core_snapshot：中心核 → 最も強い偏り → この設計図のひと掴み
 - dashboard.element_balance：多い要素 → 少ない要素 → 質感
 - dashboard.modality_balance：強い動き方 → 弱い動き方 → 速度感
-- dashboard.energy_flow：どこに集まるか → 何が動くか → 何が残るか
-- dashboard.cosmic_structure：重心 → 支える配置 → 全体の像
-- natal_observation：核の配置 → 補助配置 → 全体の見え方
-- life_direction：外側の方向 → 内側の方向 → そのバランス
+- dashboard.energy_flow：どこに集まるか → どこへ流れるか → どこで滞留するか
+- dashboard.cosmic_structure：核になる配置 → 支える配置 → 構造型
+- natal_observation：核の配置 → 補助・補正する配置 → このチャートの読み
+- life_direction：外へ向かう流れ → 内へ戻る流れ → 全体の進行方向
 
 文字量の目安（中心＋上限）：
 - core_snapshot: 約180文字（最大220文字）
@@ -160,6 +167,12 @@ planet_roles の必須：
 - deep_axis：深層の引力 → 反対側の方向 → 全体との関係
 - angles：軸の役割 → その軸の質感
 
+役割の分離（被り防止）：
+- planet_roles：個の持ち場。天体ごとの役職だけを書く
+- system_layers：群のまとまり。天体群がまとまった層の性質を書く
+- deep_axis.pattern：裏テーマ。表の方向ではなく底の引力を書く
+- angles.axis_structure：4軸の張力だけ。全体まとめには寄せない
+
 deep_axis の必須：
 - 配置情報を材料にしつつ、軸や深層テーマを優先して書く
 
@@ -184,16 +197,16 @@ planet_roles の禁止：
 - planet_roles.sun / moon: 約30文字（最大36文字）
 - planet_roles.mercury / venus / mars: 約30文字（最大36文字）
 - planet_roles.jupiter〜pluto: 約30文字（最大36文字）
-- system_layers.core: 約60文字（最大80文字）
-- system_layers.personal: 約50文字（最大70文字）
-- system_layers.collective: 約50文字（最大70文字）
-- system_layers.flow: 約40文字（最大60文字）
+- system_layers.core: 約70文字（最大90文字）
+- system_layers.personal: 約60文字（最大80文字）
+- system_layers.collective: 約60文字（最大80文字）
+- system_layers.flow: 約45文字（最大65文字）
 - deep_axis.nodes: 約30文字（最大36文字）
 - deep_axis.chiron: 約30文字（最大36文字）
 - deep_axis.lilith: 約30文字（最大36文字）
-- deep_axis.pattern: 約20文字（最大30文字）
+- deep_axis.pattern: 約35文字（最大50文字）
 - angles.asc / mc / ic / dc: 約30文字（最大36文字）
-- angles.axis_structure: 約190文字（最大220文字）
+- angles.axis_structure: 約80文字（最大110文字）
 
 避けること：
 - 担当外の要素（chart_pattern / dashboard）をまとめること
@@ -218,7 +231,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - sign / house / aspect / orb は、INPUTにあるものだけを材料として使う
 - aspect_dynamics は **主要アスペクトの統合要約（1行）** として書く
 - aspect_dynamics では、チャート固有の接続（主要アスペクト / サイン / ハウス）を最低1つは明示する
-- aspect_dynamics は **1文・約60文字** にまとめる
+- aspect_dynamics は **1文・約25文字（最大30文字）** にまとめる
 - 新しい情報を足さない
 - 断定しすぎず、構造として記述する
 - 「あなた」は使わない
@@ -234,8 +247,8 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - aspect_dynamics：全アスペクトを通して、どこに流れ/緊張が集まるかを1文で書く
 
 文字量の目安：
-- aspect_map 各text: 70〜140字
-- aspect_dynamics: 55〜70字
+- aspect_map 各text: 約60文字（最大80文字）
+- aspect_dynamics: 約25文字（最大30文字）
 
 避けること：
 - 単体アスペクトの一般解説
