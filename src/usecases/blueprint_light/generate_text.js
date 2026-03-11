@@ -54,27 +54,27 @@ const MIN_V2_DASH_STRUCTURE_CHARS = 190;
 const MIN_V2_ROLE_LUM_CHARS = 18;
 const MIN_V2_ROLE_PERSONAL_CHARS = 18;
 const MIN_V2_ROLE_OUTER_CHARS = 18;
-const MIN_V2_LAYER_CORE_CHARS = 90;
-const MIN_V2_LAYER_PERSONAL_CHARS = 80;
-const MIN_V2_LAYER_COLLECTIVE_CHARS = 80;
-const MIN_V2_LAYER_FLOW_CHARS = 60;
+const MIN_V2_LAYER_CORE_CHARS = 40;
+const MIN_V2_LAYER_PERSONAL_CHARS = 30;
+const MIN_V2_LAYER_COLLECTIVE_CHARS = 30;
+const MIN_V2_LAYER_FLOW_CHARS = 20;
 const MIN_V2_DEEP_NODES_CHARS = 18;
 const MIN_V2_DEEP_CHIRON_CHARS = 18;
 const MIN_V2_DEEP_LILITH_CHARS = 18;
-const MIN_V2_DEEP_PATTERN_CHARS = 18;
+const MIN_V2_DEEP_PATTERN_CHARS = 8;
 const MIN_V2_NATAL_OBS_CHARS = 130;
 const MIN_V2_ANGLE_CHARS = 18;
-const MIN_V2_ANGLE_AXIS_CHARS = 80;
+const MIN_V2_ANGLE_AXIS_CHARS = 180;
 const MIN_V2_ANGLE_INTRO_CHARS = 70;
 const MIN_V2_ASPECT_CHARS = 50;
-const MIN_V2_ASPECT_DYNAMICS_CHARS = 35;
+const MIN_V2_ASPECT_DYNAMICS_CHARS = 20;
 const MIN_V2_PATTERN_NAME_CHARS = 8;
-const MIN_V2_LIFE_DIRECTION_CHARS = 40;
+const MIN_V2_LIFE_DIRECTION_CHARS = 120;
 const MIN_V2_PATTERN_CHARS = 28;
 const MIN_V2_COSMIC_FOCUS_CHARS = 28;
 const MIN_V2_COSMIC_TRAITS_CHARS = 35;
 const MIN_V2_COSMIC_SIGNATURE_CHARS = 170;
-const MIN_V2_CLOSING_CHARS = 40;
+const MIN_V2_CLOSING_CHARS = 120;
 
 const HARD_BANNED_PATTERNS = [
   /あなた/,
@@ -950,7 +950,8 @@ function normalizeV2Text(text, { minSentences, maxSentences, minChars, maxChars 
   out = out
     .replace(/Cardinal/gi, "活動宮")
     .replace(/Fixed/gi, "固定宮")
-    .replace(/Mutable/gi, "柔軟宮");
+    .replace(/Mutable/gi, "柔軟宮")
+    .replace(/Cluster/gi, "集中型（クラスター）");
   if (!out) return "";
   out = tidyConsolidatedText(out, { minSentences, maxSentences });
   if (isTooShort(out, minChars)) return out;
@@ -1801,6 +1802,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
       minSentences: 1,
       maxSentences: 1,
       minChars: MIN_V2_ASPECT_DYNAMICS_CHARS,
+      maxChars: 30,
     }),
     pattern_name: normalizeV2Text(source?.pattern_name || "", {
       minSentences: 1,
