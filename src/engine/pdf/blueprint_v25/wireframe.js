@@ -529,8 +529,21 @@ function buildWireframeData(input, placeholders) {
       .map(([house, count]) => ({ house: Number(house), count: toNumber(count) }))
       .sort((a, b) => (b.count - a.count) || (a.house - b.house));
     if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 2).map((row) => `${row.house}H`);
-    if (masterChart?.element_balance) p.elementCounts = masterChart.element_balance;
-    if (masterChart?.modality_balance) p.modalityCounts = masterChart.modality_balance;
+    if (masterChart?.element_balance) {
+      p.elementCounts = {
+        fire: toNumber(masterChart.element_balance.fire),
+        earth: toNumber(masterChart.element_balance.earth),
+        air: toNumber(masterChart.element_balance.air),
+        water: toNumber(masterChart.element_balance.water),
+      };
+    }
+    if (masterChart?.modality_balance) {
+      p.modalityCounts = {
+        cardinal: toNumber(masterChart.modality_balance.cardinal),
+        fixed: toNumber(masterChart.modality_balance.fixed),
+        mutable: toNumber(masterChart.modality_balance.mutable),
+      };
+    }
     if (p.elementCounts && !p.elementBars) {
       const total = (p.elementCounts.fire || 0) + (p.elementCounts.earth || 0) + (p.elementCounts.air || 0) + (p.elementCounts.water || 0) || 1;
       p.elementBars = {
@@ -1838,19 +1851,19 @@ body {
             <div class="card-sub">ELEMENT BALANCE</div>
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜂</span> 火 ${p.elementCounts?.fire ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">🜂</span> 火 ${p.elementCounts?.fire ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire || 62}%; --bar-color:#FF6B6B;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜃</span> 地 ${p.elementCounts?.earth ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">🜃</span> 地 ${p.elementCounts?.earth ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.earth || 42}%; --bar-color:#E6C36D;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜁</span> 風 ${p.elementCounts?.air ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">🜁</span> 風 ${p.elementCounts?.air ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.air || 54}%; --bar-color:#7FBF8F;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜄</span> 水 ${p.elementCounts?.water ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">🜄</span> 水 ${p.elementCounts?.water ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.water || 30}%; --bar-color:#7AA7FF;"></div></div>
               </div>
             </div>
@@ -1860,15 +1873,15 @@ body {
             <div class="card-sub">MODALITY BALANCE</div>
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">△</span> 活動宮 ${p.modalityCounts?.cardinal ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">△</span> 活動宮 ${p.modalityCounts?.cardinal ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal || 46}%; --bar-color:#FFB27A;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">□</span> 固定宮 ${p.modalityCounts?.fixed ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">□</span> 固定宮 ${p.modalityCounts?.fixed ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed || 64}%; --bar-color:#9EC5FF;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">◇</span> 柔軟宮 ${p.modalityCounts?.mutable ?? ""} パラメータ</div>
+                <div class="metric-label"><span class="astro-symbol">◇</span> 柔軟宮 ${p.modalityCounts?.mutable ?? ""}</div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable || 36}%; --bar-color:#9FD3A8;"></div></div>
               </div>
             </div>
