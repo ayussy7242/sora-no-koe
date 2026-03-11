@@ -8,7 +8,7 @@ const { BACKGROUND_COLORS } = require("../../shared/space_background/constants")
 
 const PAGE_WIDTH = 1080;
 const PAGE_HEIGHT = 1920;
-const TOTAL_SLIDES = 9;
+const TOTAL_SLIDES = 10;
 
 function escapeHtml(text) {
   return String(text || "")
@@ -17,6 +17,20 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function renderRichText(text, { paragraphs = true } = {}) {
+  const escaped = escapeHtml(text);
+  const withStrong = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  if (!paragraphs) return withStrong.replace(/\n/g, "<br/>");
+  const blocks = withStrong.split(/\n{2,}/);
+  return blocks
+    .map((block) => `<p>${block.replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+}
+
+function renderInlineText(text) {
+  return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 }
 
 function buildSpaceSvg({ variant, enabled }) {
@@ -68,6 +82,23 @@ function buildCosmicNav(activeIndex) {
   }).join("");
   return `<div class="cosmic-nav">${dots}</div>`;
 }
+
+function buildPageNumber(index) {
+  const num = String(index + 1).padStart(2, "0");
+  return `<div class="page-number">${num}</div>`;
+}
+
+const PAGE_INTROS = {
+  sys: "この設計図の入口と核を短く示す。",
+  map: "配置の偏りと構造を地図として読む。",
+  obs: "このチャートに現れる配置を観測として整理する。",
+  ang: "四つの角度から世界への接続を読む。",
+  pln: "各天体の持ち場を短く読み解く。",
+  lay: "天体群が層としてどうまとまるかを読む。",
+  dep: "表に出にくい引力と裏テーマを読む。",
+  asp: "接続と力学を回路図として見る。",
+  pat: "構造を統合し余韻としてまとめる。",
+};
 
 const BODY_GLYPH = {
   sun: "☉",
@@ -162,7 +193,10 @@ function buildWireframeData(input, placeholders) {
   if (blueprint?.deep_axis) p.deepAxis = blueprint.deep_axis;
   if (blueprint?.cosmic_focus) p.cosmicFocusLines = splitLines(blueprint.cosmic_focus);
   if (blueprint?.cosmic_traits) p.cosmicTraitsLines = splitLines(blueprint.cosmic_traits);
-  if (blueprint?.cosmic_signature) p.cosmicSignature = splitLines(blueprint.cosmic_signature);
+  if (blueprint?.cosmic_signature) {
+    p.cosmicSignatureText = blueprint.cosmic_signature;
+    p.cosmicSignature = splitLines(blueprint.cosmic_signature);
+  }
   if (blueprint?.dashboard?.dominant_signs) {
     p.dominantSignsText = blueprint.dashboard.dominant_signs;
   }
@@ -1270,7 +1304,7 @@ body {
 
 .pln-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   row-gap: var(--card-gap);
   column-gap: var(--column-gap);
   width: 100%;
@@ -1328,6 +1362,31 @@ body {
   font-size: var(--fs-sub);
   line-height: 2.28;
   color: var(--muted);
+}
+
+.page-intro {
+  font-size: calc(14px * var(--ui));
+  opacity: 0.7;
+  margin-top: 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+}
+
+.page-number {
+  position: absolute;
+  bottom: 24px;
+  right: 32px;
+  opacity: 0.4;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+}
+
+.page-corner {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  opacity: 0.2;
+  font-size: 16px;
 }
 
 .tagline {
@@ -1415,7 +1474,7 @@ body {
 .metric-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 10px;
 }
 
 .metric-label {
@@ -1431,9 +1490,9 @@ body {
 }
 
 .metric-count {
-  margin-left: 12px;
+  margin-left: 14px;
   opacity: 0.95;
-  padding-right: 10px;
+  padding-right: 14px;
 }
 
 .metric-bar {
@@ -1561,6 +1620,16 @@ body {
   line-height: 1.69;
 }
 
+.card-head::after,
+.planet-section-title::after {
+  content: "";
+  display: block;
+  width: 60px;
+  height: 1px;
+  margin-top: 6px;
+  background: rgba(255,255,255,0.35);
+}
+
 .card-sub {
   font-size: var(--fs-sub);
   letter-spacing: var(--ls-sub);
@@ -1576,6 +1645,23 @@ body {
   line-height: 2.05;
   margin-top: var(--space-1);
   color: var(--text);
+}
+
+.text-block {
+  max-width: 520px;
+}
+
+.text-block p,
+.card-body p,
+.card-text p {
+  margin: 0 0 14px;
+  line-height: 1.8;
+}
+
+.text-block p:last-child,
+.card-body p:last-child,
+.card-text p:last-child {
+  margin-bottom: 0;
 }
 
 .card-list {
@@ -1710,8 +1796,16 @@ body {
   margin-top: -10px;
 }
 
+.page--obs .bottom {
+  margin-top: -24px;
+}
+
+.page--pln .slide {
+  row-gap: calc(var(--section-gap) * 0.85);
+}
+
 .asp-energy {
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .axis-line {
@@ -1890,7 +1984,12 @@ body {
   color: var(--muted);
   text-transform: uppercase;
 }
-`;
+  `;
+
+  const planetRolePages = [
+    (p.planetRolesAll || []).slice(0, 5),
+    (p.planetRolesAll || []).slice(5, 10),
+  ];
 
   const html = `<!doctype html>
 <html lang="ja">
@@ -1905,12 +2004,15 @@ body {
     ${renderBg("sys", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">SYS-01</div>
+    ${buildPageNumber(0)}
+    <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
         <div class="label">SYS-01</div>
         <div class="title">あなたの星の設計図</div>
         ${p.coreTagline ? `<div class="tagline">${escapeHtml(p.coreTagline)}</div>` : ""}
         <div class="subtext">BIRTH STAR BLUEPRINT</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.sys)}</div>
         <div class="subtext" style="margin-top:24px; letter-spacing:0.2em;">${escapeHtml(p.signatureLineSymbols)}</div>
         <div class="text" style="margin-top:28px;">${escapeHtml(p.ownerName)}</div>
         <div class="subtext">${escapeHtml(p.birthText)}</div>
@@ -1955,9 +2057,7 @@ body {
           <div class="chart-box span-2">
             <div class="card-head">星のシグネチャ</div>
             <div class="card-sub">STAR SIGNATURE</div>
-            <div class="card-list">
-              ${p.cosmicSignature.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
+            <div class="card-body text-block">${renderRichText(p.cosmicSignatureText || "")}</div>
           </div>
         </div>
       </div>
@@ -1971,11 +2071,14 @@ body {
   <section class="page page--map">
     <div class="blueprint-grid"></div>
     <div class="coordinate">MAP-02</div>
+    ${buildPageNumber(1)}
+    <div class="page-corner">✧</div>
     <div class="slide">
       <div class="top">
         <div class="label">STAR MAP</div>
         <div class="title">星の構造マップ</div>
         <div class="subtext">STAR STRUCTURE MAP</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.map)}</div>
       </div>
       <div class="middle">
         <div class="grid-6">
@@ -2047,12 +2150,12 @@ body {
           <div class="chart-box span-3">
             <div class="card-head">エネルギーの流れ</div>
             <div class="card-sub">ENERGY FLOW</div>
-            <div class="card-body">${escapeHtml(p.energyFlowText)}</div>
+            <div class="card-body text-block">${renderRichText(p.energyFlowText)}</div>
           </div>
           <div class="chart-box span-6">
             <div class="card-head">星の構造まとめ</div>
             <div class="card-sub">STAR STRUCTURE</div>
-            <div class="card-body">${escapeHtml(p.structureSummaryText)}</div>
+            <div class="card-body text-block">${renderRichText(p.structureSummaryText)}</div>
           </div>
         </div>
         ${buildCosmicNav(1)}
@@ -2065,10 +2168,13 @@ body {
     ${renderBg("obs", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">OBS-03</div>
+    ${buildPageNumber(2)}
+    <div class="page-corner">✶</div>
     <div class="slide">
       <div class="top center">
         <div class="label">NATAL WHEEL</div>
         <div class="title">出生ホイール</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.obs)}</div>
       </div>
       <div class="middle center">
         ${natalWheelMarkup}
@@ -2077,7 +2183,7 @@ body {
         <div class="chart-box">
           <div class="card-head">チャート観測</div>
           <div class="card-sub">CHART OBSERVATION</div>
-          <div class="card-body">${escapeHtml(p.natalObservation)}</div>
+          <div class="card-body text-block">${renderRichText(p.natalObservation)}</div>
         </div>
         ${buildCosmicNav(2)}
       </div>
@@ -2085,15 +2191,18 @@ body {
   </section>
 
   <!-- Slide 4: Angles Axis -->
-  <section class="page">
+  <section class="page page--pln">
     <div class="blueprint-grid"></div>
     <div class="coordinate">ANG-04</div>
+    ${buildPageNumber(3)}
+    <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
         <div class="label">STAR AXIS</div>
         <div class="title">星の接続軸</div>
         <div class="subtext">ANGLES AXIS</div>
-        <div class="angles-intro">${escapeHtml(p.anglesIntro || "")}</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.ang)}</div>
+        <div class="angles-intro text-block">${renderRichText(p.anglesIntro || "")}</div>
       </div>
       <div class="middle">
         <div class="ang-grid">
@@ -2101,25 +2210,25 @@ body {
             <div class="card-head">ASC</div>
             <div class="card-sub">世界への入口</div>
             <div class="card-meta">${escapeHtml(p.angleMeta?.asc || "")}</div>
-            <div class="card-body">${escapeHtml(p.anglesText?.asc || "")}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">MC</div>
-            <div class="card-sub">社会への方向</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.mc || "")}</div>
-            <div class="card-body">${escapeHtml(p.anglesText?.mc || "")}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">IC</div>
-            <div class="card-sub">内側の根</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.ic || "")}</div>
-            <div class="card-body">${escapeHtml(p.anglesText?.ic || "")}</div>
+            <div class="card-body text-block">${renderRichText(p.anglesText?.asc || "")}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">DC</div>
             <div class="card-sub">他者との鏡</div>
             <div class="card-meta">${escapeHtml(p.angleMeta?.dc || "")}</div>
-            <div class="card-body">${escapeHtml(p.anglesText?.dc || "")}</div>
+            <div class="card-body text-block">${renderRichText(p.anglesText?.dc || "")}</div>
+          </div>
+          <div class="chart-box">
+            <div class="card-head">MC</div>
+            <div class="card-sub">社会への方向</div>
+            <div class="card-meta">${escapeHtml(p.angleMeta?.mc || "")}</div>
+            <div class="card-body text-block">${renderRichText(p.anglesText?.mc || "")}</div>
+          </div>
+          <div class="chart-box">
+            <div class="card-head">IC</div>
+            <div class="card-sub">内側の根</div>
+            <div class="card-meta">${escapeHtml(p.angleMeta?.ic || "")}</div>
+            <div class="card-body text-block">${renderRichText(p.anglesText?.ic || "")}</div>
           </div>
         </div>
       </div>
@@ -2127,7 +2236,7 @@ body {
         <div class="chart-box">
           <div class="card-head">軸の構造</div>
           <div class="card-sub">AXIS STRUCTURE</div>
-          <div class="card-body">${escapeHtml(p.anglesText?.axis_structure || "")}</div>
+          <div class="card-body text-block">${renderRichText(p.anglesText?.axis_structure || "")}</div>
         </div>
         ${buildCosmicNav(3)}
       </div>
@@ -2135,21 +2244,24 @@ body {
   </section>
 
   <!-- Slide 5: Planet System -->
-  <section class="page">
+  <section class="page page--pln">
     <div class="blueprint-grid"></div>
     <div class="coordinate">PLN-05</div>
+    ${buildPageNumber(4)}
+    <div class="page-corner">✧</div>
     <div class="slide">
       <div class="top">
         <div class="label">PLANET ROLES</div>
         <div class="title">星の役割</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.pln)}</div>
       </div>
       <div class="middle">
         <div style="width:100%;">
           <div class="pln-grid">
-            ${p.planetRolesAll.map((card) => `
+            ${planetRolePages[0].map((card) => `
             <div class="card">
             <div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>
-            <div class="card-text">${escapeHtml(card.text)}</div>
+            <div class="card-text text-block">${renderRichText(card.text)}</div>
             </div>`).join("\n")}
           </div>
         </div>
@@ -2160,14 +2272,46 @@ body {
     </div>
   </section>
 
+  <!-- Slide 6: Planet System (cont.) -->
+  <section class="page">
+    <div class="blueprint-grid"></div>
+    <div class="coordinate">PLN-05B</div>
+    ${buildPageNumber(5)}
+    <div class="page-corner">✧</div>
+    <div class="slide">
+      <div class="top">
+        <div class="label">PLANET ROLES</div>
+        <div class="title">星の役割</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.pln)}</div>
+      </div>
+      <div class="middle">
+        <div style="width:100%;">
+          <div class="pln-grid">
+            ${planetRolePages[1].map((card) => `
+            <div class="card">
+            <div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>
+            <div class="card-text text-block">${renderRichText(card.text)}</div>
+            </div>`).join("\n")}
+          </div>
+        </div>
+      </div>
+      <div class="bottom">
+        ${buildCosmicNav(6)}
+      </div>
+    </div>
+  </section>
+
   <!-- Slide 6: System Layers -->
   <section class="page">
     <div class="blueprint-grid"></div>
     <div class="coordinate">LAY-06</div>
+    ${buildPageNumber(6)}
+    <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
         <div class="label">STAR LAYERS</div>
         <div class="title">星のレイヤー</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.lay)}</div>
       </div>
       <div class="middle">
         <div class="lay-grid">
@@ -2177,7 +2321,7 @@ body {
             <div class="card-list inline">
               ${(p.systemLayerLines?.core || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
-            <div class="card-body">${escapeHtml(p.planetGroups.core)}</div>
+            <div class="card-body text-block">${renderRichText(p.planetGroups.core)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">PERSONAL LAYER</div>
@@ -2185,7 +2329,7 @@ body {
             <div class="card-list inline">
               ${(p.systemLayerLines?.personal || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
-            <div class="card-body">${escapeHtml(p.planetGroups.personal)}</div>
+            <div class="card-body text-block">${renderRichText(p.planetGroups.personal)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">COLLECTIVE LAYER</div>
@@ -2193,17 +2337,17 @@ body {
             <div class="card-list inline">
               ${(p.systemLayerLines?.collective || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
-            <div class="card-body">${escapeHtml(p.planetGroups.socialTranspersonal || p.planetGroups.social)}</div>
+            <div class="card-body text-block">${renderRichText(p.planetGroups.socialTranspersonal || p.planetGroups.social)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">LAYER FLOW</div>
             <div class="card-sub">レイヤーの流れ</div>
-            <div class="card-body">${escapeHtml(p.planetGroups.flow || p.planetGroups.core)}</div>
+            <div class="card-body text-block">${renderRichText(p.planetGroups.flow || p.planetGroups.core)}</div>
           </div>
         </div>
       </div>
       <div class="bottom">
-        ${buildCosmicNav(5)}
+        ${buildCosmicNav(6)}
       </div>
     </div>
   </section>
@@ -2212,10 +2356,13 @@ body {
   <section class="page">
     <div class="blueprint-grid"></div>
     <div class="coordinate">DEP-07</div>
+    ${buildPageNumber(7)}
+    <div class="page-corner">✶</div>
     <div class="slide">
       <div class="top">
         <div class="label">DEEP AXIS</div>
         <div class="title">深層の軸</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.dep)}</div>
       </div>
       <div class="middle">
         <div class="dep-grid">
@@ -2229,19 +2376,19 @@ body {
               <span class="axis-node right">${escapeHtml(northNodeSymbol)}</span>
               <span class="axis-arrow">→</span>
             </div>
-            <div class="card-body node-body">${escapeHtml(p.deepAxis.nodes)}</div>
+            <div class="card-body node-body text-block">${renderRichText(p.deepAxis.nodes)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">キロン</div>
             <div class="card-sub">CHIRON</div>
             <div class="card-meta">${escapeHtml(p.deepAxisMeta?.chiron || "")}</div>
-            <div class="card-body">${escapeHtml(p.deepAxis.chiron)}</div>
+            <div class="card-body text-block">${renderRichText(p.deepAxis.chiron)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">リリス</div>
             <div class="card-sub">LILITH</div>
             <div class="card-meta">${escapeHtml(p.deepAxisMeta?.lilith || "")}</div>
-            <div class="card-body">${escapeHtml(p.deepAxis.lilith)}</div>
+            <div class="card-body text-block">${renderRichText(p.deepAxis.lilith)}</div>
           </div>
         </div>
       </div>
@@ -2249,9 +2396,9 @@ body {
         <div class="chart-box">
           <div class="card-head">深層テーマ</div>
           <div class="card-sub">DEEP PATTERN</div>
-          <div class="card-body">${escapeHtml(p.deepPatternText)}</div>
+          <div class="card-body text-block">${renderRichText(p.deepPatternText)}</div>
         </div>
-        ${buildCosmicNav(6)}
+        ${buildCosmicNav(7)}
       </div>
     </div>
   </section>
@@ -2261,10 +2408,13 @@ body {
     ${renderBg("asp", midBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">ASP-08</div>
+    ${buildPageNumber(8)}
+    <div class="page-corner">✧</div>
     <div class="slide">
       <div class="top">
         <div class="label">ASPECT NETWORK</div>
         <div class="title">星の関係</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.asp)}</div>
       </div>
       <div class="middle">
           <div class="chart-box aspect-box" style="width: 100%; display:flex; flex-direction:column; align-items:center;">
@@ -2278,17 +2428,17 @@ body {
           <div class="chart-box">
             <div class="card-head">主要アスペクト</div>
             <div class="card-sub">CORE ASPECTS</div>
-            <div class="card-body">
-              ${p.aspectMap.map((text) => `• ${escapeHtml(text)}`).join("<br/>")}
+            <div class="card-body text-block">
+              ${p.aspectMap.map((text) => `• ${renderInlineText(text)}`).join("<br/>")}
             </div>
           </div>
           <div class="chart-box asp-energy">
             <div class="card-head">エネルギーの動き</div>
             <div class="card-sub">ENERGY DYNAMICS</div>
-            <div class="card-body">${escapeHtml(p.aspectEnergyText)}</div>
+            <div class="card-body text-block">${renderRichText(p.aspectEnergyText)}</div>
           </div>
         </div>
-        ${buildCosmicNav(7)}
+        ${buildCosmicNav(8)}
       </div>
     </div>
   </section>
@@ -2298,27 +2448,35 @@ body {
     ${renderBg("pat", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">PAT-09</div>
+    ${buildPageNumber(9)}
+    <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
         <div class="label">STAR PATTERN</div>
         <div class="title">星のパターン</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.pat)}</div>
       </div>
       <div class="middle">
         <div class="pat-grid">
           <div class="chart-box">
             <div class="card-head">パターン名</div>
             <div class="card-sub">PATTERN NAME</div>
-            <div class="card-body">${escapeHtml(p.patternName)}</div>
+            <div class="card-body text-block">${renderRichText(p.patternName)}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">星の構造</div>
             <div class="card-sub">STAR STRUCTURE</div>
-            <div class="card-body">${escapeHtml(p.chartPattern)}</div>
+            <div class="card-body text-block">${renderRichText(p.chartPattern)}</div>
+          </div>
+          <div class="chart-box">
+            <div class="card-head">星のシグネチャ</div>
+            <div class="card-sub">STAR SIGNATURE</div>
+            <div class="card-body text-block">${renderRichText(p.cosmicSignatureText || "")}</div>
           </div>
           <div class="chart-box">
             <div class="card-head">人生の方向</div>
             <div class="card-sub">LIFE DIRECTION</div>
-            <div class="card-body">${escapeHtml(p.lifeDirection)}</div>
+            <div class="card-body text-block">${renderRichText(p.lifeDirection)}</div>
           </div>
         </div>
       </div>
@@ -2326,10 +2484,10 @@ body {
         <div class="chart-box">
           <div class="card-head">最後のメッセージ</div>
           <div class="card-sub">FINAL NOTE</div>
-          <div class="card-body">${escapeHtml(p.closingSummary)}</div>
+          <div class="card-body text-block">${renderRichText(p.closingSummary)}</div>
         </div>
         <div class="subtext">This chart is a living system.</div>
-        ${buildCosmicNav(8)}
+        ${buildCosmicNav(9)}
       </div>
     </div>
   </section>
