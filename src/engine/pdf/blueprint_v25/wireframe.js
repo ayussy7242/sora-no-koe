@@ -1638,7 +1638,7 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--page-margin-bottom) - 110px);
+  bottom: calc(var(--page-margin-bottom) - 130px);
 }
 
 .nav-dot.active { color: #ffffff; }
