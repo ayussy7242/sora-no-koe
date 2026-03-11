@@ -216,6 +216,9 @@ function buildWireframeData(input, placeholders) {
     if (blueprint.angles.intro) p.anglesIntro = blueprint.angles.intro;
   }
   if (blueprint?.angles_intro) p.anglesIntro = blueprint.angles_intro;
+  if (!p.angularPlanets && blueprint?.angular_planets) {
+    p.angularPlanets = blueprint.angular_planets;
+  }
   if (!p.angularPlanets && masterChart?.angular_planets && typeof masterChart.angular_planets === "object") {
     p.angularPlanets = masterChart.angular_planets;
   }
@@ -708,6 +711,9 @@ function buildWireframeData(input, placeholders) {
   };
   if (p.angularPlanets && !Array.isArray(p.angularPlanets)) {
     p.angularPlanets = formatAngularPlanets(p.angularPlanets);
+  }
+  if (Array.isArray(p.angularPlanets) && p.angularPlanets.length === 0) {
+    p.angularPlanets = ["なし"];
   }
 
   if (elementCountsInput && !p.elementCounts) {
@@ -1685,7 +1691,7 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(var(--page-margin-bottom) - 130px);
+  bottom: calc(var(--page-margin-bottom) + 20px);
 }
 
 .nav-dot.active { color: #ffffff; }
@@ -1951,14 +1957,14 @@ body {
               ${p.dominantHouses.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
           </div>
-          <div class="chart-box span-6">
+          <div class="chart-box span-3">
             <div class="card-head">天体分布</div>
             <div class="card-sub">PLANET DISTRIBUTION</div>
             <div class="card-list">
               ${p.planetDistribution.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
           </div>
-          <div class="chart-box span-6">
+          <div class="chart-box span-3">
             <div class="card-head">エネルギーの流れ</div>
             <div class="card-sub">ENERGY FLOW</div>
             <div class="card-body">${escapeHtml(p.energyFlowText)}</div>
