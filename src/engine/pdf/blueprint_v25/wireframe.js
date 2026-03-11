@@ -100,6 +100,59 @@ const PAGE_INTROS = {
   pat: "構造を統合し余韻としてまとめる。",
 };
 
+const UI_SCALE = 1.815;
+const TITLE_SCALE = 1.44;
+const FS_BODY = 14 * UI_SCALE;
+const FS_SUB = 11 * UI_SCALE;
+const FS_HEAD = 16 * UI_SCALE * TITLE_SCALE;
+const LINE_HEIGHT = 1.8;
+const TEXT_MAX_WIDTH = 520;
+
+function estimateTextHeight(text, { fontSize = FS_BODY, lineHeight = LINE_HEIGHT, maxWidth = TEXT_MAX_WIDTH } = {}) {
+  const raw = String(text || "");
+  if (!raw.trim()) return 0;
+  const avgCharWidth = fontSize * 0.56;
+  const charsPerLine = Math.max(10, Math.floor(maxWidth / avgCharWidth));
+  const lines = Math.max(1, Math.ceil(raw.replace(/\n/g, "").length / charsPerLine));
+  return lines * fontSize * lineHeight;
+}
+
+function estimateBlockHeight({ title = true, sub = true, text = "" } = {}) {
+  const headHeight = title ? FS_HEAD * 1.2 + 8 : 0;
+  const subHeight = sub ? FS_SUB * 1.6 + 8 : 0;
+  const bodyHeight = estimateTextHeight(text);
+  return headHeight + subHeight + bodyHeight + 24;
+}
+
+function paginateBlocks(blocks, { maxHeight, minUsage = 0.35 } = {}) {
+  const pages = [];
+  let current = [];
+  let height = 0;
+  blocks.forEach((block) => {
+    if (current.length && height + block.height > maxHeight) {
+      pages.push({ blocks: current, height });
+      current = [];
+      height = 0;
+    }
+    current.push(block);
+    height += block.height;
+  });
+  if (current.length) pages.push({ blocks: current, height });
+  if (pages.length > 1) {
+    const last = pages[pages.length - 1];
+    const usage = last.height / maxHeight;
+    if (usage < minUsage) {
+      const prev = pages[pages.length - 2];
+      if (prev.height + last.height <= maxHeight) {
+        prev.blocks = prev.blocks.concat(last.blocks);
+        prev.height += last.height;
+        pages.pop();
+      }
+    }
+  }
+  return pages;
+}
+
 const BODY_GLYPH = {
   sun: "☉",
   moon: "☽",
@@ -126,6 +179,48 @@ const BODY_LABEL_JA = {
   pluto: "冥王星",
   asc: "ASC",
 };
+
+const SIGN_JA = {
+  aries: "牡羊座",
+  taurus: "牡牛座",
+  gemini: "双子座",
+  cancer: "蟹座",
+  leo: "獅子座",
+  virgo: "乙女座",
+  libra: "天秤座",
+  scorpio: "蠍座",
+  sagittarius: "射手座",
+  capricorn: "山羊座",
+  aquarius: "水瓶座",
+  pisces: "魚座",
+};
+
+const SIGN_NAME_TO_KEY = Object.entries(SIGN_EN).reduce((acc, [key, value]) => {
+  acc[String(value).toLowerCase()] = key;
+  return acc;
+}, {});
+
+const SIGN_JA_TO_KEY = Object.entries(SIGN_JA).reduce((acc, [key, value]) => {
+  acc[value] = key;
+  return acc;
+}, {});
+
+function resolveSignKey(row) {
+  const rawKey = String(row?.sign_key || row?.sign_en || row?.sign || "").toLowerCase();
+  if (SIGN_ELEMENT_MAP[rawKey] || SIGN_MODALITY_MAP[rawKey]) return rawKey;
+  const ja = row?.sign_ja || row?.sign || "";
+  if (SIGN_JA_TO_KEY[ja]) return SIGN_JA_TO_KEY[ja];
+  const en = row?.sign_en || row?.sign || "";
+  const enKey = SIGN_NAME_TO_KEY[String(en).toLowerCase()];
+  return enKey || rawKey;
+}
+
+function formatSignJa(value) {
+  if (!value) return "";
+  if (SIGN_JA_TO_KEY[value]) return value;
+  const key = SIGN_NAME_TO_KEY[String(value).toLowerCase()] || String(value).toLowerCase();
+  return SIGN_JA[key] || value;
+}
 
 const SIGN_ELEMENT_MAP = {
   aries: "fire",
@@ -340,24 +435,34 @@ function buildWireframeData(input, placeholders) {
     }
 
     p.deepAxisMeta = {
-      north: northNodeMeta.sign_ja
-        ? `☊ North Node　${formatJaDeg(northNodeMeta.sign_ja, northNodeMeta.deg, northNodeMeta.house_no)}`
+      north: (northNodeMeta.sign_ja || northNodeMeta.sign)
+        ? `☊ North Node　${formatJaDeg(formatSignJa(northNodeMeta.sign_ja || northNodeMeta.sign), northNodeMeta.deg, northNodeMeta.house_no)}`
         : "",
-      south: southNodeMeta.sign_ja
-        ? `☋ South Node　${formatJaDeg(southNodeMeta.sign_ja, southNodeMeta.deg, southNodeMeta.house_no)}`
+      south: (southNodeMeta.sign_ja || southNodeMeta.sign)
+        ? `☋ South Node　${formatJaDeg(formatSignJa(southNodeMeta.sign_ja || southNodeMeta.sign), southNodeMeta.deg, southNodeMeta.house_no)}`
         : "",
       nodes: [
-        northNodeMeta.sign_ja ? `☊ ${formatJaDeg(northNodeMeta.sign_ja, northNodeMeta.deg, northNodeMeta.house_no)}` : "",
-        southNodeMeta.sign_ja ? `☋ ${formatJaDeg(southNodeMeta.sign_ja, southNodeMeta.deg, southNodeMeta.house_no)}` : "",
+        (northNodeMeta.sign_ja || northNodeMeta.sign)
+          ? `☊ ${formatJaDeg(formatSignJa(northNodeMeta.sign_ja || northNodeMeta.sign), northNodeMeta.deg, northNodeMeta.house_no)}`
+          : "",
+        (southNodeMeta.sign_ja || southNodeMeta.sign)
+          ? `☋ ${formatJaDeg(formatSignJa(southNodeMeta.sign_ja || southNodeMeta.sign), southNodeMeta.deg, southNodeMeta.house_no)}`
+          : "",
       ].filter(Boolean).join(" / "),
-      chiron: chironMeta.sign_ja ? `${formatJaDeg(chironMeta.sign_ja, chironMeta.deg, chironMeta.house_no)}` : "",
-      lilith: lilithMeta.sign_ja ? `${formatJaDeg(lilithMeta.sign_ja, lilithMeta.deg, lilithMeta.house_no)}` : "",
+      chiron: (chironMeta.sign_ja || chironMeta.sign)
+        ? `${formatJaDeg(formatSignJa(chironMeta.sign_ja || chironMeta.sign), chironMeta.deg, chironMeta.house_no)}`
+        : "",
+      lilith: (lilithMeta.sign_ja || lilithMeta.sign)
+        ? `${formatJaDeg(formatSignJa(lilithMeta.sign_ja || lilithMeta.sign), lilithMeta.deg, lilithMeta.house_no)}`
+        : "",
     };
 
     const formatAngleMeta = (meta, label) => {
-      if (!meta || !meta.sign_ja) return "";
+      if (!meta) return "";
+      const sign = formatSignJa(meta.sign_ja || meta.sign || "");
+      if (!sign) return "";
       const degText = Number.isFinite(Number(meta.deg)) ? ` ${Number(meta.deg)}°` : "";
-      return `${label}｜${meta.sign_ja}${degText}`.trim();
+      return `${label}｜${sign}${degText}`.trim();
     };
     p.angleMeta = {
       asc: formatAngleMeta(angleMetaMap.get("asc"), "ASC"),
@@ -551,7 +656,7 @@ function buildWireframeData(input, placeholders) {
     const planetByKey = new Map((masterChart.planets || []).map((p) => [p.key, p]));
     const formatSignDeg = (planet) => {
       if (!planet) return "";
-      const sign = planet.sign_ja || planet.sign || "";
+      const sign = formatSignJa(planet.sign_ja || planet.sign || "");
       const degText = Number.isFinite(Number(planet.degree)) ? ` ${Number(planet.degree)}°` : "";
       return `${sign}${degText}`.trim();
     };
@@ -568,18 +673,18 @@ function buildWireframeData(input, placeholders) {
     const formatLine = (key) => {
       const planet = planetByKey.get(key);
       if (!planet) return "";
-      const sign = planet.sign_ja || planet.sign || "";
+      const sign = formatSignJa(planet.sign_ja || planet.sign || "");
       const degText = Number.isFinite(Number(planet.degree)) ? ` ${Number(planet.degree)}°` : "";
       const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
       const glyph = BODY_GLYPH[key] || "";
       const label = BODY_LABEL_JA[key] || key;
       return `${glyph}${label}${sign}${degText}${house}`.trim();
     };
-    const ascSign = masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "";
+    const ascSign = formatSignJa(masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "");
     const formatAxisLine = (key, label) => {
       const planet = planetByKey.get(key);
       if (!planet) return "";
-      const sign = planet.sign_ja || planet.sign || "";
+      const sign = formatSignJa(planet.sign_ja || planet.sign || "");
       const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
       const glyph = BODY_GLYPH[key] || "";
       return `${glyph}${label} ${sign}${house}`.trim();
@@ -590,7 +695,7 @@ function buildWireframeData(input, placeholders) {
       ascSign ? `ASC ${ascSign}` : "",
     ].filter(Boolean);
     p.systemLayerLines = {
-      core: [formatLine("sun"), formatLine("moon"), ascSign ? `ASC${ascSign}` : ""].filter(Boolean),
+      core: [formatLine("sun"), formatLine("moon"), ascSign ? `ASC ${ascSign}` : ""].filter(Boolean),
       personal: [formatLine("mercury"), formatLine("venus"), formatLine("mars")].filter(Boolean),
       collective: [
         formatLine("jupiter"),
@@ -621,7 +726,28 @@ function buildWireframeData(input, placeholders) {
     }
     if (Array.isArray(masterChart.dominant_signs) && masterChart.dominant_signs.length) {
       p.dominantSigns = masterChart.dominant_signs
-        .map((row) => row.sign_ja || row.sign || row.sign_key || "")
+        .map((row) => {
+          if (row.sign_ja) return formatSignJa(row.sign_ja);
+          if (row.sign) return formatSignJa(row.sign);
+          if (row.sign_key) return SIGN_JA[row.sign_key] || row.sign_key;
+          return "";
+        })
+        .filter(Boolean);
+    }
+    if ((!p.dominantSigns || !p.dominantSigns.length) && Array.isArray(masterChart?.planets)) {
+      const counts = new Map();
+      masterChart.planets.forEach((row) => {
+        const key = resolveSignKey(row);
+        if (!key) return;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+      const northKey = resolveSignKey(masterChart?.nodes?.north || {});
+      if (northKey) counts.set(northKey, (counts.get(northKey) || 0) + 0.5);
+      const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+      const strong = ranked.filter(([, count]) => count >= 3);
+      const picked = strong.length ? strong : ranked.slice(0, 2);
+      p.dominantSigns = picked
+        .map(([key]) => SIGN_JA[key] || SIGN_EN[key] || key)
         .filter(Boolean);
     }
 
@@ -658,7 +784,7 @@ function buildWireframeData(input, placeholders) {
       const elementFallback = { fire: 0, earth: 0, air: 0, water: 0 };
       const modalityFallback = { cardinal: 0, fixed: 0, mutable: 0 };
       masterChart.planets.forEach((row) => {
-        const signKey = String(row?.sign_key || row?.sign || "").toLowerCase();
+        const signKey = resolveSignKey(row);
         const element = SIGN_ELEMENT_MAP[signKey];
         const modality = SIGN_MODALITY_MAP[signKey];
         if (element && elementFallback[element] !== undefined) elementFallback[element] += 1;
@@ -693,7 +819,7 @@ function buildWireframeData(input, placeholders) {
     if (masterChart?.angles) {
       const formatAngleMeta = (angle, label) => {
         if (!angle) return "";
-        const sign = angle.sign_ja || angle.sign || "";
+        const sign = formatSignJa(angle.sign_ja || angle.sign || "");
         const degText = Number.isFinite(Number(angle.degree)) ? ` ${Number(angle.degree)}°` : "";
         return sign ? `${label}｜${sign}${degText}` : "";
       };
@@ -1069,9 +1195,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
     : `<div class="wheel" style="width: 92%; height: auto; aspect-ratio: 1 / 1;"></div>`;
   const dominantSignRows = (p.dominantSigns && p.dominantSigns.length)
     ? p.dominantSigns
-    : ((p.nodeSigns && p.nodeSigns.length)
-      ? p.nodeSigns.map((row) => `${row.glyph} ${row.symbol} ${row.sign}`)
-      : []);
+    : [];
   const northNodeSymbol = p.nodeSigns?.find((row) => row.glyph === "☊")?.symbol || "☊";
   const southNodeSymbol = p.nodeSigns?.find((row) => row.glyph === "☋")?.symbol || "☋";
 
@@ -1411,7 +1535,7 @@ body {
 
 .page-number {
   position: absolute;
-  bottom: 24px;
+  bottom: 44px;
   right: 32px;
   opacity: 0.4;
   font-size: 12px;
@@ -1475,8 +1599,8 @@ body {
 .wheel.medium { width: 660px; height: 660px; }
 
 .wheel-svg {
-  width: 101%;
-  max-width: 990px;
+  width: 110%;
+  max-width: 1080px;
   aspect-ratio: 1 / 1;
 }
 
@@ -1486,12 +1610,8 @@ body {
   display: block;
 }
 
-.page--obs .bottom {
-  margin-top: calc(var(--section-gap) * 0.06);
-}
-
 .page--obs .middle {
-  margin-top: -18px;
+  margin-top: -22px;
 }
 
 .page--map .slide {
@@ -1527,14 +1647,14 @@ body {
 }
 
 .metric-count {
-  margin-left: 14px;
+  margin-left: 12px;
   opacity: 0.95;
-  padding-right: 14px;
+  padding-right: 22px;
 }
 
 .metric-bar {
   flex: 1;
-  margin-left: 0;
+  margin-left: 8px;
 }
 
 .bar {
@@ -1809,13 +1929,13 @@ body {
 }
 
 .aspect-holder {
-  margin-top: -24px;
-  transform: translateY(-18px);
+  margin-top: -32px;
+  transform: translateY(-24px);
 }
 
 .aspect-svg {
-  width: 520px;
-  height: 520px;
+  width: 560px;
+  height: 560px;
 }
 
 .asp-footer-stack {
@@ -1830,19 +1950,19 @@ body {
 }
 
 .page--aspect .bottom {
-  margin-top: -10px;
+  margin-top: -18px;
 }
 
 .page--obs .bottom {
-  margin-top: -24px;
+  margin-top: -36px;
 }
 
 .page--pln .slide {
-  row-gap: calc(var(--section-gap) * 0.85);
+  row-gap: calc(var(--section-gap) * 0.6);
 }
 
 .asp-energy {
-  margin-top: 18px;
+  margin-top: 26px;
 }
 
 .axis-line {
@@ -1850,7 +1970,7 @@ body {
   width: 100%;
   height: 70px;
   border-top: 1px dashed rgba(237,238,255,0.4);
-  margin: 16px 0 -16px;
+  margin: 8px 0 -12px;
 }
 
 .axis-line::before {
@@ -2023,10 +2143,212 @@ body {
 }
   `;
 
-  const planetRolePages = [
-    (p.planetRolesAll || []).slice(0, 5),
-    (p.planetRolesAll || []).slice(5, 10),
-  ];
+  const HEADER_RESERVED = 220;
+  const FOOTER_RESERVED = 60;
+  const USABLE_HEIGHT = PAGE_HEIGHT - 90 - 110 - HEADER_RESERVED - FOOTER_RESERVED;
+
+  const plnBlocks = (p.planetRolesAll || []).map((card) => {
+    const height = estimateBlockHeight({ text: card.text });
+    const html = [
+      `<div class="card">`,
+      `<div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>`,
+      `<div class="card-text text-block">${renderRichText(card.text)}</div>`,
+      `</div>`,
+    ].join("");
+    return { html, height };
+  });
+  let plnPages = paginateBlocks(plnBlocks, { maxHeight: USABLE_HEIGHT, minUsage: 0.35 });
+  if (plnPages.length > 3) {
+    const merged = plnPages.slice(2).reduce((acc, page) => acc.concat(page.blocks), []);
+    plnPages = [plnPages[0], plnPages[1], { blocks: merged, height: merged.reduce((sum, b) => sum + b.height, 0) }];
+  }
+
+  const layBlocks = [
+    { key: "core", title: "CORE LAYER", sub: "コアレイヤー", lines: p.systemLayerLines?.core || [], text: p.planetGroups.core || "" },
+    { key: "personal", title: "PERSONAL LAYER", sub: "パーソナルレイヤー", lines: p.systemLayerLines?.personal || [], text: p.planetGroups.personal || "" },
+    { key: "collective", title: "COLLECTIVE LAYER", sub: "コレクティブレイヤー", lines: p.systemLayerLines?.collective || [], text: p.planetGroups.socialTranspersonal || p.planetGroups.social || "" },
+    { key: "flow", title: "LAYER FLOW", sub: "レイヤーの流れ", lines: [], text: p.planetGroups.flow || p.planetGroups.core || "" },
+  ].map((row) => {
+    const text = `${(row.lines || []).join(" ")} ${row.text || ""}`.trim();
+    const height = estimateBlockHeight({ text });
+    const html = [
+      `<div class="chart-box">`,
+      `<div class="card-head">${row.title}</div>`,
+      `<div class="card-sub">${row.sub}</div>`,
+      row.lines?.length ? `<div class="card-list inline">${row.lines.map((l) => `<div>${escapeHtml(l)}</div>`).join("")}</div>` : "",
+      `<div class="card-body text-block">${renderRichText(row.text)}</div>`,
+      `</div>`,
+    ].join("");
+    return { html, height };
+  });
+  const layPages = paginateBlocks(layBlocks, { maxHeight: USABLE_HEIGHT, minUsage: 0.35 });
+
+  const depBlocks = [
+    {
+      key: "nodes",
+      title: "ノード",
+      sub: "NODES",
+      meta: [p.deepAxisMeta?.south, p.deepAxisMeta?.north].filter(Boolean),
+      extra: "axis",
+      text: p.deepAxis.nodes || "",
+    },
+    { key: "chiron", title: "キロン", sub: "CHIRON", meta: [p.deepAxisMeta?.chiron].filter(Boolean), text: p.deepAxis.chiron || "" },
+    { key: "lilith", title: "リリス", sub: "LILITH", meta: [p.deepAxisMeta?.lilith].filter(Boolean), text: p.deepAxis.lilith || "" },
+    { key: "pattern", title: "深層テーマ", sub: "DEEP PATTERN", meta: [], text: p.deepPatternText || "" },
+  ].map((row) => {
+    const text = `${row.meta.join(" ")} ${row.text}`.trim();
+    let height = estimateBlockHeight({ text });
+    if (row.extra === "axis") height += 80;
+    const metaHtml = row.meta.map((m, idx) => `<div class="card-meta ${idx ? "node-meta" : ""}">${escapeHtml(m)}</div>`).join("");
+    const axisHtml = row.extra === "axis"
+      ? `<div class="axis-line">
+          <span class="axis-node left">${escapeHtml(southNodeSymbol)}</span>
+          <span class="axis-node right">${escapeHtml(northNodeSymbol)}</span>
+          <span class="axis-arrow">→</span>
+        </div>`
+      : "";
+    const bodyClass = row.extra === "axis" ? "card-body node-body text-block" : "card-body text-block";
+    const html = [
+      `<div class="chart-box">`,
+      `<div class="card-head">${row.title}</div>`,
+      `<div class="card-sub">${row.sub}</div>`,
+      metaHtml,
+      axisHtml,
+      `<div class="${bodyClass}">${renderRichText(row.text)}</div>`,
+      `</div>`,
+    ].join("");
+    return { html, height };
+  });
+  const depPages = paginateBlocks(depBlocks, { maxHeight: USABLE_HEIGHT, minUsage: 0.35 });
+
+  const aspBlocks = [
+    {
+      key: "aspects",
+      title: "主要アスペクト",
+      sub: "CORE ASPECTS",
+      text: (p.aspectMap || []).join(" "),
+      html: [
+        `<div class="chart-box">`,
+        `<div class="card-head">主要アスペクト</div>`,
+        `<div class="card-sub">CORE ASPECTS</div>`,
+        `<div class="card-body text-block">${(p.aspectMap || []).map((text) => `• ${renderInlineText(text)}`).join("<br/>")}</div>`,
+        `</div>`,
+      ].join(""),
+    },
+    {
+      key: "energy",
+      title: "エネルギーの動き",
+      sub: "ENERGY DYNAMICS",
+      text: p.aspectEnergyText || "",
+      html: [
+        `<div class="chart-box asp-energy">`,
+        `<div class="card-head">エネルギーの動き</div>`,
+        `<div class="card-sub">ENERGY DYNAMICS</div>`,
+        `<div class="card-body text-block">${renderRichText(p.aspectEnergyText)}</div>`,
+        `</div>`,
+      ].join(""),
+    },
+  ].map((row) => ({ html: row.html, height: estimateBlockHeight({ text: row.text }) }));
+  const aspPages = paginateBlocks(aspBlocks, { maxHeight: USABLE_HEIGHT, minUsage: 0.35 });
+
+  let pageIndex = 0;
+  const nextPageNumber = () => buildPageNumber(pageIndex++);
+
+  const plnHtml = plnPages.map((page, idx) => {
+    const suffix = idx === 0 ? "" : idx === 1 ? "B" : "C";
+    return `
+  <section class="page page--pln">
+    <div class="blueprint-grid"></div>
+    <div class="coordinate">PLN-05${suffix}</div>
+    ${nextPageNumber()}
+    <div class="page-corner">✧</div>
+    <div class="slide">
+      <div class="top">
+        <div class="label">PLANET ROLES</div>
+        <div class="title">星の役割</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.pln)}</div>
+      </div>
+      <div class="middle">
+        <div style="width:100%;">
+          <div class="pln-grid">
+            ${page.blocks.map((block) => block.html).join("\n")}
+          </div>
+        </div>
+      </div>
+      <div class="bottom"></div>
+    </div>
+  </section>`;
+  }).join("\n");
+
+  const layHtml = layPages.map((page) => `
+  <section class="page">
+    <div class="blueprint-grid"></div>
+    <div class="coordinate">LAY-06</div>
+    ${nextPageNumber()}
+    <div class="page-corner">✦</div>
+    <div class="slide">
+      <div class="top">
+        <div class="label">STAR LAYERS</div>
+        <div class="title">星のレイヤー</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.lay)}</div>
+      </div>
+      <div class="middle">
+        <div class="lay-grid">
+          ${page.blocks.map((block) => block.html).join("\n")}
+        </div>
+      </div>
+      <div class="bottom"></div>
+    </div>
+  </section>`).join("\n");
+
+  const depHtml = depPages.map((page) => `
+  <section class="page">
+    <div class="blueprint-grid"></div>
+    <div class="coordinate">DEP-07</div>
+    ${nextPageNumber()}
+    <div class="page-corner">✶</div>
+    <div class="slide">
+      <div class="top">
+        <div class="label">DEEP AXIS</div>
+        <div class="title">深層の軸</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.dep)}</div>
+      </div>
+      <div class="middle">
+        <div class="dep-grid">
+          ${page.blocks.map((block) => block.html).join("\n")}
+        </div>
+      </div>
+      <div class="bottom"></div>
+    </div>
+  </section>`).join("\n");
+
+  const aspHtml = aspPages.map((page, idx) => `
+  <section class="page page--medium page--aspect" style="--space-opacity: 0.6;">
+    ${renderBg("asp", midBg)}
+    <div class="blueprint-grid"></div>
+    <div class="coordinate">ASP-08</div>
+    ${nextPageNumber()}
+    <div class="page-corner">✧</div>
+    <div class="slide">
+      <div class="top">
+        <div class="label">ASPECT NETWORK</div>
+        <div class="title">星の関係</div>
+        <div class="page-intro">${escapeHtml(PAGE_INTROS.asp)}</div>
+      </div>
+      <div class="middle">
+        <div class="chart-box aspect-box" style="width: 100%; display:flex; flex-direction:column; align-items:center;">
+          <div class="aspect-holder">
+            ${buildAspectSvg() || `<div class="aspect-wheel"><div class="aspect-lines"></div></div>`}
+          </div>
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="asp-footer-stack">
+          ${page.blocks.map((block) => block.html).join("\n")}
+        </div>
+      </div>
+    </div>
+  </section>`).join("\n");
 
   const html = `<!doctype html>
 <html lang="ja">
@@ -2041,7 +2363,7 @@ body {
     ${renderBg("sys", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">SYS-01</div>
-    ${buildPageNumber(0)}
+    ${nextPageNumber()}
     <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
@@ -2105,7 +2427,7 @@ body {
   <section class="page page--map">
     <div class="blueprint-grid"></div>
     <div class="coordinate">MAP-02</div>
-    ${buildPageNumber(1)}
+    ${nextPageNumber()}
     <div class="page-corner">✧</div>
     <div class="slide">
       <div class="top">
@@ -2201,7 +2523,7 @@ body {
     ${renderBg("obs", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">OBS-03</div>
-    ${buildPageNumber(2)}
+    ${nextPageNumber()}
     <div class="page-corner">✶</div>
     <div class="slide">
       <div class="top center">
@@ -2226,7 +2548,7 @@ body {
   <section class="page page--pln">
     <div class="blueprint-grid"></div>
     <div class="coordinate">ANG-04</div>
-    ${buildPageNumber(3)}
+    ${nextPageNumber()}
     <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
@@ -2245,12 +2567,6 @@ body {
             <div class="card-body text-block">${renderRichText(p.anglesText?.asc || "")}</div>
           </div>
           <div class="chart-box">
-            <div class="card-head">DC</div>
-            <div class="card-sub">他者との鏡</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.dc || "")}</div>
-            <div class="card-body text-block">${renderRichText(p.anglesText?.dc || "")}</div>
-          </div>
-          <div class="chart-box">
             <div class="card-head">MC</div>
             <div class="card-sub">社会への方向</div>
             <div class="card-meta">${escapeHtml(p.angleMeta?.mc || "")}</div>
@@ -2261,6 +2577,12 @@ body {
             <div class="card-sub">内側の根</div>
             <div class="card-meta">${escapeHtml(p.angleMeta?.ic || "")}</div>
             <div class="card-body text-block">${renderRichText(p.anglesText?.ic || "")}</div>
+          </div>
+          <div class="chart-box">
+            <div class="card-head">DC</div>
+            <div class="card-sub">他者との鏡</div>
+            <div class="card-meta">${escapeHtml(p.angleMeta?.dc || "")}</div>
+            <div class="card-body text-block">${renderRichText(p.anglesText?.dc || "")}</div>
           </div>
         </div>
       </div>
@@ -2274,204 +2596,17 @@ body {
     </div>
   </section>
 
-  <!-- Slide 5: Planet System -->
-  <section class="page page--pln">
-    <div class="blueprint-grid"></div>
-    <div class="coordinate">PLN-05</div>
-    ${buildPageNumber(4)}
-    <div class="page-corner">✧</div>
-    <div class="slide">
-      <div class="top">
-        <div class="label">PLANET ROLES</div>
-        <div class="title">星の役割</div>
-        <div class="page-intro">${escapeHtml(PAGE_INTROS.pln)}</div>
-      </div>
-      <div class="middle">
-        <div style="width:100%;">
-          <div class="pln-grid">
-            ${planetRolePages[0].map((card) => `
-            <div class="card">
-            <div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>
-            <div class="card-text text-block">${renderRichText(card.text)}</div>
-            </div>`).join("\n")}
-          </div>
-        </div>
-      </div>
-      <div class="bottom"></div>
-    </div>
-  </section>
-
-  <!-- Slide 6: Planet System (cont.) -->
-  <section class="page">
-    <div class="blueprint-grid"></div>
-    <div class="coordinate">PLN-05B</div>
-    ${buildPageNumber(5)}
-    <div class="page-corner">✧</div>
-    <div class="slide">
-      <div class="top">
-        <div class="label">PLANET ROLES</div>
-        <div class="title">星の役割</div>
-        <div class="page-intro">${escapeHtml(PAGE_INTROS.pln)}</div>
-      </div>
-      <div class="middle">
-        <div style="width:100%;">
-          <div class="pln-grid">
-            ${planetRolePages[1].map((card) => `
-            <div class="card">
-            <div class="card-title">${escapeHtml(card.label)} <span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>
-            <div class="card-text text-block">${renderRichText(card.text)}</div>
-            </div>`).join("\n")}
-          </div>
-        </div>
-      </div>
-      <div class="bottom"></div>
-    </div>
-  </section>
-
-  <!-- Slide 6: System Layers -->
-  <section class="page">
-    <div class="blueprint-grid"></div>
-    <div class="coordinate">LAY-06</div>
-    ${buildPageNumber(6)}
-    <div class="page-corner">✦</div>
-    <div class="slide">
-      <div class="top">
-        <div class="label">STAR LAYERS</div>
-        <div class="title">星のレイヤー</div>
-        <div class="page-intro">${escapeHtml(PAGE_INTROS.lay)}</div>
-      </div>
-      <div class="middle">
-        <div class="lay-grid">
-          <div class="chart-box">
-            <div class="card-head">CORE LAYER</div>
-            <div class="card-sub">コアレイヤー</div>
-            <div class="card-list inline">
-              ${(p.systemLayerLines?.core || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
-            <div class="card-body text-block">${renderRichText(p.planetGroups.core)}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">PERSONAL LAYER</div>
-            <div class="card-sub">パーソナルレイヤー</div>
-            <div class="card-list inline">
-              ${(p.systemLayerLines?.personal || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
-            <div class="card-body text-block">${renderRichText(p.planetGroups.personal)}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">COLLECTIVE LAYER</div>
-            <div class="card-sub">コレクティブレイヤー</div>
-            <div class="card-list inline">
-              ${(p.systemLayerLines?.collective || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
-            </div>
-            <div class="card-body text-block">${renderRichText(p.planetGroups.socialTranspersonal || p.planetGroups.social)}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">LAYER FLOW</div>
-            <div class="card-sub">レイヤーの流れ</div>
-            <div class="card-body text-block">${renderRichText(p.planetGroups.flow || p.planetGroups.core)}</div>
-          </div>
-        </div>
-      </div>
-      <div class="bottom"></div>
-    </div>
-  </section>
-
-  <!-- Slide 7: Deep Axis -->
-  <section class="page">
-    <div class="blueprint-grid"></div>
-    <div class="coordinate">DEP-07</div>
-    ${buildPageNumber(7)}
-    <div class="page-corner">✶</div>
-    <div class="slide">
-      <div class="top">
-        <div class="label">DEEP AXIS</div>
-        <div class="title">深層の軸</div>
-        <div class="page-intro">${escapeHtml(PAGE_INTROS.dep)}</div>
-      </div>
-      <div class="middle">
-        <div class="dep-grid">
-          <div class="chart-box">
-            <div class="card-head">ノード</div>
-            <div class="card-sub">NODES</div>
-            <div class="card-meta">${escapeHtml(p.deepAxisMeta?.south || "")}</div>
-            <div class="card-meta node-meta">${escapeHtml(p.deepAxisMeta?.north || "")}</div>
-            <div class="axis-line">
-              <span class="axis-node left">${escapeHtml(southNodeSymbol)}</span>
-              <span class="axis-node right">${escapeHtml(northNodeSymbol)}</span>
-              <span class="axis-arrow">→</span>
-            </div>
-            <div class="card-body node-body text-block">${renderRichText(p.deepAxis.nodes)}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">キロン</div>
-            <div class="card-sub">CHIRON</div>
-            <div class="card-meta">${escapeHtml(p.deepAxisMeta?.chiron || "")}</div>
-            <div class="card-body text-block">${renderRichText(p.deepAxis.chiron)}</div>
-          </div>
-          <div class="chart-box">
-            <div class="card-head">リリス</div>
-            <div class="card-sub">LILITH</div>
-            <div class="card-meta">${escapeHtml(p.deepAxisMeta?.lilith || "")}</div>
-            <div class="card-body text-block">${renderRichText(p.deepAxis.lilith)}</div>
-          </div>
-        </div>
-      </div>
-      <div class="bottom">
-        <div class="chart-box">
-          <div class="card-head">深層テーマ</div>
-          <div class="card-sub">DEEP PATTERN</div>
-          <div class="card-body text-block">${renderRichText(p.deepPatternText)}</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Slide 8: Aspect Network -->
-  <section class="page page--medium page--aspect" style="--space-opacity: 0.6;">
-    ${renderBg("asp", midBg)}
-    <div class="blueprint-grid"></div>
-    <div class="coordinate">ASP-08</div>
-    ${buildPageNumber(8)}
-    <div class="page-corner">✧</div>
-    <div class="slide">
-      <div class="top">
-        <div class="label">ASPECT NETWORK</div>
-        <div class="title">星の関係</div>
-        <div class="page-intro">${escapeHtml(PAGE_INTROS.asp)}</div>
-      </div>
-      <div class="middle">
-          <div class="chart-box aspect-box" style="width: 100%; display:flex; flex-direction:column; align-items:center;">
-            <div class="aspect-holder">
-              ${buildAspectSvg() || `<div class="aspect-wheel"><div class="aspect-lines"></div></div>`}
-            </div>
-          </div>
-      </div>
-      <div class="bottom">
-        <div class="asp-footer-stack">
-          <div class="chart-box">
-            <div class="card-head">主要アスペクト</div>
-            <div class="card-sub">CORE ASPECTS</div>
-            <div class="card-body text-block">
-              ${p.aspectMap.map((text) => `• ${renderInlineText(text)}`).join("<br/>")}
-            </div>
-          </div>
-          <div class="chart-box asp-energy">
-            <div class="card-head">エネルギーの動き</div>
-            <div class="card-sub">ENERGY DYNAMICS</div>
-            <div class="card-body text-block">${renderRichText(p.aspectEnergyText)}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+  ${plnHtml}
+  ${layHtml}
+  ${depHtml}
+  ${aspHtml}
 
   <!-- Slide 9: Chart Pattern -->
   <section class="page page--space" style="--space-opacity: 0.9;">
     ${renderBg("pat", strongBg)}
     <div class="blueprint-grid"></div>
     <div class="coordinate">PAT-09</div>
-    ${buildPageNumber(9)}
+    ${nextPageNumber()}
     <div class="page-corner">✦</div>
     <div class="slide">
       <div class="top">
