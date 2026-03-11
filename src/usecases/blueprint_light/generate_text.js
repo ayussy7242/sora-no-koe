@@ -50,7 +50,7 @@ const MIN_V2_DASH_DOMINANT_CHARS = 60;
 const MIN_V2_DASH_HOUSE_CHARS = 60;
 const MIN_V2_DASH_DIST_CHARS = 90;
 const MIN_V2_DASH_FLOW_CHARS = 130;
-const MIN_V2_DASH_STRUCTURE_CHARS = 90;
+const MIN_V2_DASH_STRUCTURE_CHARS = 190;
 const MIN_V2_ROLE_LUM_CHARS = 18;
 const MIN_V2_ROLE_PERSONAL_CHARS = 18;
 const MIN_V2_ROLE_OUTER_CHARS = 18;
@@ -73,7 +73,7 @@ const MIN_V2_LIFE_DIRECTION_CHARS = 40;
 const MIN_V2_PATTERN_CHARS = 28;
 const MIN_V2_COSMIC_FOCUS_CHARS = 28;
 const MIN_V2_COSMIC_TRAITS_CHARS = 35;
-const MIN_V2_COSMIC_SIGNATURE_CHARS = 70;
+const MIN_V2_COSMIC_SIGNATURE_CHARS = 170;
 const MIN_V2_CLOSING_CHARS = 40;
 
 const HARD_BANNED_PATTERNS = [
@@ -947,6 +947,10 @@ function normalizeV2Text(text, { minSentences, maxSentences, minChars, maxChars 
   let out = normalizeParagraph(coerceText(text));
   if (!out) return "";
   out = out.replace(/モダリティ|モード/gi, "三区分");
+  out = out
+    .replace(/Cardinal/gi, "活動宮")
+    .replace(/Fixed/gi, "固定宮")
+    .replace(/Mutable/gi, "柔軟宮");
   if (!out) return "";
   out = tidyConsolidatedText(out, { minSentences, maxSentences });
   if (isTooShort(out, minChars)) return out;

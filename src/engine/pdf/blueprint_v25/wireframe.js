@@ -1382,7 +1382,7 @@ body {
 }
 
 .page--obs .bottom {
-  margin-top: calc(var(--section-gap) * 0.12);
+  margin-top: calc(var(--section-gap) * 0.06);
 }
 
 .page--obs .middle {

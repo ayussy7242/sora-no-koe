@@ -170,7 +170,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.dominant_houses: 約80文字（最大100文字）
 - dashboard.planet_distribution: 約110文字（最大140文字）
 - dashboard.energy_flow: 約150文字（最大200文字）
-- dashboard.cosmic_structure: 約110文字（最大140文字）
+- dashboard.cosmic_structure: 約210文字（最大240文字）
 - planet_roles.sun / moon: 約30文字（最大36文字）
 - planet_roles.mercury / venus / mars: 約30文字（最大36文字）
 - planet_roles.jupiter〜pluto: 約30文字（最大36文字）
@@ -191,7 +191,7 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
-- cosmic_signature: 約90文字（最大110文字）
+- cosmic_signature: 約190文字（最大220文字）
 - chart_pattern: 約35文字（最大50文字）
 - life_direction: 約55文字（最大70文字）
 - closing_summary: 約55文字（最大80文字）
@@ -305,11 +305,11 @@ ${USER_GUIDE_BLUEPRINT_LIGHT}
 - dashboard.dominant_houses: 約80文字（最大100文字）
 - dashboard.planet_distribution: 約110文字（最大140文字）
 - dashboard.energy_flow: 約150文字（最大200文字）
-- dashboard.cosmic_structure: 約110文字（最大140文字）
+- dashboard.cosmic_structure: 約210文字（最大240文字）
 - pattern_name: 約12文字（最大18文字）
 - cosmic_focus: 約35文字（最大50文字）
 - cosmic_traits: 約45文字（最大60文字）
-- cosmic_signature: 約90文字（最大110文字）
+- cosmic_signature: 約190文字（最大220文字）
 - chart_pattern: 約35文字（最大50文字）
 - life_direction: 約55文字（最大70文字）
 - natal_observation: 約160文字（最大200文字）
