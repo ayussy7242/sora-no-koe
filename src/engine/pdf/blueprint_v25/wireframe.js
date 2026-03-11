@@ -1425,6 +1425,11 @@ body {
   display: inline-block;
 }
 
+.metric-count {
+  margin-left: 8px;
+  opacity: 0.95;
+}
+
 .metric-bar {
   flex: 1;
   margin-left: 0;
@@ -1956,19 +1961,19 @@ body {
             <div class="card-sub">ELEMENT BALANCE</div>
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜂</span> 火 ${p.elementCounts?.fire ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#FF6B6B;">🜂</span><span class="metric-name">火</span><span class="metric-count">${p.elementCounts?.fire ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire ?? 62}%; --bar-color:#FF6B6B;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜃</span> 地 ${p.elementCounts?.earth ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#E6C36D;">🜃</span><span class="metric-name">地</span><span class="metric-count">${p.elementCounts?.earth ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.earth ?? 42}%; --bar-color:#E6C36D;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜁</span> 風 ${p.elementCounts?.air ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#7FBF8F;">🜁</span><span class="metric-name">風</span><span class="metric-count">${p.elementCounts?.air ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.air ?? 54}%; --bar-color:#7FBF8F;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">🜄</span> 水 ${p.elementCounts?.water ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#7AA7FF;">🜄</span><span class="metric-name">水</span><span class="metric-count">${p.elementCounts?.water ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.water ?? 30}%; --bar-color:#7AA7FF;"></div></div>
               </div>
             </div>
@@ -1978,15 +1983,15 @@ body {
             <div class="card-sub">MODALITY BALANCE</div>
             <div class="bar-list" style="margin-top:10px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">△</span> 活動宮 ${p.modalityCounts?.cardinal ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#FFB27A;">△</span><span class="metric-name">活動宮</span><span class="metric-count">${p.modalityCounts?.cardinal ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal ?? 46}%; --bar-color:#FFB27A;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">□</span> 固定宮 ${p.modalityCounts?.fixed ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#9EC5FF;">□</span><span class="metric-name">固定宮</span><span class="metric-count">${p.modalityCounts?.fixed ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed ?? 64}%; --bar-color:#9EC5FF;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol">◇</span> 柔軟宮 ${p.modalityCounts?.mutable ?? ""}</div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#9FD3A8;">◇</span><span class="metric-name">柔軟宮</span><span class="metric-count">${p.modalityCounts?.mutable ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable ?? 36}%; --bar-color:#9FD3A8;"></div></div>
               </div>
             </div>
