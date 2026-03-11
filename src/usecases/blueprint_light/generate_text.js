@@ -943,13 +943,19 @@ function normalizeSectionText(text, { minSentences = 2, maxSentences = 4, minCha
   return out;
 }
 
-function normalizeV2Text(text, { minSentences, maxSentences, minChars }) {
+function normalizeV2Text(text, { minSentences, maxSentences, minChars, maxChars }) {
   let out = normalizeParagraph(coerceText(text));
   if (!out) return "";
   out = out.replace(/モダリティ|モード/gi, "三区分");
   if (!out) return "";
   out = tidyConsolidatedText(out, { minSentences, maxSentences });
   if (isTooShort(out, minChars)) return out;
+  if (typeof maxChars !== "number" && typeof minChars === "number") {
+    maxChars = minChars + 50;
+  }
+  if (typeof maxChars === "number" && out.length > maxChars) {
+    out = out.slice(0, maxChars).replace(/[、。\\s]+$/g, "");
+  }
   return out;
 }
 
@@ -976,7 +982,12 @@ function stripLeadingPlacementClause(text) {
 }
 
 function normalizeV2AspectText(text) {
-  return normalizeV2Text(text, { minSentences: 1, maxSentences: 2, minChars: MIN_V2_ASPECT_CHARS });
+  return normalizeV2Text(text, {
+    minSentences: 1,
+    maxSentences: 2,
+    minChars: MIN_V2_ASPECT_CHARS,
+    maxChars: MIN_V2_ASPECT_CHARS + 50,
+  });
 }
 
 function hasAllRequiredKeys(source) {
