@@ -1424,6 +1424,7 @@ body {
 .metric-count {
   margin-left: 12px;
   opacity: 0.95;
+  padding-right: 10px;
 }
 
 .metric-bar {
