@@ -2,8 +2,8 @@
 
 /**
  * channels/x/thread.js
- * - X用 3分割（今日の空 / 月相+近日 / 今日の共鳴）
- * - 返り値は JSON 文字列（x_1_main / x_2_moon_and_soon / x_3_resonance）
+ * - X用 分割（今日の空 / 月相 / 共鳴 / 近日）
+ * - 返り値は JSON 文字列（x_1_main / x_2_moon_and_soon / x_3_resonance / x_4_kinjitsu）
  */
 
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
@@ -263,15 +263,14 @@ function renderXThread(story, deps = {}) {
     ].filter(Boolean)
     : [];
   const part2Tags = buildTags(resonanceSigns, { base: ["#ソラのこえ"], max: 3 });
-
-  const part2Blocks = [];
-  if (moonLines.length) {
-    part2Blocks.push(moonLines.join("\n"));
-  }
-  part2Blocks.push(["【今日の共鳴（最大接近）】", "", resonanceBlocks.join("\n\n")].join("\n"));
-  part2Blocks.push(part2Tags);
-
-  const part2Text = part2Blocks.filter(Boolean).join("\n\n");
+  const part2Text = moonLines.join("\n");
+  const part3Text = joinLines([
+    "【今日の共鳴（最大接近）】",
+    "",
+    resonanceBlocks.join("\n\n"),
+    "",
+    part2Tags,
+  ]).trim();
 
   // ---------- Part 3: 近日（接近中） ----------
   const kinjitsuRaw = Array.isArray(pub.kinjitsu) && pub.kinjitsu.length
@@ -347,7 +346,7 @@ function renderXThread(story, deps = {}) {
     })
     : ["該当なし"];
 
-  const part3Text = [
+  const part4Text = [
     "📅 近日（接近中）",
     "",
     ...upcomingLines,
@@ -359,6 +358,7 @@ function renderXThread(story, deps = {}) {
     x_1_main: joinLines(part1Lines).trim(),
     x_2_moon_and_soon: part2Text.trim(),
     x_3_resonance: part3Text.trim(),
+    x_4_kinjitsu: part4Text.trim(),
   };
 
   return JSON.stringify(output, null, 2);
