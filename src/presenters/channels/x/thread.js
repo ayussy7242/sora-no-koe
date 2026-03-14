@@ -48,6 +48,15 @@ function buildTags(signs = [], opts = {}) {
   return out.join(" ");
 }
 
+function makeAspectKey(aKey, bKey, aspectDeg) {
+  const a = String(aKey || "").toLowerCase().trim();
+  const b = String(bKey || "").toLowerCase().trim();
+  const deg = Number(aspectDeg);
+  if (!a || !b || !Number.isFinite(deg)) return "";
+  const pair = [a, b].sort().join("|");
+  return `${pair}|${deg}`;
+}
+
 function joinLines(lines = []) {
   return lines.filter((v) => v !== undefined && v !== null).join("\n");
 }
@@ -202,7 +211,7 @@ function renderXThread(story, deps = {}) {
 
   const resonanceItems = listWithOrb(skyAll)
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
-    .slice(0, 1);
+    .slice(0, 3);
 
   const resonanceBlocks = resonanceItems.length
     ? resonanceItems.map((item) => {
@@ -242,6 +251,11 @@ function renderXThread(story, deps = {}) {
     : ["該当なし"];
 
   const primaryResonance = resonanceItems[0] || null;
+  const resonanceKeys = new Set(
+    resonanceItems
+      .map((it) => makeAspectKey(it?.a, it?.b, it?.aspect_deg))
+      .filter(Boolean)
+  );
   const resonanceSigns = primaryResonance
     ? [
       primaryResonance?.a_sign_ja || signJa(dict, primaryResonance?.a_sign_key || ""),
@@ -275,6 +289,11 @@ function renderXThread(story, deps = {}) {
       b_sign_ja: it?.raw?.b_sign_ja || null,
     }));
 
+  const isChironLilith = (k) => {
+    const s = String(k || "").toLowerCase();
+    return s === "chiron" || s === "lilith";
+  };
+
   const upcomingItems = (kinjitsuRaw || [])
     .map((row) => {
       const aKey = normalizeBodyKey(row?.a || "");
@@ -286,12 +305,24 @@ function renderXThread(story, deps = {}) {
       return { aKey, bKey, aspectDeg, nowOrb, peakAt, raw: row };
     })
     .filter(Boolean)
-    .filter((row) => computeApplyingFlag(row.raw || row, asOfISO) === true)
-    .sort((a, b) => a.nowOrb - b.nowOrb)
-    .slice(0, 3);
+    .filter((row) => !isChironLilith(row.aKey) && !isChironLilith(row.bKey))
+    .filter((row) => computeApplyingFlag(row.raw || row, asOfISO) === true);
 
-  const upcomingLines = upcomingItems.length
-    ? upcomingItems.flatMap((row, idx) => {
+  const seenUpcoming = new Set();
+  const filteredUpcoming = upcomingItems
+    .filter((row) => {
+      const key = makeAspectKey(row.aKey, row.bKey, row.aspectDeg);
+      if (!key) return false;
+      if (resonanceKeys.size && resonanceKeys.has(key)) return false;
+      if (seenUpcoming.has(key)) return false;
+      seenUpcoming.add(key);
+      return true;
+    })
+    .sort((a, b) => a.nowOrb - b.nowOrb)
+    .slice(0, 2);
+
+  const upcomingLines = filteredUpcoming.length
+    ? filteredUpcoming.flatMap((row, idx) => {
       const aGlyph = glyphForBody(row.aKey);
       const bGlyph = glyphForBody(row.bKey);
       const aLabel = dict?.PLANETS_V2?.bodies?.[row.aKey]?.label_ja || dict?.POINTS_V1?.points?.[row.aKey]?.label_ja || row.aKey;
