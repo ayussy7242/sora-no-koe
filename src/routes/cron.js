@@ -23,6 +23,7 @@ const { runDaily8 } = require("../runners/cron/daily8");
 const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
+const { runIgPost } = require("../runners/cron/ig_post");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -51,6 +52,17 @@ function isValidISO(s) {
   if (typeof s !== "string" || !s) return false;
   const d = new Date(s);
   return !Number.isNaN(d.getTime());
+}
+
+function normalizeDateTimeLocalJST(datetimeLocalRaw) {
+  const s0 = String(datetimeLocalRaw || "").trim();
+  if (!s0) return null;
+  const s = s0.includes(" ") && !s0.includes("T") ? s0.replace(" ", "T") : s0;
+  if (/[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
+    return isValidISO(s) ? s : null;
+  }
+  const withOffset = `${s}+09:00`;
+  return isValidISO(withOffset) ? withOffset : null;
 }
 
 function boolish(v) {
@@ -92,6 +104,7 @@ function createCronRouter(deps = {}) {
   const storyService = deps.storyService;
   const renderers = deps.renderers;
   const storage = deps.storage;
+  const dict = deps.dict;
 
   if (!db) throw new Error("deps.db is required for cron router");
   if (!admin) throw new Error("deps.admin is required for cron router");
@@ -188,6 +201,42 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/send8" });
+    }
+  });
+
+  // ✅ POST /cron/ig/post : Instagram carousel auto-post
+  router.post("/ig/post", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/post" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
+
+      const asOfRaw = b.as_of || q.as_of;
+      const dtLocalRaw = b.datetime_local || q.datetime_local;
+      const asOfISO =
+        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
+        normalizeDateTimeLocalJST(dtLocalRaw) ||
+        null;
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const withCtaRaw = b.with_cta ?? q.with_cta ?? b.withCta ?? q.withCta;
+      const withCta = withCtaRaw === undefined ? true : boolish(withCtaRaw);
+      const useAiRaw = b.ai ?? q.ai;
+      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+
+      const result = await runIgPost(
+        { db, admin, env, storyService, renderers, storage, dict },
+        { dateLocal, asOfISO, dryRun, withCta, useAi }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/post" });
     }
   });
 
