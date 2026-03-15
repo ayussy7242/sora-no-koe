@@ -232,11 +232,14 @@ function renderXThread(story, deps = {}) {
     return lines;
   })();
 
+  const resonanceAllowed = new Set([
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ]);
   const resonanceItems = listWithOrb(skyAll)
     .filter((row) => {
       const aKey = normalizeBodyKey(row?.a || "");
       const bKey = normalizeBodyKey(row?.b || "");
-      return aKey !== "chiron" && bKey !== "chiron" && aKey !== "lilith" && bKey !== "lilith";
+      return resonanceAllowed.has(aKey) && resonanceAllowed.has(bKey);
     })
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
     .slice(0, 3);
