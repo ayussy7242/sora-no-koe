@@ -115,6 +115,29 @@ function computeOrbAt(aKey, bKey, aspectDeg, iso) {
   return Number.isFinite(Number(dist)) ? Math.abs(dist - Number(aspectDeg)) : null;
 }
 
+function refinePeakTime(aKey, bKey, aspectDeg, seed, fallbackISO) {
+  const base = seed instanceof Date ? seed : (seed ? new Date(seed) : null);
+  const fallback = fallbackISO ? new Date(fallbackISO) : null;
+  const center =
+    base && !Number.isNaN(base.getTime()) ? base :
+    fallback && !Number.isNaN(fallback.getTime()) ? fallback :
+    null;
+  if (!center) return seed instanceof Date ? seed : null;
+
+  const windowMs = 18 * 3600 * 1000;
+  const stepMs = 5 * 60 * 1000;
+  let best = { orb: Infinity, time: center };
+  const start = new Date(center.getTime() - windowMs);
+  const end = new Date(center.getTime() + windowMs);
+  for (let t = start.getTime(); t <= end.getTime(); t += stepMs) {
+    const iso = new Date(t).toISOString();
+    const orb = computeOrbAt(aKey, bKey, aspectDeg, iso);
+    if (!Number.isFinite(Number(orb))) continue;
+    if (orb < best.orb) best = { orb, time: new Date(t) };
+  }
+  return best.time;
+}
+
 function computeApplyingFlag(row, asOfISO) {
   const nowOrb = Number(row?.orb_deg ?? row?.now_orb);
   const aspectDeg = Number(row?.aspect_deg);
@@ -213,7 +236,7 @@ function renderXThread(story, deps = {}) {
     .filter((row) => {
       const aKey = normalizeBodyKey(row?.a || "");
       const bKey = normalizeBodyKey(row?.b || "");
-      return aKey !== "chiron" && bKey !== "chiron";
+      return aKey !== "chiron" && bKey !== "chiron" && aKey !== "lilith" && bKey !== "lilith";
     })
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
     .slice(0, 3);
@@ -338,8 +361,9 @@ function renderXThread(story, deps = {}) {
       const aspect = aspectInfo(dict, row.raw?.aspect || row.raw?.type || row.raw?.aspT, row.aspectDeg);
       const aspectLabel = aspect?.label_ja || String(row.raw?.aspect || row.raw?.type || row.raw?.aspT || "");
       const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(Number(row.aspectDeg))}°` : "";
-      const nowOrbText = Number.isFinite(Number(row.nowOrb)) ? row.nowOrb.toFixed(1) : "-";
-      const peakText = row.peakAt && isValidDate(row.peakAt) ? formatMonthDayHm(row.peakAt) : "-";
+      const nowOrbText = Number.isFinite(Number(row.nowOrb)) ? row.nowOrb.toFixed(2) : "-";
+      const refinedPeak = refinePeakTime(row.aKey, row.bKey, row.aspectDeg, row.peakAt, asOfISO);
+      const peakText = refinedPeak && isValidDate(refinedPeak) ? formatMonthDayHm(refinedPeak) : "-";
 
       const lines = [
         `★ ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText} × ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
