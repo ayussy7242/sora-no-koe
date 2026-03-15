@@ -210,6 +210,11 @@ function renderXThread(story, deps = {}) {
   })();
 
   const resonanceItems = listWithOrb(skyAll)
+    .filter((row) => {
+      const aKey = normalizeBodyKey(row?.a || "");
+      const bKey = normalizeBodyKey(row?.b || "");
+      return aKey !== "chiron" && bKey !== "chiron";
+    })
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
     .slice(0, 3);
 
