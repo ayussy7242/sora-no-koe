@@ -21,11 +21,80 @@ function renderThreads(story, deps = {}) {
         formatPublicSkyLine,
         pickCloseLines,
         RENDER_COPY,
+        dict,
     } = deps || {};
     const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../../format/format/channel_common");
+    const { glyphForBody, signJa } = require("../../format/format/line_common");
+    const { findRetrogradeWindow } = require("../../domain/astro_compute");
+    const { toDateLocalJST } = require("../../utils/time_utils");
 
     const dateLabel = formatDateLabel(story);
     const moonSignJa = getMoonSignJa(story);
+    const asOfISO = story?.meta?.as_of || new Date().toISOString();
+    const dictResolved = dict || require("../../content/dict");
+
+    const retroKeys = [
+        "mercury",
+        "venus",
+        "mars",
+        "jupiter",
+        "saturn",
+        "uranus",
+        "neptune",
+        "pluto",
+        "chiron",
+        "lilith",
+    ];
+
+    const formatJstYmd = (d) => {
+        const ymd = (d instanceof Date && !Number.isNaN(d.getTime())) ? toDateLocalJST(d) : null;
+        return ymd ? ymd.replace(/-/g, ".") : "-";
+    };
+
+    const transitSigns = story?.public?.transit_signs || {};
+    const retroRows = retroKeys
+        .map((key) => {
+            const win = findRetrogradeWindow(key, asOfISO, 500);
+            if (!win?.start || !win?.end) return null;
+            const label =
+                dictResolved?.PLANETS_V2?.bodies?.[key]?.label_ja ||
+                dictResolved?.POINTS_V1?.points?.[key]?.label_ja ||
+                key;
+            const signKey = transitSigns?.[key]?.sign_key || "";
+            const signLabel = transitSigns?.[key]?.sign_ja || (signKey ? signJa(dictResolved, signKey) : "");
+            const glyph = glyphForBody(key);
+            return { key, label, glyph, signLabel, start: win.start, end: win.end };
+        })
+        .filter(Boolean);
+
+    const retroLines = (() => {
+        if (!retroRows.length) return [];
+        const lines = ["🪐 逆行"];
+        const tags = ["#惑星逆行"];
+        const seenTags = new Set(tags);
+        retroRows.forEach((row, idx) => {
+            if (idx > 0) lines.push("");
+            const head = `${row.glyph ? `${row.glyph} ` : ""}${row.label}${row.signLabel ? `（${row.signLabel}）` : ""}`.trim();
+            lines.push(head);
+            lines.push(`📅 ${formatJstYmd(row.start)} ~ ${formatJstYmd(row.end)}`);
+
+            const bodyTag = `#${row.label}逆行`;
+            const signTag = row.signLabel ? `#${row.signLabel}` : "";
+            if (bodyTag && !seenTags.has(bodyTag)) {
+                seenTags.add(bodyTag);
+                tags.push(bodyTag);
+            }
+            if (signTag && !seenTags.has(signTag)) {
+                seenTags.add(signTag);
+                tags.push(signTag);
+            }
+        });
+        if (tags.length) {
+            lines.push("");
+            lines.push(tags.join(" "));
+        }
+        return lines;
+    })();
 
     const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
     const sorted = skyAll
@@ -84,6 +153,10 @@ function renderThreads(story, deps = {}) {
     lines.push(`🌌 ${dateLabel}｜空の配置`);
     lines.push("");
     if (moonSignJa) lines.push(`🌙月：${moonSignJa}`);
+    if (retroLines.length) {
+        lines.push("");
+        lines.push(...retroLines);
+    }
 
     if (aspectLines.length) {
         lines.push("");
