@@ -184,19 +184,19 @@ const BLOG_EYECATCH_PRESET = getEnv("BLOG_EYECATCH_PRESET", { defaultValue: "C" 
 // --------------------
 // OpenAI (BLOG generation)
 // --------------------
-const OPENAI_API_KEY = getEnv("OPENAI_API_KEY", { defaultValue: "" });
+const OPENAI_API_KEY = getEnv("OPENAI_API_KEY", { defaultValue: null });
 const OPENAI_BASE_URL = getEnv("OPENAI_BASE_URL", { defaultValue: "https://api.openai.com/v1" });
 const OPENAI_MODEL = getEnv("OPENAI_MODEL", { defaultValue: "gpt-4o" });
-const OPENAI_MODEL_BLOG = getEnv("OPENAI_MODEL_BLOG", { defaultValue: null });
-const OPENAI_MODEL_BLOG_PARTS = getEnv("OPENAI_MODEL_BLOG_PARTS", { defaultValue: null });
+const OPENAI_MODEL_BLOG = getEnv("OPENAI_MODEL_BLOG", { defaultValue: "gpt-4o-mini" });
+const OPENAI_MODEL_BLOG_PARTS = getEnv("OPENAI_MODEL_BLOG_PARTS", { defaultValue: "gpt-4o-mini" });
 const BLOG_GEN_MODE = getEnv("BLOG_GEN_MODE", { defaultValue: "single" });
 const OPENAI_MODEL_BLUEPRINT_LIGHT = getEnv("OPENAI_MODEL_BLUEPRINT_LIGHT", { defaultValue: null });
 
 // --------------------
 // Stripe / Payments
 // --------------------
-const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY", { defaultValue: "" });
-const STRIPE_WEBHOOK_SECRET = getEnv("STRIPE_WEBHOOK_SECRET", { defaultValue: "whsec_4cmpEK9qjTInJJllG0cryvFSxr2DxD80" });
+const STRIPE_SECRET_KEY = getEnv("STRIPE_SECRET_KEY", { defaultValue: null });
+const STRIPE_WEBHOOK_SECRET = getEnv("STRIPE_WEBHOOK_SECRET", { defaultValue: null });
 const STRIPE_PRICE_ID_LIGHT = getEnv("STRIPE_PRICE_ID_LIGHT", { defaultValue: "price_1T0Z9H8cjUNd2BbAACfXmsgg" });
 const STRIPE_PRICE_ID_LINE_500 = getEnv("STRIPE_PRICE_ID_LINE_500", { defaultValue: null });
 const STRIPE_PAYMENT_LINK_LIGHT = getEnv("STRIPE_PAYMENT_LINK_LIGHT", { defaultValue: null });
@@ -214,9 +214,20 @@ const BLUEPRINT_URL_EXPIRES_DAYS = numEnv("BLUEPRINT_URL_EXPIRES_DAYS", 7);
 const SORA_WHEEL_URL_EXPIRES_DAYS = numEnv("SORA_WHEEL_URL_EXPIRES_DAYS", 2);
 
 // --------------------
+// Instagram (Graph API)
+// --------------------
+const IG_ACCESS_TOKEN = getEnv("IG_ACCESS_TOKEN", { defaultValue: null });
+const IG_USER_ID = getEnv("IG_USER_ID", { defaultValue: null });
+const IG_PAGE_ID = getEnv("IG_PAGE_ID", { defaultValue: null });
+const IG_GRAPH_VERSION = getEnv("IG_GRAPH_VERSION", { defaultValue: "v19.0" });
+const IG_GCS_BUCKET = getEnv("IG_GCS_BUCKET", { defaultValue: null });
+const IG_IMAGE_URL_EXPIRES_DAYS = numEnv("IG_IMAGE_URL_EXPIRES_DAYS", 7);
+const IG_POST_DRY_RUN = boolEnv("IG_POST_DRY_RUN", false);
+
+// --------------------
 // Cloud Tasks (Blueprint)
 // --------------------
-const CLOUD_TASKS_PROJECT = getEnv("CLOUD_TASKS_PROJECT", { defaultValue: null });
+const CLOUD_TASKS_PROJECT = getEnv("CLOUD_TASKS_PROJECT", { defaultValue: "sora-no-koe" });
 const CLOUD_TASKS_LOCATION = getEnv("CLOUD_TASKS_LOCATION", { defaultValue: "asia-northeast1" });
 const CLOUD_TASKS_QUEUE = getEnv("CLOUD_TASKS_QUEUE", { defaultValue: "blueprint-generate" });
 const BLUEPRINT_GENERATE_URL = getEnv("BLUEPRINT_GENERATE_URL", { defaultValue: "https://sora-no-koe-v2-v5gbhrug3q-an.a.run.app/internal/blueprints/light/generate" });
@@ -334,6 +345,13 @@ module.exports = {
   GCS_BUCKET_SORA,
   BLUEPRINT_URL_EXPIRES_DAYS,
   SORA_WHEEL_URL_EXPIRES_DAYS,
+  IG_ACCESS_TOKEN,
+  IG_USER_ID,
+  IG_PAGE_ID,
+  IG_GRAPH_VERSION,
+  IG_GCS_BUCKET,
+  IG_IMAGE_URL_EXPIRES_DAYS,
+  IG_POST_DRY_RUN,
 
   // Cloud Tasks (Blueprint)
   CLOUD_TASKS_PROJECT,
