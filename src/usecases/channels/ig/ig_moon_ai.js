@@ -31,38 +31,6 @@ function buildMoonFallback({ moonSign, phaseLabel } = {}) {
   return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
 }
 
-function sanitizeMoonText(text, { moonSign, phaseLabel } = {}) {
-  const t = normalizeText(text);
-  if (!t) return "";
-  const sentences = t.split(/[。！？]/).map((s) => s.trim()).filter(Boolean);
-  let use = sentences.slice(0, 2);
-  if (use.length === 0) return "";
-  if (use.length === 1) {
-    use.push("月は静かに、余白として残ります");
-  }
-  let out = `${use[0]}。${use[1]}。`;
-
-  const maxLen = 120;
-  if (Array.from(out).length > maxLen) {
-    const parts = out.split("。").filter(Boolean);
-    const first = parts[0] ? `${parts[0]}。` : "";
-    const second = parts[1] ? `${parts[1]}。` : "";
-    let candidate = `${first}${second}`;
-    if (Array.from(candidate).length > maxLen) {
-      candidate = candidate.slice(0, maxLen);
-      if (!candidate.endsWith("。")) candidate = `${candidate}。`;
-      if (candidate.split("。").filter(Boolean).length < 2) {
-        candidate = `${candidate}月は静かに、余白として残ります。`;
-      }
-    }
-    out = candidate;
-  }
-  if (Array.from(out).length < 70) {
-    return buildMoonFallback({ moonSign, phaseLabel });
-  }
-  return out;
-}
-
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const moonSign = safeText(info?.moonSign || "");
@@ -83,8 +51,8 @@ function validateMoonText(text, { allowNewFull } = {}) {
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
   const len = Array.from(t).length;
-  if (len < 60) return { ok: false, reason: `too_short:${len}` };
-  if (len > 130) return { ok: false, reason: `too_long:${len}` };
+  if (len < 40) return { ok: false, reason: `too_short:${len}` };
+  if (len > 220) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -124,13 +92,12 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
       maxTokens: 160,
     });
 
-    const sanitized = sanitizeMoonText(text, { moonSign, phaseLabel });
-    const verdict = validateMoonText(sanitized, { allowNewFull });
+    const verdict = validateMoonText(text, { allowNewFull });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。「あなた」を避け、2文・70〜120文字を目安に整えて再出力。";
+    retryNote = "前回は条件外でした。「あなた」を避け、短すぎず長すぎない範囲で整えて再出力。";
   }
 
   const fallback = buildMoonFallback({ moonSign, phaseLabel });
