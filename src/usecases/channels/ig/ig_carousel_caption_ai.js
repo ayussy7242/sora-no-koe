@@ -89,8 +89,8 @@ function validateCaptionText(text) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = Array.from(t).length;
-  if (len < 120) return { ok: false, reason: `too_short:${len}` };
-  if (len > 180) return { ok: false, reason: `too_long:${len}` };
+  if (len < 100) return { ok: false, reason: `too_short:${len}` };
+  if (len > 220) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -99,8 +99,8 @@ function validateObservationText(text) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = Array.from(t).length;
-  if (len < 30) return { ok: false, reason: `too_short:${len}` };
-  if (len > 60) return { ok: false, reason: `too_long:${len}` };
+  if (len < 25) return { ok: false, reason: `too_short:${len}` };
+  if (len > 80) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -207,4 +207,3 @@ module.exports = {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
 };
-
