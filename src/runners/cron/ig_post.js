@@ -31,6 +31,14 @@ function ensureIgOutputs(story) {
   return story.outputs.ig;
 }
 
+function buildAspectKey(aspect) {
+  if (!aspect) return "";
+  const a = String(aspect?.a || "").toLowerCase();
+  const b = String(aspect?.b || "").toLowerCase();
+  const deg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : "";
+  return [a, b, deg].filter(Boolean).join("|");
+}
+
 async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
   if (!useAi) return story;
   const apiKey = String(env.OPENAI_API_KEY || "").trim();
@@ -59,11 +67,16 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
     }
   }
 
-  if (!igOut.parts.resonance) {
+  const currentResonanceKey = igOut.source?.resonance_aspect_key || "";
+  const usedResonanceKey = igOut.source?.resonance_aspect_key_used || "";
+  const needsResonance = !igOut.parts.resonance || (currentResonanceKey && currentResonanceKey !== usedResonanceKey);
+
+  if (needsResonance) {
     const res = await generateIgResonanceText({ story, dict, openai });
     if (res?.ok && res.text) {
       igOut.parts.resonance = res.text;
       igOut.rendered.carousel.slide3_text = res.text;
+      igOut.source.resonance_aspect_key_used = currentResonanceKey || "";
     }
   }
 
@@ -398,6 +411,9 @@ async function runIgPost(deps, opts = {}) {
   const preferredAspect = pickPreferredResonanceAspect(story);
   if (preferredAspect) {
     igOut.source.resonance_aspect = preferredAspect;
+    igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect);
+  } else {
+    igOut.source.resonance_aspect_key = "";
   }
 
   story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi });
