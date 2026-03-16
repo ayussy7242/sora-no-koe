@@ -2,6 +2,7 @@
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, renderSvgToPng } = require("./shared");
 const { resolveColors } = require("../theme/ig_theme");
+const { buildGlyphLine } = require("./glyph_layout");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
@@ -193,6 +194,11 @@ function buildSlide5Svg({
   const subLines = wrapLines(sub, 18, 2);
 
   if (ornament) {
+    const glyphLeft = "☉";
+    const glyphRight = "☽";
+    const glyphGap = ornamentSize * 0.9;
+    const lineWidth = ornamentSize * 2.4;
+    const ornamentY = TOK.cta.ornamentY;
     const hasTwoLineSub = subLines.length === 2;
     const subBlock = hasTwoLineSub
       ? [
@@ -210,8 +216,30 @@ function buildSlide5Svg({
           letterSpacing: TOK.cta.subTracking,
           anchor: "middle",
         });
+    const ornamentBlock = [
+      buildGlyphLine({
+        x: centerX - glyphGap,
+        y: ornamentY,
+        text: glyphLeft,
+        size: ornamentSize,
+        color: colors.textMain,
+        fontFamily: "SoraTitle",
+        anchor: "middle",
+      }),
+      `<line x1=\"${centerX - lineWidth / 2}\" y1=\"${ornamentY + 6}\" x2=\"${centerX + lineWidth / 2}\" y2=\"${ornamentY + 6}\" stroke=\"${colors.textSub}\" stroke-width=\"1\" stroke-opacity=\"0.35\"/>`,
+      buildGlyphLine({
+        x: centerX + glyphGap,
+        y: ornamentY,
+        text: glyphRight,
+        size: ornamentSize,
+        color: colors.textMain,
+        fontFamily: "SoraTitle",
+        anchor: "middle",
+      }),
+    ].join("");
+
     const inner = [
-      `<text x=\"${centerX}\" y=\"${TOK.cta.ornamentY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${ornamentSize}\" font-family=\"SoraTitle\" opacity=\"0.92\" letter-spacing=\"${TOK.cta.ornamentTracking}em\">${escapeXml(ornament)}</text>`,
+      ornamentBlock,
       textBlock({
         x: centerX,
         y: TOK.cta.ctaY,
