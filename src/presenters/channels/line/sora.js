@@ -8,7 +8,7 @@ const {
   formatDateLabel,
   glyphForBody,
   signJa,
-  aspectInfo,
+  formatAspectDisplay,
   formatElementModalityLines,
 } = require("../../format/format/line_common");
 const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
@@ -127,18 +127,15 @@ async function renderSoraLine(story, deps = {}) {
       const line1 = `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText}`;
       const line2 = `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`;
 
-      const aspect = aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
-      const aspectLabel = aspect?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
-      const aspectDeg = Number.isFinite(Number(item?.aspect_deg))
-        ? Number(item.aspect_deg)
-        : Number.isFinite(Number(aspect?.deg))
-          ? Number(aspect.deg)
-          : null;
-      const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-      const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
-      const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-      const line3 = `${aspectLabel} ${degText}`.trim();
-      const line3b = orbText ? `orb ${orbText}°` : "";
+      const aspect = formatAspectDisplay({
+        dict,
+        rawType: item?.type || item?.aspT || item?.aspect,
+        aspectDeg: item?.aspect_deg,
+        orbDeg: item?.orb_deg,
+        orbPrecision: 1,
+      });
+      const line3 = aspect.line;
+      const line3b = aspect.orbText ? `orb ${aspect.orbText}` : "";
 
       if (idx > 0) lines.push("");
       lines.push(line1, line2, line3);
@@ -151,7 +148,12 @@ async function renderSoraLine(story, deps = {}) {
     if (!isPaid || !picked.length) return [];
     const counts = new Map();
     picked.forEach((item) => {
-      const deg = Number.isFinite(Number(item?.aspect_deg)) ? Math.round(Number(item.aspect_deg)) : null;
+      const aspect = formatAspectDisplay({
+        dict,
+        rawType: item?.type || item?.aspT || item?.aspect,
+        aspectDeg: item?.aspect_deg,
+      });
+      const deg = aspect?.deg != null ? Math.round(Number(aspect.deg)) : null;
       if (deg == null) return;
       counts.set(deg, (counts.get(deg) || 0) + 1);
     });

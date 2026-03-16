@@ -36,6 +36,7 @@ const {
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../domain/canonical");
+const { formatAspectDisplay } = require("../../../presenters/format/format/line_common");
 const {
   formatTodayMoonLines,
   formatNextMoonLines,
@@ -1442,13 +1443,12 @@ function formatSignDegree(signKey, lonDeg) {
 
 function aspectLabelForLong(aspectKey, aspectDeg) {
   const key = normalizeAspectKey(aspectKey, aspectDeg);
-  const meta =
-    dict?.ASPECTS_V2?.major?.[key] ||
-    dict?.ASPECTS_V2?.deep_space?.[key] ||
-    dict?.ASPECTS_V2?.craft_space?.[key] ||
-    null;
-  if (meta?.label_ja) return meta.label_ja;
-  return key || String(aspectKey || "");
+  const meta = formatAspectDisplay({
+    dict,
+    rawType: aspectKey,
+    aspectDeg,
+  });
+  return meta?.label || key || String(aspectKey || "");
 }
 
 function calcOrbAt(aKey, bKey, aspectDeg, asOfISO) {

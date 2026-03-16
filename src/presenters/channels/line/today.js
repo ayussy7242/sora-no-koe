@@ -10,7 +10,7 @@ const {
   formatDateLabel,
   glyphForBody,
   signJa,
-  aspectInfo,
+  formatAspectDisplay,
   formatElementModalityLines,
 } = require("../../format/format/line_common");
 const {
@@ -94,18 +94,15 @@ async function renderLine(story, deps = {}) {
     const line1 = `${i + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText}`;
     const line1b = `   × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`;
 
-    const aspect = aspectInfo(dict, it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja, it?.aspect_deg);
-    const aspectLabel = aspect?.label_ja || String(it?.aspect || it?.type || it?.aspectType || "");
-    const aspectDeg = Number.isFinite(Number(it?.aspect_deg))
-      ? Number(it.aspect_deg)
-      : Number.isFinite(Number(aspect?.deg))
-        ? Number(aspect.deg)
-        : null;
-    const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-    const orb = Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null;
-    const orbText = orb != null ? `${orb.toFixed(1)}` : "";
-    const line2 = `${aspectLabel} ${degText}`.trim();
-    const line2b = orbText ? `orb ${orbText}°` : "";
+    const aspect = formatAspectDisplay({
+      dict,
+      rawType: it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja,
+      aspectDeg: it?.aspect_deg,
+      orbDeg: it?.orb_deg,
+      orbPrecision: 1,
+    });
+    const line2 = aspect.line;
+    const line2b = aspect.orbText ? `orb ${aspect.orbText}` : "";
 
     lines.push(line1, line1b, line2);
     if (line2b) lines.push(line2b);

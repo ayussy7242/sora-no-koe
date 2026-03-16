@@ -1,6 +1,6 @@
 "use strict";
 
-const { glyphForBody, signJa, aspectInfo } = require("../../../format/format/line_common");
+const { glyphForBody, signJa, formatAspectDisplay } = require("../../../format/format/line_common");
 const { SPEC } = require("../../../../config/sora_spec");
 
 function formatTsukiji({ approachRows = [], retroRows = [], dict }) {
@@ -24,13 +24,18 @@ function formatTsukiji({ approachRows = [], retroRows = [], dict }) {
       const bSign = row.bSign || signJa(dict, row.bSignKey || "");
       const aSignText = aSign ? `（${aSign}）` : "";
       const bSignText = bSign ? `（${bSign}）` : "";
-      const aspectMeta = aspectInfo(dict, row.aspectType, row.aspectDeg);
-      const aspectLabel = aspectMeta?.label_ja || String(row.aspectType || "");
-      const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(row.aspectDeg)}°` : "";
-      const orbText = Number.isFinite(Number(row.orb)) ? `orb ${Number(row.orb).toFixed(1)}°` : "";
+      const aspectMeta = formatAspectDisplay({
+        dict,
+        rawType: row.aspectType,
+        aspectDeg: row.aspectDeg,
+        orbDeg: row.orb,
+        orbPrecision: 1,
+      });
+      const degText = aspectMeta.degText || "";
+      const orbText = aspectMeta.orbText ? `orb ${aspectMeta.orbText}` : "";
       lines.push(`${idx + 1}) (${aKind}) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText}`);
       lines.push(`   × (${bKind}) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`);
-      lines.push(`   ${aspectLabel} ${degText}`.trim());
+      lines.push(`   ${aspectMeta.label} ${degText}`.trim());
       if (orbText) lines.push(`   ${orbText}`);
       lines.push(`   ${row.startText} → ${row.endText}`);
       lines.push(`   ${SPEC.labels.tsukiji.remaining} ${row.remainingDays}日`);

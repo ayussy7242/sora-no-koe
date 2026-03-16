@@ -1,6 +1,6 @@
 "use strict";
 
-const { glyphForBody, signJa, aspectInfo } = require("../../../format/format/line_common");
+const { glyphForBody, signJa, formatAspectDisplay } = require("../../../format/format/line_common");
 const { SPEC } = require("../../../../config/sora_spec");
 
 function formatKinjitsu({ items = [], moonEvents = [], dict, formatDateYmdHm }) {
@@ -20,14 +20,17 @@ function formatKinjitsu({ items = [], moonEvents = [], dict, formatDateYmdHm }) 
     const bRetro = it.bRetro ? SPEC.retro.suffix : "";
     const aSignText = aSign ? `（${aSign}）${aRetro}` : aRetro;
     const bSignText = bSign ? `（${bSign}）${bRetro}` : bRetro;
-    const aspectMeta = aspectInfo(dict, it.aspectType, it.aspectDeg);
-    const aspectLabel = aspectMeta?.label_ja || String(it.aspectType || "");
-    const degText = Number.isFinite(Number(it.aspectDeg)) ? `${Math.round(it.aspectDeg)}°` : "";
+    const aspectMeta = formatAspectDisplay({
+      dict,
+      rawType: it.aspectType,
+      aspectDeg: it.aspectDeg,
+    });
+    const degText = aspectMeta.degText || "";
 
     lines.push(
       `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText}`,
       `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
-      `${aspectLabel} ${degText}`.trim(),
+      `${aspectMeta.label} ${degText}`.trim(),
       `${SPEC.labels.kinjitsu.nowOrb} ${Number(it.nowOrb).toFixed(1)}°`,
       `${SPEC.labels.kinjitsu.peak} ${formatDateYmdHm(it.peak)}`
     );

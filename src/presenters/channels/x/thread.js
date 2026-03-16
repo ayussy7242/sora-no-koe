@@ -13,7 +13,7 @@ const {
   formatDateLabel,
   glyphForBody,
   signJa,
-  aspectInfo,
+  formatAspectDisplay,
   formatElementModalityLines,
 } = require("../../format/format/line_common");
 const { listWithOrb, sortByOrb } = require("../../../domain/aspect_selection");
@@ -261,21 +261,20 @@ function renderXThread(story, deps = {}) {
       const aSignText = aSign ? `（${aSign}）` : "";
       const bSignText = bSign ? `（${bSign}）` : "";
 
-      const aspect = aspectInfo(dict, item?.type || item?.aspT || item?.aspect, item?.aspect_deg);
-      const aspectLabel = aspect?.label_ja || String(item?.type || item?.aspT || item?.aspect || "");
-      const aspectDeg = Number.isFinite(Number(item?.aspect_deg))
-        ? Number(item.aspect_deg)
-        : Number.isFinite(Number(aspect?.deg))
-          ? Number(aspect.deg)
-          : null;
-      const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-      const orb = Number.isFinite(Number(item?.orb_deg)) ? Number(item.orb_deg) : null;
-      const orbText = orb != null ? `${orb.toFixed(1)}` : "-";
+      const aspect = formatAspectDisplay({
+        dict,
+        rawType: item?.type || item?.aspT || item?.aspect,
+        aspectDeg: item?.aspect_deg,
+        orbDeg: item?.orb_deg,
+        orbPrecision: 1,
+      });
+      const degText = aspect.degText || "";
+      const orbText = aspect.orbText ? aspect.orbText.replace(/°$/, "") : "-";
 
       return [
         `(T) ${aGlyph ? `${aGlyph} ` : ""}${aLabelR}${aSignText}`,
         `× (T) ${bGlyph ? `${bGlyph} ` : ""}${bLabelR}${bSignText}`,
-        `${aspectLabel} ${degText}`.trim(),
+        `${aspect.label} ${degText}`.trim(),
         `現在 オーブ ${orbText}°`,
       ].join("\n");
     })
@@ -361,16 +360,19 @@ function renderXThread(story, deps = {}) {
       const bSign = row?.raw?.b_sign_ja || signJa(dict, row?.raw?.b_sign_key || "") || transitSigns?.[row.bKey]?.sign_ja || "";
       const aSignText = aSign ? `（${aSign}）` : "";
       const bSignText = bSign ? `（${bSign}）` : "";
-      const aspect = aspectInfo(dict, row.raw?.aspect || row.raw?.type || row.raw?.aspT, row.aspectDeg);
-      const aspectLabel = aspect?.label_ja || String(row.raw?.aspect || row.raw?.type || row.raw?.aspT || "");
-      const degText = Number.isFinite(Number(row.aspectDeg)) ? `${Math.round(Number(row.aspectDeg))}°` : "";
+      const aspect = formatAspectDisplay({
+        dict,
+        rawType: row.raw?.aspect || row.raw?.type || row.raw?.aspT,
+        aspectDeg: row.aspectDeg,
+      });
+      const degText = aspect.degText || "";
       const nowOrbText = Number.isFinite(Number(row.nowOrb)) ? row.nowOrb.toFixed(2) : "-";
       const refinedPeak = refinePeakTime(row.aKey, row.bKey, row.aspectDeg, row.peakAt, asOfISO);
       const peakText = refinedPeak && isValidDate(refinedPeak) ? formatMonthDayHm(refinedPeak) : "-";
 
       const lines = [
         `★ ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText} × ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
-        `${aspectLabel} ${degText}`.trim(),
+        `${aspect.label} ${degText}`.trim(),
         `現在 オーブ ${nowOrbText}°`,
         `最接近 ${peakText}（JST）`,
       ];
