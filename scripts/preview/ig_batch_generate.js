@@ -365,67 +365,67 @@ async function maybeLocalAI({ story, useAi }) {
   const apiKey = process.env.OPENAI_API_KEY || "";
   if (!apiKey) return story;
 
-  const withOutputs = ensureIgOutputs(story);
+  const igOut = ensureIgOutputs(story);
   const forceAi = story?.outputs?.ig?.source?.force_ai === true;
 
   if (forceAi) {
-    withOutputs.ig.observation_text = null;
-    withOutputs.ig.moon_text = null;
-    withOutputs.ig.resonance_text = null;
-    withOutputs.ig.tsukiji_structure_text = null;
-    if (withOutputs.ig.carousel) {
-      withOutputs.ig.carousel.slide1_observation = null;
-      withOutputs.ig.carousel.slide2_text = null;
-      withOutputs.ig.carousel.slide3_text = null;
-      withOutputs.ig.carousel.slide4_structure = null;
+    igOut.observation_text = null;
+    igOut.moon_text = null;
+    igOut.resonance_text = null;
+    igOut.tsukiji_structure_text = null;
+    if (igOut.carousel) {
+      igOut.carousel.slide1_observation = null;
+      igOut.carousel.slide2_text = null;
+      igOut.carousel.slide3_text = null;
+      igOut.carousel.slide4_structure = null;
     }
-    if (withOutputs.ig.rendered?.carousel) {
-      withOutputs.ig.rendered.carousel.slide1_observation = null;
-      withOutputs.ig.rendered.carousel.slide2_text = null;
-      withOutputs.ig.rendered.carousel.slide3_text = null;
-      withOutputs.ig.rendered.carousel.slide4_structure = null;
+    if (igOut.rendered?.carousel) {
+      igOut.rendered.carousel.slide1_observation = null;
+      igOut.rendered.carousel.slide2_text = null;
+      igOut.rendered.carousel.slide3_text = null;
+      igOut.rendered.carousel.slide4_structure = null;
     }
-    withOutputs.ig.parts = {};
+    igOut.parts = {};
   }
 
-  if (forceAi || !withOutputs.ig.observation_text) {
+  if (forceAi || !igOut.observation_text) {
     const obs = await generateIgObservationText({ story, dict, openai: { apiKey } });
     if (obs?.ok) {
-      withOutputs.ig.observation_text = obs.text;
-      withOutputs.ig.carousel = withOutputs.ig.carousel || {};
-      withOutputs.ig.carousel.slide1_observation = obs.text;
+      igOut.observation_text = obs.text;
+      igOut.carousel = igOut.carousel || {};
+      igOut.carousel.slide1_observation = obs.text;
     }
   }
 
-  if (forceAi || !withOutputs.ig.moon_text) {
+  if (forceAi || !igOut.moon_text) {
     const asOfISO = `${story?.meta?.date_local || story?.public?.date_local || ""}T12:00:00+09:00`;
     const moon = await generateIgMoonText({ story, dict, openai: { apiKey }, asOfISO });
     if (moon?.ok) {
-      withOutputs.ig.moon_text = moon.text;
-      withOutputs.ig.carousel = withOutputs.ig.carousel || {};
-      withOutputs.ig.carousel.slide2_text = moon.text;
+      igOut.moon_text = moon.text;
+      igOut.carousel = igOut.carousel || {};
+      igOut.carousel.slide2_text = moon.text;
     }
   }
 
-  if (forceAi || !withOutputs.ig.resonance_text) {
+  if (forceAi || !igOut.resonance_text) {
     const res = await generateIgResonanceText({ story, dict, openai: { apiKey } });
     if (res?.ok) {
-      withOutputs.ig.resonance_text = res.text;
-      withOutputs.ig.carousel = withOutputs.ig.carousel || {};
-      withOutputs.ig.carousel.slide3_text = res.text;
+      igOut.resonance_text = res.text;
+      igOut.carousel = igOut.carousel || {};
+      igOut.carousel.slide3_text = res.text;
     }
   }
 
-  if (forceAi || !withOutputs.ig.tsukiji_structure_text) {
+  if (forceAi || !igOut.tsukiji_structure_text) {
     const ts = await generateIgTsukijiStructureText({ story, dict, openai: { apiKey } });
     if (ts?.ok) {
-      withOutputs.ig.tsukiji_structure_text = ts.text;
-      withOutputs.ig.carousel = withOutputs.ig.carousel || {};
-      withOutputs.ig.carousel.slide4_structure = ts.text;
+      igOut.tsukiji_structure_text = ts.text;
+      igOut.carousel = igOut.carousel || {};
+      igOut.carousel.slide4_structure = ts.text;
     }
   }
 
-  story.outputs = withOutputs;
+  story.outputs.ig = igOut;
   return story;
 }
 
