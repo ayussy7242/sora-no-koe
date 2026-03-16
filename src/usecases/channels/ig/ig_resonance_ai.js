@@ -24,11 +24,7 @@ function bodyLabelJa(dict, key) {
 }
 
 function buildAspectLine({ story, dict }) {
-  const aspect =
-    story?.outputs?.ig?.source?.resonance_aspect ||
-    story?.public?.sky_top?.[0] ||
-    story?.public?.sky_all?.[0] ||
-    null;
+  const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
   if (!aspect) return { aspectLine: "", aspectLabel: "", orb: "" };
 
   const aKey = normalizeBodyKey(aspect?.a || "");
@@ -80,11 +76,8 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 
 function buildIgResonancePrompt({ story, dict }) {
   const date = safeText(story?.meta?.date_local || story?.public?.date_local || "");
-  const aspect =
-    story?.outputs?.ig?.source?.resonance_aspect ||
-    story?.public?.sky_top?.[0] ||
-    story?.public?.sky_all?.[0] ||
-    null;
+  const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
+  if (!aspect) return "";
   const { aspectLine, orb, aBody, bBody, aSign, bSign } = buildAspectLine({ story, dict });
   const { aHouse, bHouse } = buildResonanceHouseLines({ story, dict, aspect });
 
@@ -151,6 +144,8 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const hasAspect = !!story?.outputs?.ig?.source?.resonance_aspect;
+  if (!hasAspect) return { ok: false, error: "resonance_aspect_missing" };
 
   let retryNote = "";
   let lastReason = "";
