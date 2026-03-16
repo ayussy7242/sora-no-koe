@@ -475,6 +475,7 @@ async function main() {
   const useAiLocal = ["1", "true", "yes", "on"].includes(String(args.ai_local || "false"));
   const overwrite = ["1", "true", "yes", "on"].includes(String(args.overwrite || "false"));
   const forceAi = ["1", "true", "yes", "on"].includes(String(args.force_ai || "false"));
+  const printJson = ["1", "true", "yes", "on"].includes(String(args.print_json || "false"));
   const stepDays = Number(args.step || 1);
 
   const single = args.date || args.date_local || "";
@@ -519,6 +520,10 @@ async function main() {
     story = await maybeLocalAI({ story, useAi: useAiLocal });
     const toSave = mergeStoryPayload(payload, story);
     fs.writeFileSync(storyPath, JSON.stringify(toSave, null, 2), "utf8");
+    if (printJson) {
+      if (dates.length > 1) console.log(`\n# ${dateLocal}`);
+      console.log(JSON.stringify(toSave, null, 2));
+    }
 
     const out = await renderAndSave({ story, dateLocal, outDir, withCta });
     console.log(`[ig_batch] ${dateLocal} -> ${out}`);
