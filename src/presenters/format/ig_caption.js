@@ -253,6 +253,10 @@ function renderIGCaption(story, deps = {}) {
   const captionBlock = captionCenter || buildCaptionFallback();
   captionBlock.split(/\n/).forEach((l) => lines.push(l));
   lines.push("");
+  const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
+  lines.push("【今日の共鳴】");
+  resonanceLines.forEach((l) => lines.push(l));
+  lines.push("");
   lines.push("✦ 観測ポイント");
   lines.push(observation || buildObservationFallback());
   lines.push("");
