@@ -15,6 +15,7 @@ const {
 } = require("../../src/domain/moon_info");
 const { selectNextMajorPhase } = require("../../src/domain/moon_phase");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
+const { renderIGCaption } = require("../../src/presenters/format/ig_caption");
 const { aspectInfo } = require("../../src/presenters/format/format/line_common");
 const { generateIgObservationText } = require("../../src/usecases/channels/ig/ig_observation_ai");
 const { generateIgResonanceText } = require("../../src/usecases/channels/ig/ig_resonance_ai");
@@ -514,6 +515,7 @@ async function main() {
     }
     igOut.source.force_ai = forceAi;
     story = await maybeLocalAI({ story, useAi: useAiLocal });
+    story.outputs.ig.caption = renderIGCaption(story, { dict });
     const toSave = mergeStoryPayload(payload, story);
     fs.writeFileSync(storyPath, JSON.stringify(toSave, null, 2), "utf8");
     if (printJson) {
