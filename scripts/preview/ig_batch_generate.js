@@ -377,8 +377,6 @@ async function maybeLocalAI({ story, useAi }) {
     igOut.moon_text = null;
     igOut.resonance_text = null;
     igOut.tsukiji_structure_text = null;
-    igOut.caption_center_text = null;
-    igOut.caption_observation_text = null;
     if (igOut.carousel) {
       igOut.carousel.slide1_observation = null;
       igOut.carousel.slide2_text = null;
@@ -431,20 +429,18 @@ async function maybeLocalAI({ story, useAi }) {
     }
   }
 
-  if (forceAi || !igOut.caption_center_text) {
+  if (forceAi || !igOut.parts?.caption_center) {
     const asOfISO = `${story?.meta?.date_local || story?.public?.date_local || ""}T12:00:00+09:00`;
     const cap = await generateIgCarouselCaptionText({ story, dict, openai: { apiKey }, asOfISO });
     if (cap?.ok) {
-      igOut.caption_center_text = cap.text;
       igOut.parts = igOut.parts || {};
       igOut.parts.caption_center = cap.text;
     }
   }
 
-  if (forceAi || !igOut.caption_observation_text) {
+  if (forceAi || !igOut.parts?.caption_observation) {
     const obs = await generateIgCarouselObservationText({ story, dict, openai: { apiKey } });
     if (obs?.ok) {
-      igOut.caption_observation_text = obs.text;
       igOut.parts = igOut.parts || {};
       igOut.parts.caption_observation = obs.text;
     }
