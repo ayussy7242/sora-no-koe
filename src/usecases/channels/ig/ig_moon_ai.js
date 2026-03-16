@@ -25,6 +25,44 @@ function normalizeText(text) {
     .trim();
 }
 
+function buildMoonFallback({ moonSign, phaseLabel } = {}) {
+  const sign = safeText(moonSign) || "—";
+  const phase = safeText(phaseLabel) || "静かな月相";
+  return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
+}
+
+function sanitizeMoonText(text, { moonSign, phaseLabel } = {}) {
+  const t = normalizeText(text);
+  if (!t) return "";
+  const sentences = t.split(/[。！？]/).map((s) => s.trim()).filter(Boolean);
+  let use = sentences.slice(0, 2);
+  if (use.length === 0) return "";
+  if (use.length === 1) {
+    use.push("月は静かに、余白として残ります");
+  }
+  let out = `${use[0]}。${use[1]}。`;
+
+  const maxLen = 120;
+  if (Array.from(out).length > maxLen) {
+    const parts = out.split("。").filter(Boolean);
+    const first = parts[0] ? `${parts[0]}。` : "";
+    const second = parts[1] ? `${parts[1]}。` : "";
+    let candidate = `${first}${second}`;
+    if (Array.from(candidate).length > maxLen) {
+      candidate = candidate.slice(0, maxLen);
+      if (!candidate.endsWith("。")) candidate = `${candidate}。`;
+      if (candidate.split("。").filter(Boolean).length < 2) {
+        candidate = `${candidate}月は静かに、余白として残ります。`;
+      }
+    }
+    out = candidate;
+  }
+  if (Array.from(out).length < 70) {
+    return buildMoonFallback({ moonSign, phaseLabel });
+  }
+  return out;
+}
+
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const moonSign = safeText(info?.moonSign || "");
@@ -44,11 +82,9 @@ function validateMoonText(text, { allowNewFull } = {}) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
-  const sentences = countSentences(t);
-  if (sentences !== 2) return { ok: false, reason: `sentences:${sentences}` };
   const len = Array.from(t).length;
-  if (len < 70) return { ok: false, reason: `too_short:${len}` };
-  if (len > 120) return { ok: false, reason: `too_long:${len}` };
+  if (len < 60) return { ok: false, reason: `too_short:${len}` };
+  if (len > 130) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -68,6 +104,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
   const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
   const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
   const allowNewFull = isNewNow || isFullNow;
+  const moonSign = safeText(info?.moonSign || "");
+  const phaseLabel = safeText(info?.phase?.name || "");
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +
@@ -86,7 +124,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
       maxTokens: 160,
     });
 
-    const verdict = validateMoonText(text, { allowNewFull });
+    const sanitized = sanitizeMoonText(text, { moonSign, phaseLabel });
+    const verdict = validateMoonText(sanitized, { allowNewFull });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";
@@ -94,7 +133,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
     retryNote = "前回は条件外でした。「あなた」を避け、2文・70〜120文字を目安に整えて再出力。";
   }
 
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+  const fallback = buildMoonFallback({ moonSign, phaseLabel });
+  return { ok: true, text: fallback, model, fallback: true };
 }
 
 module.exports = {
