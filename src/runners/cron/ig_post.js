@@ -31,12 +31,15 @@ function ensureIgOutputs(story) {
   return story.outputs.ig;
 }
 
-function buildAspectKey(aspect) {
+function buildAspectKey(aspect, { includeOrb = false } = {}) {
   if (!aspect) return "";
   const a = String(aspect?.a || "").toLowerCase();
   const b = String(aspect?.b || "").toLowerCase();
   const deg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : "";
-  return [a, b, deg].filter(Boolean).join("|");
+  const orb = includeOrb && Number.isFinite(Number(aspect?.orb_deg))
+    ? Number(aspect.orb_deg).toFixed(2)
+    : "";
+  return [a, b, deg, orb].filter(Boolean).join("|");
 }
 
 async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi, forceAi }) {
@@ -72,6 +75,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi, forceA
   const needsResonance =
     forceAi ||
     !igOut.parts.resonance ||
+    !usedResonanceKey ||
     (currentResonanceKey && currentResonanceKey !== usedResonanceKey);
 
   if (needsResonance) {
@@ -80,6 +84,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi, forceA
       igOut.parts.resonance = res.text;
       igOut.rendered.carousel.slide3_text = res.text;
       igOut.source.resonance_aspect_key_used = currentResonanceKey || "";
+      igOut.source.resonance_aspect_used = igOut.source?.resonance_aspect || null;
     }
   }
 
@@ -414,7 +419,7 @@ async function runIgPost(deps, opts = {}) {
   const preferredAspect = pickPreferredResonanceAspect(story);
   if (preferredAspect) {
     igOut.source.resonance_aspect = preferredAspect;
-    igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect);
+    igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect, { includeOrb: true });
   } else {
     igOut.source.resonance_aspect_key = "";
   }
