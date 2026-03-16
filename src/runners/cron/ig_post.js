@@ -445,6 +445,7 @@ async function runIgPost(deps, opts = {}) {
   story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi, forceAi: opts.forceAi });
 
   const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
+  const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
   const buffers = await renderInstagramCarousel(carousel);
 
   const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
