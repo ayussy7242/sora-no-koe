@@ -24,7 +24,11 @@ function bodyLabelJa(dict, key) {
 }
 
 function buildAspectLine({ story, dict }) {
-  const aspect = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+  const aspect =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    story?.public?.sky_top?.[0] ||
+    story?.public?.sky_all?.[0] ||
+    null;
   if (!aspect) return { aspectLine: "", aspectLabel: "", orb: "" };
 
   const aKey = normalizeBodyKey(aspect?.a || "");
@@ -76,7 +80,11 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 
 function buildIgResonancePrompt({ story, dict }) {
   const date = safeText(story?.meta?.date_local || story?.public?.date_local || "");
-  const aspect = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+  const aspect =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    story?.public?.sky_top?.[0] ||
+    story?.public?.sky_all?.[0] ||
+    null;
   const { aspectLine, orb, aBody, bBody, aSign, bSign } = buildAspectLine({ story, dict });
   const { aHouse, bHouse } = buildResonanceHouseLines({ story, dict, aspect });
 
@@ -129,8 +137,10 @@ function validateText(text) {
   const t = normalizeText(text);
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (t.length < 150) return { ok: false, reason: `too_short:${t.length}` };
-  if (t.length > 280) return { ok: false, reason: `too_long:${t.length}` };
+  const sentences = sentenceCount(t);
+  if (sentences < 3 || sentences > 4) return { ok: false, reason: `sentences:${sentences}` };
+  if (t.length < 120) return { ok: false, reason: `too_short:${t.length}` };
+  if (t.length > 200) return { ok: false, reason: `too_long:${t.length}` };
 
   return { ok: true, text: t };
 }
@@ -168,7 +178,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、180〜220文字を目安に整えて再出力。`;
+    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`;
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };

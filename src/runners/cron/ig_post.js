@@ -394,13 +394,13 @@ async function runIgPost(deps, opts = {}) {
     mode: "public",
   });
 
-  story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi });
-
   const igOut = ensureIgOutputs(story);
   const preferredAspect = pickPreferredResonanceAspect(story);
   if (preferredAspect) {
     igOut.source.resonance_aspect = preferredAspect;
   }
+
+  story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi });
 
   const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
   const buffers = await renderInstagramCarousel(carousel);

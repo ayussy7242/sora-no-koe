@@ -44,9 +44,11 @@ function validateMoonText(text, { allowNewFull } = {}) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
+  const sentences = countSentences(t);
+  if (sentences !== 2) return { ok: false, reason: `sentences:${sentences}` };
   const len = Array.from(t).length;
-  if (len < 60) return { ok: false, reason: `too_short:${len}` };
-  if (len > 180) return { ok: false, reason: `too_long:${len}` };
+  if (len < 70) return { ok: false, reason: `too_short:${len}` };
+  if (len > 120) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -89,7 +91,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。「あなた」を避け、80〜160文字を目安に整えて再出力。";
+    retryNote = "前回は条件外でした。「あなた」を避け、2文・70〜120文字を目安に整えて再出力。";
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
