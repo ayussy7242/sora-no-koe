@@ -24,7 +24,7 @@ const { normalizeAspectKey } = require("../../../domain/canonical");
 const {
   glyphForBody,
   signJa,
-  aspectInfo,
+  formatAspectDisplay,
 } = require("../../../presenters/format/format/line_common");
 const { formatBunpu } = require("../../../presenters/channels/line/paid/bunpu");
 const { formatHouse } = require("../../../presenters/channels/line/paid/house");
@@ -231,14 +231,18 @@ function buildTsukijiBlock(story, dict, asOfISO) {
     const tSign = tp?.transit_sign_ja || signJa(dict, tp?.transit_sign_key || tp?.transit_sign || "");
     const nSign = tp?.natal_sign_ja || signJa(dict, tp?.natal_sign_key || tp?.natal_sign || "");
 
-    const aspectMeta = aspectInfo(dict, tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja, tp?.aspect_deg);
-    const aspectDeg = Number.isFinite(Number(tp?.aspect_deg))
-      ? Number(tp.aspect_deg)
-      : Number.isFinite(Number(aspectMeta?.deg))
-        ? Number(aspectMeta.deg)
-        : null;
-    const orb = Number.isFinite(Number(tp?.orb_deg)) ? Number(tp.orb_deg) : null;
-    const aspectTypeNorm = normalizeAspectKey(tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja || "", aspectDeg);
+    const aspectMeta = formatAspectDisplay({
+      dict,
+      rawType: tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja,
+      aspectDeg: tp?.aspect_deg,
+      orbDeg: tp?.orb_deg,
+    });
+    const aspectDeg = Number.isFinite(Number(aspectMeta?.deg)) ? Number(aspectMeta.deg) : null;
+    const orb = Number.isFinite(Number(aspectMeta?.orb)) ? Number(aspectMeta.orb) : null;
+    const aspectTypeNorm = normalizeAspectKey(
+      tp?.aspect || tp?.type || tp?.aspectType || tp?.aspect_label_ja || "",
+      aspectDeg
+    );
 
     const window = findAspectWindow({
       transitKey: tKey,

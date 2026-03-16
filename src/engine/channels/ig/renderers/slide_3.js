@@ -36,6 +36,7 @@ function getAvoidRegions({
   lineA,
   lineB,
   aspectLine,
+  deepLine,
   structure,
   brand = "sora-no-koe",
 } = {}) {
@@ -85,6 +86,19 @@ function getAvoidRegions({
       h: TOK.resonance.aspectSize * 1.2,
       pad: 12,
       weight: 0.75,
+      kind: "subtitle",
+    }));
+  }
+  if (deepLine) {
+    const size = Math.round(TOK.resonance.aspectSize * 0.8);
+    const w = estimateTextWidth(deepLine, size);
+    fields.push(makeField({
+      x: TOK.marginX,
+      y: TOK.resonance.aspectY + TOK.resonance.aspectSize + 8 - size,
+      w,
+      h: size * 1.2,
+      pad: 10,
+      weight: 0.7,
       kind: "subtitle",
     }));
   }
@@ -159,6 +173,7 @@ function buildSlide3Svg({
   structure,
   bodyAKey,
   bodyBKey,
+  deepLine,
   space,
 } = {}) {
   const colors = resolveColors(space);
@@ -196,6 +211,7 @@ function buildSlide3Svg({
   pushGlow("glyphGlowA", glowA, glyphA, marginX, TOK.resonance.lineY1);
   pushGlow("glyphGlowB", glowB, glyphB, marginX, TOK.resonance.lineY2);
 
+  const deepLineY = deepLine ? TOK.resonance.aspectY + TOK.resonance.aspectSize + 8 : null;
   const inner = [
     glowDefs.length ? `<defs>${glowDefs.join("")}</defs>` : "",
     glowBodies.join(""),
@@ -222,6 +238,9 @@ function buildSlide3Svg({
       glyphBoxWidth: TOK.resonance.glyphBoxWidth,
     }),
     `<text x=\"${marginX}\" y=\"${TOK.resonance.aspectY}\" fill=\"${colors.textSub}\" font-size=\"${TOK.resonance.aspectSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.resonance.aspectTracking}em\">${escapeXml(aspectLine || "")}</text>`,
+    deepLine
+      ? `<text x=\"${marginX}\" y=\"${deepLineY}\" fill=\"${colors.textDim}\" font-size=\"${Math.round(TOK.resonance.aspectSize * 0.8)}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.resonance.aspectTracking}em\">${escapeXml(deepLine || "")}</text>`
+      : "",
     textBlock({
       x: marginX,
       y: TOK.resonance.bodyY,

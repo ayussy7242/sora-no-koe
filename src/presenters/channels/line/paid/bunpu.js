@@ -3,7 +3,7 @@
 const {
   glyphForBody,
   signJa,
-  aspectInfo,
+  formatAspectDisplay,
 } = require("../../../format/format/line_common");
 const { SPEC } = require("../../../../config/sora_spec");
 
@@ -74,20 +74,19 @@ function formatBunpu({
     const tSignText = tSign ? `（${tSign}）` : "";
     const tLabelR = `${tLabel}${tRetro}`;
 
-    const aspectMeta = aspectInfo(dict, it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja, it?.aspect_deg);
-    const aspectLabel = aspectMeta?.label_ja || String(it?.aspect || it?.type || it?.aspectType || "");
-    const aspectDeg = Number.isFinite(Number(it?.aspect_deg))
-      ? Number(it.aspect_deg)
-      : Number.isFinite(Number(aspectMeta?.deg))
-        ? Number(aspectMeta.deg)
-        : null;
-    const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-    const orb = Number.isFinite(Number(it?.orb_deg)) ? Number(it.orb_deg) : null;
-    const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
+    const aspectMeta = formatAspectDisplay({
+      dict,
+      rawType: it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja,
+      aspectDeg: it?.aspect_deg,
+      orbDeg: it?.orb_deg,
+      orbPrecision: 1,
+    });
+    const degText = aspectMeta.degText || "";
+    const orbText = aspectMeta.orbText || "";
 
     lines.push(`${idx + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText}`);
     lines.push(`   × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`);
-    lines.push(`   ${aspectLabel} ${degText}｜orb ${orbText}`.trim());
+    lines.push(`   ${aspectMeta.label} ${degText}｜orb ${orbText}`.trim());
   });
 
   return lines;

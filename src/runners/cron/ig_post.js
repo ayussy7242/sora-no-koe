@@ -269,14 +269,23 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   const aSign = story?.public?.transit_signs?.[aKey]?.sign_ja || "乙女座";
   const bSign = story?.public?.transit_signs?.[bKey]?.sign_ja || "射手座";
 
-  const aspectLine = (() => {
-    if (!topAspect) return "スクエア 90°　orb 0.30°";
+  const { aspectLine, deepLine } = (() => {
+    if (!topAspect) return { aspectLine: "スクエア 90°　orb 0.30°", deepLine: "" };
     const info = aspectInfo(dict, topAspect.type || topAspect.aspect, topAspect.aspect_deg);
     const label = info?.label_ja || aspectLabelJa(topAspect.type, topAspect.aspect_deg);
     const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(topAspect.aspect_deg);
     const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
     const head = label && label.includes("°") ? label : [label, degLabel].filter(Boolean).join(" ");
-    return `${head}　orb ${Number(topAspect.orb_deg || 0).toFixed(2)}°`.trim();
+    const orbLabel = Number.isFinite(Number(topAspect.orb_deg)) ? `orb ${Number(topAspect.orb_deg).toFixed(2)}°` : "";
+    const line = [head, orbLabel].filter(Boolean).join("　").trim();
+
+    if (info?.group && info.group !== "major") {
+      return {
+        aspectLine: "深層角度",
+        deepLine: line,
+      };
+    }
+    return { aspectLine: line, deepLine: "" };
   })();
 
   const resonanceText =
@@ -291,6 +300,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
     lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
     aspectLine,
+    deepLine,
     structure: resonanceText,
     bodyAKey: aKey,
     bodyBKey: bKey,
