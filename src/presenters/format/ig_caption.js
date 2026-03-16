@@ -132,12 +132,47 @@ function formatAspectLines({ dict, aspect, transitSigns }) {
   const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : safeNumber(aspect?.aspect_deg);
   const degLabel = Number.isFinite(Number(deg)) ? `${deg}°` : "";
   const orb = safeNumber(aspect?.orb_deg);
-  const orbLabel = Number.isFinite(Number(orb)) ? `orb ${orb.toFixed(1)}°` : "orb -";
+  const orbLabel = Number.isFinite(Number(orb)) ? `orb ${orb.toFixed(2)}°` : "orb -";
 
   return [
     lineA || "",
     `× ${lineB || ""}`.trim(),
     "",
+    `${aspectLabel} ${degLabel}`.trim(),
+    orbLabel,
+  ].filter((line) => line !== "");
+}
+
+function formatAspectBlockForCaption({ dict, aspect, transitSigns }) {
+  if (!aspect) return [];
+  const aKey = normalizeBodyKey(aspect?.a || "");
+  const bKey = normalizeBodyKey(aspect?.b || "");
+
+  const aSign =
+    aspect?.a_sign_ja ||
+    signJa(dict, aspect?.a_sign_key || "") ||
+    transitSigns?.[aKey]?.sign_ja ||
+    "";
+  const bSign =
+    aspect?.b_sign_ja ||
+    signJa(dict, aspect?.b_sign_key || "") ||
+    transitSigns?.[bKey]?.sign_ja ||
+    "";
+
+  const lineA = bodyWithSignLine(dict, aKey, aSign);
+  const lineB = bodyWithSignLine(dict, bKey, bSign);
+
+  const info = aspectInfo(dict, aspect?.type || aspect?.aspect, aspect?.aspect_deg);
+  const aspectLabel = info?.label_ja || String(aspect?.type || "").toUpperCase();
+  const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : safeNumber(aspect?.aspect_deg);
+  const degLabel = Number.isFinite(Number(deg)) ? `${deg}°` : "";
+  const orb = safeNumber(aspect?.orb_deg);
+  const orbLabel = Number.isFinite(Number(orb)) ? `orb ${orb.toFixed(2)}` : "orb -";
+
+  return [
+    lineA || "",
+    "×",
+    lineB || "",
     `${aspectLabel} ${degLabel}`.trim(),
     orbLabel,
   ].filter((line) => line !== "");
@@ -172,24 +207,27 @@ function renderIGCaption(story, deps = {}) {
   const sunSign = transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || "");
   const moonSign = transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || "");
 
-  const skyStrata = story?.public?.sky_strata || story?.meta?.sky_strata || {};
-  const houseFocus = story?.public?.house_focus || {};
-  const observationLine =
-    story?.outputs?.ig?.carousel?.slide1_observation ||
-    story?.outputs?.ig?.observation_text ||
-    pickObservationLine({ dict, transitSigns: transit, skyStrata, houseFocus });
-  const structureRaw =
-    story?.outputs?.ig?.carousel?.slide4_structure ||
-    story?.outputs?.ig?.tsukiji_structure_text ||
+  const igOut = story?.outputs?.ig || {};
+  const parts = igOut?.parts || {};
+  const skyOverviewRaw =
+    parts.sky_overview ||
+    igOut.sky_overview_text ||
+    igOut.caption_sky_overview ||
     "";
-  const structureLine = String(structureRaw || "").replace(/^構造：/g, "").trim();
-
+  const skyOverview = String(skyOverviewRaw || "").replace(/\s+/g, " ").trim();
+  const moonTextRaw =
+    parts.moon ||
+    igOut.moon_text ||
+    "";
+  const moonFallback = moonSign ? `${moonSign}の月が空にあり、静かな流れを作っています。` : "";
+  const moonText = String(moonTextRaw || "").replace(/\s+/g, " ").trim() || moonFallback;
   const resonance = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
-  const resonanceLines = formatAspectLines({ dict, aspect: resonance, transitSigns: transit });
-  const resonanceText = story?.outputs?.ig?.resonance_text || story?.outputs?.ig?.carousel?.slide3_text || "";
-
-  const longRow = story?.public?.kinjitsu_long?.[0] || null;
-  const longLines = formatLongThemeLines({ dict, longRow });
+  const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
+  const resonanceText =
+    parts.resonance ||
+    igOut.resonance_text ||
+    igOut?.carousel?.slide3_text ||
+    "";
 
   const hashtags = [
     "#ソラのこえ",
@@ -206,32 +244,35 @@ function renderIGCaption(story, deps = {}) {
   lines.push(`☉ 太陽｜${sunSign || ""}`.trim());
   lines.push(`☽ 月｜${moonSign || ""}`.trim());
   lines.push("");
-  if (observationLine) lines.push(observationLine);
+  if (moonText) {
+    lines.push("🌙 今日の月");
+    lines.push("");
+    lines.push(moonText);
+    lines.push("");
+  }
+  lines.push("──────────");
   lines.push("");
+  lines.push("今日の空");
   lines.push("");
+  if (skyOverview) lines.push(skyOverview);
   lines.push("");
-  lines.push("今日の共鳴");
+  lines.push("──────────");
+  lines.push("");
+  lines.push("【今日の共鳴】");
   lines.push("");
   resonanceLines.forEach((l) => lines.push(l));
   if (resonanceText) {
     lines.push("");
     resonanceText.split(/\n/).forEach((l) => lines.push(l));
   }
-  if (structureLine) {
-    lines.push("");
-    lines.push("");
-    lines.push("きょうの配置");
-    lines.push("");
-    lines.push(structureLine);
-  }
   lines.push("");
+  lines.push("✦");
   lines.push("");
   lines.push("星は答えを示さず、");
   lines.push("構造だけを置いています。");
   lines.push("");
   lines.push("星は語る。");
   lines.push("解釈はあなたのもの。");
-  lines.push("");
   lines.push("");
   hashtags.forEach((tag) => lines.push(tag));
 

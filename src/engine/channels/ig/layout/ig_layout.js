@@ -3,7 +3,10 @@
 const fontkit = require("fontkit");
 const opentype = require("opentype.js");
 
-const PATH_GLYPHS = new Set(["⚷", "⚸", "☊", "☋", "♇"]);
+const PATH_GLYPHS = new Set([
+  "☉","☽","☿","♀","♂","♃","♄","♅","♆","♇",
+  "⚷","⚸","☊","☋",
+]);
 
 function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
   const TEXT_MEASURE_FONTS = {};
@@ -188,7 +191,10 @@ function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
         const restText = rest
           ? `<text x=\"${restX}\" y=\"${y}\" fill=\"${color}\" font-size=\"${size}\" font-family=\"${fontFamily}\"${spacing}>${restSafe}</text>`
           : "";
-        return `<g>${glyphPath}${restText}</g>`;
+        if (glyphPath) return `<g>${glyphPath}${restText}</g>`;
+        const glyphFont = glyphFamily || pickGlyphFontFamily(glyph);
+        const fallbackGlyph = `<text x=\"${x + boxWidth / 2}\" y=\"${y}\" text-anchor=\"middle\" fill=\"${color}\" font-size=\"${(size * glyphScale).toFixed(2)}\" font-family=\"${glyphFont}\"${spacing}>${escapeXml(glyph)}</text>`;
+        return `<g>${fallbackGlyph}${restText}</g>`;
       }
       const glyphFont = glyphFamily || pickGlyphFontFamily(glyph);
       const glyphX = x + boxWidth / 2;
