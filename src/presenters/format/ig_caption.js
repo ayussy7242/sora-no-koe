@@ -209,16 +209,10 @@ function renderIGCaption(story, deps = {}) {
 
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const captionCenterRaw =
-    parts.caption_center ||
-    igOut.caption_center_text ||
-    "";
+  const captionCenterRaw = parts.caption_center || "";
   const captionCenter = String(captionCenterRaw || "").trim();
 
-  const observationRaw =
-    parts.caption_observation ||
-    igOut.caption_observation_text ||
-    "";
+  const observationRaw = parts.caption_observation || "";
   const observation = String(observationRaw || "").trim();
 
   const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
