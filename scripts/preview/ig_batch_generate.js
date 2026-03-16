@@ -179,6 +179,27 @@ function pickPreferredResonanceAspect(story) {
 
   return skyTop[0] || skyAll[0] || null;
 }
+
+function ensureIgOutputs(story) {
+  story.outputs = story.outputs && typeof story.outputs === "object" ? story.outputs : {};
+  story.outputs.ig = story.outputs.ig && typeof story.outputs.ig === "object" ? story.outputs.ig : {};
+  story.outputs.ig.source = story.outputs.ig.source && typeof story.outputs.ig.source === "object" ? story.outputs.ig.source : {};
+  story.outputs.ig.parts = story.outputs.ig.parts && typeof story.outputs.ig.parts === "object" ? story.outputs.ig.parts : {};
+  story.outputs.ig.rendered = story.outputs.ig.rendered && typeof story.outputs.ig.rendered === "object" ? story.outputs.ig.rendered : {};
+  story.outputs.ig.rendered.carousel = story.outputs.ig.rendered.carousel && typeof story.outputs.ig.rendered.carousel === "object"
+    ? story.outputs.ig.rendered.carousel
+    : {};
+  return story.outputs.ig;
+}
+
+function buildAspectKey(aspect) {
+  if (!aspect) return "";
+  const a = String(aspect?.a || "").toLowerCase();
+  const b = String(aspect?.b || "").toLowerCase();
+  const deg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : "";
+  const orb = Number.isFinite(Number(aspect?.orb_deg)) ? Number(aspect.orb_deg).toFixed(2) : "";
+  return [a, b, deg, orb].filter(Boolean).join("|");
+}
 function buildMoonSlide({ story, dateLabel, dateLocal }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;
   const igOut = story?.outputs?.ig || {};
@@ -264,7 +285,9 @@ function buildSlides({ story, dateLocal, withCta }) {
     swipeLabel: "Swipe →",
   };
 
-  const topAspect = pickPreferredResonanceAspect(story);
+  const topAspect =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    pickPreferredResonanceAspect(story);
   const planetMap = {
     sun: { name: "太陽", glyph: "☉" },
     moon: { name: "月", glyph: "☽" },
@@ -342,10 +365,30 @@ async function maybeLocalAI({ story, useAi }) {
   const apiKey = process.env.OPENAI_API_KEY || "";
   if (!apiKey) return story;
 
-  const withOutputs = story.outputs && typeof story.outputs === "object" ? story.outputs : {};
-  withOutputs.ig = withOutputs.ig && typeof withOutputs.ig === "object" ? withOutputs.ig : {};
+  const withOutputs = ensureIgOutputs(story);
+  const forceAi = story?.outputs?.ig?.source?.force_ai === true;
 
-  if (!withOutputs.ig.observation_text) {
+  if (forceAi) {
+    withOutputs.ig.observation_text = null;
+    withOutputs.ig.moon_text = null;
+    withOutputs.ig.resonance_text = null;
+    withOutputs.ig.tsukiji_structure_text = null;
+    if (withOutputs.ig.carousel) {
+      withOutputs.ig.carousel.slide1_observation = null;
+      withOutputs.ig.carousel.slide2_text = null;
+      withOutputs.ig.carousel.slide3_text = null;
+      withOutputs.ig.carousel.slide4_structure = null;
+    }
+    if (withOutputs.ig.rendered?.carousel) {
+      withOutputs.ig.rendered.carousel.slide1_observation = null;
+      withOutputs.ig.rendered.carousel.slide2_text = null;
+      withOutputs.ig.rendered.carousel.slide3_text = null;
+      withOutputs.ig.rendered.carousel.slide4_structure = null;
+    }
+    withOutputs.ig.parts = {};
+  }
+
+  if (forceAi || !withOutputs.ig.observation_text) {
     const obs = await generateIgObservationText({ story, dict, openai: { apiKey } });
     if (obs?.ok) {
       withOutputs.ig.observation_text = obs.text;
@@ -354,7 +397,7 @@ async function maybeLocalAI({ story, useAi }) {
     }
   }
 
-  if (!withOutputs.ig.moon_text) {
+  if (forceAi || !withOutputs.ig.moon_text) {
     const asOfISO = `${story?.meta?.date_local || story?.public?.date_local || ""}T12:00:00+09:00`;
     const moon = await generateIgMoonText({ story, dict, openai: { apiKey }, asOfISO });
     if (moon?.ok) {
@@ -364,7 +407,7 @@ async function maybeLocalAI({ story, useAi }) {
     }
   }
 
-  if (!withOutputs.ig.resonance_text) {
+  if (forceAi || !withOutputs.ig.resonance_text) {
     const res = await generateIgResonanceText({ story, dict, openai: { apiKey } });
     if (res?.ok) {
       withOutputs.ig.resonance_text = res.text;
@@ -373,7 +416,7 @@ async function maybeLocalAI({ story, useAi }) {
     }
   }
 
-  if (!withOutputs.ig.tsukiji_structure_text) {
+  if (forceAi || !withOutputs.ig.tsukiji_structure_text) {
     const ts = await generateIgTsukijiStructureText({ story, dict, openai: { apiKey } });
     if (ts?.ok) {
       withOutputs.ig.tsukiji_structure_text = ts.text;
@@ -406,6 +449,7 @@ async function main() {
   const igAi = args.ig_ai === undefined ? true : ["1", "true", "yes", "on"].includes(String(args.ig_ai));
   const useAiLocal = ["1", "true", "yes", "on"].includes(String(args.ai_local || "false"));
   const overwrite = ["1", "true", "yes", "on"].includes(String(args.overwrite || "false"));
+  const forceAi = ["1", "true", "yes", "on"].includes(String(args.force_ai || "false"));
   const stepDays = Number(args.step || 1);
 
   const single = args.date || args.date_local || "";
@@ -440,6 +484,13 @@ async function main() {
     }
 
     story = unwrapStory(payload);
+    const igOut = ensureIgOutputs(story);
+    const preferred = pickPreferredResonanceAspect(story);
+    if (preferred) {
+      igOut.source.resonance_aspect = preferred;
+      igOut.source.resonance_aspect_key = buildAspectKey(preferred);
+    }
+    igOut.source.force_ai = forceAi;
     story = await maybeLocalAI({ story, useAi: useAiLocal });
     const toSave = mergeStoryPayload(payload, story);
     fs.writeFileSync(storyPath, JSON.stringify(toSave, null, 2), "utf8");
