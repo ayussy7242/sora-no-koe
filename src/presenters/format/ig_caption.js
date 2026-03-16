@@ -209,37 +209,45 @@ function renderIGCaption(story, deps = {}) {
 
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const skyOverviewRaw =
-    parts.sky_overview ||
-    igOut.sky_overview_text ||
-    igOut.caption_sky_overview ||
+  const captionCenterRaw =
+    parts.caption_center ||
+    igOut.caption_center_text ||
     "";
-  const skyOverview = String(skyOverviewRaw || "").replace(/\s+/g, " ").trim();
-  const moonTextRaw =
-    parts.moon ||
-    igOut.moon_text ||
-    "";
-  const moonFallback = moonSign ? `${moonSign}の月が空にあり、静かな流れを作っています。` : "";
-  const moonText = String(moonTextRaw || "").replace(/\s+/g, " ").trim() || moonFallback;
-  const resonance =
-    story?.outputs?.ig?.source?.resonance_aspect ||
-    story?.public?.sky_top?.[0] ||
-    story?.public?.sky_all?.[0] ||
-    null;
-  const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
-  const resonanceText =
-    parts.resonance ||
-    igOut.resonance_text ||
-    igOut?.carousel?.slide3_text ||
-    "";
+  const captionCenter = String(captionCenterRaw || "").trim();
 
-  const hashtags = [
-    "#ソラのこえ",
-    "#今日の星",
-    "#星の配置",
-    "#astrology",
-    "#cosmicweather",
-  ];
+  const observationRaw =
+    parts.caption_observation ||
+    igOut.caption_observation_text ||
+    "";
+  const observation = String(observationRaw || "").trim();
+
+  const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
+
+  const buildCaptionFallback = () => {
+    const aKey = normalizeBodyKey(resonance?.a || "");
+    const bKey = normalizeBodyKey(resonance?.b || "");
+    const aName = bodyLabelJa(dict, aKey);
+    const bName = bodyLabelJa(dict, bKey);
+    const info = aspectInfo(dict, resonance?.type || resonance?.aspect, resonance?.aspect_deg);
+    const label = info?.label_ja || "";
+    const deg = Number.isFinite(Number(info?.deg)) ? `${Number(info.deg)}°` : "";
+    const aspectLabel = [label, deg].filter(Boolean).join(" ").trim();
+    const line1 = `${sunSign || "—"}の太陽と、${moonSign || "—"}の月。`;
+    const line2 = "静かな基調が空に残ります。";
+    const line3 = (aName && bName && aspectLabel)
+      ? `${aName}と${bName}の角度が${aspectLabel}として残ります。`
+      : "空の接続は、内側に細い流れを置きます。";
+    return [line1, line2, line3].join("\n");
+  };
+
+  const buildObservationFallback = () => {
+    const aKey = normalizeBodyKey(resonance?.a || "");
+    const bKey = normalizeBodyKey(resonance?.b || "");
+    const aName = bodyLabelJa(dict, aKey);
+    const bName = bodyLabelJa(dict, bKey);
+    if (aName && bName) return `${aName}と${bName}の接続が、内側に静かな流れを残す配置。`;
+    return "内側の変化が、外側の流れに静かに重なる配置。";
+  };
 
   const lines = [];
   lines.push("🌌 今日の星の配置");
@@ -248,37 +256,19 @@ function renderIGCaption(story, deps = {}) {
   lines.push(`☉ 太陽｜${sunSign || ""}`.trim());
   lines.push(`☽ 月｜${moonSign || ""}`.trim());
   lines.push("");
-  if (moonText) {
-    lines.push("🌙 今日の月");
-    lines.push("");
-    lines.push(moonText);
-    lines.push("");
-  }
-  lines.push("──────────");
+  const captionBlock = captionCenter || buildCaptionFallback();
+  captionBlock.split(/\n/).forEach((l) => lines.push(l));
   lines.push("");
-  lines.push("今日の空");
-  lines.push("");
-  if (skyOverview) lines.push(skyOverview);
-  lines.push("");
-  lines.push("──────────");
-  lines.push("");
-  lines.push("【今日の共鳴】");
-  lines.push("");
-  resonanceLines.forEach((l) => lines.push(l));
-  if (resonanceText) {
-    lines.push("");
-    resonanceText.split(/\n/).forEach((l) => lines.push(l));
-  }
-  lines.push("");
-  lines.push("✦");
+  lines.push("✦ 観測ポイント");
+  lines.push(observation || buildObservationFallback());
   lines.push("");
   lines.push("星は答えを示さず、");
   lines.push("構造だけを置いています。");
   lines.push("");
-  lines.push("星は語る。");
   lines.push("解釈はあなたのもの。");
   lines.push("");
-  hashtags.forEach((tag) => lines.push(tag));
+  lines.push("LINEでは毎朝、");
+  lines.push("ソラの配置とネイタルとの重なりも届けています。");
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }

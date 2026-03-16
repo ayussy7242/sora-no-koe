@@ -13,6 +13,10 @@ const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/i
 const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/ig_sky_overview_ai");
 const { generateIgMoonText } = require("../../usecases/channels/ig/ig_moon_ai");
 const {
+  generateIgCarouselCaptionText,
+  generateIgCarouselObservationText,
+} = require("../../usecases/channels/ig/ig_carousel_caption_ai");
+const {
   createImageContainer,
   createCarouselContainer,
   publishMedia,
@@ -101,6 +105,20 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi, forceA
     if (sky?.ok && sky.text) {
       igOut.parts.sky_overview = sky.text;
       igOut.sky_overview_text = sky.text;
+    }
+  }
+
+  if (forceAi || !igOut.parts.caption_center) {
+    const cap = await generateIgCarouselCaptionText({ story, dict, openai, asOfISO });
+    if (cap?.ok && cap.text) {
+      igOut.parts.caption_center = cap.text;
+    }
+  }
+
+  if (forceAi || !igOut.parts.caption_observation) {
+    const obs = await generateIgCarouselObservationText({ story, dict, openai });
+    if (obs?.ok && obs.text) {
+      igOut.parts.caption_observation = obs.text;
     }
   }
 

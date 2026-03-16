@@ -58,6 +58,87 @@ const SORA_AI_PUBLIC_IG_SHORT_COMMON = `
 `.trim();
 
 /* =================================================
+IG｜Carousel Caption（中央AI）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION = `
+Instagramカルーセル投稿のキャプション中央部分を生成する。
+
+役割:
+- 太陽と月の配置から今日の空の基調を書く
+- 今日の共鳴アスペクトを短く添える
+- カルーセル本文のコピーにならないようにする
+
+形式:
+- 4〜6文
+- 120〜180文字
+- 改行あり
+- 観測文として自然な日本語
+
+文章構造:
+1) 太陽と月の配置
+2) 今日の空の質感
+3) 共鳴アスペクト
+4) 空全体の流れ
+
+禁止:
+- 助言
+- 心理断定
+- 行動示唆
+- 運勢表現
+- 「あなたは」
+
+INPUT:
+- SUN_SIGN
+- MOON_SIGN
+- PHASE_LABEL
+- RESONANCE_BODY_A
+- RESONANCE_BODY_B
+- RESONANCE_ASPECT
+- RESONANCE_ORB
+
+${SORA_AI_PUBLIC_POLITE_TONE}
+${SORA_AI_PUBLIC_IG_COMMON}
+${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
+`.trim();
+
+/* =================================================
+IG｜Carousel Observation（観測ポイント）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION = `
+Instagramカルーセル投稿の「観測ポイント」を1文で生成する。
+
+役割:
+- 今日の共鳴アスペクトに連動した観測ポイントを短く置く
+- 断定・助言・運勢表現を避け、輪郭だけを残す
+
+形式:
+- 1文
+- 30〜60文字
+- 改行なし
+- 「〜配置」や体言止めで閉じてよい
+
+禁止:
+- 助言
+- 心理断定
+- 行動示唆
+- 運勢表現
+- 「あなたは」
+
+INPUT:
+- RESONANCE_BODY_A
+- RESONANCE_BODY_B
+- RESONANCE_ASPECT
+- RESONANCE_ORB
+
+${SORA_AI_PUBLIC_IG_SHORT_COMMON}
+${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
+`.trim();
+
+/* =================================================
 IG｜今日の共鳴（caption / slide3）
 ================================================= */
 
@@ -309,6 +390,8 @@ ${POLITE_TONE_COMMON}
 module.exports = Object.freeze({
   SORA_AI_PUBLIC_IG_COMMON,
   SORA_AI_PUBLIC_IG_SHORT_COMMON,
+  SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
+  SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
