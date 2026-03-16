@@ -228,10 +228,12 @@ function createCronRouter(deps = {}) {
       const withCta = withCtaRaw === undefined ? true : boolish(withCtaRaw);
       const useAiRaw = b.ai ?? q.ai;
       const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+      const forceAiRaw = b.force_ai ?? q.force_ai ?? b.forceAi ?? q.forceAi;
+      const forceAi = forceAiRaw === undefined ? false : boolish(forceAiRaw);
 
       const result = await runIgPost(
         { db, admin, env, storyService, renderers, storage, dict },
-        { dateLocal, asOfISO, dryRun, withCta, useAi }
+        { dateLocal, asOfISO, dryRun, withCta, useAi, forceAi }
       );
 
       return res.json(result);
