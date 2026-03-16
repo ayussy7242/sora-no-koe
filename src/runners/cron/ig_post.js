@@ -39,7 +39,7 @@ function buildAspectKey(aspect) {
   return [a, b, deg].filter(Boolean).join("|");
 }
 
-async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
+async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi, forceAi }) {
   if (!useAi) return story;
   const apiKey = String(env.OPENAI_API_KEY || "").trim();
   if (!apiKey) return story;
@@ -51,7 +51,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
     model: env.OPENAI_MODEL,
   };
 
-  if (!igOut.parts.observation) {
+  if (forceAi || !igOut.parts.observation) {
     const obs = await generateIgObservationText({ story, dict, openai });
     if (obs?.ok && obs.text) {
       igOut.parts.observation = obs.text;
@@ -59,7 +59,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
     }
   }
 
-  if (!igOut.parts.moon) {
+  if (forceAi || !igOut.parts.moon) {
     const moon = await generateIgMoonText({ story, dict, openai, asOfISO });
     if (moon?.ok && moon.text) {
       igOut.parts.moon = moon.text;
@@ -69,7 +69,10 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
 
   const currentResonanceKey = igOut.source?.resonance_aspect_key || "";
   const usedResonanceKey = igOut.source?.resonance_aspect_key_used || "";
-  const needsResonance = !igOut.parts.resonance || (currentResonanceKey && currentResonanceKey !== usedResonanceKey);
+  const needsResonance =
+    forceAi ||
+    !igOut.parts.resonance ||
+    (currentResonanceKey && currentResonanceKey !== usedResonanceKey);
 
   if (needsResonance) {
     const res = await generateIgResonanceText({ story, dict, openai });
@@ -80,7 +83,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
     }
   }
 
-  if (!igOut.parts.tsukiji_structure) {
+  if (forceAi || !igOut.parts.tsukiji_structure) {
     const ts = await generateIgTsukijiStructureText({ story, dict, openai });
     if (ts?.ok && ts.text) {
       igOut.parts.tsukiji_structure = ts.text;
@@ -88,7 +91,7 @@ async function maybeGenerateIgOutputs({ story, dict, env, asOfISO, useAi }) {
     }
   }
 
-  if (!igOut.parts.sky_overview) {
+  if (forceAi || !igOut.parts.sky_overview) {
     const sky = await generateIgSkyOverviewText({ story, dict, openai });
     if (sky?.ok && sky.text) {
       igOut.parts.sky_overview = sky.text;
@@ -416,7 +419,7 @@ async function runIgPost(deps, opts = {}) {
     igOut.source.resonance_aspect_key = "";
   }
 
-  story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi });
+  story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi, forceAi: opts.forceAi });
 
   const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
   const buffers = await renderInstagramCarousel(carousel);
