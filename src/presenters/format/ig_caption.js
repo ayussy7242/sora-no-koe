@@ -221,7 +221,11 @@ function renderIGCaption(story, deps = {}) {
     "";
   const moonFallback = moonSign ? `${moonSign}の月が空にあり、静かな流れを作っています。` : "";
   const moonText = String(moonTextRaw || "").replace(/\s+/g, " ").trim() || moonFallback;
-  const resonance = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+  const resonance =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    story?.public?.sky_top?.[0] ||
+    story?.public?.sky_all?.[0] ||
+    null;
   const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
   const resonanceText =
     parts.resonance ||

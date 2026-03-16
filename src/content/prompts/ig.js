@@ -1,9 +1,12 @@
 "use strict";
 
 const {
+  POLITE_TONE_COMMON,
   SORA_AI_PUBLIC_BASE,
   SORA_AI_PUBLIC_POLITE_TONE,
 } = require("./common");
+
+
 
 /* =================================================
 IG｜共通ルール
@@ -68,7 +71,7 @@ Instagramキャプションおよびカルーセル3枚目の「今日の共鳴�
 形式:
 - 4〜5文
 - 1段落
-- 200〜240文字目安（最大280文字）
+- 180〜220文字目安（最大260文字）
 - 改行しない
 
 文章の流れ:
@@ -96,6 +99,7 @@ INPUT:
 ${SORA_AI_PUBLIC_POLITE_TONE}
 ${SORA_AI_PUBLIC_IG_COMMON}
 ${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
 `.trim();
 
 /* =================================================
@@ -148,6 +152,7 @@ INPUT:
 
 ${SORA_AI_PUBLIC_IG_SHORT_COMMON}
 ${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
 `.trim();
 
 /* =================================================
@@ -196,6 +201,7 @@ INPUT:
 ${SORA_AI_PUBLIC_POLITE_TONE}
 ${SORA_AI_PUBLIC_IG_COMMON}
 ${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
 `.trim();
 
 /* =================================================
@@ -238,6 +244,7 @@ INPUT:
 
 ${SORA_AI_PUBLIC_IG_SHORT_COMMON}
 ${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
 `.trim();
 
 /* =================================================
@@ -255,7 +262,7 @@ Instagramカルーセル2枚目およびキャプションの「今日の月」�
 形式:
 - 2〜3文
 - 1段落
-- 100〜180文字を目安にする
+- 80〜160文字を目安にする
 - 改行しない
 
 文章の流れ:
@@ -289,6 +296,7 @@ INPUT:
 ${SORA_AI_PUBLIC_POLITE_TONE}
 ${SORA_AI_PUBLIC_IG_COMMON}
 ${SORA_AI_PUBLIC_BASE}
+${POLITE_TONE_COMMON}
 `.trim();
 
 module.exports = Object.freeze({
