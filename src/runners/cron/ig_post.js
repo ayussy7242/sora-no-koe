@@ -122,6 +122,36 @@ function plainMoonSymbol(kind) {
   return "◑";
 }
 
+function pickPreferredResonanceAspect(story) {
+  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const pool = [...skyTop, ...skyAll];
+  if (!pool.length) return null;
+
+  const coreBodies = new Set([
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ]);
+
+  const withinOne = pool
+    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
+    .filter((r) => Number.isFinite(r.orb) && r.orb <= 1.0);
+
+  const coreHits = withinOne.filter(({ row }) => coreBodies.has(row?.a) && coreBodies.has(row?.b));
+  if (coreHits.length) {
+    coreHits.sort((a, b) => a.orb - b.orb);
+    return coreHits[0].row;
+  }
+
+  const outerBodies = new Set(["lilith", "chiron"]);
+  const outerHits = withinOne.filter(({ row }) => outerBodies.has(row?.a) || outerBodies.has(row?.b));
+  if (outerHits.length) {
+    outerHits.sort((a, b) => a.orb - b.orb);
+    return outerHits[0].row;
+  }
+
+  return skyTop[0] || skyAll[0] || null;
+}
+
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;
   const igOut = story?.outputs?.ig || {};
@@ -208,7 +238,11 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     swipeLabel: "Swipe →",
   };
 
-  const topAspect = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+  const topAspect =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    story?.public?.sky_top?.[0] ||
+    story?.public?.sky_all?.[0] ||
+    null;
   const planetMap = {
     sun: { name: "太陽", glyph: "☉" },
     moon: { name: "月", glyph: "☽" },
@@ -344,6 +378,12 @@ async function runIgPost(deps, opts = {}) {
   });
 
   story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi });
+
+  const igOut = ensureIgOutputs(story);
+  const preferredAspect = pickPreferredResonanceAspect(story);
+  if (preferredAspect) {
+    igOut.source.resonance_aspect = preferredAspect;
+  }
 
   const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
   const buffers = await renderInstagramCarousel(carousel);
