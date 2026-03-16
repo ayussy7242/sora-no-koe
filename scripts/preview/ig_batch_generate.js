@@ -15,6 +15,7 @@ const {
 } = require("../../src/domain/moon_info");
 const { selectNextMajorPhase } = require("../../src/domain/moon_phase");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
+const { aspectInfo } = require("../../src/presenters/format/format/line_common");
 const { generateIgObservationText } = require("../../src/usecases/channels/ig/ig_observation_ai");
 const { generateIgResonanceText } = require("../../src/usecases/channels/ig/ig_resonance_ai");
 const { generateIgTsukijiStructureText } = require("../../src/usecases/channels/ig/ig_tsukiji_structure_ai");
@@ -291,8 +292,9 @@ function buildSlides({ story, dateLocal, withCta }) {
 
   const aspectLine = (() => {
     if (!topAspect) return "スクエア 90°　orb 0.30°";
-    const label = aspectLabelJa(topAspect.type, topAspect.aspect_deg);
-    const deg = Number(topAspect.aspect_deg);
+    const info = aspectInfo(dict, topAspect.type || topAspect.aspect, topAspect.aspect_deg);
+    const label = info?.label_ja || aspectLabelJa(topAspect.type, topAspect.aspect_deg);
+    const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(topAspect.aspect_deg);
     const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
     const head = label && label.includes("°") ? label : [label, degLabel].filter(Boolean).join(" ");
     return `${head}　orb ${Number(topAspect.orb_deg || 0).toFixed(2)}°`.trim();

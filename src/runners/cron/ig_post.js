@@ -3,6 +3,7 @@
 const path = require("path");
 const { renderInstagramCarousel, formatDateLabel } = require("../../engine/channels/ig/ig_carousel");
 const { pickObservationLine, renderIGCaption } = require("../../presenters/format/ig_caption");
+const { aspectInfo } = require("../../presenters/format/format/line_common");
 const { buildMoonStatus, formatMoonEventDisplay } = require("../../domain/moon_info");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
 const { toDateLocalJST } = require("../../utils/time_utils");
@@ -270,8 +271,9 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
 
   const aspectLine = (() => {
     if (!topAspect) return "スクエア 90°　orb 0.30°";
-    const label = aspectLabelJa(topAspect.type, topAspect.aspect_deg);
-    const deg = Number(topAspect.aspect_deg);
+    const info = aspectInfo(dict, topAspect.type || topAspect.aspect, topAspect.aspect_deg);
+    const label = info?.label_ja || aspectLabelJa(topAspect.type, topAspect.aspect_deg);
+    const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(topAspect.aspect_deg);
     const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
     const head = label && label.includes("°") ? label : [label, degLabel].filter(Boolean).join(" ");
     return `${head}　orb ${Number(topAspect.orb_deg || 0).toFixed(2)}°`.trim();
