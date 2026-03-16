@@ -209,6 +209,11 @@ function renderIGCaption(story, deps = {}) {
 
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
+  const skyStrata = story?.public?.sky_strata || {};
+  const elementCount = skyStrata?.element_count || {};
+  const modeCount = skyStrata?.mode_count || skyStrata?.modality_count || {};
+  const elementLine = `🔥 火${safeNumber(elementCount.fire) ?? 0}　🪨 地${safeNumber(elementCount.earth) ?? 0}　💨 風${safeNumber(elementCount.air) ?? 0}　💧 水${safeNumber(elementCount.water) ?? 0}`;
+  const modeLine = `🏃 活動${safeNumber(modeCount.cardinal) ?? 0}　🧱 不動${safeNumber(modeCount.fixed) ?? 0}　🌿 柔軟${safeNumber(modeCount.mutable) ?? 0}`;
   const captionCenterRaw = parts.caption_center || "";
   const captionCenter = String(captionCenterRaw || "").trim();
 
@@ -259,6 +264,10 @@ function renderIGCaption(story, deps = {}) {
   lines.push("");
   lines.push("✦ 観測ポイント");
   lines.push(observation || buildObservationFallback());
+  lines.push("");
+  lines.push("✦ 今日のソラ属性");
+  lines.push(elementLine);
+  lines.push(modeLine);
   lines.push("");
   lines.push("星は答えを示さず、");
   lines.push("構造だけを置いています。");
