@@ -55,7 +55,6 @@ function buildCaptionPrompt({ story, dict, asOfISO }) {
   const moonSign = safeText(transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || ""));
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const phaseLabel = safeText(info?.phase?.name || "");
-  const resonance = buildResonanceMeta({ story, dict }) || {};
 
   return [
     SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
@@ -64,23 +63,24 @@ function buildCaptionPrompt({ story, dict, asOfISO }) {
     `SUN_SIGN: ${sunSign}`,
     `MOON_SIGN: ${moonSign}`,
     `PHASE_LABEL: ${phaseLabel}`,
-    `RESONANCE_BODY_A: ${safeText(resonance.aBody)}`,
-    `RESONANCE_BODY_B: ${safeText(resonance.bBody)}`,
-    `RESONANCE_ASPECT: ${safeText(resonance.aspectLabel)}`,
-    `RESONANCE_ORB: ${safeText(resonance.orb)}`,
   ].join("\n");
 }
 
 function buildObservationPrompt({ story, dict }) {
   const resonance = buildResonanceMeta({ story, dict }) || {};
+  const aspectName = safeText(resonance.aspectLabel || "");
+  const aspectDeg = aspectName.replace(/.*?(\d+(?:\.\d+)?)°?.*$/, "$1");
   return [
     SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
     "",
     "INPUT:",
-    `RESONANCE_BODY_A: ${safeText(resonance.aBody)}`,
-    `RESONANCE_BODY_B: ${safeText(resonance.bBody)}`,
-    `RESONANCE_ASPECT: ${safeText(resonance.aspectLabel)}`,
-    `RESONANCE_ORB: ${safeText(resonance.orb)}`,
+    `A_BODY: ${safeText(resonance.aBody)}`,
+    `B_BODY: ${safeText(resonance.bBody)}`,
+    `ASPECT_NAME: ${aspectName}`,
+    `ASPECT_DEG: ${safeText(aspectDeg)}`,
+    `ORB: ${safeText(resonance.orb)}`,
+    `A_SIGN: ${safeText(resonance.aSign)}`,
+    `B_SIGN: ${safeText(resonance.bSign)}`,
   ].join("\n");
 }
 

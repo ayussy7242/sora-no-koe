@@ -62,24 +62,28 @@ IG｜Carousel Caption（中央AI）
 ================================================= */
 
 const SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION = `
-Instagramカルーセル投稿のキャプション中央部分を生成する。
+Instagramカルーセル投稿のキャプション中央本文を生成する。
 
 役割:
-- 太陽と月の配置から今日の空の基調を書く
-- 今日の共鳴アスペクトを短く添える
+- 太陽と月の配置から、今日の空の基調を書く
+- 今日の空の質感や流れを書く
 - カルーセル本文のコピーにならないようにする
 
 形式:
 - 4〜6文
 - 120〜180文字
 - 改行あり
-- 観測文として自然な日本語
 
 文章構造:
 1) 太陽と月の配置
-2) 今日の空の質感
-3) 共鳴アスペクト
-4) 空全体の流れ
+2) 今日の空の基調
+3) 今日の空の流れ
+4) 今日の空の温度
+
+書き方:
+- 主語は「空」「配置」「太陽と月」
+- 観測として静かに書く
+- 情景や質感は書いてよい
 
 禁止:
 - 助言
@@ -92,10 +96,6 @@ INPUT:
 - SUN_SIGN
 - MOON_SIGN
 - PHASE_LABEL
-- RESONANCE_BODY_A
-- RESONANCE_BODY_B
-- RESONANCE_ASPECT
-- RESONANCE_ORB
 
 ${SORA_AI_PUBLIC_POLITE_TONE}
 ${SORA_AI_PUBLIC_IG_COMMON}
@@ -108,17 +108,21 @@ IG｜Carousel Observation（観測ポイント）
 ================================================= */
 
 const SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION = `
-Instagramカルーセル投稿の「観測ポイント」を1文で生成する。
+Instagramキャプションの「観測ポイント」を生成する。
 
 役割:
-- 今日の共鳴アスペクトに連動した観測ポイントを短く置く
-- 断定・助言・運勢表現を避け、輪郭だけを残す
+- 共鳴アスペクトから読み取れる観測を書く
+- 占いではなく構造観測として書く
 
 形式:
 - 1文
 - 30〜60文字
 - 改行なし
-- 「〜配置」や体言止めで閉じてよい
+
+書き方:
+- 天体同士の接続が作る流れを書く
+- 抽象的すぎない
+- 観測ログのような文
 
 禁止:
 - 助言
@@ -128,10 +132,13 @@ Instagramカルーセル投稿の「観測ポイント」を1文で生成する�
 - 「あなたは」
 
 INPUT:
-- RESONANCE_BODY_A
-- RESONANCE_BODY_B
-- RESONANCE_ASPECT
-- RESONANCE_ORB
+- A_BODY
+- B_BODY
+- ASPECT_NAME
+- ASPECT_DEG
+- ORB
+- A_SIGN
+- B_SIGN
 
 ${SORA_AI_PUBLIC_IG_SHORT_COMMON}
 ${SORA_AI_PUBLIC_BASE}
