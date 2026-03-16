@@ -129,12 +129,13 @@ function validateText(text) {
   const t = normalizeText(text);
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (t.length < 60) return { ok: false, reason: `too_short:${t.length}` };
+  if (t.length < 170) return { ok: false, reason: `too_short:${t.length}` };
+  if (t.length > 300) return { ok: false, reason: `too_long:${t.length}` };
 
   return { ok: true, text: t };
 }
 
-async function generateIgResonanceText({ story, dict, openai, maxRetries = 2 }) {
+async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -167,7 +168,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 2 }) 
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、もう少し長めに整えて再出力。`;
+    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、200〜260文字を目安に整えて再出力。`;
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
