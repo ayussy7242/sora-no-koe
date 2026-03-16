@@ -39,12 +39,20 @@ function buildAspectLine({ story, dict }) {
   const aspectLabel = info?.label_ja || String(aspect?.type || "").toUpperCase();
   const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(aspect?.aspect_deg || 0);
   const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
-  const orb = Number.isFinite(Number(aspect?.orb_deg)) ? Number(aspect.orb_deg).toFixed(1) : "";
+  const orb = Number.isFinite(Number(aspect?.orb_deg)) ? Number(aspect.orb_deg).toFixed(2) : "";
 
   const aspectLine = `${aName}（${aSign}） × ${bName}（${bSign}）`;
   const aspectLabelLine = `${aspectLabel} ${degLabel}`.trim();
 
-  return { aspectLine, aspectLabel: aspectLabelLine, orb };
+  return {
+    aspectLine,
+    aspectLabel: aspectLabelLine,
+    orb,
+    aBody: aName,
+    bBody: bName,
+    aSign,
+    bSign,
+  };
 }
 
 function buildResonanceHouseLines({ story, dict, aspect }) {
@@ -69,7 +77,7 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 function buildIgResonancePrompt({ story, dict }) {
   const date = safeText(story?.meta?.date_local || story?.public?.date_local || "");
   const aspect = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
-  const { aspectLine, aspectLabel, orb } = buildAspectLine({ story, dict });
+  const { aspectLine, orb, aBody, bBody, aSign, bSign } = buildAspectLine({ story, dict });
   const { aHouse, bHouse } = buildResonanceHouseLines({ story, dict, aspect });
 
   return [
@@ -78,7 +86,10 @@ function buildIgResonancePrompt({ story, dict }) {
     "INPUT:",
     `DATE: ${date}`,
     `ASPECT: ${aspectLine}`,
-    `ASPECT_LABEL: ${aspectLabel}`,
+    `A_BODY: ${aBody || "—"}`,
+    `B_BODY: ${bBody || "—"}`,
+    `A_SIGN: ${aSign || "—"}`,
+    `B_SIGN: ${bSign || "—"}`,
     `ORB: ${orb}°`,
     `A_HOUSE: ${aHouse || "—"}`,
     `B_HOUSE: ${bHouse || "—"}`,
@@ -91,25 +102,6 @@ function countSentences(text) {
     .map((s) => s.trim())
     .filter(Boolean);
   return parts.length;
-}
-
-function countParagraphs(text) {
-  return String(text || "")
-    .split(/\n{2,}/)
-    .map((s) => s.trim())
-    .filter(Boolean).length;
-}
-
-function normalizeParagraphs(text) {
-  const raw = String(text || "").replace(/\r\n/g, "\n").trim();
-  if (!raw) return "";
-  // collapse 3+ newlines to 2
-  const collapsed = raw.replace(/\n{3,}/g, "\n\n");
-  // preserve paragraph break, remove single line breaks inside paragraphs
-  const placeholder = "__PARA_BREAK__";
-  const withPlaceholder = collapsed.replace(/\n{2,}/g, placeholder);
-  const singleRemoved = withPlaceholder.replace(/\n/g, " ");
-  return singleRemoved.replace(new RegExp(placeholder, "g"), "\n\n").trim();
 }
 
 function splitSentences(text) {
@@ -126,45 +118,18 @@ function sentenceCount(text) {
   return splitSentences(text).length;
 }
 
-function enforceTwoParagraphs(text) {
-  let t = normalizeParagraphs(text);
-  if (!t) return "";
-
-  const paras = t.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  if (paras.length === 2) return t;
-
-  const sentences = splitSentences(t);
-  if (sentences.length >= 4) {
-    const p1 = sentences.slice(0, 2).join("");
-    const p2 = sentences.slice(2).join("");
-    return `${p1}\n\n${p2}`.trim();
-  }
-
-  if (paras.length > 2) {
-    const p1 = paras[0];
-    const p2 = paras.slice(1).join(" ");
-    return `${p1}\n\n${p2}`.trim();
-  }
-
-  return t;
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function validateText(text) {
-  const t = enforceTwoParagraphs(text);
+  const t = normalizeText(text);
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (t.length > 150) return { ok: false, reason: `too_long:${t.length}` };
-  if (t.length < 120) return { ok: false, reason: `too_short:${t.length}` };
-  const sentences = sentenceCount(t);
-  if (sentences !== 4) return { ok: false, reason: `bad_sentences:${sentences}` };
-  const paragraphs = countParagraphs(t);
-  if (paragraphs !== 2) return { ok: false, reason: `bad_paragraphs:${paragraphs}` };
-
-  const parts = t.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const p1 = sentenceCount(parts[0] || "");
-  const p2 = sentenceCount(parts[1] || "");
-  if (p1 !== 2) return { ok: false, reason: `bad_para1_sentences:${p1}` };
-  if (p2 !== 2) return { ok: false, reason: `bad_para2_sentences:${p2}` };
+  if (t.length < 60) return { ok: false, reason: `too_short:${t.length}` };
 
   return { ok: true, text: t };
 }
@@ -202,7 +167,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 2 }) 
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。4文固定・2段落固定（1段落目2文＋2段落目2文）・120〜140字目安・150字以内・改行は段落間のみ・「あなた」禁止で再出力。`;
+    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、もう少し長めに整えて再出力。`;
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };

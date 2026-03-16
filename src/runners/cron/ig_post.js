@@ -116,6 +116,12 @@ function aspectLabelJa(type, deg) {
   return String(type || "").toUpperCase();
 }
 
+function plainMoonSymbol(kind) {
+  if (kind === "new") return "●";
+  if (kind === "full") return "○";
+  return "◑";
+}
+
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;
   const igOut = story?.outputs?.ig || {};
@@ -136,7 +142,7 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const phasePick = selectNextMajorPhase({ asOfISO, story, dict });
   const next = phasePick?.next || null;
   const nextDisplay = next ? formatMoonEventDisplay({ kind: next.kind, date: next.date, signJa: next.signJa, dict }) : null;
-  const nextSymbol = nextDisplay?.phaseSymbol || "";
+  const nextSymbol = next ? plainMoonSymbol(next.kind) : "";
   const nextPhaseLabel = nextDisplay?.label || "";
   const nextMoonName = "";
   const nextDate = nextDisplay?.dateLabel || "";
@@ -145,7 +151,9 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
     parts.moon ||
     renderedCarousel.slide2_text ||
     igOut.moon_text ||
-    "";
+    (phaseLabelBase || moonSign
+      ? `${moonSign || "—"}の月が空にあり、${phaseLabelBase || "静かな月相"}の空気が広がります。`
+      : "");
 
   return {
     dateLabel,

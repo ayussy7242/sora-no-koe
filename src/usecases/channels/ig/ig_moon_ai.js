@@ -18,6 +18,13 @@ function countSentences(text) {
     .filter(Boolean).length;
 }
 
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const moonSign = safeText(info?.moonSign || "");
@@ -33,16 +40,14 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
 }
 
 function validateMoonText(text, { allowNewFull } = {}) {
-  const t = String(text || "").trim();
+  const t = normalizeText(text);
   if (!t) return { ok: false, reason: "empty" };
-  if (/\r|\n/.test(t)) return { ok: false, reason: "has_newline" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (/[0-9０-９]/.test(t)) return { ok: false, reason: "has_number" };
-  if (/(月齢|照度|次の月相|次の満月|次の新月|時刻|日時|%)/.test(t)) return { ok: false, reason: "has_numeric_terms" };
   if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
-  const sentences = countSentences(t);
-  if (sentences !== 2) return { ok: false, reason: `sentence_count:${sentences}` };
-  return { ok: true, text: t, sentences };
+  const len = Array.from(t).length;
+  if (len < 60) return { ok: false, reason: `too_short:${len}` };
+  if (len > 180) return { ok: false, reason: `too_long:${len}` };
+  return { ok: true, text: t, len };
 }
 
 async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO }) {
@@ -84,7 +89,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。2文固定・改行なし・数値/月齢/照度/次の月相/時刻は禁止・新月/満月は今日が新月/満月のときのみ可・「あなた」禁止で再出力。";
+    retryNote = "前回は条件外でした。「あなた」を避け、60〜180文字目安で整えて再出力。";
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
