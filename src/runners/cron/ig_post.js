@@ -268,9 +268,14 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   const aSign = story?.public?.transit_signs?.[aKey]?.sign_ja || "乙女座";
   const bSign = story?.public?.transit_signs?.[bKey]?.sign_ja || "射手座";
 
-  const aspectLine = topAspect
-    ? `${aspectLabelJa(topAspect.type, topAspect.aspect_deg)} ${topAspect.aspect_deg}°　orb ${Number(topAspect.orb_deg || 0).toFixed(2)}°`
-    : "スクエア 90°　orb 0.30°";
+  const aspectLine = (() => {
+    if (!topAspect) return "スクエア 90°　orb 0.30°";
+    const label = aspectLabelJa(topAspect.type, topAspect.aspect_deg);
+    const deg = Number(topAspect.aspect_deg);
+    const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
+    const head = label && label.includes("°") ? label : [label, degLabel].filter(Boolean).join(" ");
+    return `${head}　orb ${Number(topAspect.orb_deg || 0).toFixed(2)}°`.trim();
+  })();
 
   const resonanceText =
     parts.resonance ||
