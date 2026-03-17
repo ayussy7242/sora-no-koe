@@ -230,6 +230,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     slide3: 0.7,
     slide4: 0.5,
     slide5: 0.28,
+    story_today: 0.62,
+    story_resonance: 0.68,
+    story_tomorrow: 0.6,
   };
   const colorStrength = variantStrengthMap[variant] ?? 0.55;
   const slide1Safe = {
@@ -238,6 +241,46 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     w: width * 0.78,
     h: height * 0.4,
   };
+  const storySafe = {
+    x: width * 0.12,
+    y: height * 0.22,
+    w: width * 0.76,
+    h: height * 0.48,
+  };
+  const isStory = variant && variant.startsWith("story_");
+  const storyProfileMap = {
+    story_today: {
+      milkyScale: 2.2,
+      thickness: 2.05,
+      dustScale: 1.55,
+      clusterBoost: 1.7,
+      brightBoost: 2.05,
+      spikeCount: 2,
+      heroCount: 7,
+      bloomCount: 1,
+    },
+    story_resonance: {
+      milkyScale: 2.6,
+      thickness: 2.25,
+      dustScale: 1.75,
+      clusterBoost: 2.15,
+      brightBoost: 2.55,
+      spikeCount: 4,
+      heroCount: 9,
+      bloomCount: 2,
+    },
+    story_tomorrow: {
+      milkyScale: 2.1,
+      thickness: 1.95,
+      dustScale: 1.45,
+      clusterBoost: 1.6,
+      brightBoost: 1.95,
+      spikeCount: 2,
+      heroCount: 6,
+      bloomCount: 1,
+    },
+  };
+  const storyProfile = storyProfileMap[variant] || storyProfileMap.story_today;
 
   // slide1 / slide5 are now driven by world-level anchors to keep continuity
 
@@ -297,6 +340,121 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     });
     defs.push(flowBand.defs || "");
     if (flowBand.body) overlay.push(`<g>${flowBand.body}</g>`);
+  }
+
+  if (isStory && world.stream) {
+    const palette = world.todayPalette || world.theme?.todayPalette || {};
+    const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
+    const safeRegion = localAvoidRegions[0] || storySafe;
+    const storyMilky = buildMilkyBandLayer({
+      rand: mulberry32(hashString(`${slideId}-story-milky`)),
+      width,
+      height,
+      idPrefix: `${slideId}-story-milky`,
+      color: milkyColor,
+      intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
+      intensityScale: storyProfile.milkyScale,
+      thicknessScale: storyProfile.thickness,
+      stream: {
+        ...world.stream,
+        x1: world.stream.x1 - offsetX,
+        x2: world.stream.x2 - offsetX,
+      },
+    });
+    defs.push(storyMilky.defs || "");
+    if (storyMilky.body) overlay.push(`<g>${storyMilky.body}</g>`);
+
+    const storyDust = buildMilkyDustLayer({
+      rand: mulberry32(hashString(`${slideId}-story-dust`)),
+      width,
+      height,
+      stream: {
+        ...world.stream,
+        x1: world.stream.x1 - offsetX,
+        x2: world.stream.x2 - offsetX,
+      },
+      streamGaps: world.streamGaps,
+      densityAt: world.densityAt,
+      voids: world.voids,
+      color: palette.dustTint || world.theme?.palette?.secondary?.nebula?.[0] || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep,
+      countScale: storyProfile.dustScale,
+      opacityScale: 1.2,
+      spreadScale: 1.2,
+      textFieldMask: world.textAvoidField,
+    });
+    if (storyDust) overlay.push(`<g>${storyDust}</g>`);
+
+    const clusterSlice = sliceClusters(world.anchors, offsetX, width);
+    if (clusterSlice.length) {
+      const boostedClusters = clusterSlice.map((cluster) => {
+        const gx = cluster.x + offsetX;
+        const gy = cluster.y;
+        const streamBias = streamInfluenceAt(gx, gy, world.stream, world.streamGaps || []) || 0;
+        const streamBoost = 0.9 + streamBias * 0.6;
+        return {
+          ...cluster,
+          boost: (cluster.boost || 1) * storyProfile.clusterBoost * streamBoost,
+          coreBoost: (cluster.coreBoost || 0.1) * (1.35 + streamBias * 0.8),
+          weight: (cluster.weight || 1) * (1.1 + streamBias * 0.25),
+          laneShift: (cluster.laneShift || 0) + (streamBias - 0.25) * 0.2,
+        };
+      });
+      const clusterLayer = buildClusterField({
+        rand: mulberry32(hashString(`${slideId}-story-cluster`)),
+        width,
+        height,
+        clusters: boostedClusters,
+        colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
+        avoidRect: safeRegion,
+        voids: world.voids,
+        tone: world.tone,
+        clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.48 + world.theme.mood.clusterBias * 0.4, 0.25, 0.98) : 0.6,
+        clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.32 + world.theme.mood.turbulence * 0.3, 0.2, 0.98) : 0.36,
+        textFieldMask: world.textAvoidField,
+        haloMix: 1.1,
+        brightBoost: storyProfile.brightBoost,
+      });
+      if (clusterLayer) overlay.push(`<g>${clusterLayer}</g>`);
+    }
+
+    const storySpike = buildSpikeStars({
+      rand: mulberry32(hashString(`${slideId}-story-spike`)),
+      count: storyProfile.spikeCount,
+      width,
+      height,
+      avoidRect: safeRegion,
+      voids: world.voids,
+      color: "#FFFFFF",
+    });
+    if (storySpike) overlay.push(storySpike);
+
+    const storyHero = buildHeroStars({
+      rand: mulberry32(hashString(`${slideId}-story-hero`)),
+      width,
+      height,
+      densityAt: world.densityAt,
+      voids: world.voids,
+      avoidRect: safeRegion,
+      colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
+      countOverride: storyProfile.heroCount,
+      textFieldMask: world.textAvoidField,
+      sizeMin: 2.6,
+      sizeMax: 4.8,
+      bloomStrength: 1.4,
+      spikeStrength: 1.35,
+      chromaStrength: 1.1,
+    });
+    if (storyHero) overlay.push(`<g>${storyHero}</g>`);
+
+    if (storyProfile.bloomCount) {
+      const bloomColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
+      const bloomRand = mulberry32(hashString(`${slideId}-story-bloom`));
+      const positions = [];
+      if (storyProfile.bloomCount >= 1) positions.push({ x: width * (0.16 + bloomRand() * 0.2), y: height * (0.18 + bloomRand() * 0.2) });
+      if (storyProfile.bloomCount >= 2) positions.push({ x: width * (0.72 + bloomRand() * 0.2), y: height * (0.68 + bloomRand() * 0.2) });
+      const bloomLayer = buildBloomGlows({ rand: bloomRand, width, height, positions, color: bloomColor });
+      if (bloomLayer) overlay.push(bloomLayer);
+    }
   }
 
   if (variant === "slide1" && world.densityAt) {
