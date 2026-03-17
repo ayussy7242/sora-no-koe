@@ -297,14 +297,15 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       });
       if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
 
-      const topLeftCluster = clusterSlice
-        .slice()
-        .sort((a, b) => (a.x + a.y) - (b.x + b.y))[0];
-      if (topLeftCluster) {
+      const pickRand = mulberry32(hashString(`${slideId}-mini-hero-pick`));
+      const shuffled = clusterSlice.slice().sort(() => pickRand() - 0.5);
+      const miniTargets = shuffled.slice(0, Math.min(2, shuffled.length));
+      if (miniTargets.length) {
+        const miniRand = mulberry32(hashString(`${slideId}-mini-hero`));
         const miniHero = buildMiniHeroStars({
-          rand: mulberry32(hashString(`${slideId}-mini-hero`)),
-          cluster: topLeftCluster,
-          count: 1 + Math.floor(mulberry32(hashString(`${slideId}-mini-hero-count`))() * 2),
+          rand: miniRand,
+          cluster: miniTargets[0],
+          count: 1,
           width,
           height,
           avoidRect: slide1Safe,
@@ -313,6 +314,20 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
           glowColor: world.theme?.palette?.glow,
         });
         if (miniHero) overlay.push(miniHero);
+        if (miniTargets[1]) {
+          const miniHero2 = buildMiniHeroStars({
+            rand: mulberry32(hashString(`${slideId}-mini-hero-2`)),
+            cluster: miniTargets[1],
+            count: 1,
+            width,
+            height,
+            avoidRect: slide1Safe,
+            voids: world.voids,
+            baseColor: "#FFFFFF",
+            glowColor: world.theme?.palette?.glow,
+          });
+          if (miniHero2) overlay.push(miniHero2);
+        }
       }
     }
   }
