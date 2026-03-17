@@ -6,6 +6,7 @@ const { generateIgStoryTexts } = require("./generate_story_texts");
 const { renderStoryBackgroundSet } = require("../../renderers/ig_story/render_story_backgrounds");
 const { formatIgStoryLinePayload } = require("./format_story_line_message");
 const { sendIgStoryToLine } = require("./send_story_to_line");
+const { runDailyBlog } = require("../../runners/cron/blog_daily");
 
 function isYYYYMMDD(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -64,6 +65,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const storyService = deps?.storyService;
   const storage = deps?.storage;
+  const db = deps?.db;
   const dict = deps?.dict || require("../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
@@ -90,6 +92,13 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
       })
     : story;
 
+  const blogResult = await runDailyBlog(
+    { env: env2, storyService, db },
+    { dateLocal, asOfISO, dryRun, publish: false }
+  );
+
+  const blogUrl = blogResult?.link || null;
+
   const storyTextsResult = await generateIgStoryTexts({
     dateLocal,
     story,
@@ -104,6 +113,21 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     asOfISO,
     asOfTomorrowISO,
   });
+
+  if (blogUrl) {
+    storyTextsResult.story_texts = storyTextsResult.story_texts || {};
+    storyTextsResult.story_texts.resonance = {
+      ...(storyTextsResult.story_texts.resonance || {}),
+      blog_url: blogUrl,
+    };
+  }
+
+  const lineUrl = env2.LINE_ADD_FRIEND_URL || "https://lin.ee/ZDjvxg8E";
+  storyTextsResult.story_texts = storyTextsResult.story_texts || {};
+  storyTextsResult.story_texts.tomorrow = {
+    ...(storyTextsResult.story_texts.tomorrow || {}),
+    line_url: lineUrl,
+  };
 
   const buffers = await renderStoryBackgroundSet({
     story,
@@ -123,6 +147,8 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     dateLocal,
     images: upload.urls,
     storyTexts: storyTextsResult.story_texts,
+    blogUrl,
+    lineUrl,
   });
 
   const toLineUserId = env2.IG_STORY_DELIVERY_LINE_USER_ID || env2.OWNER_LINE_USER_ID;
@@ -149,6 +175,8 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     date_local: dateLocal,
     dry_run: dryRun,
     story_texts: storyTextsResult.story_texts,
+    blog_url: blogUrl,
+    line_url: lineUrl,
     images: upload.urls,
     gcs_paths: upload.paths,
     line: {

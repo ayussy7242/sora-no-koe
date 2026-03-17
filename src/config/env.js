@@ -113,6 +113,7 @@ const LINE_ACCOUNT_NAME = getEnv("LINE_ACCOUNT_NAME", { defaultValue: null });
 const OWNER_LINE_USER_ID = getEnv("OWNER_LINE_USER_ID", { defaultValue: "Ue98386b8d7a0b3378317446114c18f16" });
 const MAX_LINE_TEXT = numEnv("MAX_LINE_TEXT", 4800);
 const IG_STORY_DELIVERY_LINE_USER_ID = getEnv("IG_STORY_DELIVERY_LINE_USER_ID", { defaultValue: null });
+const LINE_ADD_FRIEND_URL = getEnv("LINE_ADD_FRIEND_URL", { defaultValue: "https://lin.ee/ZDjvxg8E" });
 
 
 //Profile
@@ -181,6 +182,7 @@ const BLOG_RECO_COUNT = numEnv("BLOG_RECO_COUNT", 3);
 const BLOG_EYECATCH_ENABLED = boolEnv("BLOG_EYECATCH_ENABLED", false);
 const BLOG_EYECATCH_BG_PATH = getEnv("BLOG_EYECATCH_BG_PATH", { defaultValue: null });
 const BLOG_EYECATCH_PRESET = getEnv("BLOG_EYECATCH_PRESET", { defaultValue: "C" });
+const BLOG_AUTO_PUBLISH = boolEnv("BLOG_AUTO_PUBLISH", false);
 
 // --------------------
 // OpenAI (BLOG generation)
@@ -275,6 +277,7 @@ module.exports = {
   LINE_ACCOUNT_NAME,
   OWNER_LINE_USER_ID,
   IG_STORY_DELIVERY_LINE_USER_ID,
+  LINE_ADD_FRIEND_URL,
   MAX_LINE_TEXT,
 
   //Profile
@@ -322,6 +325,7 @@ module.exports = {
   BLOG_EYECATCH_ENABLED,
   BLOG_EYECATCH_BG_PATH,
   BLOG_EYECATCH_PRESET,
+  BLOG_AUTO_PUBLISH,
 
   // OpenAI
   OPENAI_API_KEY,

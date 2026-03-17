@@ -68,7 +68,7 @@ async function markBlogLock(ref, patch) {
   }, { merge: true });
 }
 
-async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false }) {
+async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false, publish = undefined }) {
   const t0 = Date.now();
   const mark = (label, meta = null) => {
     const ms = Date.now() - t0;
@@ -155,10 +155,13 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     appPassword: env.WP_APP_PASSWORD,
   });
 
+  const shouldPublish = publish === undefined
+    ? !!env.BLOG_AUTO_PUBLISH
+    : !!publish;
   const payload = {
     title,
     slug,
-    status: "draft",
+    status: shouldPublish ? "publish" : "draft",
     content,
     categories: [Number(env.WP_CATEGORY_DAILY)],
   };
