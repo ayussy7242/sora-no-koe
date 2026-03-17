@@ -50,7 +50,7 @@ function getAvoidRegions({
   const blockShift = -40;
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
   const timeY = ornamentY + 80;
-  const titleY = timeY + 80;
+  const titleY = timeY + 112;
   const subtitleY = titleY + 90;
   const ctaY = subtitleY + 90;
   const linkY = ctaY + 50;
