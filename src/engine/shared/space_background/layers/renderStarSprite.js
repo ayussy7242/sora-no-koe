@@ -6,12 +6,12 @@ const { renderStarPSF } = require("./renderStarPSF");
 
 const STAR_SPRITE_PROFILES = {
   dust:   { innerHalo: 0.1, outerHalo: 0.0, spikes: 0.0, chroma: 0.0, bloom: 0.0 },
-  micro:  { innerHalo: 0.18, outerHalo: 0.02, spikes: 0.0, chroma: 0.02, bloom: 0.04 },
-  small:  { innerHalo: 0.28, outerHalo: 0.08, spikes: 0.0, chroma: 0.04, bloom: 0.08 },
-  medium: { innerHalo: 0.38, outerHalo: 0.16, spikes: 0.04, chroma: 0.07, bloom: 0.14 },
-  bright: { innerHalo: 0.48, outerHalo: 0.30, spikes: 0.22, chroma: 0.12, bloom: 0.24 },
-  giant:  { innerHalo: 0.56, outerHalo: 0.42, spikes: 0.34, chroma: 0.16, bloom: 0.32 },
-  spark:  { innerHalo: 0.22, outerHalo: 0.06, spikes: 0.42, chroma: 0.05, bloom: 0.08 },
+  micro:  { innerHalo: 0.08, outerHalo: 0.0, spikes: 0.0, chroma: 0.01, bloom: 0.02 },
+  small:  { innerHalo: 0.18, outerHalo: 0.04, spikes: 0.0, chroma: 0.03, bloom: 0.04 },
+  medium: { innerHalo: 0.28, outerHalo: 0.1, spikes: 0.03, chroma: 0.05, bloom: 0.08 },
+  bright: { innerHalo: 0.52, outerHalo: 0.32, spikes: 0.28, chroma: 0.14, bloom: 0.3 },
+  giant:  { innerHalo: 0.62, outerHalo: 0.48, spikes: 0.4, chroma: 0.2, bloom: 0.42 },
+  spark:  { innerHalo: 0.26, outerHalo: 0.08, spikes: 0.5, chroma: 0.06, bloom: 0.12 },
   red:    { innerHalo: 0.44, outerHalo: 0.24, spikes: 0.06, chroma: 0.10, bloom: 0.20 },
 };
 
