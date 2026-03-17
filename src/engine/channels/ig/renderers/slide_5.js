@@ -40,6 +40,9 @@ function getAvoidRegions({
   const fields = [];
   const centerX = CANVAS.width / 2;
   const ornamentSize = 34;
+  const ornamentGlyphBox = ornamentSize * 1.1;
+  const ornamentLineWidth = Math.round(ornamentSize * 1.1);
+  const ornamentGap = Math.round(ornamentSize * 0.9);
   const timeSize = 36;
   const titleSize = 64;
   const subtitleSize = 54;
@@ -59,7 +62,7 @@ function getAvoidRegions({
   const subLines = wrapLines(sub || "星の配置はLINEで配信中\nネイタル一覧も見れます", 18, 2);
 
   if (ornament) {
-    const ornamentWidth = estimateTextWidth(ornament, ornamentSize);
+    const ornamentWidth = ornamentGlyphBox * 2 + ornamentLineWidth + ornamentGap * 2;
     fields.push(makeField({
       x: centerX - ornamentWidth / 2,
       y: ornamentY - ornamentSize,
@@ -201,6 +204,39 @@ function getAvoidRegions({
   return fields;
 }
 
+function buildOrnamentGlyphLine({ centerX, y, size, color }) {
+  const glyphBox = size * 1.1;
+  const gap = Math.round(size * 0.9);
+  const lineWidth = Math.round(size * 1.1);
+  const lineY = y - size * 0.32;
+  const sunX = centerX - (lineWidth / 2 + gap + glyphBox / 2);
+  const moonX = centerX + (lineWidth / 2 + gap + glyphBox / 2);
+  const sun = buildGlyphLine({
+    x: sunX - glyphBox / 2,
+    y,
+    text: "☉",
+    size,
+    color,
+    glyphBoxWidth: glyphBox,
+    glyphGap: 0,
+    glyphScale: 0.95,
+    anchor: "start",
+  });
+  const moon = buildGlyphLine({
+    x: moonX - glyphBox / 2,
+    y,
+    text: "☽",
+    size,
+    color,
+    glyphBoxWidth: glyphBox,
+    glyphGap: 0,
+    glyphScale: 1.0,
+    anchor: "start",
+  });
+  const line = `<line x1="${(centerX - lineWidth / 2).toFixed(2)}" y1="${lineY.toFixed(2)}" x2="${(centerX + lineWidth / 2).toFixed(2)}" y2="${lineY.toFixed(2)}" stroke="${color}" stroke-width="${Math.max(1.6, size * 0.06).toFixed(2)}" stroke-linecap="round" opacity="0.85" />`;
+  return `<g>${sun}${line}${moon}</g>`;
+}
+
 function buildSlide5Svg({
   header = "観測ガイド",
   cta = "今日の空",
@@ -237,8 +273,12 @@ function buildSlide5Svg({
   const subLines = wrapLines(sub, 18, 2);
 
   if (ornament) {
-    const ornamentBlock =
-      `<text x=\"${centerX}\" y=\"${ornamentY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${ornamentSize}\" font-family=\"SoraTitle\" xml:space=\"preserve\">${escapeXml(ornament)}</text>`;
+    const ornamentBlock = buildOrnamentGlyphLine({
+      centerX,
+      y: ornamentY,
+      size: ornamentSize,
+      color: colors.textMain,
+    });
 
     const inner = [
       ornamentBlock,
