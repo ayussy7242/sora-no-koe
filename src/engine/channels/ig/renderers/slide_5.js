@@ -237,31 +237,8 @@ function buildSlide5Svg({
   const subLines = wrapLines(sub, 18, 2);
 
   if (ornament) {
-    const glyphLeft = "☉";
-    const glyphRight = "☽";
-    const glyphGap = ornamentSize * 0.9;
-    const lineWidth = ornamentSize * 2.6;
-    const ornamentBlock = [
-      buildGlyphLine({
-        x: centerX - glyphGap,
-        y: ornamentY,
-        text: glyphLeft,
-        size: ornamentSize,
-        color: colors.textMain,
-        fontFamily: "SoraTitle",
-        anchor: "middle",
-      }),
-      `<line x1=\"${centerX - lineWidth / 2}\" y1=\"${ornamentY + 6}\" x2=\"${centerX + lineWidth / 2}\" y2=\"${ornamentY + 6}\" stroke=\"${colors.textSub}\" stroke-width=\"1\" stroke-opacity=\"0.35\"/>`,
-      buildGlyphLine({
-        x: centerX + glyphGap,
-        y: ornamentY,
-        text: glyphRight,
-        size: ornamentSize,
-        color: colors.textMain,
-        fontFamily: "SoraTitle",
-        anchor: "middle",
-      }),
-    ].join("");
+    const ornamentBlock =
+      `<text x=\"${centerX}\" y=\"${ornamentY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${ornamentSize}\" font-family=\"SoraTitle\" letter-spacing=\"0.12em\">${escapeXml(ornament)}</text>`;
 
     const inner = [
       ornamentBlock,
