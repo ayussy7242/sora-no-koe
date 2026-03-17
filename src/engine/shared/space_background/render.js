@@ -89,10 +89,10 @@ function buildMiniHeroStars({ rand, cluster, count, width, height, avoidRect, vo
     if (x < 0 || x > width || y < 0 || y > height) continue;
     if (isInAvoid(x, y)) continue;
     if (isInVoid(x, y)) continue;
-    const radius = 2.2 + rand() * 1.6;
-    const opacity = 0.7 + rand() * 0.25;
+    const radius = 2.8 + rand() * 2.2;
+    const opacity = 0.78 + rand() * 0.22;
     const color = mixColor(colorA, colorB, 0.35 + rand() * 0.35);
-    const kind = rand() < 0.35 ? "giant" : "bright";
+    const kind = rand() < 0.45 ? "giant" : "bright";
     stars.push(renderStarSprite({
       x,
       y,
@@ -100,10 +100,10 @@ function buildMiniHeroStars({ rand, cluster, count, width, height, avoidRect, vo
       opacity,
       color,
       kind,
-      haloScale: 1.2,
-      bloomStrength: 1.2,
-      spikeStrength: 1.15,
-      chromaStrength: 1.05,
+      haloScale: 1.35,
+      bloomStrength: 1.45,
+      spikeStrength: 1.35,
+      chromaStrength: 1.1,
     }));
   }
   return stars.length ? `<g>${stars.join("")}</g>` : "";
@@ -215,7 +215,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
-    const flowScale = variant === "slide1" ? 1.18 : 1.28;
+    const flowScale = variant === "slide1" ? 1.45 : 1.35;
     const flowBand = buildMilkyBandLayer({
       rand: mulberry32(hashString(`${slideId}-milky-flow`)),
       width,
@@ -224,7 +224,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: flowScale,
-      thicknessScale: 1.28,
+      thicknessScale: 1.45,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
@@ -305,9 +305,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         const streamBoost = 0.85 + streamBias * 0.55;
         return {
           ...cluster,
-          boost: (cluster.boost || 1) * 1.35 * streamBoost,
-          coreBoost: (cluster.coreBoost || 0.1) * (1.2 + streamBias * 0.45),
-          weight: (cluster.weight || 1) * (1.05 + streamBias * 0.12),
+        boost: (cluster.boost || 1) * 1.65 * streamBoost,
+        coreBoost: (cluster.coreBoost || 0.1) * (1.55 + streamBias * 0.7),
+        weight: (cluster.weight || 1) * (1.15 + streamBias * 0.2),
           laneShift: (cluster.laneShift || 0) + (streamBias - 0.3) * 0.18,
         };
       });
@@ -323,8 +323,8 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
         clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.35 + world.theme.mood.turbulence * 0.3, 0.2, 0.95) : 0.4,
         textFieldMask: world.textAvoidField,
-        haloMix: 0.82,
-        brightBoost: 1.85,
+        haloMix: 0.95,
+        brightBoost: 2.25,
       });
       if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
 
@@ -364,21 +364,21 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       if (world.stream) {
         const ridgeRand = mulberry32(hashString(`${slideId}-ridge-cluster`));
         const ridgeT = 0.62 + ridgeRand() * 0.26;
-        const ridgeAcross = (ridgeRand() - 0.5) * world.stream.thickness * 0.55;
-        const ridgeAlong = (ridgeRand() - 0.5) * width * 0.12;
+        const ridgeAcross = (ridgeRand() - 0.5) * world.stream.thickness * 0.7;
+        const ridgeAlong = (ridgeRand() - 0.5) * width * 0.16;
         const ridgePoint = streamPoint(world.stream, ridgeT, ridgeAlong, ridgeAcross);
         const ridgeCluster = {
           x: ridgePoint.x - offsetX,
           y: ridgePoint.y,
-          rx: width * (0.05 + ridgeRand() * 0.03),
-          ry: width * (0.03 + ridgeRand() * 0.02),
+          rx: width * (0.065 + ridgeRand() * 0.04),
+          ry: width * (0.04 + ridgeRand() * 0.03),
           rot: ridgeRand() * Math.PI * 2,
           fray: 0.18 + ridgeRand() * 0.12,
-          weight: 0.7 + ridgeRand() * 0.2,
-          boost: 1.95,
+          weight: 0.9 + ridgeRand() * 0.25,
+          boost: 2.4,
           laneShift: (ridgeRand() - 0.5) * 0.35,
           type: "open",
-          coreBoost: 0.24 + ridgeRand() * 0.12,
+          coreBoost: 0.38 + ridgeRand() * 0.18,
         };
         if (ridgeCluster.x > -width * 0.2 && ridgeCluster.x < width * 1.2) {
           const ridgeLayer = buildClusterField({
@@ -390,11 +390,11 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             avoidRect: slide1Safe,
             voids: world.voids,
             tone: world.tone,
-            clusterTightness: 0.66,
-            clusterFragmentation: 0.28,
+            clusterTightness: 0.72,
+            clusterFragmentation: 0.2,
             textFieldMask: world.textAvoidField,
-            haloMix: 0.9,
-            brightBoost: 1.9,
+            haloMix: 1.05,
+            brightBoost: 2.35,
           });
           if (ridgeLayer) overlay.push(`<g>${ridgeLayer}</g>`);
         }
