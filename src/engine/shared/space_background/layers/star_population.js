@@ -69,29 +69,29 @@ function sampleStarCounts({ theme, densityScale = 1, totalStars = null, densityB
 
 const PROFILE_WEIGHTS = {
   far: {
-    dust: 0.26,
-    micro: 0.5,
-    small: 0.24,
+    dust: 0.2,
+    micro: 0.55,
+    small: 0.25,
   },
   mid: {
-    micro: 0.24,
-    small: 0.52,
-    medium: 0.19,
-    bright: 0.04,
+    micro: 0.4,
+    small: 0.4,
+    medium: 0.17,
+    bright: 0.02,
     giant: 0.01,
   },
   near: {
-    medium: 0.38,
-    bright: 0.35,
-    giant: 0.05,
-    spark: 0.08,
-    red: 0.14,
+    medium: 0.3,
+    bright: 0.18,
+    giant: 0.03,
+    spark: 0.04,
+    red: 0.08,
   },
   hero: {
-    giant: 0.15,
+    giant: 0.2,
     bright: 0.34,
-    spark: 0.24,
-    red: 0.27,
+    spark: 0.28,
+    red: 0.18,
   },
 };
 
@@ -319,9 +319,9 @@ function sampleStarPopulation({
   const haloSoftness = clamp(populationTheme?.haloSoftness ?? 0.5, 0.2, 0.9);
   const softnessBias = (haloSoftness - 0.5) * 1.2;
   const bandWeights = {
-    far: { dust: 0.1, micro: 0.55, small: 0.35 },
-    mid: { micro: 0.35, small: 0.5, medium: 0.12, bright: 0.02, giant: 0.01 },
-    near: { medium: 0.5, bright: 0.3, giant: 0.05, spark: 0.05, red: 0.1 },
+    far: { dust: 0.1, micro: 0.6, small: 0.3 },
+    mid: { micro: 0.45, small: 0.3, medium: 0.2, bright: 0.04, giant: 0.01 },
+    near: { medium: 0.55, bright: 0.22, giant: 0.04, spark: 0.12, red: 0.07 },
   };
   const bandDepthRatios = { far: 0.55, mid: 0.35, near: 0.1, hero: 0 };
 
@@ -391,14 +391,14 @@ function sampleStarPopulation({
         });
       } else if (group === "cluster") {
         chosenProfileWeights = adjustProfileWeights(profileWeights, {
-          dust: 0.55,
-          micro: 1.15,
+          dust: 0.45,
+          micro: 1.35,
           small: 1.35,
-          medium: 1.05,
-          bright: 0.9,
-          giant: 0.7,
-          spark: 0.6,
-          red: 1.0,
+          medium: 0.85,
+          bright: 1.05,
+          giant: 0.9,
+          spark: 1.1,
+          red: 0.9,
         });
       } else if (group === "isolated") {
         chosenProfileWeights = adjustProfileWeights(profileWeights, {

@@ -215,7 +215,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
-    const flowScale = variant === "slide1" ? 1.45 : 1.35;
+    const flowScale = variant === "slide1" ? 1.6 : 1.45;
     const flowBand = buildMilkyBandLayer({
       rand: mulberry32(hashString(`${slideId}-milky-flow`)),
       width,
@@ -224,7 +224,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: flowScale,
-      thicknessScale: 1.45,
+      thicknessScale: 1.6,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
