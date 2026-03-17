@@ -109,6 +109,70 @@ function buildMiniHeroStars({ rand, cluster, count, width, height, avoidRect, vo
   return stars.length ? `<g>${stars.join("")}</g>` : "";
 }
 
+function buildBloomGlows({ rand, width, height, positions, color }) {
+  if (!Array.isArray(positions) || !positions.length) return "";
+  const glows = positions.map((pos, idx) => {
+    const x = clamp(pos.x, 0, width);
+    const y = clamp(pos.y, 0, height);
+    const r = 80 + rand() * 60;
+    const opacity = 0.05 + rand() * 0.07;
+    const glowId = `bloom-${idx}-${Math.round(x)}-${Math.round(y)}`;
+    return `
+      <radialGradient id="${glowId}" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${color}" stop-opacity="${opacity.toFixed(3)}"/>
+        <stop offset="65%" stop-color="${color}" stop-opacity="${(opacity * 0.45).toFixed(3)}"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </radialGradient>
+      <circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${r.toFixed(2)}" fill="url(#${glowId})"/>
+    `.trim();
+  });
+  return glows.length ? `<g>${glows.join("")}</g>` : "";
+}
+
+function buildSpikeStars({ rand, count, width, height, avoidRect, voids = [], color }) {
+  const stars = [];
+  if (!count) return "";
+  const isInAvoid = (x, y) =>
+    avoidRect &&
+    x > avoidRect.x &&
+    x < avoidRect.x + avoidRect.w &&
+    y > avoidRect.y &&
+    y < avoidRect.y + avoidRect.h;
+  const isInVoid = (x, y) =>
+    voids.some((v) => {
+      const dx = x - v.x;
+      const dy = y - v.y;
+      const cosR = Math.cos(-v.rot);
+      const sinR = Math.sin(-v.rot);
+      const rx = dx * cosR - dy * sinR;
+      const ry = dx * sinR + dy * cosR;
+      const nx = rx / v.rx;
+      const ny = ry / v.ry;
+      return nx * nx + ny * ny < 1;
+    });
+  let tries = 0;
+  while (stars.length < count && tries < count * 20) {
+    tries += 1;
+    const x = rand() * width;
+    const y = rand() * height;
+    if (isInAvoid(x, y)) continue;
+    if (isInVoid(x, y)) continue;
+    stars.push(renderStarSprite({
+      x,
+      y,
+      radius: 2.4 + rand() * 1.6,
+      opacity: 0.8 + rand() * 0.15,
+      color: color || "#FFFFFF",
+      kind: "spark",
+      haloScale: 0.9,
+      bloomStrength: 0.35,
+      spikeStrength: 1.6,
+      chromaStrength: 0.25,
+    }));
+  }
+  return stars.length ? `<g>${stars.join("")}</g>` : "";
+}
+
 function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
   if (!Array.isArray(regions) || !regions.length) return { defs: "", body: "" };
   const defs = [];
@@ -236,6 +300,32 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   }
 
   if (variant === "slide1" && world.densityAt) {
+    const palette = world.todayPalette || world.theme?.todayPalette || {};
+    const bloomColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
+    const bloomRand = mulberry32(hashString(`${slideId}-bloom`));
+    const bloomLayer = buildBloomGlows({
+      rand: bloomRand,
+      width,
+      height,
+      positions: [
+        { x: width * 0.18, y: height * 0.22 },
+        { x: width * 0.82, y: height * 0.78 },
+      ],
+      color: bloomColor,
+    });
+    if (bloomLayer) overlay.push(bloomLayer);
+
+    const spikeLayer = buildSpikeStars({
+      rand: mulberry32(hashString(`${slideId}-spike-stars`)),
+      count: 3,
+      width,
+      height,
+      avoidRect: slide1Safe,
+      voids: world.voids,
+      color: "#FFFFFF",
+    });
+    if (spikeLayer) overlay.push(spikeLayer);
+
     const extraHero = buildHeroStars({
       rand: mulberry32(hashString(`${slideId}-hero-extra`)),
       width,
