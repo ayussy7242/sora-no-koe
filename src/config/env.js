@@ -112,6 +112,7 @@ const LINE_ACCOUNT_NAME = getEnv("LINE_ACCOUNT_NAME", { defaultValue: null });
 
 const OWNER_LINE_USER_ID = getEnv("OWNER_LINE_USER_ID", { defaultValue: "Ue98386b8d7a0b3378317446114c18f16" });
 const MAX_LINE_TEXT = numEnv("MAX_LINE_TEXT", 4800);
+const IG_STORY_DELIVERY_LINE_USER_ID = getEnv("IG_STORY_DELIVERY_LINE_USER_ID", { defaultValue: null });
 
 
 //Profile
@@ -217,6 +218,7 @@ const SORA_WHEEL_URL_EXPIRES_DAYS = numEnv("SORA_WHEEL_URL_EXPIRES_DAYS", 2);
 // Instagram (Graph API)
 // --------------------
 const IG_ACCESS_TOKEN = getEnv("IG_ACCESS_TOKEN", { defaultValue: null });
+const IG_APP_SECRET = getEnv("IG_APP_SECRET", { defaultValue: null });
 const IG_USER_ID = getEnv("IG_USER_ID", { defaultValue: null });
 const IG_PAGE_ID = getEnv("IG_PAGE_ID", { defaultValue: null });
 const IG_GRAPH_VERSION = getEnv("IG_GRAPH_VERSION", { defaultValue: "v19.0" });
@@ -272,6 +274,7 @@ module.exports = {
   BOT_NAME,
   LINE_ACCOUNT_NAME,
   OWNER_LINE_USER_ID,
+  IG_STORY_DELIVERY_LINE_USER_ID,
   MAX_LINE_TEXT,
 
   //Profile
@@ -346,6 +349,7 @@ module.exports = {
   BLUEPRINT_URL_EXPIRES_DAYS,
   SORA_WHEEL_URL_EXPIRES_DAYS,
   IG_ACCESS_TOKEN,
+  IG_APP_SECRET,
   IG_USER_ID,
   IG_PAGE_ID,
   IG_GRAPH_VERSION,
