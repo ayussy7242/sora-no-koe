@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+
 const dict = require("../../../content/dict");
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
@@ -762,13 +765,14 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   if (!html) return html;
   const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
 
+  // backup legacy full html
+  backupLegacyHtml({ html, dateLocal });
+
   // detach closing lines if present
-  let closing = "";
   let body = String(html).trim();
   const closingMark = "星は答えを示さず、構造だけを置いています。";
   const idx = body.indexOf(closingMark);
   if (idx >= 0) {
-    closing = body.slice(idx).trim();
     body = body.slice(0, idx).trim();
   }
 
@@ -792,30 +796,40 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   const freeParts = [];
   if (overview?.html) freeParts.push(replaceH2Title(overview.html, "1｜全体圧"));
   if (positions?.html) freeParts.push(replaceH2Title(positions.html, "2｜配置"));
-  if (moonHtml) freeParts.push(moonHtml);
+  if (moonHtml) freeParts.push(replaceH2Title(moonHtml, "3｜月"));
+  if (resonance?.html) freeParts.push(replaceH2Title(resonance.html, "4｜共鳴"));
+  if (houseHtml) freeParts.push(replaceH2Title(houseHtml, "5｜🏠 ハウス集中"));
+  if (elements?.html) freeParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
+  if (tsukiji?.html) freeParts.push(replaceH2Title(tsukiji.html, "7｜🌙 つきじ（継続接近ログ）"));
+  if (kinjitsu?.html) freeParts.push(replaceH2Title(kinjitsu.html, "8｜📅 近日（接近予定）"));
+  if (aftertaste?.html) freeParts.push(replaceH2Title(aftertaste.html, "9｜余韻"));
 
-  const gateLines = [
-    "<p><br></p><p><br></p>",
-    "<p>ここから先は、今日の空をもう一歩だけ深く観測します。</p>",
-    "<p>🏠 ハウス集中、星の共鳴、元素／三区分、継続接近ログ、近日の接近予定はソラのこえ＋に置いています。</p>",
-    "[pms-restrict subscription_plans=\"292\"]",
-  ];
-
-  const premiumParts = [];
-  if (houseHtml) premiumParts.push(houseHtml);
-  if (resonance?.html) premiumParts.push(replaceH2Title(resonance.html, "5｜共鳴"));
-  if (elements?.html) premiumParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
-  if (tsukiji?.html) premiumParts.push(replaceH2Title(tsukiji.html, "7｜🌙 つきじ（継続接近ログ）"));
-  if (kinjitsu?.html) premiumParts.push(replaceH2Title(kinjitsu.html, "8｜📅 近日（接近予定）"));
-  if (aftertaste?.html) premiumParts.push(replaceH2Title(aftertaste.html, "9｜余韻"));
-
-  const premiumBlock = [gateLines.join("\n"), premiumParts.join("\n\n"), "[/pms-restrict]"]
-    .filter((s) => s && String(s).trim())
-    .join("\n\n");
-
-  const merged = [freeParts.join("\n\n"), premiumBlock].filter((s) => s && String(s).trim()).join("\n\n");
+  const merged = freeParts.filter((s) => s && String(s).trim()).join("\n\n");
   const withSpacing = addHeadingSpacing(merged);
+  const closing = buildBlogClosingBlock();
   return [withSpacing, closing].filter((s) => s && String(s).trim()).join("\n\n");
+}
+
+function buildBlogClosingBlock() {
+  const lineUrl = process.env.LINE_ADD_FRIEND_URL || "https://lin.ee/ZDjvxg8E";
+  return [
+    "<p>星は答えを示さず、構造だけを置いています。<br>星は語る。解釈はあなたのもの🌃</p>",
+    "<p>毎朝<br>LINEで<br>ソラの配置<br>あなたの星×きょうの空<br>配信中: " + escapeHtml(lineUrl) + "</p>",
+  ].join("\n");
+}
+
+function backupLegacyHtml({ html, dateLocal }) {
+  if (!html) return;
+  const enabled = String(process.env.BLOG_LEGACY_BACKUP || "1") !== "0";
+  if (!enabled) return;
+  try {
+    const dir = path.join("/tmp", "blog", "legacy");
+    fs.mkdirSync(dir, { recursive: true });
+    const name = dateLocal ? `blog_legacy_${dateLocal}.html` : "blog_legacy_latest.html";
+    fs.writeFileSync(path.join(dir, name), String(html), "utf8");
+  } catch (_err) {
+    // ignore backup errors
+  }
 }
 
 function addHeadingSpacing(html) {

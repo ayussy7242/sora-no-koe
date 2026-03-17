@@ -45,6 +45,8 @@ function validateStoryText(text, { min, max, maxQuestions = 1 } = {}) {
 }
 
 function pickPreferredResonanceAspect(story) {
+  const igResonance = story?.outputs?.ig?.source?.resonance_aspect;
+  if (igResonance) return igResonance;
   const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   const pool = [...skyTop, ...skyAll];
@@ -143,6 +145,70 @@ function buildTomorrowPrompt({ nextMoonSign, nextPhaseLabel, nextAspectInput }) 
     `NEXT_A_SIGN: ${safeText(a.aSign)}`,
     `NEXT_B_SIGN: ${safeText(a.bSign)}`,
   ].join("\n");
+}
+
+function formatMoonAge(value) {
+  if (!Number.isFinite(Number(value))) return "—";
+  return Number(value).toFixed(1);
+}
+
+function formatIllumination(value) {
+  if (!Number.isFinite(Number(value))) return "—";
+  return `${Math.round(Number(value) * 100)}%`;
+}
+
+function formatAspectLine({ label, deg }) {
+  if (!label && !Number.isFinite(Number(deg))) return "—";
+  const degText = Number.isFinite(Number(deg)) ? `${Math.round(Number(deg))}°` : "";
+  return [safeText(label), degText].filter(Boolean).join(" ");
+}
+
+function buildTodayDataLines({ moonSign, phaseLabel, moonAge, illumination }) {
+  return [
+    `月相: ${safeText(phaseLabel) || "—"}`,
+    `月の星座: ${safeText(moonSign) || "—"}`,
+    `月齢: ${formatMoonAge(moonAge)}`,
+    `照度: ${formatIllumination(illumination)}`,
+  ];
+}
+
+function buildResonanceDataLines({ aspectInput } = {}) {
+  const a = aspectInput || {};
+  return [
+    `天体A: ${safeText(a.aLabel) || "—"}`,
+    `天体B: ${safeText(a.bLabel) || "—"}`,
+    `星座: ${safeText(a.aSign) || "—"} × ${safeText(a.bSign) || "—"}`,
+    `アスペクト: ${formatAspectLine({ label: a.aspectLabel, deg: a.aspectDeg })}`,
+    `角度: ${Number.isFinite(Number(a.aspectDeg)) ? `${Math.round(Number(a.aspectDeg))}°` : "—"}`,
+    `orb: ${Number.isFinite(Number(a.orb)) ? `${Number(a.orb).toFixed(2)}°` : "—"}`,
+  ];
+}
+
+function buildTomorrowDataLines({ nextStory, nextAspectInput, dict } = {}) {
+  const sunSign = safeText(nextStory?.public?.transit_signs?.sun?.sign_ja);
+  const moonSign = safeText(nextStory?.public?.transit_signs?.moon?.sign_ja);
+  const aspect = nextAspectInput || {};
+  const aspectLine = [
+    safeText(aspect.aLabel),
+    safeText(aspect.bLabel),
+  ].filter(Boolean).length
+    ? `${safeText(aspect.aLabel)} × ${safeText(aspect.bLabel)}（${formatAspectLine({
+        label: aspect.aspectLabel,
+        deg: aspect.aspectDeg,
+      })}）`
+    : "—";
+  return [
+    `明日の太陽星座: ${sunSign || "—"}`,
+    `明日の月星座: ${moonSign || "—"}`,
+    `明日の主要アスペクト: ${aspectLine}`,
+  ];
+}
+
+function appendFixedLines(text, lines = []) {
+  const cleaned = normalizeText(text);
+  const fixed = (lines || []).filter(Boolean).join("\n");
+  if (!fixed) return cleaned;
+  return [cleaned, fixed].filter(Boolean).join("\n\n");
 }
 
 async function generateTextWithRetry({
@@ -275,25 +341,51 @@ async function generateIgStoryTexts({
     maxTokens: 180,
   });
 
+  const todayFixedLines = buildTodayDataLines({
+    moonSign,
+    phaseLabel,
+    moonAge: info?.moonAge,
+    illumination: info?.illumination,
+  });
+  const resonanceFixedLines = buildResonanceDataLines({ aspectInput: resonanceInput });
+  const tomorrowFixedLines = buildTomorrowDataLines({
+    nextStory,
+    nextAspectInput,
+    dict: useDict,
+  });
+
+  const todayBody = appendFixedLines(
+    todayText.ok ? todayText.text : fallbackToday({ moonSign, phaseLabel }),
+    todayFixedLines
+  );
+  const resonanceBody = appendFixedLines(
+    resonanceText.ok ? resonanceText.text : fallbackResonance({ aspectInput: resonanceInput }),
+    resonanceFixedLines
+  );
+  const tomorrowBody = appendFixedLines(
+    tomorrowText.ok ? tomorrowText.text : fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput }),
+    tomorrowFixedLines
+  );
+
   return {
     ok: true,
     date_local: dateLocal,
     story_texts: {
       today: {
         title: "今日の空",
-        body: todayText.ok ? todayText.text : fallbackToday({ moonSign, phaseLabel }),
+        body: todayBody,
         sticker_type: "poll",
         sticker_options: ["何か感じた", "静かな日"],
       },
       resonance: {
         title: "今日の共鳴",
-        body: resonanceText.ok ? resonanceText.text : fallbackResonance({ aspectInput: resonanceInput }),
+        body: resonanceBody,
         sticker_type: "slider",
         sticker_emoji: "✨",
       },
       tomorrow: {
         title: "明日の空",
-        body: tomorrowText.ok ? tomorrowText.text : fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput }),
+        body: tomorrowBody,
         sticker_type: "none",
       },
     },
