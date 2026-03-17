@@ -323,8 +323,8 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
         clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.35 + world.theme.mood.turbulence * 0.3, 0.2, 0.95) : 0.4,
         textFieldMask: world.textAvoidField,
-        haloMix: 0.78,
-        brightBoost: 1.55,
+        haloMix: 0.82,
+        brightBoost: 1.85,
       });
       if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
 
@@ -393,8 +393,8 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             clusterTightness: 0.66,
             clusterFragmentation: 0.28,
             textFieldMask: world.textAvoidField,
-            haloMix: 0.86,
-            brightBoost: 1.65,
+            haloMix: 0.9,
+            brightBoost: 1.9,
           });
           if (ridgeLayer) overlay.push(`<g>${ridgeLayer}</g>`);
         }
