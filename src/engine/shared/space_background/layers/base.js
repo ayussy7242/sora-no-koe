@@ -93,7 +93,17 @@ function buildDarkLaneLayer({ rand, width, height, stream, idPrefix, intensity =
   return { defs, body };
 }
 
-function buildMilkyBandLayer({ rand, width, height, idPrefix, stream, color = "#C6D4FF", intensity = 0.1 }) {
+function buildMilkyBandLayer({
+  rand,
+  width,
+  height,
+  idPrefix,
+  stream,
+  color = "#C6D4FF",
+  intensity = 0.1,
+  intensityScale = 1,
+  thicknessScale = 1,
+}) {
   if (!stream) {
     const edgeLeft = rand() < 0.5;
     const bandWidth = width * 0.12;
@@ -109,7 +119,7 @@ function buildMilkyBandLayer({ rand, width, height, idPrefix, stream, color = "#
     const maskId = `${idPrefix}-milkyMask`;
     const spineMaskId = `${idPrefix}-milkySpineMask`;
     const laneMaskId = `${idPrefix}-milkyLaneMask`;
-    const bandHeight = height * 1.3;
+    const bandHeight = height * 1.3 * thicknessScale;
     const spineHeight = bandHeight * 0.26;
     const fringeHeight = bandHeight * 1.5;
     const laneHeight = bandHeight * 0.18;
@@ -161,10 +171,10 @@ function buildMilkyBandLayer({ rand, width, height, idPrefix, stream, color = "#
 
     const bandY = -height * 0.15;
     const body = [
-      `<rect x="${bandX.toFixed(2)}" y="${bandY.toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${fringeId})" opacity="${clamp(intensity * 0.8, 0.05, 0.16).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
-      `<rect x="${bandX.toFixed(2)}" y="${bandY.toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${bandId})" opacity="${clamp(intensity, 0.06, 0.22).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
-      `<rect x="${(bandX + spineOffset).toFixed(2)}" y="${(bandY + (bandHeight - spineHeight) / 2).toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${spineHeight.toFixed(2)}" fill="url(#${spineId})" opacity="${clamp(intensity * 0.9, 0.08, 0.24).toFixed(3)}" mask="url(#${spineMaskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
-      `<rect x="${(bandX + laneOffset).toFixed(2)}" y="${(bandY + (bandHeight - laneHeight) / 2).toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${laneHeight.toFixed(2)}" fill="#02030A" opacity="${clamp(intensity * 0.35, 0.05, 0.16).toFixed(3)}" mask="url(#${laneMaskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
+      `<rect x="${bandX.toFixed(2)}" y="${bandY.toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${fringeId})" opacity="${clamp(intensity * intensityScale * 0.8, 0.05, 0.22).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
+      `<rect x="${bandX.toFixed(2)}" y="${bandY.toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${bandId})" opacity="${clamp(intensity * intensityScale, 0.08, 0.28).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
+      `<rect x="${(bandX + spineOffset).toFixed(2)}" y="${(bandY + (bandHeight - spineHeight) / 2).toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${spineHeight.toFixed(2)}" fill="url(#${spineId})" opacity="${clamp(intensity * intensityScale * 0.9, 0.1, 0.32).toFixed(3)}" mask="url(#${spineMaskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
+      `<rect x="${(bandX + laneOffset).toFixed(2)}" y="${(bandY + (bandHeight - laneHeight) / 2).toFixed(2)}" width="${bandWidth.toFixed(2)}" height="${laneHeight.toFixed(2)}" fill="#02030A" opacity="${clamp(intensity * intensityScale * 0.35, 0.05, 0.18).toFixed(3)}" mask="url(#${laneMaskId})" transform="rotate(${angle} ${width / 2} ${height / 2})"/>`,
     ].join("");
 
     return { defs, body };
@@ -172,7 +182,7 @@ function buildMilkyBandLayer({ rand, width, height, idPrefix, stream, color = "#
 
   const angle = (Math.atan2(stream.y2 - stream.y1, stream.x2 - stream.x1) * 180) / Math.PI;
   const bandLength = stream.len * 1.12;
-  const bandHeight = stream.thickness * (0.78 + rand() * 0.18);
+  const bandHeight = stream.thickness * (0.78 + rand() * 0.18) * thicknessScale;
   const spineHeight = bandHeight * 0.32;
   const fringeHeight = bandHeight * 1.35;
   const laneHeight = bandHeight * 0.18;
@@ -239,10 +249,10 @@ function buildMilkyBandLayer({ rand, width, height, idPrefix, stream, color = "#
   ].join("");
 
   const body = [
-    `<rect x="${(cx - bandLength / 2).toFixed(2)}" y="${(cy - fringeHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${fringeHeight.toFixed(2)}" fill="url(#${fringeId})" opacity="${clamp(intensity * 0.7, 0.05, 0.16).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"/>`,
-    `<rect x="${(cx - bandLength / 2).toFixed(2)}" y="${(cy - bandHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${bandId})" opacity="${clamp(intensity, 0.08, 0.24).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"/>`,
-    `<rect x="${(spineCx - bandLength / 2).toFixed(2)}" y="${(spineCy - spineHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${spineHeight.toFixed(2)}" fill="url(#${spineId})" opacity="${clamp(intensity * 0.95, 0.1, 0.28).toFixed(3)}" mask="url(#${spineMaskId})" transform="rotate(${angle.toFixed(2)} ${spineCx.toFixed(2)} ${spineCy.toFixed(2)})"/>`,
-    `<rect x="${(laneCx - bandLength / 2).toFixed(2)}" y="${(laneCy - laneHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${laneHeight.toFixed(2)}" fill="#02030A" opacity="${clamp(intensity * 0.4, 0.05, 0.18).toFixed(3)}" mask="url(#${laneMaskId})" transform="rotate(${angle.toFixed(2)} ${laneCx.toFixed(2)} ${laneCy.toFixed(2)})"/>`,
+    `<rect x="${(cx - bandLength / 2).toFixed(2)}" y="${(cy - fringeHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${fringeHeight.toFixed(2)}" fill="url(#${fringeId})" opacity="${clamp(intensity * intensityScale * 0.7, 0.05, 0.2).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"/>`,
+    `<rect x="${(cx - bandLength / 2).toFixed(2)}" y="${(cy - bandHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${bandHeight.toFixed(2)}" fill="url(#${bandId})" opacity="${clamp(intensity * intensityScale, 0.1, 0.3).toFixed(3)}" mask="url(#${maskId})" transform="rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"/>`,
+    `<rect x="${(spineCx - bandLength / 2).toFixed(2)}" y="${(spineCy - spineHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${spineHeight.toFixed(2)}" fill="url(#${spineId})" opacity="${clamp(intensity * intensityScale * 0.95, 0.12, 0.34).toFixed(3)}" mask="url(#${spineMaskId})" transform="rotate(${angle.toFixed(2)} ${spineCx.toFixed(2)} ${spineCy.toFixed(2)})"/>`,
+    `<rect x="${(laneCx - bandLength / 2).toFixed(2)}" y="${(laneCy - laneHeight / 2).toFixed(2)}" width="${bandLength.toFixed(2)}" height="${laneHeight.toFixed(2)}" fill="#02030A" opacity="${clamp(intensity * intensityScale * 0.4, 0.05, 0.2).toFixed(3)}" mask="url(#${laneMaskId})" transform="rotate(${angle.toFixed(2)} ${laneCx.toFixed(2)} ${laneCy.toFixed(2)})"/>`,
   ].join("");
 
   return { defs, body };
