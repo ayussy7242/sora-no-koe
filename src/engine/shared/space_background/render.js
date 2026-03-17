@@ -150,8 +150,13 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       voids: world.voids,
       avoidRect: slide1Safe,
       colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
-      countOverride: 3,
+      countOverride: 6,
       textFieldMask: world.textAvoidField,
+      sizeMin: 2.8,
+      sizeMax: 4.6,
+      bloomStrength: 1.25,
+      spikeStrength: 1.2,
+      chromaStrength: 1.05,
     });
     if (extraHero) overlay.push(`<g>${extraHero}</g>`);
   }
