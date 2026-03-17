@@ -318,12 +318,6 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     const orbLabel = Number.isFinite(Number(topAspect.orb_deg)) ? `orb ${Number(topAspect.orb_deg).toFixed(2)}°` : "";
     const line = [head, orbLabel].filter(Boolean).join("　").trim();
 
-    if (info?.group && info.group !== "major") {
-      return {
-        aspectLine: "深層角度",
-        deepLine: line,
-      };
-    }
     return { aspectLine: line, deepLine: "" };
   })();
 
