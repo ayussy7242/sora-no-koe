@@ -139,10 +139,23 @@ function buildCosmicDustLayer({ rand, width, height, count, densityAt, stream, s
   return dots.length ? `<g>${dots.join("")}</g>` : "";
 }
 
-function buildMilkyDustLayer({ rand, width, height, stream, streamGaps, densityAt, voids = [], color, textFieldMask = null }) {
+function buildMilkyDustLayer({
+  rand,
+  width,
+  height,
+  stream,
+  streamGaps,
+  densityAt,
+  voids = [],
+  color,
+  countScale = 1,
+  opacityScale = 1,
+  spreadScale = 1,
+  textFieldMask = null,
+}) {
   if (!stream) return "";
   const dots = [];
-  const count = Math.round((width * height) / (1080 * 1080) * 520);
+  const count = Math.round((width * height) / (1080 * 1080) * 520 * countScale);
 
   const isInVoid = (x, y) =>
     voids.some((v) => {
@@ -158,7 +171,7 @@ function buildMilkyDustLayer({ rand, width, height, stream, streamGaps, densityA
     });
 
   for (let i = 0; i < count; i++) {
-    const p = sampleAlongStreamPoint({ rand, stream, streamGaps, spread: 1.25 });
+    const p = sampleAlongStreamPoint({ rand, stream, streamGaps, spread: 1.25 * spreadScale });
     const x = p.x;
     const y = p.y;
     if (isInVoid(x, y)) continue;
@@ -169,7 +182,7 @@ function buildMilkyDustLayer({ rand, width, height, stream, streamGaps, densityA
       if (rand() > Math.pow(d, 0.65)) continue;
     }
     const r = 0.2 + rand() * 0.3;
-    const opacity = (0.06 + rand() * 0.06) * clamp(1 - textMask * 0.9, 0.2, 1);
+    const opacity = (0.06 + rand() * 0.06) * opacityScale * clamp(1 - textMask * 0.9, 0.2, 1);
     dots.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${r.toFixed(2)}" fill="${color}" opacity="${opacity.toFixed(3)}"/>`);
   }
 

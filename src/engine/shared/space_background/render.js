@@ -11,6 +11,9 @@ const {
   mulberry32,
   clamp,
 } = require("./world");
+const { buildMilkyBandLayer } = require("./layers/base");
+const { buildMilkyDustLayer } = require("./layers/dust");
+const { buildClusterField } = require("./layers/stars");
 const { BACKGROUND_COLORS } = require("./constants");
 const { mixColor } = require("../../color_utils");
 
@@ -34,6 +37,21 @@ function sliceAvoidRegions(avoidRegions, offsetX, width) {
         w,
         h,
       };
+    })
+    .filter(Boolean);
+}
+
+function sliceClusters(clusters, offsetX, width) {
+  if (!Array.isArray(clusters) || !clusters.length) return [];
+  const start = offsetX;
+  const end = offsetX + width;
+  return clusters
+    .map((cluster) => {
+      if (!cluster) return null;
+      const x = Number(cluster.x) || 0;
+      const rx = Number(cluster.rx) || 0;
+      if (x + rx < start || x - rx > end) return null;
+      return { ...cluster, x: x - offsetX };
     })
     .filter(Boolean);
 }
@@ -159,6 +177,73 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       chromaStrength: 1.08,
     });
     if (extraHero) overlay.push(`<g>${extraHero}</g>`);
+  }
+
+  if (variant === "slide1" && world.stream) {
+    const palette = world.todayPalette || world.theme?.todayPalette || {};
+    const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
+    const milkyBoost = buildMilkyBandLayer({
+      rand: mulberry32(hashString(`${slideId}-milky-boost`)),
+      width,
+      height,
+      idPrefix: `${slideId}-milky-boost`,
+      color: milkyColor,
+      intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
+      intensityScale: 1.35,
+      thicknessScale: 1.25,
+      stream: {
+        ...world.stream,
+        x1: world.stream.x1 - offsetX,
+        x2: world.stream.x2 - offsetX,
+      },
+    });
+    defs.push(milkyBoost.defs || "");
+    if (milkyBoost.body) overlay.push(`<g>${milkyBoost.body}</g>`);
+
+    const milkyDustBoost = buildMilkyDustLayer({
+      rand: mulberry32(hashString(`${slideId}-milky-dust-boost`)),
+      width,
+      height,
+      stream: {
+        ...world.stream,
+        x1: world.stream.x1 - offsetX,
+        x2: world.stream.x2 - offsetX,
+      },
+      streamGaps: world.streamGaps,
+      densityAt: world.densityAt,
+      voids: world.voids,
+      color: palette.dustTint || world.theme?.palette?.secondary?.nebula?.[0] || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep,
+      countScale: 1.25,
+      opacityScale: 1.15,
+      spreadScale: 1.15,
+      textFieldMask: world.textAvoidField,
+    });
+    if (milkyDustBoost) overlay.push(`<g>${milkyDustBoost}</g>`);
+
+    const clusterSlice = sliceClusters(world.anchors, offsetX, width);
+    if (clusterSlice.length) {
+      const boostedClusters = clusterSlice.map((cluster) => ({
+        ...cluster,
+        boost: (cluster.boost || 1) * 1.35,
+        coreBoost: (cluster.coreBoost || 0.1) * 1.25,
+        weight: (cluster.weight || 1) * 1.05,
+      }));
+      const clusterBoostLayer = buildClusterField({
+        rand: mulberry32(hashString(`${slideId}-cluster-boost`)),
+        width,
+        height,
+        clusters: boostedClusters,
+        colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
+        avoidRect: slide1Safe,
+        voids: world.voids,
+        tone: world.tone,
+        clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
+        clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.35 + world.theme.mood.turbulence * 0.3, 0.2, 0.95) : 0.4,
+        textFieldMask: world.textAvoidField,
+        haloMix: 0.62,
+      });
+      if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
+    }
   }
   return { defs: colorDefs + defs.join(""), body: worldGroup + colorGroup + veilLayer + overlay.join("") };
 }

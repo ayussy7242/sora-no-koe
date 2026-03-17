@@ -591,6 +591,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     colorDefs: colorAtmosphere.defs,
     colorBody: colorAtmosphere.body,
     stream,
+    streamGaps,
     densityAt,
     voids: voidMap.voids,
     anchors: anchorClustersAll,
@@ -599,6 +600,9 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     safeZones: slideSafeZones,
     avoidRegions,
     textAvoidField,
+    todayPalette,
+    tone,
+    milkyIntensity,
   };
 }
 
