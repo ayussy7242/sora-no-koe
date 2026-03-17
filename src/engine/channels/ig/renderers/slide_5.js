@@ -42,7 +42,7 @@ function getAvoidRegions({
   const ornamentSize = 34;
   const timeSize = 36;
   const titleSize = 74;
-  const subtitleSize = 40;
+  const subtitleSize = 44;
   const ctaSize = 34;
   const linkSize = 26;
   const timeTracking = 0.12;
@@ -51,9 +51,9 @@ function getAvoidRegions({
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
   const timeY = ornamentY + 132;
   const titleY = timeY + 120;
-  const subtitleY = titleY + 156;
-  const ctaY = subtitleY + 192;
-  const linkY = ctaY + 72;
+  const subtitleY = titleY + 120;
+  const ctaY = subtitleY + 176;
+  const linkY = ctaY + 64;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta || "今日の空", 18, 2);
   const subLines = wrapLines(sub || "星の配置はLINEで配信中\nネイタル一覧も見れます", 18, 2);
@@ -220,7 +220,7 @@ function buildSlide5Svg({
   const ornamentSize = 34;
   const timeSize = 36;
   const titleSize = 74;
-  const subtitleSize = 40;
+  const subtitleSize = 44;
   const ctaSize = 34;
   const linkSize = 26;
   const timeTracking = 0.12;
@@ -229,9 +229,9 @@ function buildSlide5Svg({
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
   const timeY = ornamentY + 132;
   const titleY = timeY + 120;
-  const subtitleY = titleY + 156;
-  const ctaY = subtitleY + 192;
-  const linkY = ctaY + 72;
+  const subtitleY = titleY + 120;
+  const ctaY = subtitleY + 176;
+  const linkY = ctaY + 64;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta, 18, 2);
   const subLines = wrapLines(sub, 18, 2);
@@ -244,7 +244,7 @@ function buildSlide5Svg({
       ornamentBlock,
       `<text x=\"${centerX}\" y=\"${timeY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${timeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${timeTracking}em\" opacity=\"0.75\">${escapeXml(timeText)}</text>`,
       `<text x=\"${centerX}\" y=\"${titleY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${titleSize}\" font-family=\"SoraTitle\" font-weight=\"400\">${escapeXml(title)}</text>`,
-      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\">${escapeXml(subtitle)}</text>`,
+      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\" opacity=\"0.9\">${escapeXml(subtitle)}</text>`,
       `<text x=\"${centerX}\" y=\"${ctaY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${ctaSize}\" font-family=\"SoraTitle\" opacity=\"0.85\">${escapeXml(cta)}</text>`,
       `<text x=\"${centerX}\" y=\"${linkY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${linkSize}\" font-family=\"SoraTitle\" letter-spacing=\"${linkTracking}em\" opacity=\"0.45\">${escapeXml(link || miniCta)}</text>`,
       buildRightFooter({ brand, dateLabel, colors }),
