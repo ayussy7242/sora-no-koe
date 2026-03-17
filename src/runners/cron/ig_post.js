@@ -348,9 +348,12 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   const slideMoon = buildMoonSlide({ story, dateLabel, dateLocal, dict });
 
   const slide5 = {
-    ornament: "☉        ☽",
-    cta: "毎朝の空",
-    sub: "今日の配置を\nLINEで配信中",
+    ornament: "☉ ── ☽",
+    timeText: "毎朝 8:00",
+    title: "今日の星の配置",
+    subtitle: "あなたの星 × 今日の空",
+    cta: "LINEで配信中",
+    link: "link in bio",
     brand: "sora-no-koe",
     dateLabel,
   };
