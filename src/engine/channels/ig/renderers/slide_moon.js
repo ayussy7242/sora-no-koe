@@ -43,6 +43,7 @@ function getAvoidRegions({
   nextPhaseLabel = "",
   nextMoonName = "",
   nextDate = "",
+  nextOffsetY = 12,
   brand = "sora-no-koe",
 } = {}) {
   const fields = [];
@@ -112,7 +113,7 @@ function getAvoidRegions({
     const w = estimateTextWidth(nextLabel, TOK.moon.nextLabelSize);
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.nextLabelY - TOK.moon.nextLabelSize,
+      y: TOK.moon.nextLabelY + nextOffsetY - TOK.moon.nextLabelSize,
       w,
       h: TOK.moon.nextLabelSize * 1.2,
       pad: 12,
@@ -127,7 +128,7 @@ function getAvoidRegions({
     const w = Math.max(...nextLines.map((l) => estimateTextWidth(l, TOK.moon.nextSize)));
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.nextY - TOK.moon.nextSize,
+      y: TOK.moon.nextY + nextOffsetY - TOK.moon.nextSize,
       w,
       h: TOK.moon.nextLineHeight * nextLines.length,
       pad: 12,
@@ -259,6 +260,7 @@ function buildSlideMoonSvg({
   nextPhaseLabel = "",
   nextMoonName = "",
   nextDate = "",
+  nextOffsetY = 12,
   moonIllumination = 0.5,
   moonWaxing = true,
   moonSize = MOON_LAYOUT.size,
@@ -307,10 +309,10 @@ function buildSlideMoonSvg({
       fontFamily: "SoraBody",
       letterSpacing: TOK.moon.observationTracking,
     }),
-    `<text x=\"${marginX}\" y=\"${TOK.moon.nextLabelY}\" fill=\"${colors.textSub}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`,
+    `<text x=\"${marginX}\" y=\"${TOK.moon.nextLabelY + nextOffsetY}\" fill=\"${colors.textSub}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`,
     textBlock({
       x: marginX,
-      y: TOK.moon.nextY,
+      y: TOK.moon.nextY + nextOffsetY,
       lines: nextLines,
       size: TOK.moon.nextSize,
       lineHeight: TOK.moon.nextLineHeight,

@@ -28,19 +28,32 @@ function getAvoidRegions({
   header = "観測ガイド",
   cta,
   sub,
-  ornament = "☉  ─  ☾",
+  ornament = "☉ ── ☽",
   brand = "sora-no-koe",
   dateLabel,
   miniCta = "link in bio",
+  timeText = "毎朝 8:00",
+  title = "今日の星の配置",
+  subtitle = "あなたの星 × 今日の空",
+  link = "link in bio",
 } = {}) {
   const fields = [];
   const centerX = CANVAS.width / 2;
-  const ornamentSize = TOK.cta.ornamentSize + 18;
-  const subSize = TOK.cta.subSize + 4;
-  const subSizeSmall = TOK.cta.subSizeSmall + 4;
-  const subSizeLarge = TOK.cta.subSizeLarge + 4;
-  const subLineHeight = TOK.cta.subLineHeight + 6;
-  const miniCtaSize = TOK.cta.miniCtaSize + 2;
+  const ornamentSize = 34;
+  const timeSize = 40;
+  const titleSize = 76;
+  const subtitleSize = 42;
+  const ctaSize = 34;
+  const linkSize = 26;
+  const timeTracking = 0.12;
+  const linkTracking = 0.2;
+  const blockShift = -40;
+  const ornamentY = CANVAS.height / 2 - 260 + blockShift;
+  const timeY = ornamentY + 80;
+  const titleY = timeY + 80;
+  const subtitleY = titleY + 90;
+  const ctaY = subtitleY + 90;
+  const linkY = ctaY + 50;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta || "今日の空", 18, 2);
   const subLines = wrapLines(sub || "星の配置はLINEで配信中\nネイタル一覧も見れます", 18, 2);
@@ -49,48 +62,64 @@ function getAvoidRegions({
     const ornamentWidth = estimateTextWidth(ornament, ornamentSize);
     fields.push(makeField({
       x: centerX - ornamentWidth / 2,
-      y: TOK.cta.ornamentY - ornamentSize,
+      y: ornamentY - ornamentSize,
       w: ornamentWidth,
       h: ornamentSize * 1.2,
       pad: 16,
       weight: 0.7,
       kind: "meta",
     }));
-    if (ctaLines.length) {
-      const w = Math.max(...ctaLines.map((l) => estimateTextWidth(l, TOK.cta.ctaSize)));
+    const timeWidth = estimateTextWidth(timeText, timeSize);
+    fields.push(makeField({
+      x: centerX - timeWidth / 2,
+      y: timeY - timeSize,
+      w: timeWidth,
+      h: timeSize * 1.2,
+      pad: 14,
+      weight: 0.75,
+      kind: "meta",
+    }));
+    const titleWidth = estimateTextWidth(title, titleSize);
+    fields.push(makeField({
+      x: centerX - titleWidth / 2,
+      y: titleY - titleSize,
+      w: titleWidth,
+      h: titleSize * 1.2,
+      pad: 18,
+      weight: 0.95,
+      kind: "heroText",
+    }));
+    const subtitleWidth = estimateTextWidth(subtitle, subtitleSize);
+    fields.push(makeField({
+      x: centerX - subtitleWidth / 2,
+      y: subtitleY - subtitleSize,
+      w: subtitleWidth,
+      h: subtitleSize * 1.2,
+      pad: 16,
+      weight: 0.9,
+      kind: "subtitle",
+    }));
+    const ctaWidth = estimateTextWidth(cta || "", ctaSize);
+    if (ctaWidth) {
       fields.push(makeField({
-        x: centerX - w / 2,
-        y: TOK.cta.ctaY - TOK.cta.ctaSize,
-        w,
-        h: TOK.cta.ctaLineHeight * ctaLines.length,
-        pad: 18,
-        weight: 0.95,
-        kind: "heroText",
-      }));
-    }
-    if (subLines.length) {
-      const size = subLines.length === 2 ? subSizeLarge : subSize;
-      const lineHeight = subLineHeight;
-      const w = Math.max(...subLines.map((l) => estimateTextWidth(l, size)));
-      fields.push(makeField({
-        x: centerX - w / 2,
-        y: TOK.cta.subY - size,
-        w,
-        h: lineHeight * subLines.length,
-        pad: 14,
-        weight: 0.85,
+        x: centerX - ctaWidth / 2,
+        y: ctaY - ctaSize,
+        w: ctaWidth,
+        h: ctaSize * 1.2,
+        pad: 12,
+        weight: 0.8,
         kind: "subtitle",
       }));
     }
-    if (brand) {
-      const w = estimateTextWidth(brand, TOK.rightFooter.brandSize);
+    const linkWidth = estimateTextWidth(link || "", linkSize);
+    if (linkWidth) {
       fields.push(makeField({
-        x: CANVAS.width - TOK.rightFooter.xOffset - w,
-        y: TOK.rightFooter.brandY - TOK.rightFooter.brandSize,
-        w,
-        h: TOK.rightFooter.brandSize * 1.15,
+        x: centerX - linkWidth / 2,
+        y: linkY - linkSize,
+        w: linkWidth,
+        h: linkSize * 1.2,
         pad: 10,
-        weight: 0.8,
+        weight: 0.7,
         kind: "footer",
       }));
     }
@@ -144,7 +173,8 @@ function getAvoidRegions({
       }));
     }
   }
-  if (miniCta) {
+  if (miniCta && !ornament) {
+    const miniCtaSize = TOK.cta.miniCtaSize + 2;
     const w = estimateTextWidth(miniCta, miniCtaSize);
     fields.push(makeField({
       x: CANVAS.width / 2 - w / 2,
@@ -175,20 +205,33 @@ function buildSlide5Svg({
   header = "観測ガイド",
   cta = "今日の空",
   sub = "星の配置はLINEで配信中\nネイタル一覧も見れます",
-  ornament = "☉  ─  ☾",
+  ornament = "☉ ── ☽",
   brand = "sora-no-koe",
   dateLabel,
   miniCta = "link in bio",
+  timeText = "毎朝 8:00",
+  title = "今日の星の配置",
+  subtitle = "あなたの星 × 今日の空",
+  link = "link in bio",
   space,
 } = {}) {
   const colors = resolveColors(space);
   const centerX = CANVAS.width / 2;
-  const ornamentSize = TOK.cta.ornamentSize + 18;
-  const subSize = TOK.cta.subSize + 4;
-  const subSizeSmall = TOK.cta.subSizeSmall + 4;
-  const subSizeLarge = TOK.cta.subSizeLarge + 4;
-  const subLineHeight = TOK.cta.subLineHeight + 6;
-  const miniCtaSize = TOK.cta.miniCtaSize + 2;
+  const ornamentSize = 34;
+  const timeSize = 40;
+  const titleSize = 76;
+  const subtitleSize = 42;
+  const ctaSize = 34;
+  const linkSize = 26;
+  const timeTracking = 0.12;
+  const linkTracking = 0.2;
+  const blockShift = -40;
+  const ornamentY = CANVAS.height / 2 - 260 + blockShift;
+  const timeY = ornamentY + 80;
+  const titleY = timeY + 80;
+  const subtitleY = titleY + 90;
+  const ctaY = subtitleY + 90;
+  const linkY = ctaY + 50;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta, 18, 2);
   const subLines = wrapLines(sub, 18, 2);
@@ -197,25 +240,7 @@ function buildSlide5Svg({
     const glyphLeft = "☉";
     const glyphRight = "☽";
     const glyphGap = ornamentSize * 0.9;
-    const lineWidth = ornamentSize * 2.4;
-    const ornamentY = TOK.cta.ornamentY;
-    const hasTwoLineSub = subLines.length === 2;
-    const subBlock = hasTwoLineSub
-      ? [
-          `<text x=\"${centerX}\" y=\"${TOK.cta.subY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subSizeSmall}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cta.subTracking}em\">${escapeXml(subLines[0])}</text>`,
-          `<text x=\"${centerX}\" y=\"${TOK.cta.subY + subLineHeight}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subSizeLarge}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cta.subTracking}em\">${escapeXml(subLines[1])}</text>`,
-        ].join("")
-      : textBlock({
-          x: centerX,
-          y: TOK.cta.subY,
-          lines: subLines,
-          size: subSize,
-          lineHeight: subLineHeight,
-          color: colors.textSub,
-          fontFamily: "SoraTitle",
-          letterSpacing: TOK.cta.subTracking,
-          anchor: "middle",
-        });
+    const lineWidth = ornamentSize * 2.6;
     const ornamentBlock = [
       buildGlyphLine({
         x: centerX - glyphGap,
@@ -240,22 +265,11 @@ function buildSlide5Svg({
 
     const inner = [
       ornamentBlock,
-      textBlock({
-        x: centerX,
-        y: TOK.cta.ctaY,
-        lines: ctaLines,
-        size: TOK.cta.ctaSize,
-        lineHeight: TOK.cta.ctaLineHeight,
-        color: colors.textMain,
-        fontFamily: "SoraTitle",
-        letterSpacing: TOK.cta.ctaTracking,
-        anchor: "middle",
-      }),
-      `<line x1=\"${centerX - TOK.cta.lineWidth / 2}\" y1=\"${TOK.cta.lineY}\" x2=\"${centerX + TOK.cta.lineWidth / 2}\" y2=\"${TOK.cta.lineY}\" stroke=\"${colors.textMain}\" stroke-width=\"1\" opacity=\"${TOK.cta.lineOpacity}\"/>`,
-      `<g opacity=\"${TOK.cta.subOpacity}\">${subBlock}</g>`,
-      miniCta
-        ? `<text x=\"${centerX}\" y=\"${TOK.cta.miniCtaY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${miniCtaSize}\" font-family=\"SoraTitle\" opacity=\"${TOK.cta.miniCtaOpacity}\" letter-spacing=\"${TOK.cta.miniCtaTracking}em\">${escapeXml(miniCta)}</text>`
-        : "",
+      `<text x=\"${centerX}\" y=\"${timeY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${timeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${timeTracking}em\" opacity=\"0.75\">${escapeXml(timeText)}</text>`,
+      `<text x=\"${centerX}\" y=\"${titleY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${titleSize}\" font-family=\"SoraTitle\" font-weight=\"600\">${escapeXml(title)}</text>`,
+      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\" opacity=\"0.85\">${escapeXml(subtitle)}</text>`,
+      `<text x=\"${centerX}\" y=\"${ctaY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${ctaSize}\" font-family=\"SoraTitle\" opacity=\"0.7\">${escapeXml(cta)}</text>`,
+      `<text x=\"${centerX}\" y=\"${linkY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${linkSize}\" font-family=\"SoraTitle\" letter-spacing=\"${linkTracking}em\" opacity=\"0.45\">${escapeXml(link || miniCta)}</text>`,
       buildRightFooter({ brand, dateLabel, colors }),
     ].join("");
     return baseSvg(inner, space);
