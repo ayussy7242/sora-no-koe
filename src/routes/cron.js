@@ -219,7 +219,7 @@ function createCronRouter(deps = {}) {
       const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
 
       const result = await runDailyIgStoryDelivery(
-        { env, storyService, storage, dict },
+        { env, storyService, storage, dict, db },
         { dateLocal, dryRun }
       );
 

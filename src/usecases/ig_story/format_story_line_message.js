@@ -1,13 +1,14 @@
 "use strict";
 
-function buildSectionText({ title, body, sticker }) {
+function buildSectionText({ title, body, sticker, extra }) {
   const lines = [`【${title}】`];
   if (body) lines.push(String(body));
+  if (extra) lines.push(String(extra));
   if (sticker) lines.push(sticker);
   return lines.join("\n");
 }
 
-function formatIgStoryLinePayload({ dateLocal, images = {}, storyTexts = {} } = {}) {
+function formatIgStoryLinePayload({ dateLocal, images = {}, storyTexts = {}, blogUrl, lineUrl } = {}) {
   const header = `🌌 IG Story素材｜${dateLocal}`;
 
   const today = storyTexts?.today || {};
@@ -38,6 +39,7 @@ function formatIgStoryLinePayload({ dateLocal, images = {}, storyTexts = {} } = 
     text: buildSectionText({
       title: resonance.title || "今日の共鳴",
       body: resonance.body || "",
+      extra: resonance.blog_url || blogUrl ? `ブログ下書き: ${resonance.blog_url || blogUrl}` : "",
       sticker: resonance.sticker_type === "slider"
         ? "スタンプ: スライダー（✨）"
         : "",
@@ -52,6 +54,7 @@ function formatIgStoryLinePayload({ dateLocal, images = {}, storyTexts = {} } = 
     text: buildSectionText({
       title: tomorrow.title || "明日の空",
       body: tomorrow.body || "",
+      extra: tomorrow.line_url || lineUrl ? `LINE友だち追加: ${tomorrow.line_url || lineUrl}` : "",
       sticker: "",
     }),
   });
