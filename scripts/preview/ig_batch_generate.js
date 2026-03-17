@@ -349,7 +349,7 @@ function buildSlides({ story, dateLocal, withCta }) {
   const slide5 = {
     ornament: "☉ ── ☽",
     timeText: "毎朝 8:00",
-    title: "ふと",
+    title: "今日の星の配置",
     subtitle: "あなたの星 × 今日の空",
     cta: "LINEで配信中",
     link: "link in bio",
