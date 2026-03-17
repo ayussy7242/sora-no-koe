@@ -237,7 +237,7 @@ async function generateIgStoryTexts({
   const todayText = await generateTextWithRetry({
     userPrompt: todayPrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 40, max: 90 }),
+    validate: (text) => validateStoryText(text, { min: 45, max: 100 }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 160,
@@ -249,7 +249,7 @@ async function generateIgStoryTexts({
   const resonanceText = await generateTextWithRetry({
     userPrompt: resonancePrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 50, max: 110 }),
+    validate: (text) => validateStoryText(text, { min: 60, max: 130 }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 190,
@@ -269,7 +269,7 @@ async function generateIgStoryTexts({
   const tomorrowText = await generateTextWithRetry({
     userPrompt: tomorrowPrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 45, max: 100 }),
+    validate: (text) => validateStoryText(text, { min: 70, max: 150 }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 180,
