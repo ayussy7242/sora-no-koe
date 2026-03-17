@@ -28,6 +28,7 @@ function buildClusterField({
   clusterFragmentation = 0.45,
   textFieldMask = null,
   haloMix = 0.35,
+  brightBoost = 1,
 }) {
   if (!clusters || !clusters.length) return "";
   const dots = [];
@@ -137,7 +138,7 @@ function buildClusterField({
     if (type === "deep") {
       addDots(cluster, Math.round(170 * boost), 0.3, 0.55, 0.08, 0.18, 1.15);
       addDots(cluster, Math.round(110 * boost), 0.55, 0.85, 0.16, 0.32, 0.95);
-      addDots(cluster, Math.round(20 * boost), 0.9, 1.2, 0.28, 0.45, 0.8, true);
+      addDots(cluster, Math.round(20 * boost * brightBoost), 0.9, 1.2, 0.28, 0.45, 0.8, true);
       subclusters.forEach((sc) => {
         addDots(sc, Math.round(45 * boost), 0.3, 0.55, 0.08, 0.18, 0.9);
         addDots(sc, Math.round(20 * boost), 0.55, 0.85, 0.16, 0.28, 0.7);
@@ -145,23 +146,23 @@ function buildClusterField({
     } else if (type === "globular") {
       addDots(cluster, Math.round(220 * boost), 0.3, 0.55, 0.12, 0.24, 1.05);
       addDots(cluster, Math.round(140 * boost), 0.55, 0.95, 0.22, 0.42, 0.8);
-      addDots(cluster, Math.round(55 * boost), 0.9, 1.35, 0.35, 0.58, 0.6, true);
-      addDots(cluster, Math.round(12 * boost), 1.4, 1.9, 0.55, 0.75, 0.45, true);
+      addDots(cluster, Math.round(55 * boost * brightBoost), 0.9, 1.35, 0.35, 0.58, 0.6, true);
+      addDots(cluster, Math.round(12 * boost * brightBoost), 1.4, 1.9, 0.55, 0.75, 0.45, true);
       // dense core
       addDots(cluster, Math.round(70 * boost), 0.3, 0.5, 0.18, 0.3, 0.35);
       subclusters.forEach((sc) => {
         addDots(sc, Math.round(55 * boost), 0.35, 0.7, 0.12, 0.26, 0.85);
-        addDots(sc, Math.round(18 * boost), 0.7, 1.05, 0.2, 0.35, 0.65);
+        addDots(sc, Math.round(18 * boost * brightBoost), 0.7, 1.05, 0.2, 0.35, 0.65);
       });
     } else {
       // open cluster
       addDots(cluster, Math.round(120 * boost), 0.3, 0.55, 0.1, 0.22, 1.15);
       addDots(cluster, Math.round(80 * boost), 0.55, 0.9, 0.2, 0.4, 0.95);
-      addDots(cluster, Math.round(26 * boost), 0.9, 1.25, 0.32, 0.5, 0.75, true);
-      addDots(cluster, Math.round(6 * boost), 1.3, 1.7, 0.5, 0.7, 0.6, true);
+      addDots(cluster, Math.round(26 * boost * brightBoost), 0.9, 1.25, 0.32, 0.5, 0.75, true);
+      addDots(cluster, Math.round(6 * boost * brightBoost), 1.3, 1.7, 0.5, 0.7, 0.6, true);
       subclusters.forEach((sc) => {
         addDots(sc, Math.round(42 * boost), 0.3, 0.6, 0.1, 0.24, 0.95);
-        addDots(sc, Math.round(14 * boost), 0.6, 0.95, 0.2, 0.32, 0.7);
+        addDots(sc, Math.round(14 * boost * brightBoost), 0.6, 0.95, 0.2, 0.32, 0.7);
       });
     }
 

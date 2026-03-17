@@ -14,8 +14,9 @@ const {
 const { buildMilkyBandLayer } = require("./layers/base");
 const { buildMilkyDustLayer } = require("./layers/dust");
 const { buildClusterField } = require("./layers/stars");
-const { BACKGROUND_COLORS } = require("./constants");
+const { renderStarSprite } = require("./layers/renderStarSprite");
 const { mixColor } = require("../../color_utils");
+const { BACKGROUND_COLORS } = require("./constants");
 
 function sliceAvoidRegions(avoidRegions, offsetX, width) {
   if (!Array.isArray(avoidRegions) || !avoidRegions.length) return [];
@@ -54,6 +55,57 @@ function sliceClusters(clusters, offsetX, width) {
       return { ...cluster, x: x - offsetX };
     })
     .filter(Boolean);
+}
+
+function buildMiniHeroStars({ rand, cluster, count, width, height, avoidRect, voids = [], baseColor, glowColor }) {
+  if (!cluster || count <= 0) return "";
+  const stars = [];
+  const isInAvoid = (x, y) =>
+    avoidRect &&
+    x > avoidRect.x &&
+    x < avoidRect.x + avoidRect.w &&
+    y > avoidRect.y &&
+    y < avoidRect.y + avoidRect.h;
+  const isInVoid = (x, y) =>
+    voids.some((v) => {
+      const dx = x - v.x;
+      const dy = y - v.y;
+      const cosR = Math.cos(-v.rot);
+      const sinR = Math.sin(-v.rot);
+      const rx = dx * cosR - dy * sinR;
+      const ry = dx * sinR + dy * cosR;
+      const nx = rx / v.rx;
+      const ny = ry / v.ry;
+      return nx * nx + ny * ny < 1;
+    });
+  const colorA = baseColor || "#FFFFFF";
+  const colorB = glowColor || colorA;
+  for (let i = 0; i < count; i++) {
+    const jitterX = (rand() - 0.5) * cluster.rx * 0.18;
+    const jitterY = (rand() - 0.5) * cluster.ry * 0.18;
+    const x = cluster.x + jitterX;
+    const y = cluster.y + jitterY;
+    if (x < 0 || x > width || y < 0 || y > height) continue;
+    if (isInAvoid(x, y)) continue;
+    if (isInVoid(x, y)) continue;
+    const radius = 2.2 + rand() * 1.6;
+    const opacity = 0.7 + rand() * 0.25;
+    const color = mixColor(colorA, colorB, 0.35 + rand() * 0.35);
+    const kind = rand() < 0.35 ? "giant" : "bright";
+    stars.push(renderStarSprite({
+      x,
+      y,
+      radius,
+      opacity,
+      color,
+      kind,
+      haloScale: 1.2,
+      bloomStrength: 1.2,
+      spikeStrength: 1.15,
+      chromaStrength: 1.05,
+    }));
+  }
+  return stars.length ? `<g>${stars.join("")}</g>` : "";
 }
 
 function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
@@ -240,9 +292,28 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
         clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.35 + world.theme.mood.turbulence * 0.3, 0.2, 0.95) : 0.4,
         textFieldMask: world.textAvoidField,
-        haloMix: 0.62,
+        haloMix: 0.72,
+        brightBoost: 1.35,
       });
       if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
+
+      const topLeftCluster = clusterSlice
+        .slice()
+        .sort((a, b) => (a.x + a.y) - (b.x + b.y))[0];
+      if (topLeftCluster) {
+        const miniHero = buildMiniHeroStars({
+          rand: mulberry32(hashString(`${slideId}-mini-hero`)),
+          cluster: topLeftCluster,
+          count: 1 + Math.floor(mulberry32(hashString(`${slideId}-mini-hero-count`))() * 2),
+          width,
+          height,
+          avoidRect: slide1Safe,
+          voids: world.voids,
+          baseColor: "#FFFFFF",
+          glowColor: world.theme?.palette?.glow,
+        });
+        if (miniHero) overlay.push(miniHero);
+      }
     }
   }
   return { defs: colorDefs + defs.join(""), body: worldGroup + colorGroup + veilLayer + overlay.join("") };
