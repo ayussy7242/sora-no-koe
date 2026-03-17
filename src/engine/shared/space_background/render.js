@@ -215,7 +215,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
-    const flowScale = variant === "slide1" ? 1.08 : 1.18;
+    const flowScale = variant === "slide1" ? 1.18 : 1.28;
     const flowBand = buildMilkyBandLayer({
       rand: mulberry32(hashString(`${slideId}-milky-flow`)),
       width,
@@ -224,7 +224,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: flowScale,
-      thicknessScale: 1.18,
+      thicknessScale: 1.28,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
@@ -364,21 +364,21 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       if (world.stream) {
         const ridgeRand = mulberry32(hashString(`${slideId}-ridge-cluster`));
         const ridgeT = 0.62 + ridgeRand() * 0.26;
-        const ridgeAcross = (ridgeRand() - 0.5) * world.stream.thickness * 0.4;
-        const ridgeAlong = (ridgeRand() - 0.5) * width * 0.08;
+        const ridgeAcross = (ridgeRand() - 0.5) * world.stream.thickness * 0.55;
+        const ridgeAlong = (ridgeRand() - 0.5) * width * 0.12;
         const ridgePoint = streamPoint(world.stream, ridgeT, ridgeAlong, ridgeAcross);
         const ridgeCluster = {
           x: ridgePoint.x - offsetX,
           y: ridgePoint.y,
-          rx: width * (0.04 + ridgeRand() * 0.02),
-          ry: width * (0.025 + ridgeRand() * 0.015),
+          rx: width * (0.05 + ridgeRand() * 0.03),
+          ry: width * (0.03 + ridgeRand() * 0.02),
           rot: ridgeRand() * Math.PI * 2,
           fray: 0.18 + ridgeRand() * 0.12,
-          weight: 0.6 + ridgeRand() * 0.15,
-          boost: 1.65,
+          weight: 0.7 + ridgeRand() * 0.2,
+          boost: 1.95,
           laneShift: (ridgeRand() - 0.5) * 0.35,
           type: "open",
-          coreBoost: 0.18 + ridgeRand() * 0.08,
+          coreBoost: 0.24 + ridgeRand() * 0.12,
         };
         if (ridgeCluster.x > -width * 0.2 && ridgeCluster.x < width * 1.2) {
           const ridgeLayer = buildClusterField({
@@ -390,10 +390,10 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             avoidRect: slide1Safe,
             voids: world.voids,
             tone: world.tone,
-            clusterTightness: 0.62,
-            clusterFragmentation: 0.32,
+            clusterTightness: 0.66,
+            clusterFragmentation: 0.28,
             textFieldMask: world.textAvoidField,
-            haloMix: 0.8,
+            haloMix: 0.86,
             brightBoost: 1.65,
           });
           if (ridgeLayer) overlay.push(`<g>${ridgeLayer}</g>`);
