@@ -111,18 +111,24 @@ const SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION = `
 Instagramキャプションの「観測ポイント」を生成する。
 
 役割:
-- 共鳴アスペクトから読み取れる観測を書く
+- 空の重心を観測ログとして書く
 - 占いではなく構造観測として書く
 
 形式:
-- 1文
-- 30〜60文字
-- 改行なし
+- 2行
+- 30〜70文字
+- 改行あり
 
 書き方:
-- 天体同士の接続が作る流れを書く
+- 空の重心を短く置く
 - 抽象的すぎない
 - 観測ログのような文
+
+優先順位:
+1) ハウス集中
+2) 星座集中
+3) 元素バランス
+4) 分布が散っている場合
 
 禁止:
 - 助言
@@ -132,13 +138,10 @@ Instagramキャプションの「観測ポイント」を生成する。
 - 「あなたは」
 
 INPUT:
-- A_BODY
-- B_BODY
-- ASPECT_NAME
-- ASPECT_DEG
-- ORB
-- A_SIGN
-- B_SIGN
+- HOUSE_FOCUS
+- TRANSIT_SIGNS
+- SKY_STRATA.element_count
+- SKY_STRATA.modality_count
 
 ${SORA_AI_PUBLIC_IG_SHORT_COMMON}
 ${SORA_AI_PUBLIC_BASE}

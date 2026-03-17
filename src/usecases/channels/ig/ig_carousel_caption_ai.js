@@ -9,6 +9,7 @@ const {
 const { buildTodayMoonInfo } = require("../../../domain/moon_info");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
 const { normalizeBodyKey } = require("../../../domain/canonical");
+const { pickObservationLine } = require("../../../presenters/format/ig_caption");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -19,6 +20,15 @@ function normalizeText(text) {
     .replace(/\r\n/g, "\n")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeObservationText(text) {
+  const raw = String(text || "").replace(/\r\n/g, "\n").trim();
+  const lines = raw
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return lines.join("\n");
 }
 
 function bodyLabelJa(dict, key) {
@@ -67,20 +77,19 @@ function buildCaptionPrompt({ story, dict, asOfISO }) {
 }
 
 function buildObservationPrompt({ story, dict }) {
-  const resonance = buildResonanceMeta({ story, dict }) || {};
-  const aspectName = safeText(resonance.aspectLabel || "");
-  const aspectDeg = aspectName.replace(/.*?(\d+(?:\.\d+)?)°?.*$/, "$1");
+  const houseFocus = story?.public?.house_focus || {};
+  const transitSigns = story?.public?.transit_signs || {};
+  const skyStrata = story?.public?.sky_strata || {};
+  const elementCount = skyStrata?.element_count || {};
+  const modalityCount = skyStrata?.modality_count || skyStrata?.mode_count || {};
   return [
     SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
     "",
     "INPUT:",
-    `A_BODY: ${safeText(resonance.aBody)}`,
-    `B_BODY: ${safeText(resonance.bBody)}`,
-    `ASPECT_NAME: ${aspectName}`,
-    `ASPECT_DEG: ${safeText(aspectDeg)}`,
-    `ORB: ${safeText(resonance.orb)}`,
-    `A_SIGN: ${safeText(resonance.aSign)}`,
-    `B_SIGN: ${safeText(resonance.bSign)}`,
+    `HOUSE_FOCUS: ${safeText(JSON.stringify(houseFocus))}`,
+    `TRANSIT_SIGNS: ${safeText(JSON.stringify(transitSigns))}`,
+    `SKY_STRATA.element_count: ${safeText(JSON.stringify(elementCount))}`,
+    `SKY_STRATA.modality_count: ${safeText(JSON.stringify(modalityCount))}`,
   ].join("\n");
 }
 
@@ -95,12 +104,14 @@ function validateCaptionText(text) {
 }
 
 function validateObservationText(text) {
-  const t = normalizeText(text);
+  const t = normalizeObservationText(text);
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = Array.from(t).length;
-  if (len < 25) return { ok: false, reason: `too_short:${len}` };
-  if (len > 80) return { ok: false, reason: `too_long:${len}` };
+  if (len < 30) return { ok: false, reason: `too_short:${len}` };
+  if (len > 70) return { ok: false, reason: `too_long:${len}` };
+  const lineCount = t.split("\n").filter(Boolean).length;
+  if (lineCount < 2) return { ok: false, reason: "need_two_lines" };
   return { ok: true, text: t, len };
 }
 
@@ -118,11 +129,14 @@ function buildCaptionFallback({ story, dict, asOfISO }) {
 }
 
 function buildObservationFallback({ story, dict }) {
-  const resonance = buildResonanceMeta({ story, dict }) || {};
-  if (resonance.aBody && resonance.bBody) {
-    return `${resonance.aBody}と${resonance.bBody}の接続が、内側に静かな流れを残す配置。`;
-  }
-  return "内側の変化が、外側の流れに静かに重なる配置。";
+  const line1 = pickObservationLine({
+    dict,
+    transitSigns: story?.public?.transit_signs || {},
+    skyStrata: story?.public?.sky_strata || {},
+    houseFocus: story?.public?.house_focus || {},
+  });
+  const line2 = "空の重心が静かに残る配置。";
+  return [line1, line2].filter(Boolean).join("\n");
 }
 
 async function generateIgCarouselCaptionText({ story, dict, openai, maxRetries = 1, asOfISO }) {
