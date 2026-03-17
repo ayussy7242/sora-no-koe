@@ -49,8 +49,8 @@ function getAvoidRegions({
   const linkTracking = 0.2;
   const blockShift = -40;
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
-  const timeY = ornamentY + 80;
-  const titleY = timeY + 112;
+  const timeY = ornamentY + 112;
+  const titleY = timeY + 144;
   const subtitleY = titleY + 90;
   const ctaY = subtitleY + 90;
   const linkY = ctaY + 50;
