@@ -186,7 +186,23 @@ function buildClusterField({
   return `<g>${dots.join("")}</g>`;
 }
 
-function buildHeroStars({ rand, width, height, densityAt, voids = [], avoidRect, colorWeights, countOverride, tone, textFieldMask = null }) {
+function buildHeroStars({
+  rand,
+  width,
+  height,
+  densityAt,
+  voids = [],
+  avoidRect,
+  colorWeights,
+  countOverride,
+  tone,
+  textFieldMask = null,
+  sizeMin = 2.6,
+  sizeMax = 3.8,
+  bloomStrength = 1.1,
+  spikeStrength = 1.1,
+  chromaStrength = 1.0,
+} = {}) {
   const stars = [];
   const count =
     Number.isFinite(Number(countOverride))
@@ -221,7 +237,7 @@ function buildHeroStars({ rand, width, height, densityAt, voids = [], avoidRect,
       if (textMask > 0.3) continue;
       const d = densityAt ? densityAt(x, y) : 0.5;
       if (rand() > Math.pow(clamp(d, 0.1, 1), 1.1)) continue;
-      const r = sampleStarSize({ rand, min: 2.6, max: 3.8, power: -0.6 });
+      const r = sampleStarSize({ rand, min: sizeMin, max: sizeMax, power: -0.6 });
       const pick = pickStarColorByTemperature(rand, colorWeights, tone);
       stars.push(
         renderStarSprite(x, y, r, 0.95, pick.color, "giant", true, {
@@ -229,9 +245,9 @@ function buildHeroStars({ rand, width, height, densityAt, voids = [], avoidRect,
           haloColor: pick.haloColor,
           outerHaloColor: pick.outerHaloColor,
           depth: "hero",
-          bloomStrength: 1.1,
-          spikeStrength: 1.1,
-          chromaStrength: 1.0,
+          bloomStrength,
+          spikeStrength,
+          chromaStrength,
         })
       );
       break;
