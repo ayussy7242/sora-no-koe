@@ -79,6 +79,7 @@ async function renderStoryBackgroundSet({
   story,
   dateLabel,
   titles = ["今日の空", "今日の共鳴", "明日の空"],
+  variants = ["story_today", "story_resonance", "story_tomorrow"],
 } = {}) {
   const width = CANVAS.width;
   const height = CANVAS.height;
@@ -91,7 +92,7 @@ async function renderStoryBackgroundSet({
   for (let i = 0; i < titles.length; i++) {
     const space = buildSpaceBackground({
       ...baseArgs,
-      variant: "story",
+      variant: variants[i] || "story_today",
       worldWidth,
       offsetX: width * i,
       avoidRegions,
