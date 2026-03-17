@@ -17,6 +17,7 @@ const { buildClusterField } = require("./layers/stars");
 const { renderStarSprite } = require("./layers/renderStarSprite");
 const { mixColor } = require("../../color_utils");
 const { BACKGROUND_COLORS } = require("./constants");
+const { streamInfluenceAt, streamPoint } = require("./fields");
 
 function sliceAvoidRegions(avoidRegions, offsetX, width) {
   if (!Array.isArray(avoidRegions) || !avoidRegions.length) return [];
@@ -211,6 +212,29 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (textVeil.defs) defs.push(textVeil.defs);
   const veilLayer = textVeil.body ? `<g>${textVeil.body}</g>` : "";
 
+  if (world.stream) {
+    const palette = world.todayPalette || world.theme?.todayPalette || {};
+    const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
+    const flowScale = variant === "slide1" ? 1.08 : 1.18;
+    const flowBand = buildMilkyBandLayer({
+      rand: mulberry32(hashString(`${slideId}-milky-flow`)),
+      width,
+      height,
+      idPrefix: `${slideId}-milky-flow`,
+      color: milkyColor,
+      intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
+      intensityScale: flowScale,
+      thicknessScale: 1.18,
+      stream: {
+        ...world.stream,
+        x1: world.stream.x1 - offsetX,
+        x2: world.stream.x2 - offsetX,
+      },
+    });
+    defs.push(flowBand.defs || "");
+    if (flowBand.body) overlay.push(`<g>${flowBand.body}</g>`);
+  }
+
   if (variant === "slide1" && world.densityAt) {
     const extraHero = buildHeroStars({
       rand: mulberry32(hashString(`${slideId}-hero-extra`)),
@@ -274,12 +298,19 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
 
     const clusterSlice = sliceClusters(world.anchors, offsetX, width);
     if (clusterSlice.length) {
-      const boostedClusters = clusterSlice.map((cluster) => ({
-        ...cluster,
-        boost: (cluster.boost || 1) * 1.35,
-        coreBoost: (cluster.coreBoost || 0.1) * 1.25,
-        weight: (cluster.weight || 1) * 1.05,
-      }));
+      const boostedClusters = clusterSlice.map((cluster) => {
+        const gx = cluster.x + offsetX;
+        const gy = cluster.y;
+        const streamBias = streamInfluenceAt(gx, gy, world.stream, world.streamGaps || []) || 0;
+        const streamBoost = 0.85 + streamBias * 0.55;
+        return {
+          ...cluster,
+          boost: (cluster.boost || 1) * 1.35 * streamBoost,
+          coreBoost: (cluster.coreBoost || 0.1) * (1.2 + streamBias * 0.45),
+          weight: (cluster.weight || 1) * (1.05 + streamBias * 0.12),
+          laneShift: (cluster.laneShift || 0) + (streamBias - 0.3) * 0.18,
+        };
+      });
       const clusterBoostLayer = buildClusterField({
         rand: mulberry32(hashString(`${slideId}-cluster-boost`)),
         width,
@@ -292,8 +323,8 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
         clusterFragmentation: world.theme?.mood?.turbulence ? clamp(0.35 + world.theme.mood.turbulence * 0.3, 0.2, 0.95) : 0.4,
         textFieldMask: world.textAvoidField,
-        haloMix: 0.72,
-        brightBoost: 1.35,
+        haloMix: 0.78,
+        brightBoost: 1.55,
       });
       if (clusterBoostLayer) overlay.push(`<g>${clusterBoostLayer}</g>`);
 
@@ -327,6 +358,45 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             glowColor: world.theme?.palette?.glow,
           });
           if (miniHero2) overlay.push(miniHero2);
+        }
+      }
+
+      if (world.stream) {
+        const ridgeRand = mulberry32(hashString(`${slideId}-ridge-cluster`));
+        const ridgeT = 0.62 + ridgeRand() * 0.26;
+        const ridgeAcross = (ridgeRand() - 0.5) * world.stream.thickness * 0.4;
+        const ridgeAlong = (ridgeRand() - 0.5) * width * 0.08;
+        const ridgePoint = streamPoint(world.stream, ridgeT, ridgeAlong, ridgeAcross);
+        const ridgeCluster = {
+          x: ridgePoint.x - offsetX,
+          y: ridgePoint.y,
+          rx: width * (0.04 + ridgeRand() * 0.02),
+          ry: width * (0.025 + ridgeRand() * 0.015),
+          rot: ridgeRand() * Math.PI * 2,
+          fray: 0.18 + ridgeRand() * 0.12,
+          weight: 0.6 + ridgeRand() * 0.15,
+          boost: 1.65,
+          laneShift: (ridgeRand() - 0.5) * 0.35,
+          type: "open",
+          coreBoost: 0.18 + ridgeRand() * 0.08,
+        };
+        if (ridgeCluster.x > -width * 0.2 && ridgeCluster.x < width * 1.2) {
+          const ridgeLayer = buildClusterField({
+            rand: mulberry32(hashString(`${slideId}-ridge-cluster-field`)),
+            width,
+            height,
+            clusters: [ridgeCluster],
+            colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
+            avoidRect: slide1Safe,
+            voids: world.voids,
+            tone: world.tone,
+            clusterTightness: 0.62,
+            clusterFragmentation: 0.32,
+            textFieldMask: world.textAvoidField,
+            haloMix: 0.8,
+            brightBoost: 1.65,
+          });
+          if (ridgeLayer) overlay.push(`<g>${ridgeLayer}</g>`);
         }
       }
     }
