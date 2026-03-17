@@ -40,20 +40,20 @@ function getAvoidRegions({
   const fields = [];
   const centerX = CANVAS.width / 2;
   const ornamentSize = 34;
-  const timeSize = 40;
-  const titleSize = 76;
-  const subtitleSize = 42;
+  const timeSize = 36;
+  const titleSize = 74;
+  const subtitleSize = 40;
   const ctaSize = 34;
   const linkSize = 26;
   const timeTracking = 0.12;
-  const linkTracking = 0.2;
+  const linkTracking = 0.12;
   const blockShift = -40;
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
-  const timeY = ornamentY + 112;
-  const titleY = timeY + 144;
-  const subtitleY = titleY + 90;
-  const ctaY = subtitleY + 90;
-  const linkY = ctaY + 50;
+  const timeY = ornamentY + 40;
+  const titleY = timeY + 32;
+  const subtitleY = titleY + 36;
+  const ctaY = subtitleY + 56;
+  const linkY = ctaY + 18;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta || "今日の空", 18, 2);
   const subLines = wrapLines(sub || "星の配置はLINEで配信中\nネイタル一覧も見れます", 18, 2);
@@ -218,34 +218,34 @@ function buildSlide5Svg({
   const colors = resolveColors(space);
   const centerX = CANVAS.width / 2;
   const ornamentSize = 34;
-  const timeSize = 40;
-  const titleSize = 76;
-  const subtitleSize = 42;
+  const timeSize = 36;
+  const titleSize = 74;
+  const subtitleSize = 40;
   const ctaSize = 34;
   const linkSize = 26;
   const timeTracking = 0.12;
-  const linkTracking = 0.2;
+  const linkTracking = 0.12;
   const blockShift = -40;
   const ornamentY = CANVAS.height / 2 - 260 + blockShift;
-  const timeY = ornamentY + 80;
-  const titleY = timeY + 80;
-  const subtitleY = titleY + 90;
-  const ctaY = subtitleY + 90;
-  const linkY = ctaY + 50;
+  const timeY = ornamentY + 40;
+  const titleY = timeY + 32;
+  const subtitleY = titleY + 36;
+  const ctaY = subtitleY + 56;
+  const linkY = ctaY + 18;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta, 18, 2);
   const subLines = wrapLines(sub, 18, 2);
 
   if (ornament) {
     const ornamentBlock =
-      `<text x=\"${centerX}\" y=\"${ornamentY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${ornamentSize}\" font-family=\"SoraTitle\" letter-spacing=\"0.12em\">${escapeXml(ornament)}</text>`;
+      `<text x=\"${centerX}\" y=\"${ornamentY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${ornamentSize}\" font-family=\"SoraTitle\" xml:space=\"preserve\">${escapeXml(ornament)}</text>`;
 
     const inner = [
       ornamentBlock,
       `<text x=\"${centerX}\" y=\"${timeY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${timeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${timeTracking}em\" opacity=\"0.75\">${escapeXml(timeText)}</text>`,
-      `<text x=\"${centerX}\" y=\"${titleY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${titleSize}\" font-family=\"SoraTitle\">${escapeXml(title)}</text>`,
-      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\" opacity=\"0.85\">${escapeXml(subtitle)}</text>`,
-      `<text x=\"${centerX}\" y=\"${ctaY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${ctaSize}\" font-family=\"SoraTitle\" opacity=\"0.7\">${escapeXml(cta)}</text>`,
+      `<text x=\"${centerX}\" y=\"${titleY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${titleSize}\" font-family=\"SoraTitle\" font-weight=\"400\">${escapeXml(title)}</text>`,
+      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\">${escapeXml(subtitle)}</text>`,
+      `<text x=\"${centerX}\" y=\"${ctaY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${ctaSize}\" font-family=\"SoraTitle\" opacity=\"0.85\">${escapeXml(cta)}</text>`,
       `<text x=\"${centerX}\" y=\"${linkY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${linkSize}\" font-family=\"SoraTitle\" letter-spacing=\"${linkTracking}em\" opacity=\"0.45\">${escapeXml(link || miniCta)}</text>`,
       buildRightFooter({ brand, dateLabel, colors }),
     ].join("");
