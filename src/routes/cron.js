@@ -24,6 +24,7 @@ const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost } = require("../runners/cron/ig_post");
+const { runDailyIgStoryDelivery } = require("../usecases/ig_story/run_daily_story_delivery");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -201,6 +202,30 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/send8" });
+    }
+  });
+
+  // ✅ POST /cron/ig/story/daily : IG Story素材（画像3枚 + テキスト3本）をLINEへ送信
+  router.post("/ig/story/daily", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/story/daily" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+
+      const result = await runDailyIgStoryDelivery(
+        { env, storyService, storage, dict },
+        { dateLocal, dryRun }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/story/daily" });
     }
   });
 
