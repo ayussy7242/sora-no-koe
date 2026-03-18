@@ -183,6 +183,7 @@ const BLOG_EYECATCH_ENABLED = boolEnv("BLOG_EYECATCH_ENABLED", false);
 const BLOG_EYECATCH_BG_PATH = getEnv("BLOG_EYECATCH_BG_PATH", { defaultValue: null });
 const BLOG_EYECATCH_PRESET = getEnv("BLOG_EYECATCH_PRESET", { defaultValue: "C" });
 const BLOG_AUTO_PUBLISH = boolEnv("BLOG_AUTO_PUBLISH", false);
+const BLOG_HIDE_AFTER_RESONANCE = boolEnv("BLOG_HIDE_AFTER_RESONANCE", false);
 
 // --------------------
 // OpenAI (BLOG generation)
@@ -326,6 +327,7 @@ module.exports = {
   BLOG_EYECATCH_BG_PATH,
   BLOG_EYECATCH_PRESET,
   BLOG_AUTO_PUBLISH,
+  BLOG_HIDE_AFTER_RESONANCE,
 
   // OpenAI
   OPENAI_API_KEY,

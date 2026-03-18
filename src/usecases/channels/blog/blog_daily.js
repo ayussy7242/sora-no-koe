@@ -798,11 +798,14 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   if (positions?.html) freeParts.push(replaceH2Title(positions.html, "2｜配置"));
   if (moonHtml) freeParts.push(replaceH2Title(moonHtml, "3｜月"));
   if (resonance?.html) freeParts.push(replaceH2Title(resonance.html, "4｜共鳴"));
-  if (houseHtml) freeParts.push(replaceH2Title(houseHtml, "5｜🏠 ハウス集中"));
-  if (elements?.html) freeParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
-  if (tsukiji?.html) freeParts.push(replaceH2Title(tsukiji.html, "7｜🌙 つきじ（継続接近ログ）"));
-  if (kinjitsu?.html) freeParts.push(replaceH2Title(kinjitsu.html, "8｜📅 近日（接近予定）"));
-  if (aftertaste?.html) freeParts.push(replaceH2Title(aftertaste.html, "9｜余韻"));
+  const hideAfterResonance = String(process.env.BLOG_HIDE_AFTER_RESONANCE || "0") === "1";
+  if (!hideAfterResonance) {
+    if (houseHtml) freeParts.push(replaceH2Title(houseHtml, "5｜🏠 ハウス集中"));
+    if (elements?.html) freeParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
+    if (tsukiji?.html) freeParts.push(replaceH2Title(tsukiji.html, "7｜🌙 つきじ（継続接近ログ）"));
+    if (kinjitsu?.html) freeParts.push(replaceH2Title(kinjitsu.html, "8｜📅 近日（接近予定）"));
+    if (aftertaste?.html) freeParts.push(replaceH2Title(aftertaste.html, "9｜余韻"));
+  }
 
   const merged = freeParts.filter((s) => s && String(s).trim()).join("\n\n");
   const withSpacing = addHeadingSpacing(merged);
