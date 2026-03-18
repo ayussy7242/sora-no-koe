@@ -276,6 +276,12 @@ function renderIGCaption(story, deps = {}) {
   lines.push("");
   lines.push("LINEでは毎朝、");
   lines.push("ソラの配置とネイタルとの重なりも届けています。");
+  lines.push("");
+  lines.push("#astrology");
+  lines.push("#cosmicweather");
+  lines.push("#astrologytransits");
+  lines.push("#moonphase");
+  lines.push("#ソラのこえ");
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
