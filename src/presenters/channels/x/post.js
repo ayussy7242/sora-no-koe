@@ -132,6 +132,7 @@ function buildResonanceDisplay(story, deps = {}) {
   const bSignText = bSign ? `（${bSign}）` : "";
 
   const aspect = aspectInfo(dict, raw?.type || raw?.aspT || raw?.aspect, raw?.aspect_deg);
+  const aspectLabel = aspect?.label_ja || "";
   const aspectDeg = Number.isFinite(Number(raw?.aspect_deg))
     ? Number(raw.aspect_deg)
     : Number.isFinite(Number(aspect?.deg))
@@ -143,6 +144,7 @@ function buildResonanceDisplay(story, deps = {}) {
   const peakText = formatPeakTimeLabel(raw?.peak_at || raw?.peak_at_iso || raw?.peak_at_utc || "");
 
   const infoParts = [];
+  if (aspectLabel) infoParts.push(aspectLabel);
   if (degText) infoParts.push(degText);
   if (orbText) infoParts.push(`orb ${orbText}°`);
   const infoLine = infoParts.join("｜");
@@ -152,9 +154,7 @@ function buildResonanceDisplay(story, deps = {}) {
     "×",
     `${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,
   ];
-  if (infoLine) {
-    lines.push("", infoLine);
-  }
+  if (infoLine) lines.push(infoLine);
   if (peakText) {
     lines.push(`ピーク｜${peakText}`);
   }
@@ -164,6 +164,29 @@ function buildResonanceDisplay(story, deps = {}) {
 function renderX(story, deps = {}) {
   const lines = buildMainLogLines(story, { ...deps, includeHeader: true });
   return joinLines(lines);
+}
+
+function appendTagsWithTrim(baseLines, tags, maxChars = 180) {
+  const countChars = (text) => Array.from(String(text || "")).length;
+  const baseRaw = Array.isArray(baseLines) ? baseLines : [];
+  const base = [...baseRaw];
+  while (base.length && !String(base[base.length - 1] || "").trim()) {
+    base.pop();
+  }
+  const cleanTags = (Array.isArray(tags) ? tags : []).filter(Boolean);
+
+  let tagsToUse = [...cleanTags];
+  let out = joinLines([...base, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
+
+  while (tagsToUse.length && countChars(out) > maxChars) {
+    tagsToUse.pop();
+    out = joinLines([...base, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
+  }
+
+  if (!tagsToUse.length && countChars(out) > maxChars) {
+    return joinLines(base);
+  }
+  return out;
 }
 
 function renderXMorning(story, deps = {}) {
@@ -188,54 +211,28 @@ function renderXMorningMain(story, deps = {}) {
     dominantSign ? `#${dominantSign}` : "",
   ].filter(Boolean);
 
-  const countChars = (text) => Array.from(String(text || "")).length;
-
   const baseLines = [header];
   if (ai) baseLines.push("", ai);
-
-  let tagsToUse = [...tags];
-  let out = joinLines([...baseLines, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
-  const maxChars = 180;
-
-  while (tagsToUse.length && countChars(out) > maxChars) {
-    tagsToUse.pop();
-    out = joinLines([...baseLines, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
-  }
-
-  return out;
+  return appendTagsWithTrim(baseLines, tags, 180);
 }
 
 function renderXMorningLog(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const logLines = buildMainLogLines(story, { ...deps, includeHeader: false, includePoints: false });
-  const countChars = (text) => Array.from(String(text || "")).length;
 
   const tags = [
     "#星の配置",
     "#天体観測",
   ];
 
-  const out = [];
-  out.push("🌌 星の配置", "");
-  out.push(joinLines(logLines));
-
-  let tagsToUse = [...tags];
-  let outText = joinLines([...out, "", ...tagsToUse]);
-  const maxChars = 180;
-  while (tagsToUse.length && countChars(outText) > maxChars) {
-    tagsToUse.pop();
-    if (!tagsToUse.length) break;
-    outText = joinLines([...out, "", ...tagsToUse]);
-  }
-  if (!tagsToUse.length && countChars(outText) > maxChars) {
-    outText = joinLines(out);
-  }
-
-  return outText;
+  const baseLines = ["🌌 星の配置", "", joinLines(logLines)];
+  return appendTagsWithTrim(baseLines, tags, 180);
 }
 
 function renderXNight(story, deps = {}) {
-  const ai = String(story?.meta?.x_ai?.night || "").trim();
+  const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
+  const rawAi = String(story?.meta?.x_ai?.night || "").trim();
+  const ai = rawAi ? formatXAiText(rawAi) : "";
   const asOfISO = story?.meta?.as_of || null;
   const dateLocal = story?.meta?.date_local || story?.public?.date_local ||
     (asOfISO ? toDateLocalJST(new Date(asOfISO)) : "");
@@ -253,17 +250,17 @@ function renderXNight(story, deps = {}) {
     "#夜の空",
     "#星の観測",
     moonSignLabel ? `#${moonSignLabel}` : "",
-    "#月星座",
   ].filter(Boolean);
 
   const lines = [header];
   if (ai) lines.push("", ai);
-  if (tags.length) lines.push("", ...tags);
-  return joinLines(lines);
+  return appendTagsWithTrim(lines, tags, 180);
 }
 
 function renderXResonance(story, deps = {}) {
-  const ai = String(story?.meta?.x_ai?.resonance || "").trim();
+  const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
+  const rawAi = String(story?.meta?.x_ai?.resonance || "").trim();
+  const ai = rawAi ? formatXAiText(rawAi) : "";
   const dict = deps?.dict || require("../../../content/dict");
   const raw = resolveResonanceRaw(story, dict, { fallback: false });
   const display = buildResonanceDisplay(story, { ...deps, dict });
@@ -281,8 +278,7 @@ function renderXResonance(story, deps = {}) {
   const lines = ["🌌 共鳴の空"];
   if (ai) lines.push("", ai);
   lines.push("", SEP, "", ...display);
-  if (tags.length) lines.push("", ...tags);
-  return joinLines(lines);
+  return appendTagsWithTrim(lines, tags, 180);
 }
 
 function resolveMoonEventDisplay(story, dict) {
@@ -302,8 +298,7 @@ function renderXMoonEvent(story, deps = {}) {
 
   const lines = [event.line1, event.line2].filter(Boolean);
   if (ai) lines.push("", ai);
-  lines.push("", tag);
-  return joinLines(lines);
+  return appendTagsWithTrim(lines, [tag], 180);
 }
 
 function renderXMonthly(story, deps = {}) {
@@ -333,10 +328,8 @@ function renderXMonthly(story, deps = {}) {
     fullLine,
     "",
     "今月の空を、毎日置いていきます 🌌",
-    "",
-    "#ソラのこえ #今月の空",
   ];
-  return joinLines(lines);
+  return appendTagsWithTrim(lines, ["#ソラのこえ", "#今月の空"], 180);
 }
 
 module.exports = {
