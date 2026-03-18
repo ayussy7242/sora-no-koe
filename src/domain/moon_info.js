@@ -303,11 +303,9 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   const waNameRaw = waNameFromMoonAge(moonInfo.moonAge);
   let waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
 
-  // 新月と残月/有明月/晦が同時に出ないように調整
-  if (phaseName === "新月" && ["有明月", "残月", "晦"].includes(waNameRaw)) {
-    phaseName = waNameRaw;
+  // 新月・満月のときは月相名を優先して表示する
+  if (phaseName === "新月" || phaseName === "満月") {
     waName = "";
-    phaseSymbol = "🌘";
   }
 
   const signJa = moonInfo.moonSign || "—";
