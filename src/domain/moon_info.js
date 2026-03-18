@@ -303,8 +303,10 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   const waNameRaw = waNameFromMoonAge(moonInfo.moonAge);
   let waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
 
-  // 新月・満月のときは月相名を優先して表示する
-  if (phaseName === "新月" || phaseName === "満月") {
+  // 新月・満月のときは月相名を優先しつつ、晦のみ補足表示する
+  if (phaseName === "新月") {
+    waName = waNameRaw === "晦" ? "晦" : "";
+  } else if (phaseName === "満月") {
     waName = "";
   }
 
