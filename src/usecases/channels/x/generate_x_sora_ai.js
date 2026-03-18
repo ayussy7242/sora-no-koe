@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { X_SORA_USER_GUIDE } = require("../../../content/prompts/sns/x/x_sora_prompts");
 const { signJa } = require("../../../presenters/format/format/line_common");
-const { validateXAiText } = require("./x_ai_common");
+const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -70,47 +70,23 @@ function buildXSoraPrompt({ story, dict }) {
   ].join("\n");
 }
 
-function validateText(text) {
-  return validateXAiText(text, { minChars: 90, maxChars: 120 });
-}
-
-async function generateXSoraAiText({ story, dict, openai, maxRetries = 7 }) {
-  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
-  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
-
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
-
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const userPrompt = buildXSoraPrompt({ story, dict }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      maxTokens: 160,
-    });
-
-    const verdict = validateText(text);
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。90〜120文字の観測文で短く再出力。`;
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+async function generateXSoraAiText({ story, dict, openai, maxRetries }) {
+  return generateXAiWithRetry({
+    channel: "x_morning",
+    prompt: buildXSoraPrompt({ story, dict }),
+    minChars: 90,
+    maxChars: 120,
+    maxTokens: 160,
+    temperature: 0.4,
+    maxRetries,
+    openai,
+    story,
+    dict,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    createChatCompletion,
+    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜120文字の観測文で短く再出力。",
+    fallbackFactory,
+  });
 }
 
 module.exports = {

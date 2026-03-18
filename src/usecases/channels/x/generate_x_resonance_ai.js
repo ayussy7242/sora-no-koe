@@ -6,7 +6,7 @@ const { X_RESONANCE_USER_GUIDE } = require("../../../content/prompts/sns/x/x_res
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { listWithOrb } = require("../../../domain/aspect_selection");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
-const { validateXAiText } = require("./x_ai_common");
+const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
 
 function bodyLabelJa(dict, key) {
   if (!key) return "";
@@ -87,49 +87,27 @@ function buildXResonancePrompt({ story, dict, aspect }) {
   ].join("\n");
 }
 
-function validateText(text) {
-  return validateXAiText(text);
-}
-
-async function generateXResonanceAiText({ story, dict, openai, maxRetries = 1, aspect }) {
-  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
-  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
-
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+async function generateXResonanceAiText({ story, dict, openai, maxRetries, aspect }) {
   const picked = aspect || pickPrimaryResonanceAspect({ story, dict });
   if (!picked) return { ok: false, error: "resonance_aspect_missing" };
 
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const userPrompt = buildXResonancePrompt({ story, dict, aspect: picked }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      maxTokens: 140,
-    });
-
-    const verdict = validateText(text);
-    if (verdict.ok) return { ok: true, text: verdict.text, model, aspect: picked };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。2〜4行で短く整えて再出力。`;
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText, aspect: picked };
+  return generateXAiWithRetry({
+    channel: "x_resonance",
+    prompt: buildXResonancePrompt({ story, dict, aspect: picked }),
+    minChars: 60,
+    maxChars: 80,
+    maxTokens: 140,
+    temperature: 0.5,
+    maxRetries,
+    openai,
+    story,
+    dict,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    createChatCompletion,
+    retryNoteTemplate: "前回は条件外でした（${reason}）。2〜4行で短く整えて再出力。",
+    fallbackFactory,
+    fallbackContext: { aspect: picked },
+  }).then((res) => ({ ...res, aspect: picked }));
 }
 
 module.exports = {

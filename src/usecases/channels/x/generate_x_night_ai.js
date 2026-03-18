@@ -5,7 +5,8 @@ const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/
 const { X_NIGHT_USER_GUIDE } = require("../../../content/prompts/sns/x/x_night_prompts");
 const { signJa } = require("../../../presenters/format/format/line_common");
 const { calcTransitLon, norm360 } = require("../../../domain/astro_compute");
-const { validateXAiText } = require("./x_ai_common");
+const { buildNextMoonEvents, orderedMoonEvents, lastMajorMoonEvent } = require("../../../domain/moon_info");
+const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -60,6 +61,11 @@ function moonSignAtIso({ dict, iso }) {
   return { key, label };
 }
 
+function buildPhaseLabel({ kind, signLabel }) {
+  const phaseName = kind === "new" ? "新月" : "満月";
+  return signLabel ? `${signLabel}${phaseName}` : phaseName;
+}
+
 function findNextMoonSignChange({ dict, asOfISO, maxHours = 72, stepMinutes = 60 }) {
   const base = new Date(asOfISO || Date.now());
   if (Number.isNaN(base.getTime())) return null;
@@ -79,13 +85,50 @@ function findNextMoonSignChange({ dict, asOfISO, maxHours = 72, stepMinutes = 60
   return null;
 }
 
+function buildNextMoonPhaseHint({ dict, asOfISO, maxHours = 24, imminentHours = 3, recentHours = 3 }) {
+  const base = new Date(asOfISO || Date.now());
+  if (Number.isNaN(base.getTime())) return null;
+
+  const recent = lastMajorMoonEvent(asOfISO);
+  if (recent?.date instanceof Date && !Number.isNaN(recent.date.getTime())) {
+    const hoursAgo = (base.getTime() - recent.date.getTime()) / 3600000;
+    if (Number.isFinite(hoursAgo) && hoursAgo >= 0 && hoursAgo <= recentHours) {
+      const signLabel = moonSignAtIso({ dict, iso: recent.date.toISOString() })?.label || "";
+      const label = buildPhaseLabel({ kind: recent.kind, signLabel });
+      return { text: `${label}を迎えた直後`, kind: "recent", hoursAgo };
+    }
+  }
+
+  const events = buildNextMoonEvents(asOfISO, dict);
+  const ordered = orderedMoonEvents(events);
+  const ev = ordered[0];
+  if (!ev?.date || Number.isNaN(ev.date.getTime())) return null;
+
+  const hoursAhead = (ev.date.getTime() - base.getTime()) / 3600000;
+  if (!Number.isFinite(hoursAhead) || hoursAhead < 0 || hoursAhead > maxHours) return null;
+
+  const label = buildPhaseLabel({ kind: ev.kind, signLabel: ev.signJa || "" });
+  const text = hoursAhead <= imminentHours
+    ? `まもなく${label}を迎える`
+    : `このあと${label}を迎える`;
+  return { text, kind: "upcoming", hoursAhead };
+}
+
 function buildNextTransitHints(story, dict) {
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
   const current = moonSignAtIso({ dict, iso: asOfISO });
   const next = findNextMoonSignChange({ dict, asOfISO });
+  const phase = buildNextMoonPhaseHint({ dict, asOfISO });
 
+  if (phase?.kind === "recent") return phase.text;
+  if (phase?.text && (!next?.hoursAhead || phase.hoursAhead <= next.hoursAhead)) {
+    return phase.text;
+  }
   if (next?.to?.label) {
-    return `月はこのあと${next.to.label}へ移る`;
+    const text = next.hoursAhead != null && next.hoursAhead <= 3
+      ? `まもなく月は${next.to.label}へ移る`
+      : `月はこのあと${next.to.label}へ移る`;
+    return text;
   }
   if (current?.label) {
     return `月はこのまま${current.label}を進む`;
@@ -114,47 +157,25 @@ function buildXNightPrompt({ story, dict }) {
   ].join("\n");
 }
 
-function validateText(text) {
-  return validateXAiText(text);
-}
-
-async function generateXNightAiText({ story, dict, openai, maxRetries = 1 }) {
-  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
-  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
-
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
-
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const userPrompt = buildXNightPrompt({ story, dict }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      maxTokens: 180,
-    });
-
-    const verdict = validateText(text);
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。助言禁止・短文で整えて再出力。`;
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+async function generateXNightAiText({ story, dict, openai, maxRetries }) {
+  const nextHints = buildNextTransitHints(story, dict);
+  return generateXAiWithRetry({
+    channel: "x_night",
+    prompt: buildXNightPrompt({ story, dict }),
+    minChars: 100,
+    maxChars: 140,
+    maxTokens: 180,
+    temperature: 0.5,
+    maxRetries,
+    openai,
+    story,
+    dict,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    createChatCompletion,
+    retryNoteTemplate: "前回は条件外でした（${reason}）。助言禁止・短文で整えて再出力。",
+    fallbackFactory,
+    fallbackContext: { nextHint: nextHints },
+  });
 }
 
 module.exports = {

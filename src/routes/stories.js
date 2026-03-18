@@ -528,10 +528,16 @@ function createStoriesRouter(deps = {}) {
       if (result?.ok && result?.text) {
         meta.x_ai.morning = result.text;
         meta.x_sora_ai = {
+          ok: true,
+          source: result.fallback ? "fallback" : "ai",
+          fallback: !!result.fallback,
           model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
+          chars: result.len || result.text.length,
           generated_at_utc: new Date().toISOString(),
         };
+        if (result.fallback && result.fallback_reason) {
+          meta.x_sora_ai.fallback_reason = result.fallback_reason;
+        }
       } else {
         meta.x_sora_ai_error = result?.error || "unknown";
         if (result?.reason) meta.x_sora_ai_error_reason = result.reason;
@@ -566,10 +572,16 @@ function createStoriesRouter(deps = {}) {
       if (result?.ok && result?.text) {
         meta.x_ai.night = result.text;
         meta.x_night_ai = {
+          ok: true,
+          source: result.fallback ? "fallback" : "ai",
+          fallback: !!result.fallback,
           model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
+          chars: result.len || result.text.length,
           generated_at_utc: new Date().toISOString(),
         };
+        if (result.fallback && result.fallback_reason) {
+          meta.x_night_ai.fallback_reason = result.fallback_reason;
+        }
       } else {
         meta.x_night_ai_error = result?.error || "unknown";
         if (result?.reason) meta.x_night_ai_error_reason = result.reason;
@@ -607,10 +619,16 @@ function createStoriesRouter(deps = {}) {
       if (result?.ok && result?.text) {
         meta.x_ai.resonance = result.text;
         meta.x_resonance_ai = {
+          ok: true,
+          source: result.fallback ? "fallback" : "ai",
+          fallback: !!result.fallback,
           model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
+          chars: result.len || result.text.length,
           generated_at_utc: new Date().toISOString(),
         };
+        if (result.fallback && result.fallback_reason) {
+          meta.x_resonance_ai.fallback_reason = result.fallback_reason;
+        }
       } else {
         meta.x_resonance_ai_error = result?.error || "unknown";
         if (result?.reason) meta.x_resonance_ai_error_reason = result.reason;
