@@ -2,7 +2,7 @@
 
 /**
  * channels/threads/post.js
- * - Threads（長文可）: 空の配置(最大5) + dist + close
+ * - Threadsアプリ向け（長文可）: 空の配置(最大5) + dist + close
  *
  * deps:
  * - getUserId, pickStable

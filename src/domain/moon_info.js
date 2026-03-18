@@ -298,10 +298,17 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   if (!moonInfo) return null;
 
   const phase = moonInfo.phase || astroPhaseFromDeg(moonInfo.phaseDeg);
-  const phaseName = phase?.name || "—";
-  const phaseSymbol = phase?.symbol || moonPhaseSymbolFromDeg(moonInfo.phaseDeg);
+  let phaseName = phase?.name || "—";
+  let phaseSymbol = phase?.symbol || moonPhaseSymbolFromDeg(moonInfo.phaseDeg);
   const waNameRaw = waNameFromMoonAge(moonInfo.moonAge);
-  const waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
+  let waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
+
+  // 新月と残月/有明月/晦が同時に出ないように調整
+  if (phaseName === "新月" && ["有明月", "残月", "晦"].includes(waNameRaw)) {
+    phaseName = waNameRaw;
+    waName = "";
+    phaseSymbol = "🌘";
+  }
 
   const signJa = moonInfo.moonSign || "—";
   const moonAge = Number.isFinite(Number(moonInfo.moonAge)) ? Number(moonInfo.moonAge) : null;

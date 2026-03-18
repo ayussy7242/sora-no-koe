@@ -1,0 +1,132 @@
+"use strict";
+
+const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
+const { X_MONTHLY_USER_GUIDE } = require("../../../content/prompts/sns/x/x_monthly_prompts");
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon_info");
+const { listWithOrb } = require("../../../domain/aspect_selection");
+const { normalizeBodyKey } = require("../../../domain/canonical");
+const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
+const { toDateLocalJST } = require("../../../utils/time_utils");
+const { validateXAiText } = require("./x_ai_common");
+
+function bodyLabelJa(dict, key) {
+  if (!key) return "";
+  const k = String(key).toLowerCase();
+  return (
+    dict?.PLANETS_V2?.bodies?.[k]?.label_ja ||
+    dict?.POINTS_V1?.points?.[k]?.label_ja ||
+    k
+  );
+}
+
+function formatMonthLabel(dateLocal) {
+  const [y, m] = String(dateLocal || "").split("-");
+  if (!y || !m) return "";
+  return `${Number(y)}年${Number(m)}月`;
+}
+
+function buildMonthlyPoints({ story, dict, max = 3 }) {
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const allowed = new Set([
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ]);
+  const picked = listWithOrb(skyAll)
+    .filter((row) => {
+      const aKey = normalizeBodyKey(row?.a || "");
+      const bKey = normalizeBodyKey(row?.b || "");
+      return allowed.has(aKey) && allowed.has(bKey);
+    })
+    .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
+    .slice(0, max);
+
+  return picked.map((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    const aLabel = bodyLabelJa(dict, aKey);
+    const bLabel = bodyLabelJa(dict, bKey);
+    const aSign = row?.a_sign_ja || signJa(dict, row?.a_sign_key || "");
+    const bSign = row?.b_sign_ja || signJa(dict, row?.b_sign_key || "");
+    const aspect = aspectInfo(dict, row?.type || row?.aspect || row?.aspT, row?.aspect_deg);
+    const aspectLabel = aspect?.label_ja || String(row?.type || row?.aspect || "");
+    return `${aLabel}（${aSign}）×${bLabel}（${bSign}）｜${aspectLabel}`;
+  });
+}
+
+function buildMonthlyContext({ story, dict, asOfISO }) {
+  const dateLocal = story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
+  const monthLabel = formatMonthLabel(dateLocal);
+  const points = buildMonthlyPoints({ story, dict, max: 3 });
+  const events = buildNextMoonEvents(asOfISO || story?.meta?.as_of, dict);
+  const newEvent = events?.new ? formatMoonEventDisplay(events.new) : null;
+  const fullEvent = events?.full ? formatMoonEventDisplay(events.full) : null;
+
+  return { dateLocal, monthLabel, points, newEvent, fullEvent };
+}
+
+function buildMonthlyPrompt({ story, dict, context }) {
+  const ctx = context || buildMonthlyContext({ story, dict });
+  const points = ctx.points && ctx.points.length ? ctx.points.join(" / ") : "none";
+  const newLine = ctx.newEvent?.label ? `${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "—";
+  const fullLine = ctx.fullEvent?.label ? `${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim() : "—";
+
+  return [
+    X_MONTHLY_USER_GUIDE,
+    "",
+    "INPUT:",
+    `MONTH: ${ctx.monthLabel || "—"}`,
+    `POINTS: ${points}`,
+    `NEW_MOON: ${newLine}`,
+    `FULL_MOON: ${fullLine}`,
+  ].join("\n");
+}
+
+function validateText(text) {
+  return validateXAiText(text);
+}
+
+async function generateXMonthlyAiText({ story, dict, openai, maxRetries = 1, context }) {
+  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
+  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
+
+  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const ctx = context || buildMonthlyContext({ story, dict });
+
+  let retryNote = "";
+  let lastReason = "";
+  let lastText = "";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const userPrompt = buildMonthlyPrompt({ story, dict, context: ctx }) +
+      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
+      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
+
+    const text = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      messages: [
+        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+      maxTokens: 200,
+    });
+
+    const verdict = validateText(text);
+    if (verdict.ok) return { ok: true, text: verdict.text, model, context: ctx };
+
+    lastReason = verdict.reason || "";
+    lastText = String(text || "").trim();
+    retryNote = `前回は条件外でした（${lastReason}）。3〜6行で短く整えて再出力。`;
+  }
+
+  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText, context: ctx };
+}
+
+module.exports = {
+  buildMonthlyContext,
+  buildMonthlyPrompt,
+  generateXMonthlyAiText,
+};

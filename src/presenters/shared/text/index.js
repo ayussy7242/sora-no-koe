@@ -289,6 +289,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const fnDistributionLine = resolveFn(chLineDistribution, ["renderDistributionLine"], "channels/line/distribution");
   const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
   const fnX = resolveFn(chX, ["renderX"], "channels/x/post");
+  const fnXMorning = resolveFn(chX, ["renderXMorning"], "channels/x/post");
+  const fnXMorningMain = resolveFn(chX, ["renderXMorningMain", "renderXMorning"], "channels/x/post");
+  const fnXMorningLog = resolveFn(chX, ["renderXMorningLog"], "channels/x/post");
+  const fnXNight = resolveFn(chX, ["renderXNight"], "channels/x/post");
+  const fnXResonance = resolveFn(chX, ["renderXResonance"], "channels/x/post");
+  const fnXMoonEvent = resolveFn(chX, ["renderXMoonEvent"], "channels/x/post");
+  const fnXMonthly = resolveFn(chX, ["renderXMonthly"], "channels/x/post");
   const fnXThread = resolveFn(chXThread, ["renderXThread"], "channels/x/thread");
   const fnThreads = resolveFn(chThreads, ["renderThreads"], "channels/threads/post");
 
@@ -525,6 +532,27 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderX(story) {
     return fnX(story, ctxFor(story));
   }
+  function renderXMorning(story) {
+    return fnXMorning(story, ctxFor(story));
+  }
+  function renderXMorningMain(story) {
+    return fnXMorningMain(story, ctxFor(story));
+  }
+  function renderXMorningLog(story) {
+    return fnXMorningLog(story, ctxFor(story));
+  }
+  function renderXNight(story) {
+    return fnXNight(story, ctxFor(story));
+  }
+  function renderXResonance(story) {
+    return fnXResonance(story, ctxFor(story));
+  }
+  function renderXMoonEvent(story) {
+    return fnXMoonEvent(story, ctxFor(story));
+  }
+  function renderXMonthly(story) {
+    return fnXMonthly(story, ctxFor(story));
+  }
   function renderXThread(story) {
     return fnXThread(story, ctxFor(story));
   }
@@ -545,6 +573,13 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     renderSoraLine,
     renderDistributionLine,
     renderX,
+    renderXMorning,
+    renderXMorningMain,
+    renderXMorningLog,
+    renderXNight,
+    renderXResonance,
+    renderXMoonEvent,
+    renderXMonthly,
     renderXThread,
     renderIG,
     renderThreads,
