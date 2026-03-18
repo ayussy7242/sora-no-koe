@@ -1,0 +1,326 @@
+"use strict";
+
+const { toDateLocalJST } = require("../../utils/time_utils");
+const { normalizeStoryArgs } = require("../../usecases/story/story_args");
+const { SPEC } = require("../../config/sora_spec");
+const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
+const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
+const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
+const { postTweet } = require("../../integrations/x/x_api");
+
+function isYYYYMMDD(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function toBool(v, fallback = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v !== "string") return fallback;
+  const t = v.trim().toLowerCase();
+  if (!t) return fallback;
+  return ["1", "true", "yes", "on"].includes(t);
+}
+
+function parseJsonSafe(raw) {
+  try {
+    return JSON.parse(String(raw || ""));
+  } catch (_) {
+    return null;
+  }
+}
+
+function truncateForX(text, maxChars) {
+  const chars = Array.from(String(text || ""));
+  if (!Number.isFinite(Number(maxChars)) || maxChars <= 0) {
+    return { text: String(text || ""), truncated: false };
+  }
+  if (chars.length <= maxChars) return { text: chars.join(""), truncated: false };
+  const trimmed = chars.slice(0, Math.max(0, maxChars - 3)).join("") + "...";
+  return { text: trimmed, truncated: true };
+}
+
+function ensureXMeta(story) {
+  story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+  story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+  story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
+  return story.meta;
+}
+
+async function buildMorningPosts({ story, dict, renderers, openai, useAi, maxOrbDeg }) {
+  const meta = ensureXMeta(story);
+  const errors = [];
+
+  if (useAi) {
+    const res = await generateXSoraAiText({ story, dict, openai });
+    if (res?.ok && res.text) {
+      meta.x_ai.morning = res.text;
+    } else {
+      errors.push({ slot: "morning", error: res?.error || "unknown", reason: res?.reason || "" });
+    }
+  }
+
+  const picked = pickPrimaryResonanceAspect({ story, dict, maxOrbDeg });
+  if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
+
+  if (useAi && picked) {
+    const res = await generateXResonanceAiText({ story, dict, openai, aspect: picked });
+    if (res?.ok && res.text) {
+      meta.x_ai.resonance = res.text;
+    } else {
+      errors.push({ slot: "resonance", error: res?.error || "unknown", reason: res?.reason || "" });
+    }
+  }
+
+  if (errors.length && useAi) {
+    return { posts: [], hasResonance: !!picked, errors };
+  }
+
+  const morningText = await renderers.renderXMorningMain(story);
+  const logText = await renderers.renderXMorningLog(story);
+  const resonanceText = await renderers.renderXResonance(story);
+
+  const posts = [
+    { text: morningText, slot: "main" },
+    { text: logText, slot: "log" },
+    { text: resonanceText, slot: "resonance" },
+  ]
+    .map((it) => ({ ...it, text: String(it.text || "").trim() }))
+    .filter((it) => it.text);
+
+  return {
+    posts,
+    hasResonance: !!(resonanceText && String(resonanceText).trim()),
+    errors,
+  };
+}
+
+async function buildNightPosts({ story, dict, renderers, openai, useAi }) {
+  const meta = ensureXMeta(story);
+
+  if (useAi) {
+    const res = await generateXNightAiText({ story, dict, openai });
+    if (res?.ok && res.text) meta.x_ai.night = res.text;
+  }
+
+  const text = await renderers.renderXNight(story);
+  return { posts: [String(text || "").trim()].filter(Boolean) };
+}
+
+async function postThreadToX({ posts, env }) {
+  const ids = [];
+  let replyTo = null;
+  for (const text of posts) {
+    const res = await postTweet({ text, replyToId: replyTo, env });
+    const id = res?.id || "";
+    ids.push(id);
+    replyTo = id || replyTo;
+  }
+  return ids;
+}
+
+async function runXMorningPost(deps, opts = {}) {
+  const { env, storyService, renderers, dict } = deps || {};
+  if (!env) throw new Error("env required");
+  if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
+  if (!renderers?.renderXMorningMain || !renderers?.renderXMorningLog || !renderers?.renderXResonance) {
+    throw new Error("renderers.renderXMorningMain/renderXMorningLog/renderXResonance missing");
+  }
+
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
+  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+
+  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
+  const dateLocal = isYYYYMMDD(opts.dateLocal)
+    ? String(opts.dateLocal)
+    : toDateLocalJST(new Date(asOfISO));
+
+  const orbMaxDeg = Number.isFinite(Number(opts.orbMaxDeg)) ? Number(opts.orbMaxDeg) : 6;
+  const precisionDeg = Number.isFinite(Number(opts.precisionDeg)) ? Number(opts.precisionDeg) : 0.01;
+
+  if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
+    throw new Error("OPENAI_API_KEY missing");
+  }
+
+  const story = await storyService.buildStoryForUser(
+    normalizeStoryArgs({
+      appUserId: "public",
+      mode: "public",
+      dateLocal,
+      asOfISO,
+      orbMaxDeg,
+      precisionDeg,
+    })
+  );
+
+  const openai = {
+    apiKey: env2.OPENAI_API_KEY,
+    baseUrl: env2.OPENAI_BASE_URL,
+    model: env2.OPENAI_MODEL,
+  };
+
+  const maxOrb = Number.isFinite(Number(opts.resonanceOrbMax))
+    ? Number(opts.resonanceOrbMax)
+    : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
+      ? Number(env2.X_RESONANCE_ORB_MAX)
+      : Number(SPEC?.orb?.free ?? 1.5);
+
+  const { posts, hasResonance, errors } = await buildMorningPosts({
+    story,
+    dict,
+    renderers,
+    openai,
+    useAi,
+    maxOrbDeg: maxOrb,
+  });
+
+  if (Array.isArray(posts) && posts.length === 0 && useAi) {
+    return {
+      ok: false,
+      dry_run: dryRun,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      error: "ai_generation_failed",
+      details: Array.isArray(errors) ? errors : [],
+    };
+  }
+
+  const maxMainChars = Number.isFinite(Number(env2.X_POST_MAIN_MAX_CHARS))
+    ? Number(env2.X_POST_MAIN_MAX_CHARS)
+    : 180;
+  const maxLogChars = Number.isFinite(Number(env2.X_POST_LOG_MAX_CHARS))
+    ? Number(env2.X_POST_LOG_MAX_CHARS)
+    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const maxResonanceChars = Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS))
+    ? Number(env2.X_POST_RESONANCE_MAX_CHARS)
+    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+
+  const trimmed = posts.map((post) => {
+    const limit = post.slot === "main"
+      ? maxMainChars
+      : post.slot === "resonance"
+        ? maxResonanceChars
+        : maxLogChars;
+    const res = truncateForX(post.text, limit);
+    return { text: res.text, truncated: res.truncated };
+  });
+
+  if (dryRun) {
+    return {
+      ok: true,
+      dry_run: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts: trimmed,
+      has_resonance: hasResonance,
+    };
+  }
+
+  const texts = trimmed.map((p) => p.text).filter(Boolean);
+  const tweetIds = await postThreadToX({ posts: texts, env: env2 });
+
+  return {
+    ok: true,
+    dry_run: false,
+    date_local: dateLocal,
+    as_of: asOfISO,
+    posts: trimmed,
+    tweet_ids: tweetIds,
+    has_resonance: hasResonance,
+  };
+}
+
+async function runXNightPost(deps, opts = {}) {
+  const { env, storyService, renderers, dict } = deps || {};
+  if (!env) throw new Error("env required");
+  if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
+  if (!renderers?.renderXNight) throw new Error("renderers.renderXNight missing");
+
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
+  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+
+  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
+  const dateLocal = isYYYYMMDD(opts.dateLocal)
+    ? String(opts.dateLocal)
+    : toDateLocalJST(new Date(asOfISO));
+
+  const orbMaxDeg = Number.isFinite(Number(opts.orbMaxDeg)) ? Number(opts.orbMaxDeg) : 6;
+  const precisionDeg = Number.isFinite(Number(opts.precisionDeg)) ? Number(opts.precisionDeg) : 0.01;
+
+  if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
+    throw new Error("OPENAI_API_KEY missing");
+  }
+
+  const story = await storyService.buildStoryForUser(
+    normalizeStoryArgs({
+      appUserId: "public",
+      mode: "public",
+      dateLocal,
+      asOfISO,
+      orbMaxDeg,
+      precisionDeg,
+    })
+  );
+
+  const openai = {
+    apiKey: env2.OPENAI_API_KEY,
+    baseUrl: env2.OPENAI_BASE_URL,
+    model: env2.OPENAI_MODEL,
+  };
+
+  const meta = ensureXMeta(story);
+  if (useAi) {
+    const res = await generateXNightAiText({ story, dict, openai });
+    if (res?.ok && res.text) {
+      meta.x_ai.night = res.text;
+    } else {
+      return {
+        ok: false,
+        dry_run: dryRun,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        error: "ai_generation_failed",
+        details: [{ slot: "night", error: res?.error || "unknown", reason: res?.reason || "" }],
+      };
+    }
+  }
+
+  const { posts } = await buildNightPosts({ story, dict, renderers, openai, useAi: false });
+
+  const maxChars = Number.isFinite(Number(env2.X_POST_MAX_CHARS))
+    ? Number(env2.X_POST_MAX_CHARS)
+    : 270;
+
+  const trimmed = posts.map((post) => {
+    const res = truncateForX(post, maxChars);
+    return { text: res.text, truncated: res.truncated };
+  });
+
+  if (dryRun) {
+    return {
+      ok: true,
+      dry_run: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts: trimmed,
+    };
+  }
+
+  const text = trimmed[0]?.text || "";
+  const res = await postTweet({ text, env: env2 });
+
+  return {
+    ok: true,
+    dry_run: false,
+    date_local: dateLocal,
+    as_of: asOfISO,
+    posts: trimmed,
+    tweet_ids: [res?.id || ""],
+  };
+}
+
+module.exports = {
+  runXMorningPost,
+  runXNightPost,
+};

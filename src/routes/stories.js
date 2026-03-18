@@ -6,8 +6,15 @@ const { normalizeStoryArgs } = require("../usecases/story/story_args");
 const { buildRenderMap, resolvePrimaryKey, attachOutputs } = require("./stories_render");
 const { generateIgResonanceText } = require("../usecases/channels/ig/ig_resonance_ai");
 const { generateIgObservationText } = require("../usecases/channels/ig/ig_observation_ai");
+const { generateIgSkyOverviewText } = require("../usecases/channels/ig/ig_sky_overview_ai");
 const { generateIgTsukijiStructureText } = require("../usecases/channels/ig/ig_tsukiji_structure_ai");
 const { generateIgMoonText } = require("../usecases/channels/ig/ig_moon_ai");
+const { generateXSoraAiText } = require("../usecases/channels/x/generate_x_sora_ai");
+const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../usecases/channels/x/generate_x_resonance_ai");
+const { generateXNightAiText } = require("../usecases/channels/x/generate_x_night_ai");
+const { generateXMoonEventAiText, detectMoonEvent } = require("../usecases/channels/x/generate_x_moon_event_ai");
+const { generateXMonthlyAiText, buildMonthlyContext } = require("../usecases/channels/x/generate_x_monthly_ai");
+const { SPEC } = require("../config/sora_spec");
 
 // -------------------- helpers --------------------
 function isYYYYMMDD(s) {
@@ -44,6 +51,30 @@ function isValidISO(s) {
   if (typeof s !== "string" || !s) return false;
   const d = new Date(s);
   return !Number.isNaN(d.getTime());
+}
+
+function ensureIgOutputs(story) {
+  story.outputs = story.outputs && typeof story.outputs === "object" ? story.outputs : {};
+  story.outputs.ig = story.outputs.ig && typeof story.outputs.ig === "object" ? story.outputs.ig : {};
+  story.outputs.ig.source = story.outputs.ig.source && typeof story.outputs.ig.source === "object" ? story.outputs.ig.source : {};
+  story.outputs.ig.parts = story.outputs.ig.parts && typeof story.outputs.ig.parts === "object" ? story.outputs.ig.parts : {};
+  story.outputs.ig.rendered = story.outputs.ig.rendered && typeof story.outputs.ig.rendered === "object" ? story.outputs.ig.rendered : {};
+  story.outputs.ig.rendered.carousel = story.outputs.ig.rendered.carousel && typeof story.outputs.ig.rendered.carousel === "object"
+    ? story.outputs.ig.rendered.carousel
+    : {};
+  return story.outputs.ig;
+}
+
+function ensureXMeta(story) {
+  story.meta = story.meta || {};
+  story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+  story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
+  return story.meta;
+}
+
+function isMonthStartDateLocal(dateLocal) {
+  const parts = String(dateLocal || "").split("-");
+  return parts.length === 3 && parts[2] === "01";
 }
 
 /**
@@ -129,17 +160,22 @@ function createStoriesRouter(deps = {}) {
     !renderers?.renderDistributionLine ||
     !renderers?.renderNatalListFromcache ||
     !renderers?.renderX ||
+    !renderers?.renderXMorning ||
+    !renderers?.renderXNight ||
+    !renderers?.renderXResonance ||
+    !renderers?.renderXMoonEvent ||
+    !renderers?.renderXMonthly ||
     !renderers?.renderXThread ||
     !renderers?.renderIG ||
     !renderers?.renderThreads
   ) {
-    throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderXThread/renderIG/renderThreads) is missing");
+    throw new Error("deps.renderers (renderLine/renderSoraLine/renderDistributionLine/renderNatalListFromcache/renderX/renderXMorning/renderXNight/renderXResonance/renderXMoonEvent/renderXMonthly/renderXThread/renderIG/renderThreads) is missing");
   }
 
   async function maybeAttachIgResonanceText({ story, wantAi, appUserId, dateLocal }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    if (story.outputs?.ig?.resonance_text) return;
+    if (story.outputs?.ig?.parts?.resonance) return;
 
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
     const canGenerate = !!apiKey;
@@ -151,13 +187,16 @@ function createStoriesRouter(deps = {}) {
         const snap = await db.collection("stories").doc(docId).get();
         const saved = snap.exists ? snap.data() : null;
         const savedIg = saved?.outputs?.ig || null;
-        const savedText = savedIg?.resonance_text || savedIg?.carousel?.slide3_text || null;
+        const savedText =
+          savedIg?.parts?.resonance ||
+          savedIg?.rendered?.carousel?.slide3_text ||
+          savedIg?.resonance_text ||
+          savedIg?.carousel?.slide3_text ||
+          null;
         if (savedText) {
-          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-          story.outputs.ig.resonance_text = savedText;
-          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-          story.outputs.ig.carousel.slide3_text = savedIg?.carousel?.slide3_text || savedText;
+          const igOut = ensureIgOutputs(story);
+          igOut.parts.resonance = savedText;
+          igOut.rendered.carousel.slide3_text = savedIg?.rendered?.carousel?.slide3_text || savedIg?.carousel?.slide3_text || savedText;
           story.meta = story.meta || {};
           story.meta.ig_resonance_source = "saved";
           return;
@@ -181,11 +220,9 @@ function createStoriesRouter(deps = {}) {
       });
 
       if (result?.ok && result?.text) {
-        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-        story.outputs.ig.resonance_text = result.text;
-        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-        story.outputs.ig.carousel.slide3_text = result.text;
+        const igOut = ensureIgOutputs(story);
+        igOut.parts.resonance = result.text;
+        igOut.rendered.carousel.slide3_text = result.text;
         story.meta = story.meta || {};
         story.meta.ig_resonance_ai = {
           model: result.model || env2.OPENAI_MODEL || null,
@@ -206,7 +243,7 @@ function createStoriesRouter(deps = {}) {
   async function maybeAttachIgTsukijiStructure({ story, wantAi, appUserId, dateLocal }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    if (story.outputs?.ig?.carousel?.slide4_structure || story.outputs?.ig?.tsukiji_structure_text) return;
+    if (story.outputs?.ig?.parts?.structure_label) return;
 
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
     const canGenerate = !!apiKey;
@@ -217,13 +254,16 @@ function createStoriesRouter(deps = {}) {
         const snap = await db.collection("stories").doc(docId).get();
         const saved = snap.exists ? snap.data() : null;
         const savedIg = saved?.outputs?.ig || null;
-        const savedText = savedIg?.carousel?.slide4_structure || savedIg?.tsukiji_structure_text || null;
+        const savedText =
+          savedIg?.parts?.structure_label ||
+          savedIg?.rendered?.carousel?.slide4_label ||
+          savedIg?.carousel?.slide4_structure ||
+          savedIg?.tsukiji_structure_text ||
+          null;
         if (savedText) {
-          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-          story.outputs.ig.tsukiji_structure_text = savedText;
-          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-          story.outputs.ig.carousel.slide4_structure = savedText;
+          const igOut = ensureIgOutputs(story);
+          igOut.parts.structure_label = savedText;
+          igOut.rendered.carousel.slide4_label = savedIg?.rendered?.carousel?.slide4_label || savedIg?.carousel?.slide4_structure || savedText;
           story.meta = story.meta || {};
           story.meta.ig_tsukiji_source = "saved";
           return;
@@ -247,11 +287,9 @@ function createStoriesRouter(deps = {}) {
       });
 
       if (result?.ok && result?.text) {
-        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-        story.outputs.ig.tsukiji_structure_text = result.text;
-        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-        story.outputs.ig.carousel.slide4_structure = result.text;
+        const igOut = ensureIgOutputs(story);
+        igOut.parts.structure_label = result.text;
+        igOut.rendered.carousel.slide4_label = result.text;
         story.meta = story.meta || {};
         story.meta.ig_tsukiji_ai = {
           model: result.model || env2.OPENAI_MODEL || null,
@@ -272,7 +310,7 @@ function createStoriesRouter(deps = {}) {
   async function maybeAttachIgMoonText({ story, wantAi, appUserId, dateLocal }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    if (story.outputs?.ig?.moon_text) return;
+    if (story.outputs?.ig?.parts?.moon) return;
 
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
     const canGenerate = !!apiKey;
@@ -283,13 +321,16 @@ function createStoriesRouter(deps = {}) {
         const snap = await db.collection("stories").doc(docId).get();
         const saved = snap.exists ? snap.data() : null;
         const savedIg = saved?.outputs?.ig || null;
-        const savedText = savedIg?.moon_text || savedIg?.carousel?.slide2_text || null;
+        const savedText =
+          savedIg?.parts?.moon ||
+          savedIg?.rendered?.carousel?.slide2_text ||
+          savedIg?.moon_text ||
+          savedIg?.carousel?.slide2_text ||
+          null;
         if (savedText) {
-          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-          story.outputs.ig.moon_text = savedText;
-          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-          story.outputs.ig.carousel.slide2_text = savedIg?.carousel?.slide2_text || savedText;
+          const igOut = ensureIgOutputs(story);
+          igOut.parts.moon = savedText;
+          igOut.rendered.carousel.slide2_text = savedIg?.rendered?.carousel?.slide2_text || savedIg?.carousel?.slide2_text || savedText;
           story.meta = story.meta || {};
           story.meta.ig_moon_source = "saved";
           return;
@@ -313,11 +354,9 @@ function createStoriesRouter(deps = {}) {
       });
 
       if (result?.ok && result?.text) {
-        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-        story.outputs.ig.moon_text = result.text;
-        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-        story.outputs.ig.carousel.slide2_text = result.text;
+        const igOut = ensureIgOutputs(story);
+        igOut.parts.moon = result.text;
+        igOut.rendered.carousel.slide2_text = result.text;
         story.meta = story.meta || {};
         story.meta.ig_moon_ai = {
           model: result.model || env2.OPENAI_MODEL || null,
@@ -338,7 +377,7 @@ function createStoriesRouter(deps = {}) {
   async function maybeAttachIgObservationText({ story, wantAi, appUserId, dateLocal }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    if (story.outputs?.ig?.carousel?.slide1_observation || story.outputs?.ig?.observation_text) return;
+    if (story.outputs?.ig?.parts?.observation) return;
 
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
     const canGenerate = !!apiKey;
@@ -350,13 +389,16 @@ function createStoriesRouter(deps = {}) {
         const snap = await db.collection("stories").doc(docId).get();
         const saved = snap.exists ? snap.data() : null;
         const savedIg = saved?.outputs?.ig || null;
-        const savedText = savedIg?.carousel?.slide1_observation || savedIg?.observation_text || null;
+        const savedText =
+          savedIg?.parts?.observation ||
+          savedIg?.rendered?.carousel?.slide1_observation ||
+          savedIg?.carousel?.slide1_observation ||
+          savedIg?.observation_text ||
+          null;
         if (savedText) {
-          story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-          story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-          story.outputs.ig.observation_text = savedText;
-          story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-          story.outputs.ig.carousel.slide1_observation = savedText;
+          const igOut = ensureIgOutputs(story);
+          igOut.parts.observation = savedText;
+          igOut.rendered.carousel.slide1_observation = savedIg?.rendered?.carousel?.slide1_observation || savedIg?.carousel?.slide1_observation || savedText;
           story.meta = story.meta || {};
           story.meta.ig_observation_source = "saved";
           return;
@@ -380,11 +422,9 @@ function createStoriesRouter(deps = {}) {
       });
 
       if (result?.ok && result?.text) {
-        story.outputs = (story.outputs && typeof story.outputs === "object") ? story.outputs : {};
-        story.outputs.ig = (story.outputs.ig && typeof story.outputs.ig === "object") ? story.outputs.ig : { caption: "" };
-        story.outputs.ig.observation_text = result.text;
-        story.outputs.ig.carousel = story.outputs.ig.carousel || {};
-        story.outputs.ig.carousel.slide1_observation = result.text;
+        const igOut = ensureIgOutputs(story);
+        igOut.parts.observation = result.text;
+        igOut.rendered.carousel.slide1_observation = result.text;
         story.meta = story.meta || {};
         story.meta.ig_observation_ai = {
           model: result.model || env2.OPENAI_MODEL || null,
@@ -399,6 +439,266 @@ function createStoriesRouter(deps = {}) {
     } catch (e) {
       story.meta = story.meta || {};
       story.meta.ig_observation_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachIgSkyOverviewText({ story, wantAi, appUserId, dateLocal }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    if (story.outputs?.ig?.parts?.sky_overview) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    const canGenerate = !!apiKey;
+
+    try {
+      if (db && appUserId && dateLocal) {
+        const docId = `${appUserId}-${dateLocal}`;
+        const snap = await db.collection("stories").doc(docId).get();
+        const saved = snap.exists ? snap.data() : null;
+        const savedIg = saved?.outputs?.ig || null;
+        const savedText =
+          savedIg?.parts?.sky_overview ||
+          savedIg?.sky_overview_text ||
+          savedIg?.caption_sky_overview ||
+          null;
+        if (savedText) {
+          const igOut = ensureIgOutputs(story);
+          igOut.parts.sky_overview = savedText;
+          story.meta = story.meta || {};
+          story.meta.ig_sky_overview_source = "saved";
+          return;
+        }
+      }
+    } catch (_) {
+      // ignore saved lookup failure
+    }
+
+    if (!canGenerate) return;
+
+    try {
+      const result = await generateIgSkyOverviewText({
+        story,
+        dict,
+        openai: {
+          apiKey,
+          baseUrl: env2.OPENAI_BASE_URL,
+          model: env2.OPENAI_MODEL,
+        },
+      });
+
+      if (result?.ok && result?.text) {
+        const igOut = ensureIgOutputs(story);
+        igOut.parts.sky_overview = result.text;
+        story.meta = story.meta || {};
+        story.meta.ig_sky_overview_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+        story.meta.ig_sky_overview_source = "generated";
+      } else {
+        story.meta = story.meta || {};
+        story.meta.ig_sky_overview_ai_error = result?.error || "unknown";
+      }
+    } catch (e) {
+      story.meta = story.meta || {};
+      story.meta.ig_sky_overview_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachXSoraText({ story, wantAi, forceAi }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    const meta = ensureXMeta(story);
+    if (!forceAi && meta.x_ai?.morning) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      meta.x_sora_ai_error = "OPENAI_API_KEY missing";
+      return;
+    }
+
+    try {
+      const result = await generateXSoraAiText({
+        story,
+        dict,
+        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      });
+
+      if (result?.ok && result?.text) {
+        meta.x_ai.morning = result.text;
+        meta.x_sora_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+      } else {
+        meta.x_sora_ai_error = result?.error || "unknown";
+        if (result?.reason) meta.x_sora_ai_error_reason = result.reason;
+      }
+    } catch (e) {
+      meta.x_sora_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachXNightText({ story, wantAi, forceAi }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    const meta = ensureXMeta(story);
+    if (!forceAi && meta.x_ai?.night) return;
+
+    const picked = pickPrimaryResonanceAspect({ story, dict });
+    if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      meta.x_night_ai_error = "OPENAI_API_KEY missing";
+      return;
+    }
+
+    try {
+      const result = await generateXNightAiText({
+        story,
+        dict,
+        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      });
+
+      if (result?.ok && result?.text) {
+        meta.x_ai.night = result.text;
+        meta.x_night_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+      } else {
+        meta.x_night_ai_error = result?.error || "unknown";
+        if (result?.reason) meta.x_night_ai_error_reason = result.reason;
+      }
+    } catch (e) {
+      meta.x_night_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachXResonanceText({ story, wantAi, forceAi }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    const meta = ensureXMeta(story);
+    if (!forceAi && meta.x_ai?.resonance) return;
+
+    const maxOrb = Number(SPEC?.orb?.free ?? 1.5);
+    const picked = pickPrimaryResonanceAspect({ story, dict, maxOrbDeg: maxOrb });
+    if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
+    if (!picked) return;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      meta.x_resonance_ai_error = "OPENAI_API_KEY missing";
+      return;
+    }
+
+    try {
+      const result = await generateXResonanceAiText({
+        story,
+        dict,
+        aspect: picked,
+        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      });
+
+      if (result?.ok && result?.text) {
+        meta.x_ai.resonance = result.text;
+        meta.x_resonance_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+      } else {
+        meta.x_resonance_ai_error = result?.error || "unknown";
+        if (result?.reason) meta.x_resonance_ai_error_reason = result.reason;
+      }
+    } catch (e) {
+      meta.x_resonance_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachXMoonEventText({ story, wantAi, forceAi }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    const meta = ensureXMeta(story);
+    if (!forceAi && meta.x_ai?.moon_event) return;
+
+    const event = detectMoonEvent({ story, dict, asOfISO: story?.meta?.as_of });
+    if (!event) return;
+    meta.x_source.moon_event = event;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      meta.x_moon_event_ai_error = "OPENAI_API_KEY missing";
+      return;
+    }
+
+    try {
+      const result = await generateXMoonEventAiText({
+        story,
+        dict,
+        event,
+        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      });
+
+      if (result?.ok && result?.text) {
+        meta.x_ai.moon_event = result.text;
+        meta.x_moon_event_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+      } else {
+        meta.x_moon_event_ai_error = result?.error || "unknown";
+        if (result?.reason) meta.x_moon_event_ai_error_reason = result.reason;
+      }
+    } catch (e) {
+      meta.x_moon_event_ai_error = e?.message || String(e);
+    }
+  }
+
+  async function maybeAttachXMonthlyText({ story, wantAi, forceAi }) {
+    if (!wantAi) return;
+    if (!story || !story.public) return;
+    const dateLocal = story?.meta?.date_local || story?.public?.date_local || "";
+    if (!isMonthStartDateLocal(dateLocal)) return;
+
+    const meta = ensureXMeta(story);
+    if (!forceAi && meta.x_ai?.monthly) return;
+
+    const context = buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of });
+    meta.x_source.monthly_context = context;
+
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (!apiKey) {
+      meta.x_monthly_ai_error = "OPENAI_API_KEY missing";
+      return;
+    }
+
+    try {
+      const result = await generateXMonthlyAiText({
+        story,
+        dict,
+        context,
+        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      });
+
+      if (result?.ok && result?.text) {
+        meta.x_ai.monthly = result.text;
+        meta.x_monthly_ai = {
+          model: result.model || env2.OPENAI_MODEL || null,
+          chars: result.text.length,
+          generated_at_utc: new Date().toISOString(),
+        };
+      } else {
+        meta.x_monthly_ai_error = result?.error || "unknown";
+        if (result?.reason) meta.x_monthly_ai_error_reason = result.reason;
+      }
+    } catch (e) {
+      meta.x_monthly_ai_error = e?.message || String(e);
     }
   }
 
@@ -419,19 +719,31 @@ function createStoriesRouter(deps = {}) {
 
         // optional aliases
         x: "x",
+        x_morning: "x_morning",
+        x_morning_main: "x_morning_main",
+        x_morning_log: "x_morning_log",
+        x_night: "x_night",
+        x_resonance: "x_resonance",
+        x_moon_event: "x_moon_event",
+        x_monthly: "x_monthly",
         x_thread: "x_thread",
         xthread: "x_thread",
         x2: "x_thread",
         ig: "ig",
         threads: "threads",
+        threads_app: "threads",
         line: "line",
       };
 
       const ch = channelAlias[reqChannel] || reqChannel;
 
       const isSocial =
-        format === "x" || format === "x_thread" || format === "ig" || format === "threads" ||
-        ch === "x" || ch === "x_thread" || ch === "ig" || ch === "threads";
+        format === "x" || format === "x_thread" || format === "x_thread_text" || format === "thread_text" ||
+        format === "x_morning" || format === "x_morning_main" || format === "x_morning_log" || format === "x_night" ||
+        format === "x_resonance" || format === "x_moon_event" || format === "x_monthly" ||
+        format === "ig" || format === "threads" || format === "threads_app" ||
+        ch === "x" || ch === "x_thread" || ch === "x_morning" || ch === "x_morning_main" || ch === "x_morning_log" || ch === "x_night" ||
+        ch === "x_resonance" || ch === "x_moon_event" || ch === "x_monthly" || ch === "ig" || ch === "threads";
 
       const isSora = ch === "line_sora";
       const isDistribution = ch === "line_distribution";
@@ -472,6 +784,12 @@ function createStoriesRouter(deps = {}) {
       const igAiOff = igAiParam === "0" || igAiParam === "false" || igAiParam === "off";
       const igAiOn = boolish(req.query.ig_ai);
       const wantIgAi = !igAiOff && (igAiOn || save || format === "ig" || ch === "ig" || includeOutputs);
+      const wantXMorning = format === "x_morning" || format === "x_morning_main" || ch === "x_morning" || ch === "x_morning_main";
+      const wantXNight = format === "x_night" || ch === "x_night";
+      const wantXResonance = format === "x_resonance" || ch === "x_resonance";
+      const wantXMoonEvent = format === "x_moon_event" || ch === "x_moon_event";
+      const wantXMonthly = format === "x_monthly" || ch === "x_monthly";
+      const xAiForce = boolish(req.query.ai_force) || boolish(req.query.x_ai_force);
 
       // build story
       const story = await storyService.buildStoryForUser(
@@ -509,9 +827,17 @@ function createStoriesRouter(deps = {}) {
 
       // IG resonance AI (optional)
       await maybeAttachIgObservationText({ story, wantAi: wantIgAi, appUserId, dateLocal });
+      await maybeAttachIgSkyOverviewText({ story, wantAi: wantIgAi, appUserId, dateLocal });
       await maybeAttachIgMoonText({ story, wantAi: wantIgAi, appUserId, dateLocal });
       await maybeAttachIgResonanceText({ story, wantAi: wantIgAi, appUserId, dateLocal });
       await maybeAttachIgTsukijiStructure({ story, wantAi: wantIgAi, appUserId, dateLocal });
+
+      // X AI (on-demand per channel)
+      await maybeAttachXSoraText({ story, wantAi: wantXMorning, forceAi: xAiForce });
+      await maybeAttachXNightText({ story, wantAi: wantXNight, forceAi: xAiForce });
+      await maybeAttachXResonanceText({ story, wantAi: wantXResonance, forceAi: xAiForce });
+      await maybeAttachXMoonEventText({ story, wantAi: wantXMoonEvent, forceAi: xAiForce });
+      await maybeAttachXMonthlyText({ story, wantAi: wantXMonthly, forceAi: xAiForce });
 
       // --------------------
       // render only what is requested (NO collateral failures)
@@ -581,8 +907,26 @@ function createStoriesRouter(deps = {}) {
       if (format === "all") return res.json({ ok: true, saved, doc_id, meta: story.meta, story });
 
       // respond (single text channel)
-      if (format === "line" || format === "x" || format === "x_thread" || format === "ig" || format === "threads") {
+      if (
+        format === "line" ||
+        format === "x" ||
+        format === "x_morning" ||
+        format === "x_morning_main" ||
+        format === "x_morning_log" ||
+        format === "x_night" ||
+        format === "x_moon_event" ||
+        format === "x_monthly" ||
+        format === "x_thread" ||
+        format === "ig" ||
+        format === "threads" ||
+        format === "threads_app"
+      ) {
         return res.json({ ok: true, saved, doc_id, text: primaryText });
+      }
+
+      if (format === "x_thread_text" || format === "thread_text") {
+        res.setHeader("content-type", "text/plain; charset=utf-8");
+        return res.status(200).send(primaryText);
       }
 
       // text/plain

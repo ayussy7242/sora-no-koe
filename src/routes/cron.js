@@ -24,6 +24,7 @@ const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost } = require("../runners/cron/ig_post");
+const { runXMorningPost, runXNightPost } = require("../runners/cron/x_post");
 const { runDailyIgStoryDelivery } = require("../usecases/ig_story/run_daily_story_delivery");
 
 // -------------------- helpers --------------------
@@ -112,6 +113,9 @@ function createCronRouter(deps = {}) {
   if (!storyService?.buildStoryForUser) throw new Error("deps.storyService.buildStoryForUser is missing");
   if (!renderers?.renderLine || !renderers?.renderX || !renderers?.renderIG) {
     throw new Error("deps.renderers (renderLine/renderX/renderIG) is missing");
+  }
+  if (!renderers?.renderXMorning || !renderers?.renderXNight || !renderers?.renderXResonance) {
+    throw new Error("deps.renderers (renderXMorning/renderXNight/renderXResonance) is missing");
   }
 
   function requireCronToken(req) {
@@ -226,6 +230,79 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/story/daily" });
+    }
+  });
+
+  // ✅ POST /cron/x/morning : X朝投稿（2本 + 共鳴があれば3本）
+  router.post("/x/morning", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/morning" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
+
+      const asOfRaw = b.as_of || q.as_of;
+      const dtLocalRaw = b.datetime_local || q.datetime_local;
+      const asOfISO =
+        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
+        normalizeDateTimeLocalJST(dtLocalRaw) ||
+        null;
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const useAiRaw = b.ai ?? q.ai;
+      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+      const orbMaxDeg = toNumberSafe(b.orb_max_deg ?? q.orb_max_deg ?? b.orbMaxDeg ?? q.orbMaxDeg, undefined);
+      const precisionDeg = toNumberSafe(b.precision_deg ?? q.precision_deg ?? b.precisionDeg ?? q.precisionDeg, undefined);
+      const resonanceOrbMax = toNumberSafe(b.resonance_orb_max ?? q.resonance_orb_max ?? b.resonanceOrbMax ?? q.resonanceOrbMax, undefined);
+
+      const result = await runXMorningPost(
+        { env, storyService, renderers, dict },
+        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, resonanceOrbMax }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/morning" });
+    }
+  });
+
+  // ✅ POST /cron/x/night : X夜投稿（単発）
+  router.post("/x/night", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/night" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
+
+      const asOfRaw = b.as_of || q.as_of;
+      const dtLocalRaw = b.datetime_local || q.datetime_local;
+      const asOfISO =
+        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
+        normalizeDateTimeLocalJST(dtLocalRaw) ||
+        null;
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const useAiRaw = b.ai ?? q.ai;
+      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+      const orbMaxDeg = toNumberSafe(b.orb_max_deg ?? q.orb_max_deg ?? b.orbMaxDeg ?? q.orbMaxDeg, undefined);
+      const precisionDeg = toNumberSafe(b.precision_deg ?? q.precision_deg ?? b.precisionDeg ?? q.precisionDeg, undefined);
+
+      const result = await runXNightPost(
+        { env, storyService, renderers, dict },
+        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/night" });
     }
   });
 
