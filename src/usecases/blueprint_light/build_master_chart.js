@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const dict = require("../../content/dict");
 const HOUSE_DEFAULT_ASC = 1;
 
 const SIGN_EN_MAP = Object.freeze({
@@ -22,6 +23,24 @@ const SIGN_EN_MAP = Object.freeze({
 function mapSignEn(signKey, signJa) {
   if (signKey && SIGN_EN_MAP[signKey]) return SIGN_EN_MAP[signKey];
   return signJa || "";
+}
+
+function buildFallbackCounts(planets) {
+  const element = { fire: 0, earth: 0, air: 0, water: 0 };
+  const modality = { cardinal: 0, fixed: 0, mutable: 0 };
+  const signDict = dict?.SIGNS_V2?.signs || {};
+  planets.forEach((p) => {
+    const key = p?.sign_key;
+    if (!key || !signDict[key]) return;
+    const meta = signDict[key] || {};
+    if (meta.element && element[meta.element] !== undefined) element[meta.element] += 1;
+    if (meta.modality && modality[meta.modality] !== undefined) modality[meta.modality] += 1;
+  });
+  return { element, modality };
+}
+
+function hasNonZeroCounts(counts, keys) {
+  return keys.some((k) => Number(counts?.[k] || 0) > 0);
 }
 
 function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
@@ -103,6 +122,22 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
       }))
     : [];
 
+  const aspectPlacements = planets.reduce((acc, p) => {
+    if (!p?.key) return acc;
+    acc[p.key] = {
+      sign_ja: p.sign_ja || "",
+      degree: Number.isFinite(Number(p.degree)) ? Number(p.degree) : null,
+      house: Number.isFinite(Number(p.house)) ? Number(p.house) : null,
+    };
+    return acc;
+  }, {});
+
+  const aspectsEnriched = aspects.map((row) => ({
+    ...row,
+    p1: aspectPlacements[row.p1_key] || { sign_ja: "", degree: null, house: null },
+    p2: aspectPlacements[row.p2_key] || { sign_ja: "", degree: null, house: null },
+  }));
+
   const angleRows = Array.isArray(kernel?.angles) ? kernel.angles : [];
   const angles = angleRows.reduce((acc, row) => {
     const meta = row?.kernel?.meta || {};
@@ -154,8 +189,15 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
     return res;
   })();
 
-  const elementCounts = kernel?.summary?.element?.counts || {};
-  const modalityCounts = kernel?.summary?.modality?.counts || {};
+  const elementCountsRaw = kernel?.summary?.element?.counts || {};
+  const modalityCountsRaw = kernel?.summary?.modality?.counts || {};
+  const fallbackCounts = buildFallbackCounts(planets);
+  const elementCounts = hasNonZeroCounts(elementCountsRaw, ["fire", "earth", "air", "water"])
+    ? elementCountsRaw
+    : fallbackCounts.element;
+  const modalityCounts = hasNonZeroCounts(modalityCountsRaw, ["cardinal", "fixed", "mutable"])
+    ? modalityCountsRaw
+    : fallbackCounts.modality;
   const houseCounts = kernel?.houses?.counts || {};
 
   const dominantHouses = (() => {
@@ -166,7 +208,7 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
   })();
 
   const majorAspects = (() => {
-    const list = aspects
+    const list = aspectsEnriched
       .filter((a) => a && a.p1 && a.p2)
       .sort((a, b) => (a.orb ?? 99) - (b.orb ?? 99));
     return list.slice(0, 6);
@@ -212,6 +254,7 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
     nodes,
     extras,
     aspects,
+    aspects_enriched: aspectsEnriched,
     angles,
     angular_planets: angularPlanets,
     dominant_signs: dominantSigns,

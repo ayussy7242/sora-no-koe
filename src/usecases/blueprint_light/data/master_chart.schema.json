@@ -139,6 +139,35 @@
         }
       }
     },
+    "aspects_enriched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["p1_key", "p2_key", "type", "p1", "p2"],
+        "properties": {
+          "p1_key": { "type": "string" },
+          "p2_key": { "type": "string" },
+          "type": { "type": "string" },
+          "orb": { "type": ["number", "null"] },
+          "p1": {
+            "type": "object",
+            "properties": {
+              "sign_ja": { "type": "string" },
+              "degree": { "type": ["number", "null"] },
+              "house": { "type": ["number", "null"] }
+            }
+          },
+          "p2": {
+            "type": "object",
+            "properties": {
+              "sign_ja": { "type": "string" },
+              "degree": { "type": ["number", "null"] },
+              "house": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    },
     "angular_planets": {
       "type": ["object", "null"],
       "properties": {

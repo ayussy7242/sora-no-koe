@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON,
-} = require("../../../content/prompts/sora_ai_prompts");
+} = require("../../../content/prompts/sora/sora_ai_prompts");
 const { buildTodayMoonInfo } = require("../../../domain/moon_info");
 
 function safeText(x) {

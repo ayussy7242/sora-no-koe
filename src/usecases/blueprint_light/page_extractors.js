@@ -1,5 +1,7 @@
 "use strict";
 
+const { buildChartTypeFromPlanets } = require("../../utils/chart_type");
+
 function getSysPageData(master, identity = {}) {
   const planets = master?.planets || [];
   const sun = findPlanet(planets, "sun");
@@ -18,7 +20,7 @@ function getSysPageData(master, identity = {}) {
       moon: pickPlacement(moon),
       asc: pickPoint(asc),
     },
-    cosmic_focus: {
+    driving_force: {
       focus_planets: focusPlanets,
       focus_house: focusHouse,
       focus_label: focusHouse ? `${focusHouse}ハウス集中` : "",
@@ -38,6 +40,8 @@ function getSysPageData(master, identity = {}) {
 }
 
 function getMapPageData(master) {
+  const elementBalance = master?.element_balance || {};
+  const modalityBalance = master?.modality_balance || {};
   const dominantSigns = Array.isArray(master?.dominant_signs) && master.dominant_signs.length
     ? master.dominant_signs.map((row) => ({
         sign: row.sign_ja || row.sign || row.sign_key || "",
@@ -55,12 +59,39 @@ function getMapPageData(master) {
   const secondaryElement = pickSecondaryElement(master?.element_balance, dominantElement);
   const focusHouse = pickDominantHouse(master?.house_counts);
   const focusPlanets = (focusHouse && master?.planet_distribution?.[focusHouse]) || [];
+  const elementBalanceJa = {
+    火: elementBalance.fire ?? 0,
+    地: elementBalance.earth ?? 0,
+    風: elementBalance.air ?? 0,
+    水: elementBalance.water ?? 0,
+  };
+  const modalityBalanceJa = {
+    活動: modalityBalance.cardinal ?? 0,
+    不動: modalityBalance.fixed ?? 0,
+    柔軟: modalityBalance.mutable ?? 0,
+  };
+  const elementBalanceText = `火${elementBalanceJa.火} / 地${elementBalanceJa.地} / 風${elementBalanceJa.風} / 水${elementBalanceJa.水}`;
+  const modalityBalanceText = `活動${modalityBalanceJa.活動} / 不動${modalityBalanceJa.不動} / 柔軟${modalityBalanceJa.柔軟}`;
+  const planetDistribution = master?.planet_distribution || {};
+  const planetDistributionCounts = Object.entries(planetDistribution).reduce((acc, [house, list]) => {
+    acc[house] = Array.isArray(list) ? list.length : 0;
+    return acc;
+  }, {});
+  const planetDistributionText = Object.entries(planetDistributionCounts)
+    .map(([house, count]) => `${house}H:${count}`)
+    .join(", ");
   return {
-    element_balance: master?.element_balance || {},
-    modality_balance: master?.modality_balance || {},
+    element_balance: elementBalance,
+    element_balance_ja: elementBalanceJa,
+    element_balance_text: elementBalanceText,
+    modality_balance: modalityBalance,
+    modality_balance_ja: modalityBalanceJa,
+    modality_balance_text: modalityBalanceText,
     dominant_signs: dominantSigns,
     dominant_houses: dominantHouses,
-    planet_distribution: master?.planet_distribution || {},
+    planet_distribution: planetDistribution,
+    planet_distribution_counts: planetDistributionCounts,
+    planet_distribution_text: planetDistributionText,
     energy_flow_inputs: {
       dominant_element: dominantElement,
       dominant_modality: dominantModality,
@@ -77,12 +108,17 @@ function getMapPageData(master) {
 }
 
 function getObsPageData(master) {
+  const aspectsEnriched = Array.isArray(master?.aspects_enriched) ? master.aspects_enriched : [];
+  const majorAspects =
+    Array.isArray(master?.major_aspects) && master.major_aspects.length
+      ? master.major_aspects
+      : aspectsEnriched;
   return {
     wheel: {
       planets: master?.planets || [],
       asc: master?.ascendant || {},
       house_cusps: master?.house_cusps || [],
-      major_aspects: master?.aspects || [],
+      major_aspects: majorAspects,
     },
     observation_focus: buildObservationFocus(master),
   };
@@ -161,8 +197,14 @@ function getDeepPageData(master) {
 }
 
 function getAspectPageData(master) {
+  const aspectsEnriched = Array.isArray(master?.aspects_enriched) ? master.aspects_enriched : [];
+  const majorAspects =
+    Array.isArray(master?.major_aspects) && master.major_aspects.length
+      ? master.major_aspects
+      : aspectsEnriched;
   return {
-    major_aspects: master?.aspects || [],
+    major_aspects: majorAspects,
+    aspects_enriched: aspectsEnriched,
     network_focus: {
       core_cluster: pickDominantPlanets(master?.planets || []),
       supportive: [],
@@ -233,11 +275,7 @@ function pickDominantPlanets(planets = []) {
 }
 
 function buildChartType(master) {
-  return {
-    pattern: "Cluster",
-    hemisphere: "",
-    polarity: "",
-  };
+  return buildChartTypeFromPlanets(master?.planets || []);
 }
 
 function pickDominantSignsWithReason(master = {}) {

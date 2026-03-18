@@ -30,10 +30,10 @@
     "start": "functions-framework --source=index.js --target=app --port=${PORT:-8080}",
     "start:run": "functions-framework --source=index.js --target=app --port=${PORT:-8080}",
     "dev": "nodemon --watch . --ext js,json --exec \"functions-framework --source=index.js --target=app --port=8080\"",
-    "export:dict": "node scripts/export_dictionaries_json.js",
-    "export:dict:fb": "node scripts/export_dictionaries_json.js --firebase --db sora-no-koe-db",
-    "export:dict:dry": "node scripts/export_dictionaries_json.js --firebase --db sora-no-koe-db --dry-run",
-    "export:aspects": "node scripts/export_aspects_json.js"
+    "export:dict": "node scripts/export/export_dictionaries_json.js",
+    "export:dict:fb": "node scripts/export/export_dictionaries_json.js --firebase --db sora-no-koe-db",
+    "export:dict:dry": "node scripts/export/export_dictionaries_json.js --firebase --db sora-no-koe-db --dry-run",
+    "export:aspects": "node scripts/export/export_aspects_json.js"
   },
   "_moduleAliases": {
     "@src": "src",

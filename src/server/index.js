@@ -10,10 +10,20 @@
  * - No Express logic here
  */
 
+const fs = require("fs");
 const path = require("path");
-require("dotenv").config({
-  path: path.join(__dirname, "..", "..", ".env"),
-});
+const dotenv = require("dotenv");
+const configEnvPath = path.join(__dirname, "..", "..", "config", ".env");
+const rootEnvPath = path.join(__dirname, "..", "..", ".env");
+const isCloudRun = !!(process.env.K_SERVICE || process.env.K_REVISION || process.env.K_CONFIGURATION);
+if (!isCloudRun) {
+  if (fs.existsSync(configEnvPath)) {
+    dotenv.config({ path: configEnvPath });
+  }
+  if (fs.existsSync(rootEnvPath)) {
+    dotenv.config({ path: rootEnvPath });
+  }
+}
 
 const functions = require("@google-cloud/functions-framework");
 const { createApp } = require("./app");
