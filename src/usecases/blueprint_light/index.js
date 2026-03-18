@@ -40,6 +40,7 @@ function toSignMeta(dict, lon) {
   const key = SIGN_KEYS[idx] || null;
   const sign = dict?.SIGNS_V2?.signs?.[key] || {};
   return {
+    lon_deg: v,
     sign_key: key,
     sign_ja: sign?.label_ja || key || "（不明）",
     element: sign?.element || null,
@@ -119,6 +120,29 @@ function buildBirthText(birth) {
   if (time) parts.push(time);
   if (place) parts.push(place);
   return parts.length ? `出生: ${parts.join(" / ")}` : "";
+}
+
+async function resolveDisplayName({ db, appUserId, lineUser }) {
+  const fromLine =
+    lineUser?.line_profile?.display_name ||
+    lineUser?.profile?.display_name ||
+    lineUser?.display_name ||
+    "";
+  if (fromLine) return fromLine;
+  if (!db || !appUserId) return "";
+  try {
+    const snap = await db.collection("users").doc(appUserId).get();
+    if (!snap.exists) return "";
+    const ud = snap.data() || {};
+    return (
+      ud.display_name ||
+      ud?.profile?.display_name ||
+      ud?.channels?.line?.profile?.display_name ||
+      ""
+    );
+  } catch (_) {
+    return "";
+  }
 }
 
 function buildFactLine(row) {
@@ -1125,6 +1149,61 @@ function buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) {
   };
 }
 
+function normalizeCuspsFromNatalCache(natalCache) {
+  const hs = natalCache?.houses || natalCache?.engine?.houses || {};
+  const cuspsRaw = hs.cusps || hs.house || hs.cusp || null;
+  if (!Array.isArray(cuspsRaw) || cuspsRaw.length < 12) return null;
+  if (cuspsRaw.length === 13) return cuspsRaw.slice(1).map((v) => Number(v));
+  return cuspsRaw.slice(0, 12).map((v) => Number(v));
+}
+
+function getHouseFromCusps(lon, cusps) {
+  const v = norm360(lon);
+  if (!Number.isFinite(v) || !Array.isArray(cusps) || cusps.length !== 12) return null;
+  for (let i = 0; i < 12; i += 1) {
+    const start = norm360(cusps[i]);
+    const end = norm360(cusps[(i + 1) % 12]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    if (start <= end) {
+      if (v >= start && v < end) return i + 1;
+    } else {
+      if (v >= start || v < end) return i + 1;
+    }
+  }
+  return null;
+}
+
+function buildHouseEmphasisFromCusps({ rowsMain, rowsExtra, cusps, dict, system }) {
+  if (!Array.isArray(cusps) || cusps.length !== 12) return null;
+  const counts = {};
+  const placements = [];
+  const rows = [...(rowsMain || []), ...(rowsExtra || [])];
+  rows.forEach((row) => {
+    const lon = row?.meta?.lon_deg ?? row?.meta?.lon ?? null;
+    const houseNo = getHouseFromCusps(lon, cusps);
+    if (!houseNo) return;
+    counts[houseNo] = (counts[houseNo] || 0) + 1;
+    placements.push({
+      key: row.key,
+      label: row.label,
+      house_no: houseNo,
+      sign_key: row.meta?.sign_key || "",
+      sign_ja: row.meta?.sign_ja || "",
+    });
+  });
+  const sorted = Object.entries(counts)
+    .map(([houseNo, count]) => ({ house_no: Number(houseNo), count }))
+    .sort((a, b) => (b.count - a.count) || (a.house_no - b.house_no));
+  const emphasis = sorted.filter((row) => row.count >= 2).map((row) => row.house_no);
+  return {
+    system: system || null,
+    counts,
+    top: sorted.slice(0, 3),
+    emphasis,
+    placements,
+  };
+}
+
 function buildMajorAspectDefs(dict) {
   const major = dict?.ASPECTS?.major || {};
   const orbRules = dict?.ORB_RULES_V1?.aspect_by_type || {};
@@ -1206,12 +1285,15 @@ function buildNatalAspects({ longitudes, rowsMain, dict, max = 5 } = {}) {
   return out.slice(0, max);
 }
 
-function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict, longitudes, identity }) {
+function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict, longitudes, identity, cusps, houseSystem }) {
   const elementKernel = buildElementKernel(element || {});
   const modalityKernel = buildModalityKernel(modality || {});
   const elementBiasTerms = buildElementBiasTerms(element || {});
   const modalityBiasTerms = buildModalityBiasTerms(modality || {});
-  const houseEmphasis = buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) || {};
+  const houseEmphasis =
+    buildHouseEmphasisFromCusps({ rowsMain, rowsExtra, cusps, dict, system: houseSystem }) ||
+    buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) ||
+    {};
   const houseNoByKey = new Map((houseEmphasis.placements || []).map((row) => [row.key, row.house_no]));
 
   const bodies = rowsMain.map((row) => ({
@@ -1342,13 +1424,13 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
       no_fortune: true,
     },
     identity: {
-      name: identity?.name || displayName || "",
+      name: "",
       birth_date: identity?.birth_date || "",
       birth_time: identity?.birth_time || "",
       birth_place: identity?.birth_place || "",
     },
     user: {
-      display_name: displayName || "",
+      display_name: "",
     },
     kernel,
   };
@@ -1515,6 +1597,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
     const { ok, longitudes } = natalService.extractNatalLongitudes(natalCache);
     if (!ok) throw new Error("natal_cache invalid");
+    const cusps = normalizeCuspsFromNatalCache(natalCache);
+    const houseSystem = natalCache?.houses?.system || natalCache?.engine?.houses?.system || null;
 
     const {
       rowsMain,
@@ -1565,7 +1649,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     });
 
     const birthText = buildBirthText(natalCache?.birth || {});
-    const displayName = lineUser?.line_profile?.display_name || "";
+    const displayName = await resolveDisplayName({ db, appUserId, lineUser });
 
     const skipAi = toBool(env?.BLUEPRINT_SKIP_AI || process.env.BLUEPRINT_SKIP_AI || "");
     let aiData = null;
@@ -1616,6 +1700,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
         modality,
         dict,
         longitudes,
+        cusps,
+        houseSystem,
         identity: aiIdentity,
       });
       const aiRes = useV25
@@ -1797,7 +1883,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     } = buildBlueprintLightRows({ longitudes, dict });
 
     const birthText = buildBirthText(natalCache?.birth || {});
-    const displayName = lineUser?.line_profile?.display_name || "";
+    const displayName = await resolveDisplayName({ db, appUserId, lineUser });
 
     let bgImages = null;
     let story = null;

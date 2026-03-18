@@ -305,7 +305,7 @@ Geo
 
 自動チェック（叩き台）
 ```bash
-CRON_TOKEN=YOUR_TOKEN node scripts/check_outputs.js
+CRON_TOKEN=YOUR_TOKEN node scripts/debug/check_outputs.js
 ```
 
 ---

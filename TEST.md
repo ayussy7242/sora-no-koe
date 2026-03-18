@@ -238,12 +238,12 @@ No-Go（修正戻し）
 
 簡易チェック（機械的に検出）
 ```bash
-CRON_TOKEN=YOUR_TOKEN node scripts/check_outputs.js
+CRON_TOKEN=YOUR_TOKEN node scripts/debug/check_outputs.js
 ```
 
 出力先
 - デフォルト: `/tmp/sora_checks`
 - 変更する場合:
 ```bash
-CHECK_OUT_DIR=/tmp/sora_checks node scripts/check_outputs.js
+CHECK_OUT_DIR=/tmp/sora_checks node scripts/debug/check_outputs.js
 ```

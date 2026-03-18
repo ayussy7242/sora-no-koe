@@ -26,6 +26,32 @@ function normalizeSymbol(glyph) {
   return String(glyph || "").replace(/\uFE0E|\uFE0F/g, "");
 }
 
+function calcAscLon(rowsAngles = []) {
+  const ascRow = Array.isArray(rowsAngles) ? rowsAngles.find((row) => row?.key === "asc") : null;
+  const meta = ascRow?.meta;
+  const signKey = meta?.sign_key;
+  const idx = SIGN_KEYS.indexOf(String(signKey || ""));
+  if (idx < 0) return null;
+  const deg = Number(meta?.deg);
+  if (!Number.isFinite(deg)) return null;
+  const min = Number(meta?.min);
+  const minPart = Number.isFinite(min) ? min / 60 : 0;
+  return idx * 30 + deg + minPart;
+}
+
+function calcMcLon(rowsAngles = []) {
+  const mcRow = Array.isArray(rowsAngles) ? rowsAngles.find((row) => row?.key === "mc") : null;
+  const meta = mcRow?.meta;
+  const signKey = meta?.sign_key;
+  const idx = SIGN_KEYS.indexOf(String(signKey || ""));
+  if (idx < 0) return null;
+  const deg = Number(meta?.deg);
+  if (!Number.isFinite(deg)) return null;
+  const min = Number(meta?.min);
+  const minPart = Number.isFinite(min) ? min / 60 : 0;
+  return idx * 30 + deg + minPart;
+}
+
 const SPACE = Object.freeze({
   xs: 4,
   sm: 8,
@@ -1235,6 +1261,9 @@ async function renderPdfBufferMobileV25({
   bgImages: bgImagesInput,
   story: storyInput,
 }) {
+  const ascLon = calcAscLon(rowsAngles);
+  const mcLon = calcMcLon(rowsAngles);
+  const wheelRotationDeg = Number.isFinite(Number(ascLon)) ? 270 - Number(ascLon) : 0;
   const elementCounts = blueprintText?.master_chart?.element_balance || collectElementCounts(rowsMain || []);
   const dateLabel = birthText || "";
   const story = storyInput || buildStoryStub({
@@ -1262,6 +1291,9 @@ async function renderPdfBufferMobileV25({
       bg_images: bgImages,
       elementCounts,
       modalityCounts: blueprintText?.master_chart?.modality_balance || collectModalityCounts(rowsMain || []),
+      wheelRotationDeg,
+      wheelAscLon: Number.isFinite(Number(ascLon)) ? Number(ascLon) : null,
+      wheelMcLon: Number.isFinite(Number(mcLon)) ? Number(mcLon) : null,
     },
     useSpace: true,
   });

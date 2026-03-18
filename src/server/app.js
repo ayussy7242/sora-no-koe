@@ -10,6 +10,7 @@ const { createTransitRouter } = require("../routes/transit");
 const { createStoriesRouter } = require("../routes/stories");
 const { createLineRouter } = require("../routes/line");
 const { createCronRouter } = require("../routes/cron");
+const { createIgRouter } = require("../routes/ig");
 const { createDebugRouter } = require("../routes/debug");
 const { createJobsRouter } = require("../routes/jobs");
 const { createStripeRouter } = require("../routes/stripe");
@@ -135,6 +136,7 @@ function createApp(deps = {}) {
   app.use("/transit", createTransitRouter(deps));
   app.use("/stories", createStoriesRouter(deps));
   app.use("/line", createLineRouter(deps));
+  app.use("/ig", createIgRouter(deps));
   app.use("/cron", createCronRouter(deps));
   // Stripe webhook: /api/stripe (primary) + /stripe (legacy)
   app.use("/api/stripe", createStripeRouter(deps));

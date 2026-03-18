@@ -8,7 +8,7 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-} = require("../../../content/prompts/sora_ai_prompts");
+} = require("../../../content/prompts/sora/sora_ai_prompts");
 const {
   BLOG_BLOCKS_USER_GUIDE,
   BLOG_BLOCK_SECTION_GUIDE,
@@ -22,7 +22,7 @@ const {
   BLOG_LONG_ELEMENTS_GUIDE,
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
-} = require("../../../content/prompts/blog_blocks");
+} = require("../../../content/prompts/blog/blog_blocks");
 const { SPEC } = require("../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../domain/touch_point_scoring");

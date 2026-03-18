@@ -6,7 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_TODAY,
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
-} = require("../../content/prompts/sora_ai_prompts");
+} = require("../../content/prompts/sora/sora_ai_prompts");
 const { buildTodayMoonInfo } = require("../../domain/moon_info");
 const { formatAspectDisplay } = require("../../presenters/format/format/line_common");
 const { bodyLabelJa, signLabelJa } = require("../../presenters/shared/text/tokens");

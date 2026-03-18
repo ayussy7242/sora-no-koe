@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
-} = require("../../../content/prompts/sora_ai_prompts");
+} = require("../../../content/prompts/sora/sora_ai_prompts");
 const { signJa } = require("../../../presenters/format/format/line_common");
 
 function safeText(x) {
@@ -13,6 +13,13 @@ function safeText(x) {
 
 function countChars(text) {
   return Array.from(String(text || "")).length;
+}
+
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildSignCountsLine({ story, dict }) {
@@ -66,16 +73,12 @@ function buildIgObservationPrompt({ story, dict }) {
 }
 
 function validateObservation(text) {
-  const t = String(text || "").trim();
+  const t = normalizeText(text);
   if (!t) return { ok: false, reason: "empty" };
-  if (/\r|\n/.test(t)) return { ok: false, reason: "has_newline" };
-  if (/[。！？]/.test(t)) return { ok: false, reason: "has_punct" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (/(です|ます)/.test(t)) return { ok: false, reason: "has_polite" };
-  if (!t.endsWith("配置")) return { ok: false, reason: "not_end_with_haichi" };
   const len = countChars(t);
-  if (len < 18) return { ok: false, reason: `too_short:${len}` };
-  if (len > 32) return { ok: false, reason: `too_long:${len}` };
+  if (len < 12) return { ok: false, reason: `too_short:${len}` };
+  if (len > 60) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
@@ -112,7 +115,7 @@ async function generateIgObservationText({ story, dict, openai, maxRetries = 2 }
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。1文のみ・18〜28文字目安（最大32）・句点/改行なし・「あなた」禁止・「〜配置」で終了で再出力。";
+    retryNote = "前回は条件外でした。「あなた」を避けて短く整えて再出力。";
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };

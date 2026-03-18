@@ -153,13 +153,25 @@ function glyphPathForChar(fonts, ch, x, y, size, fill) {
   return "";
 }
 
-function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
+function buildSoraWheelSvg({
+  story,
+  dateLabel,
+  size = 1400,
+  rotationDeg = 0,
+  showAspects = true,
+  showHouses = false,
+  aspects = null,
+  ascLonDeg = null,
+  mcLonDeg = null,
+} = {}) {
   if (!story) throw new Error("buildSoraWheelSvg: story required");
 
   const w = Number(size) || 1400;
   const h = w;
   const cx = w / 2;
   const cy = h / 2;
+  const rotation = Number.isFinite(Number(rotationDeg)) ? Number(rotationDeg) : 0;
+  const applyRotation = (deg) => normalizeDeg(Number(deg) + rotation);
 
   // Radius design
   const outerR = w * 0.40;
@@ -167,6 +179,9 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
   const zodiacR = outerR + 28;
   const aspectDotR = innerR;
   const labelR = aspectDotR + 30;
+  const houseOuterR = innerR - 6;
+  const houseInnerR = innerR - 22;
+  const houseLabelR = innerR - 34;
 
   const planetSize = 28;
   const zodiacSize = 30;
@@ -178,6 +193,10 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
 
   const pub = story?.public || {};
   const transit = pub.transit_signs || {};
+  const ascLonFromStory = Number(transit?.asc?.lon_deg);
+  const mcLonFromStory = Number(transit?.mc?.lon_deg);
+  const ascLon = Number.isFinite(Number(ascLonDeg)) ? Number(ascLonDeg) : (Number.isFinite(ascLonFromStory) ? ascLonFromStory : null);
+  const mcLon = Number.isFinite(Number(mcLonDeg)) ? Number(mcLonDeg) : (Number.isFinite(mcLonFromStory) ? mcLonFromStory : null);
 
   const bodyOrder = [
     "sun",
@@ -202,7 +221,8 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
   bodyOrder.forEach((key) => {
     const lon = transit?.[key]?.lon_deg;
     if (!Number.isFinite(Number(lon))) return;
-    const dotPos = polarToCartesian(cx, cy, aspectDotR, lon);
+    const lonAdj = applyRotation(lon);
+    const dotPos = polarToCartesian(cx, cy, aspectDotR, lonAdj);
     const glyph =
       {
         sun: "☉",
@@ -223,7 +243,8 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
     points.push({
       key,
       lon,
-      lonNorm: normalizeDeg(lon),
+      lonAdj,
+      lonNorm: normalizeDeg(lonAdj),
       glyph,
       retro,
       x: dotPos.x,
@@ -266,8 +287,8 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
     group.forEach((p, i) => {
       const centered = i - (n - 1) / 2;
       const offset = centered * tangentStep;
-      const base = polarToCartesian(cx, cy, labelR, p.lon);
-      const shifted = addTangentialOffset(base.x, base.y, p.lon, offset);
+      const base = polarToCartesian(cx, cy, labelR, p.lonAdj);
+      const shifted = addTangentialOffset(base.x, base.y, p.lonAdj, offset);
       labelPoseByKey.set(p.key, { lx: shifted.x, ly: shifted.y });
     });
   });
@@ -278,7 +299,7 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
       p.lx = pose.lx;
       p.ly = pose.ly;
     } else {
-      const pos = polarToCartesian(cx, cy, labelR, p.lon);
+      const pos = polarToCartesian(cx, cy, labelR, p.lonAdj);
       p.lx = pos.x;
       p.ly = pos.y;
     }
@@ -286,30 +307,64 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
 
   // aspect lines (all)
   const aspectLines = [];
-  const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
-  skyAll.forEach((a) => {
-    const aKey = String(a?.a || "").toLowerCase();
-    const bKey = String(a?.b || "").toLowerCase();
-    const p1 = points.find((p) => p.key === aKey);
-    const p2 = points.find((p) => p.key === bKey);
-    if (!p1 || !p2) return;
-    const type = String(a?.type || a?.aspect || "").toLowerCase();
-    const hard = ["square", "opposition"].includes(type);
-    const soft = ["trine", "sextile"].includes(type);
-    const color = hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F";
-    const width = hard ? 0.8 : soft ? 0.7 : 0.6;
-    const opacity = hard ? 0.42 : soft ? 0.36 : 0.3;
-    const aPos = polarToCartesian(cx, cy, aspectDotR, p1.lon);
-    const bPos = polarToCartesian(cx, cy, aspectDotR, p2.lon);
-    aspectLines.push({ x1: aPos.x, y1: aPos.y, x2: bPos.x, y2: bPos.y, color, width, opacity });
-  });
+  const aspectSource = Array.isArray(aspects)
+    ? aspects
+    : (Array.isArray(pub.sky_all) ? pub.sky_all : []);
+  if (showAspects) {
+    aspectSource.forEach((a) => {
+      const aKey = String(a?.a || a?.a_key || "").toLowerCase();
+      const bKey = String(a?.b || a?.b_key || "").toLowerCase();
+      const p1 = points.find((p) => p.key === aKey);
+      const p2 = points.find((p) => p.key === bKey);
+      if (!p1 || !p2) return;
+      const type = String(a?.type || a?.aspect || "").toLowerCase();
+      const hard = ["square", "opposition"].includes(type);
+      const soft = ["trine", "sextile"].includes(type);
+      const color = hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F";
+      const width = hard ? 0.8 : soft ? 0.7 : 0.6;
+      const opacity = hard ? 0.42 : soft ? 0.36 : 0.3;
+      const aPos = polarToCartesian(cx, cy, aspectDotR, p1.lonAdj);
+      const bPos = polarToCartesian(cx, cy, aspectDotR, p2.lonAdj);
+      aspectLines.push({ x1: aPos.x, y1: aPos.y, x2: bPos.x, y2: bPos.y, color, width, opacity });
+    });
+  }
 
   const ringLines = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 12; i += 1) {
     const deg = i * 30;
-    const p1 = polarToCartesian(cx, cy, innerR, deg);
-    const p2 = polarToCartesian(cx, cy, outerR, deg);
+    const p1 = polarToCartesian(cx, cy, innerR, applyRotation(deg));
+    const p2 = polarToCartesian(cx, cy, outerR, applyRotation(deg));
     ringLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+  }
+
+  const houseLines = [];
+  const houseLabels = [];
+  if (showHouses && Number.isFinite(Number(ascLon))) {
+    for (let i = 0; i < 12; i += 1) {
+      const deg = Number(ascLon) + i * 30;
+      const p1 = polarToCartesian(cx, cy, houseInnerR, applyRotation(deg));
+      const p2 = polarToCartesian(cx, cy, houseOuterR, applyRotation(deg));
+      houseLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+      const labelDeg = Number(ascLon) + i * 30 + 15;
+      const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(labelDeg));
+      houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
+    }
+  }
+
+  const angleLabels = [];
+  if (showHouses && Number.isFinite(Number(ascLon))) {
+    const angles = [
+      { key: "ASC", lon: Number(ascLon) },
+      { key: "DC", lon: Number(ascLon) + 180 },
+    ];
+    if (Number.isFinite(Number(mcLon))) {
+      angles.push({ key: "MC", lon: Number(mcLon) });
+      angles.push({ key: "IC", lon: Number(mcLon) + 180 });
+    }
+    angles.forEach((a) => {
+      const pos = polarToCartesian(cx, cy, outerR + 18, applyRotation(a.lon));
+      angleLabels.push({ x: pos.x, y: pos.y, text: a.key });
+    });
   }
 
   const glowStrong = "#C6D6FF";
@@ -327,10 +382,19 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
   const ringLineGlowEls = ringLines
     .map((l) => `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${glowWeak}" stroke-width="1.2" opacity="0.18" filter="url(#wheelGlowWeak)"/>`)
     .join("");
+  const houseLineEls = houseLines
+    .map((l) => `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#2A2D4A" stroke-width="0.7"/>`)
+    .join("");
+  const houseLabelEls = houseLabels
+    .map((l) => `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="middle" fill="#B3B7E6" font-size="12" font-family="SoraBody,serif">${l.text}</text>`)
+    .join("");
+  const angleLabelEls = angleLabels
+    .map((l) => `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="middle" fill="#C8CBF2" font-size="12" font-family="SoraBody,serif">${l.text}</text>`)
+    .join("");
 
   const zodiacEls = Object.keys(SIGN_GLYPH)
     .map((key, i) => {
-      const deg = i * 30;
+      const deg = applyRotation(i * 30);
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
       return glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, "#B3B7E6");
@@ -338,7 +402,7 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
     .join("");
   const zodiacGlowEls = Object.keys(SIGN_GLYPH)
     .map((key, i) => {
-      const deg = i * 30;
+      const deg = applyRotation(i * 30);
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
       const glow = glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, glowStrong);
@@ -417,9 +481,12 @@ function buildSoraWheelSvg({ story, dateLabel, size = 1400 } = {}) {
     ringLineEls,
     zodiacEls,
     aspectEls,
+    houseLineEls,
+    houseLabelEls,
     pointEls,
     leaderEls,
     labelEls,
+    angleLabelEls,
     `</g>`,
     "",
     `</svg>`,

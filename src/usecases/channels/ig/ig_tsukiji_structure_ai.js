@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
-} = require("../../../content/prompts/sora_ai_prompts");
+} = require("../../../content/prompts/sora/sora_ai_prompts");
 const { normalizeBodyKey, normalizeAspectKey } = require("../../../domain/canonical");
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../domain/tsukiji_public");
 const { signJa, aspectInfo } = require("../../../presenters/format/format/line_common");

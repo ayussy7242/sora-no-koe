@@ -5,7 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
   SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
-} = require("../../../content/prompts/sora_ai_prompts");
+} = require("../../../content/prompts/sora/sora_ai_prompts");
 const { buildTodayMoonInfo } = require("../../../domain/moon_info");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
 const { normalizeBodyKey } = require("../../../domain/canonical");

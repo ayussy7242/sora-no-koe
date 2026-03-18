@@ -6,7 +6,7 @@ Slides 1, 3, and 4 are data-driven. Slide 2 uses the existing `sora_wheel` chart
 
 Files:
 - `src/integrations/media/ig_carousel.js`
-- `scripts/ig_carousel_preview.js`
+- `scripts/preview/ig_carousel_preview.js`
 
 ## Design Tokens
 Colors:
@@ -111,12 +111,12 @@ Wrap rules:
 
 AI integration (optional):
 - If `story.outputs.ig.carousel.slide3_text` (or `story.outputs.ig.resonance_text`) exists, use it as `structure`.
-- The IG resonance prompt lives in `src/content/prompts/ig.js` as `SORA_AI_USER_GUIDE_IG_RESONANCE`.
+- The IG resonance prompt lives in `src/content/prompts/sns/instagram/ig.js` as `SORA_AI_USER_GUIDE_IG_RESONANCE`.
   - 4文固定 / 2段落固定（1段落目2文＋2段落目2文）
   - 120〜140字目安（最大150字）
 
 Observation prompt (optional):
-- The IG observation prompt lives in `src/content/prompts/ig.js` as `SORA_AI_USER_GUIDE_IG_OBSERVATION`.
+- The IG observation prompt lives in `src/content/prompts/sns/instagram/ig.js` as `SORA_AI_USER_GUIDE_IG_OBSERVATION`.
 - 1文のみ / 18〜28文字目安（最大32文字） / 句点・改行なし / 「〜配置」または体言止めで閉じる
 
 Storage design:
@@ -163,15 +163,15 @@ Wrap rules:
 Generate sample slides:
 
 ```bash
-node scripts/ig_carousel_preview.js --date 2026-03-03 --story tmp/story.json
+node scripts/preview/ig_carousel_preview.js --date 2026-03-03 --story tmp/stories/story.json
 ```
 
 Output:
-- `tmp/ig-carousel/<date>/slide-1.png`
-- `tmp/ig-carousel/<date>/slide-2.png`
-- `tmp/ig-carousel/<date>/slide-3.png`
-- `tmp/ig-carousel/<date>/slide-4.png`
-- `tmp/ig-carousel/<date>/slide-5.png`
+- `tmp/ig/carousel/<date>/slide-1.png`
+- `tmp/ig/carousel/<date>/slide-2.png`
+- `tmp/ig/carousel/<date>/slide-3.png`
+- `tmp/ig/carousel/<date>/slide-4.png`
+- `tmp/ig/carousel/<date>/slide-5.png`
 
 ## Procedural Space Background (Daily Variant)
 The carousel background is generated per-day from story data. The same date + data yields the same universe.
