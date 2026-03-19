@@ -23,7 +23,7 @@ function nowIso(ms = Date.now()) {
   return new Date(ms).toISOString();
 }
 
-async function acquireBlogLock(db, slug) {
+async function acquireBlogLock(db, slug, { force = false } = {}) {
   const runId = typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -39,7 +39,7 @@ async function acquireBlogLock(db, slug) {
       const startedAtMs = Number(data.startedAtMs || 0);
       const isStale = startedAtMs > 0 && (now - startedAtMs) > BLOG_LOCK_TTL_MS;
 
-      if (status === "done") {
+      if (status === "done" && !force) {
         return { ok: false, reason: "done", data };
       }
       if (status === "running" && !isStale) {
@@ -68,7 +68,7 @@ async function markBlogLock(ref, patch) {
   }, { merge: true });
 }
 
-async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false, publish = undefined }) {
+async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false, publish = undefined, force = false }) {
   const t0 = Date.now();
   const mark = (label, meta = null) => {
     const ms = Date.now() - t0;
@@ -79,7 +79,7 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     }
   };
 
-  mark("start", { dateLocal, dryRun: !!dryRun });
+  mark("start", { dateLocal, dryRun: !!dryRun, force: !!force });
 
   requiredEnv("OPENAI_API_KEY", env.OPENAI_API_KEY);
   requiredEnv("WP_BASE_URL", env.WP_BASE_URL);
@@ -94,7 +94,7 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   let lockRef = null;
   let lockRunId = null;
   if (!dryRun) {
-    const lock = await acquireBlogLock(db, slug);
+    const lock = await acquireBlogLock(db, slug, { force });
     if (!lock.ok) {
       mark("lock_skip", { reason: lock.reason, slug });
       mark("end", { ok: true, skipped: true, reason: lock.reason, slug });
