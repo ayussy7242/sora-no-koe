@@ -320,9 +320,10 @@ function buildSoraWheelSvg({
       const type = String(a?.type || a?.aspect || "").toLowerCase();
       const hard = ["square", "opposition"].includes(type);
       const soft = ["trine", "sextile"].includes(type);
-      const color = hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F";
-      const width = hard ? 0.8 : soft ? 0.7 : 0.6;
-      const opacity = hard ? 0.42 : soft ? 0.36 : 0.3;
+      const isConjunction = type === "conjunction";
+      const color = isConjunction ? "#6B7FE0" : hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F";
+      const width = isConjunction ? 1.2 : hard ? 0.8 : soft ? 0.7 : 0.6;
+      const opacity = isConjunction ? 0.68 : hard ? 0.42 : soft ? 0.36 : 0.3;
       const aPos = polarToCartesian(cx, cy, aspectDotR, p1.lonAdj);
       const bPos = polarToCartesian(cx, cy, aspectDotR, p2.lonAdj);
       aspectLines.push({ x1: aPos.x, y1: aPos.y, x2: bPos.x, y2: bPos.y, color, width, opacity });

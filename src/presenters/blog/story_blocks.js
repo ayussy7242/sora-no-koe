@@ -35,6 +35,8 @@ const BODY_ORDER = [
   "chiron",
 ];
 
+const RESONANCE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
+
 function aspectMeta(typeRaw, deg) {
   const key = normalizeAspectKey(typeRaw, deg);
   return (
@@ -120,6 +122,12 @@ function formatAspectLine(item, retroMap = {}) {
   const angle = [aspectLabel, degText].filter(Boolean).join(" ");
   const tail = [angle, orbText ? `orb ${orbText}` : ""].filter(Boolean).join("｜");
   return `${pair}｜${tail}`.trim();
+}
+
+function isResonanceExcluded(item) {
+  const aKey = normalizeBodyKey(item?.a || "");
+  const bKey = normalizeBodyKey(item?.b || "");
+  return RESONANCE_EXCLUDE_BODIES.has(aKey) || RESONANCE_EXCLUDE_BODIES.has(bKey);
 }
 
 function formatResonanceHeading(item, retroMap = {}) {
@@ -238,7 +246,9 @@ function buildBlogBlocks(story, opts = {}) {
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
 
   const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
-  const resonancePool = skyAll.filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit);
+  const resonancePool = skyAll
+    .filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit)
+    .filter((it) => !isResonanceExcluded(it));
   const resonanceItems = resonancePool.map((it) => formatResonanceHeading(it, retroMap)).filter(Boolean);
   const resonanceTop = resonanceItems.slice(0, 3);
 

@@ -53,7 +53,7 @@ const FLOW_OVERVIEW = `
 const FLOW_POSITION_ITEM = `
 文章構造（1｜配置 ITEM）:
 - 1〜2段落。合計3〜5文で固定。
-- 260〜300字目安（最大300字）。
+- 180〜260字目安（最大260字）。
 - FACTSをもとに意味化して書く（羅列しない）。
 - サイン/度数/ハウス/逆行の要素を最低1つは本文に織り込む。
 - 大事な箇所は「」で1回だけ強調して読みやすくする。
@@ -142,12 +142,12 @@ const BLOG_BLOCKS_USER_GUIDE = `
 ブロック別の文章構造:
 - タイトルが「0｜今日の全体圧」なら: ${FLOW_OVERVIEW}
 - タイトルが「1｜配置」または「1｜きょうのソラの配置」なら: ITEMSは ${FLOW_POSITION_ITEM}（各アイテムに適用）
-- タイトルが「🌙 本日の月」なら: ITEMSは ${FLOW_MOON}
-- タイトルが「2｜共鳴」なら: ${FLOW_RESONANCE}
-- タイトルが「3｜🏠 はうす」なら: ITEMSは ${FLOW_HOUSE}（ログは事実のみでOK）
-- タイトルが「4｜🏠 ハウス集中」なら: ITEMSは ${FLOW_HOUSE_FOCUS_ITEM}
-- タイトルが「4｜🔥 元素／三区分」なら: ${FLOW_ELEMENTS}
-- タイトルが「6｜📅 近日」なら: ${FLOW_UPCOMING}
+- タイトルが「2｜🌙 本日の月」なら: ITEMSは ${FLOW_MOON}
+- タイトルが「3｜共鳴」なら: ${FLOW_RESONANCE}
+- タイトルが「4｜🏠 はうす」なら: ITEMSは ${FLOW_HOUSE}（ログは事実のみでOK）
+- タイトルが「5｜🏠 ハウス集中」なら: ITEMSは ${FLOW_HOUSE_FOCUS_ITEM}
+- タイトルが「6｜🔥 元素／三区分」なら: ${FLOW_ELEMENTS}
+- タイトルが「7｜📅 近日」なら: ${FLOW_UPCOMING}
 - タイトルが「8｜余韻」なら: ${FLOW_AFTERTASTE}
 
 ${BLOG_STYLE_CORE}
