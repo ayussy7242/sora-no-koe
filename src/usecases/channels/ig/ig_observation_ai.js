@@ -77,7 +77,6 @@ function validateObservation(text) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = countChars(t);
-  if (len < 12) return { ok: false, reason: `too_short:${len}` };
   if (len > 60) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
