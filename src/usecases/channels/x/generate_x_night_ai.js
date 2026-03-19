@@ -4,8 +4,9 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { X_NIGHT_USER_GUIDE } = require("../../../content/prompts/sns/x/x_night_prompts");
 const { signJa } = require("../../../presenters/format/format/line_common");
-const { calcTransitLon, norm360 } = require("../../../domain/astro_compute");
+const { calcTransitLon, norm360, formatDateYmdHm } = require("../../../domain/astro_compute");
 const { buildNextMoonEvents, orderedMoonEvents, lastMajorMoonEvent } = require("../../../domain/moon_info");
+const { toDateLocalJST } = require("../../../utils/time_utils");
 const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
 
 function safeText(x) {
@@ -59,6 +60,93 @@ function moonSignAtIso({ dict, iso }) {
   const key = signKeyFromLon(dict, lon);
   const label = key ? (signJa(dict, key) || "") : "";
   return { key, label };
+}
+
+function refineSignChangeTime({ dict, fromIso, toIso, targetKey, maxIterations = 20 }) {
+  const from = new Date(fromIso);
+  const to = new Date(toIso);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  if (!targetKey) return null;
+  let lo = from.getTime();
+  let hi = to.getTime();
+  if (lo >= hi) return null;
+
+  for (let i = 0; i < maxIterations; i += 1) {
+    if (hi - lo <= 60000) break; // 1分精度
+    const mid = Math.floor((lo + hi) / 2);
+    const sign = moonSignAtIso({ dict, iso: new Date(mid).toISOString() });
+    if (sign?.key === targetKey) {
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return new Date(hi);
+}
+
+function findPrevMoonSignChange({ dict, asOfISO, maxHours = 72, stepMinutes = 60 }) {
+  const base = new Date(asOfISO || Date.now());
+  if (Number.isNaN(base.getTime())) return null;
+  const current = moonSignAtIso({ dict, iso: base.toISOString() });
+  if (!current?.key) return null;
+
+  const maxSteps = Math.ceil((maxHours * 60) / stepMinutes);
+  let lastSameTime = base;
+  for (let i = 1; i <= maxSteps; i += 1) {
+    const t = new Date(base.getTime() - i * stepMinutes * 60000);
+    const sign = moonSignAtIso({ dict, iso: t.toISOString() });
+    if (sign?.key && sign.key !== current.key) {
+      const changeTime = refineSignChangeTime({
+        dict,
+        fromIso: t.toISOString(),
+        toIso: lastSameTime.toISOString(),
+        targetKey: current.key,
+      }) || lastSameTime;
+      const hoursAgo = (base.getTime() - changeTime.getTime()) / 3600000;
+      return { from: sign, to: current, date: changeTime, hoursAgo };
+    }
+    lastSameTime = t;
+  }
+  return null;
+}
+
+function findNextMoonSignChangeDetailed({ dict, asOfISO, maxHours = 72, stepMinutes = 60 }) {
+  const base = new Date(asOfISO || Date.now());
+  if (Number.isNaN(base.getTime())) return null;
+  const current = moonSignAtIso({ dict, iso: base.toISOString() });
+  if (!current?.key) return null;
+
+  const maxSteps = Math.ceil((maxHours * 60) / stepMinutes);
+  let prev = current;
+  let prevTime = base;
+  for (let i = 1; i <= maxSteps; i += 1) {
+    const t = new Date(base.getTime() + i * stepMinutes * 60000);
+    const next = moonSignAtIso({ dict, iso: t.toISOString() });
+    if (next?.key && next.key !== prev.key) {
+      const changeTime = refineSignChangeTime({
+        dict,
+        fromIso: prevTime.toISOString(),
+        toIso: t.toISOString(),
+        targetKey: next.key,
+      }) || t;
+      const hoursAhead = (changeTime.getTime() - base.getTime()) / 3600000;
+      return { from: current, to: next, date: changeTime, hoursAhead };
+    }
+    prev = next;
+    prevTime = t;
+  }
+  return null;
+}
+
+function tomorrowMidnightJstIso(asOfISO) {
+  const base = new Date(asOfISO || Date.now());
+  if (Number.isNaN(base.getTime())) return null;
+  const dateLocal = toDateLocalJST(base);
+  if (!dateLocal) return null;
+  const baseMidnight = new Date(`${dateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(baseMidnight.getTime())) return null;
+  const tomorrow = new Date(baseMidnight.getTime() + 24 * 3600000);
+  return tomorrow.toISOString();
 }
 
 function buildPhaseLabel({ kind, signLabel }) {
@@ -143,6 +231,19 @@ function buildXNightPrompt({ story, dict }) {
   const sun = transitSigns.sun || "";
   const moon = transitSigns.moon || "";
   const nextHints = buildNextTransitHints(story, dict);
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const lastChange = findPrevMoonSignChange({ dict, asOfISO });
+  const nextChange = findNextMoonSignChangeDetailed({ dict, asOfISO });
+  const tomorrowIso = tomorrowMidnightJstIso(asOfISO);
+  const tomorrowSign = tomorrowIso ? moonSignAtIso({ dict, iso: tomorrowIso }) : null;
+
+  const lastChangeText = lastChange?.date
+    ? `${formatDateYmdHm(lastChange.date)}（${lastChange.to?.label || ""}入り）`
+    : "";
+  const nextChangeText = nextChange?.date
+    ? `${formatDateYmdHm(nextChange.date)}（${nextChange.to?.label || ""}へ）`
+    : "";
+  const tomorrowText = tomorrowSign?.label || "";
 
   return [
     X_NIGHT_USER_GUIDE,
@@ -154,6 +255,9 @@ function buildXNightPrompt({ story, dict }) {
     `SKY_STRATA.element_count: ${JSON.stringify(elementCount)}`,
     `SKY_STRATA.modality_count: ${JSON.stringify(modalityCount)}`,
     `NEXT_TRANSIT_HINTS: ${safeText(nextHints)}`,
+    `LAST_MOON_SIGN_CHANGE: ${safeText(lastChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE: ${safeText(nextChangeText)}`,
+    `TOMORROW_MOON_SIGN: ${safeText(tomorrowText)}`,
   ].join("\n");
 }
 

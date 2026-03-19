@@ -26,9 +26,19 @@ X夜投稿の冒頭に置く「夜の空の観測メッセージ」を生成す�
 優先して見るもの:
 1) 月のサイン
 2) 太陽と月の組み合わせ
-3) 星座集中
-4) 次の空の変化
-5) NEXT_TRANSIT_HINTS
+3) LAST_MOON_SIGN_CHANGE
+4) NEXT_MOON_SIGN_CHANGE
+5) TOMORROW_MOON_SIGN
+6) 星座集中
+7) SKY_STRATA.element_count
+8) SKY_STRATA.modality_count
+9) NEXT_TRANSIT_HINTS
+
+月の動きの扱い:
+- 月が直近12時間以内にサイン移動している場合は「移ったばかり」のニュアンスを優先してよい
+- TOMORROW_MOON_SIGN が MOON_SIGN と同じ場合は「明日も同じサインに滞在」と書いてよい
+- 次の移動に触れる場合は、可能ならサイン名だけでなく時刻も自然に含めてよい
+- 月の移動情報を毎回すべて列挙しない。夜の流れに関係する場合だけ使う
 
 書き方:
 - 最初の1行は短くする
@@ -57,6 +67,9 @@ INPUT:
 - SKY_STRATA.element_count
 - SKY_STRATA.modality_count
 - NEXT_TRANSIT_HINTS
+- LAST_MOON_SIGN_CHANGE
+- NEXT_MOON_SIGN_CHANGE
+- TOMORROW_MOON_SIGN
 
 ${X_PUBLIC_COMMON}
 ${POLITE_TONE_COMMON}
