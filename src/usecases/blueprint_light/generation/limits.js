@@ -26,7 +26,7 @@ const LIMITS_V2 = Object.freeze({
   },
   roles: {
     planet: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
-    layer: { min: 120, max: 150, minSentences: 2, maxSentences: 3 },
+    layer: { min: 100, max: 140, minSentences: 3, maxSentences: 3 },
     layer_flow: { min: 120, max: 150, minSentences: 2, maxSentences: 3 },
     deep_nodes: { min: 150, max: 170, minSentences: 3, maxSentences: 4 },
     deep_chiron: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
@@ -37,7 +37,7 @@ const LIMITS_V2 = Object.freeze({
     axis_structure: { min: 360, max: 400, minSentences: 4, maxSentences: 5 },
   },
   aspects: {
-    item: { min: 130, max: 150, minSentences: 3, maxSentences: 3 },
+    item: { min: 130, max: 160, minSentences: 3, maxSentences: 3 },
   },
   closing: {
     pattern_name: { min: 12, max: 18, minSentences: 1, maxSentences: 1 },

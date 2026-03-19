@@ -360,10 +360,11 @@ function createCronRouter(deps = {}) {
       const asOfISO = isValidISO(asOfRaw) ? String(asOfRaw) : asOfIsoFromDateLocalJST(dateLocal);
 
       const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const force = boolish(b.force ?? q.force);
 
       const result = await runDailyBlog(
         { env: env2, storyService, db },
-        { dateLocal, asOfISO, dryRun }
+        { dateLocal, asOfISO, dryRun, force }
       );
 
       return res.json(result);
