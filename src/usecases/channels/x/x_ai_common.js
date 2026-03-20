@@ -333,17 +333,33 @@ async function generateXAiWithRetry(opts = {}) {
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
 
-    const text = await create({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-      maxTokens,
-    });
+    let text = "";
+    try {
+      text = await create({
+        apiKey,
+        baseUrl,
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature,
+        maxTokens,
+      });
+    } catch (err) {
+      const message = err?.message || String(err || "openai_error");
+      console.error("[x_ai_common] OpenAI error", { channel, message });
+      lastReason = `openai_error:${message}`;
+      lastText = "";
+      retryNote = buildRetryNote({
+        reason: lastReason,
+        template: opts.retryNoteTemplate,
+        minChars,
+        maxChars,
+        channel,
+      });
+      continue;
+    }
 
     const verdict = validateXAiText(text, { minChars, maxChars });
     if (verdict.ok) return { ok: true, text: verdict.text, model, len: verdict.len };
