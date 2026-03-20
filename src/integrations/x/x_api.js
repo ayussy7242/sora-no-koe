@@ -183,16 +183,7 @@ async function postTweet({ text, replyToId, env }) {
     throw err;
   }
 
-  try {
-    return await postTweetV2({ text, replyToId, env });
-  } catch (err) {
-    // v2 失敗時の原因を Cloud Run のログに残す
-    const status = err?.status;
-    const body = err?.body;
-    const message = err?.message;
-    console.error("[x_api] v2 post failed, fallback to v1.1", { status, message, body });
-    return await postTweetV1({ text, replyToId, env });
-  }
+  return await postTweetV2({ text, replyToId, env });
 }
 
 module.exports = {
