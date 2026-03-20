@@ -670,8 +670,16 @@ function buildLeadAspectTitle({ story, dateLocal }) {
   const rightKey = aRank <= bRank ? bKey : aKey;
 
   const retroMap = buildRetrogradeMap(asOfISO, [leftKey, rightKey]);
-  const leftLabel = `${bodyLabelJa(dict, leftKey)}${retroMap[leftKey] ? "(R)" : ""}`.trim();
-  const rightLabel = `${bodyLabelJa(dict, rightKey)}${retroMap[rightKey] ? "(R)" : ""}`.trim();
+  const leftSign = leftKey === aKey ? (lead?.a_sign_ja || signLabelJa(dict, lead?.a_sign_key || "")) : (lead?.b_sign_ja || signLabelJa(dict, lead?.b_sign_key || ""));
+  const rightSign = rightKey === aKey ? (lead?.a_sign_ja || signLabelJa(dict, lead?.a_sign_key || "")) : (lead?.b_sign_ja || signLabelJa(dict, lead?.b_sign_key || ""));
+  const leftLabel = [
+    `${bodyLabelJa(dict, leftKey)}${retroMap[leftKey] ? "(R)" : ""}`.trim(),
+    leftSign || "",
+  ].filter(Boolean).join(" ").trim();
+  const rightLabel = [
+    `${bodyLabelJa(dict, rightKey)}${retroMap[rightKey] ? "(R)" : ""}`.trim(),
+    rightSign || "",
+  ].filter(Boolean).join(" ").trim();
 
   const aspectLabel = aspectLabelForLong(lead?.aspect || lead?.type, lead?.aspect_deg);
   if (!leftLabel || !rightLabel || !aspectLabel) return "";
