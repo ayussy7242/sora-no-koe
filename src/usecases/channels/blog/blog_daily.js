@@ -73,6 +73,12 @@ const BLOG_BANNED_TERMS = [
 
 const BLOG_TITLE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
 
+function isResonanceBodyExcluded(row) {
+  const aKey = normalizeBodyKey(row?.a || "");
+  const bKey = normalizeBodyKey(row?.b || "");
+  return BLOG_TITLE_EXCLUDE_BODIES.has(aKey) || BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
+}
+
 const BLOG_TITLE_BODY_ORDER = [
   "sun","moon","mercury","venus","mars",
   "jupiter","saturn","uranus","neptune","pluto",
@@ -108,11 +114,7 @@ function leadAspectFromResonancePool(skyAll, orbLimit) {
   if (!Array.isArray(skyAll) || skyAll.length === 0) return null;
   const filtered = skyAll
     .filter((item) => Number(item?.orb_deg) <= Number(orbLimit))
-    .filter((item) => {
-      const aKey = normalizeBodyKey(item?.a || "");
-      const bKey = normalizeBodyKey(item?.b || "");
-      return !BLOG_TITLE_EXCLUDE_BODIES.has(aKey) && !BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
-    })
+    .filter((item) => !isResonanceBodyExcluded(item))
     .sort(compareResonanceItems);
   return filtered[0] || null;
 }
@@ -1590,7 +1592,9 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
 
   const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
-  const resonanceAll = skyAll.filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0));
+  const resonanceAll = skyAll
+    .filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0))
+    .filter((row) => !isResonanceBodyExcluded(row));
   const resonancePool = [...resonanceAll];
   const strongest = resonancePool[0] || skyAll[0] || null;
   const resonanceTop = resonancePool
