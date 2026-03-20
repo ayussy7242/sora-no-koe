@@ -128,6 +128,40 @@ function findBannedTerm(text) {
   return "";
 }
 
+function buildAioseoMeta({ story, dateLocal, title }) {
+  const dateJa = formatDateJaFromLocal(dateLocal) || String(dateLocal || "").trim();
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
+  const lead = leadAspectFromResonancePool(skyAll, resonanceOrbLimit)
+    || [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
+
+  let leadText = "";
+  if (lead) {
+    const aKey = normalizeBodyKey(lead?.a || "");
+    const bKey = normalizeBodyKey(lead?.b || "");
+    const leftLabel = bodyLabelJa(dict, aKey) || aKey;
+    const rightLabel = bodyLabelJa(dict, bKey) || bKey;
+    const deg = Number.isFinite(Number(lead?.aspect_deg)) ? Math.round(Number(lead.aspect_deg)) : null;
+    if (leftLabel && rightLabel && Number.isFinite(deg)) {
+      leadText = `${leftLabel}と${rightLabel}が${deg}度で接続し、主要なアスペクトが形成されています。`;
+    } else if (leftLabel && rightLabel) {
+      leadText = `${leftLabel}と${rightLabel}の主要アスペクトが形成されています。`;
+    }
+  }
+
+  const description = [
+    dateJa ? `${dateJa}の星の配置。` : "今日の星の配置。",
+    leadText,
+    "今日のトランジット構造と天体配置を一覧で確認できます。",
+  ].filter(Boolean).join("");
+
+  return {
+    aioseo_title: String(title || "").trim(),
+    aioseo_description: description,
+    aioseo_focus_keyphrase: dateJa ? `${dateJa} 星の配置` : "今日の星の配置",
+  };
+}
+
 function normalizeAspectType(raw) {
   const x = String(raw || "").trim().toLowerCase();
   if (!x) return "";
@@ -1948,4 +1982,11 @@ function enforceSingleClosing(text, closing) {
   return `${body}\n\n\n${closing}`.trim();
 }
 
-module.exports = { generateDailyDraft, buildDailyTitle, buildDailyEyecatchLines, markdownToHtml, escapeHtml };
+module.exports = {
+  generateDailyDraft,
+  buildDailyTitle,
+  buildDailyEyecatchLines,
+  buildAioseoMeta,
+  markdownToHtml,
+  escapeHtml,
+};
