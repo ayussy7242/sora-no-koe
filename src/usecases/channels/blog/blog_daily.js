@@ -71,6 +71,8 @@ const BLOG_BANNED_TERMS = [
   "実行しました",
 ];
 
+const BLOG_TITLE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
+
 function findBannedTerm(text) {
   const s = String(text || "");
   if (!s) return "";
@@ -609,7 +611,13 @@ function buildLeadAspectTitle({ story, dateLocal }) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   if (!skyAll.length) return "";
 
-  const lead = [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
+  const filtered = skyAll.filter((item) => {
+    const aKey = normalizeBodyKey(item?.a || "");
+    const bKey = normalizeBodyKey(item?.b || "");
+    return !BLOG_TITLE_EXCLUDE_BODIES.has(aKey) && !BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
+  });
+  const leadPool = filtered.length ? filtered : skyAll;
+  const lead = [...leadPool].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
   if (!lead) return "";
 
   const aKey = normalizeBodyKey(lead?.a || "");
