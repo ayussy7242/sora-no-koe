@@ -73,6 +73,37 @@ const BLOG_BANNED_TERMS = [
 
 const BLOG_TITLE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
 
+const BLOG_TITLE_BODY_ORDER = [
+  "sun","moon","mercury","venus","mars",
+  "jupiter","saturn","uranus","neptune","pluto",
+  "lilith","chiron",
+];
+const BLOG_TITLE_BODY_RANK = BLOG_TITLE_BODY_ORDER.reduce((acc, key, idx) => {
+  acc[key] = idx + 1;
+  return acc;
+}, {});
+
+function bodyTitleRank(key) {
+  return BLOG_TITLE_BODY_RANK[normalizeBodyKey(key || "")] ?? 99;
+}
+
+function compareResonanceItems(a, b) {
+  const orbA = Number.isFinite(Number(a?.orb_deg)) ? Number(a.orb_deg) : 99;
+  const orbB = Number.isFinite(Number(b?.orb_deg)) ? Number(b.orb_deg) : 99;
+  if (orbA !== orbB) return orbA - orbB;
+
+  const aRank = [bodyTitleRank(a?.a), bodyTitleRank(a?.b)].sort((x, y) => x - y);
+  const bRank = [bodyTitleRank(b?.a), bodyTitleRank(b?.b)].sort((x, y) => x - y);
+  if (aRank[0] !== bRank[0]) return aRank[0] - bRank[0];
+  if (aRank[1] !== bRank[1]) return aRank[1] - bRank[1];
+
+  const aKeys = [normalizeBodyKey(a?.a || ""), normalizeBodyKey(a?.b || "")].sort();
+  const bKeys = [normalizeBodyKey(b?.a || ""), normalizeBodyKey(b?.b || "")].sort();
+  if (aKeys[0] !== bKeys[0]) return aKeys[0] < bKeys[0] ? -1 : 1;
+  if (aKeys[1] !== bKeys[1]) return aKeys[1] < bKeys[1] ? -1 : 1;
+  return 0;
+}
+
 function leadAspectFromResonancePool(skyAll, orbLimit) {
   if (!Array.isArray(skyAll) || skyAll.length === 0) return null;
   const filtered = skyAll
@@ -82,7 +113,7 @@ function leadAspectFromResonancePool(skyAll, orbLimit) {
       const bKey = normalizeBodyKey(item?.b || "");
       return !BLOG_TITLE_EXCLUDE_BODIES.has(aKey) && !BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
     })
-    .sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
+    .sort(compareResonanceItems);
   return filtered[0] || null;
 }
 
@@ -633,22 +664,8 @@ function buildLeadAspectTitle({ story, dateLocal }) {
   const bKey = normalizeBodyKey(lead?.b || "");
   if (!aKey || !bKey) return "";
 
-  const order = {
-    sun: 1,
-    moon: 2,
-    mercury: 3,
-    venus: 4,
-    mars: 5,
-    jupiter: 6,
-    saturn: 7,
-    uranus: 8,
-    neptune: 9,
-    pluto: 10,
-    lilith: 11,
-    chiron: 12,
-  };
-  const aRank = order[aKey] ?? 99;
-  const bRank = order[bKey] ?? 99;
+  const aRank = bodyTitleRank(aKey);
+  const bRank = bodyTitleRank(bKey);
   const leftKey = aRank <= bRank ? aKey : bKey;
   const rightKey = aRank <= bRank ? bKey : aKey;
 
