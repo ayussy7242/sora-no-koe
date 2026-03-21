@@ -77,8 +77,26 @@ function validateObservation(text) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = countChars(t);
-  if (len > 60) return { ok: false, reason: `too_long:${len}` };
+  if (len < 16) return { ok: false, reason: `too_short:${len}` };
+  if (len > 28) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
+}
+
+function buildRetryNote(reason) {
+  const r = String(reason || "unknown");
+  if (r.includes("has_you")) {
+    return `前回は条件外（${r}）。「あなた」を避け、16〜22文字目安（最大28文字）で再出力。`;
+  }
+  if (r.includes("too_long")) {
+    return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で短く再出力。`;
+  }
+  if (r.includes("too_short")) {
+    return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で整えて再出力。`;
+  }
+  if (r.includes("empty")) {
+    return `前回は条件外（${r}）。内容を入れ、16〜22文字目安（最大28文字）で再出力。`;
+  }
+  return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で再出力。`;
 }
 
 async function generateIgObservationText({ story, dict, openai, maxRetries = 2 }) {
@@ -97,24 +115,34 @@ async function generateIgObservationText({ story, dict, openai, maxRetries = 2 }
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
 
-    const text = await createChatCompletion({
-      apiKey,
-      baseUrl,
-      model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      maxTokens: 120,
-    });
+    let text = "";
+    try {
+      text = await createChatCompletion({
+        apiKey,
+        baseUrl,
+        model,
+        messages: [
+          { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.4,
+        maxTokens: 120,
+      });
+    } catch (err) {
+      const message = err?.message || String(err || "openai_error");
+      console.error("[ig_observation_ai] OpenAI error", { message });
+      lastReason = `openai_error:${message}`;
+      lastText = "";
+      retryNote = buildRetryNote(lastReason);
+      continue;
+    }
 
     const verdict = validateObservation(text);
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。「あなた」を避けて短く整えて再出力。";
+    retryNote = buildRetryNote(lastReason);
   }
 
   return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
