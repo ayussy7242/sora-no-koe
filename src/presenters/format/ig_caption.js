@@ -218,7 +218,17 @@ function renderIGCaption(story, deps = {}) {
   const captionCenter = String(captionCenterRaw || "").trim();
 
   const observationRaw = parts.caption_observation || "";
-  const observation = String(observationRaw || "").trim();
+  const observation = (() => {
+    const raw = String(observationRaw || "").trim();
+    if (!raw) return "";
+    const lines = raw.split(/\r?\n/).map((l) => l.trim());
+    while (lines.length && !lines[0]) lines.shift();
+    if (lines[0] && /^✦\s*観測ポイント/.test(lines[0])) {
+      lines.shift();
+      while (lines.length && !lines[0]) lines.shift();
+    }
+    return lines.join("\n").trim();
+  })();
 
   const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
 
