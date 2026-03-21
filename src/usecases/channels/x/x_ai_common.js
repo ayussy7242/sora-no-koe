@@ -270,7 +270,7 @@ async function generateXAiWithRetry(opts = {}) {
   const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : undefined;
   const maxTokens = Number.isFinite(Number(opts.maxTokens)) ? Number(opts.maxTokens) : 160;
   const temperature = Number.isFinite(Number(opts.temperature)) ? Number(opts.temperature) : 0.5;
-  const maxRetries = Number.isFinite(Number(opts.maxRetries)) ? Number(opts.maxRetries) : 5;
+  const maxRetries = Number.isFinite(Number(opts.maxRetries)) ? Number(opts.maxRetries) : 8;
   const fallbackFn = typeof opts.fallbackFactory === "function" ? opts.fallbackFactory : null;
   const fallbackContext = opts.fallbackContext || {};
   const story = opts.story;
