@@ -16,6 +16,8 @@ const {
 } = require("../../src/engine/channels/ig/ig_carousel");
 const { computeSpaceTheme } = require("../../src/engine/shared/space_background/theme");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../src/domain/astro_compute");
+const { signGlyph } = require("../../src/presenters/shared/text/tokens");
 
 function parseArgs(argv) {
   const out = {};
@@ -149,6 +151,9 @@ async function main() {
   const storyPath = args.story || "tmp/stories/story.json";
   const outDir = args.outDir || path.join(process.cwd(), "tmp", "ig", "carousel", date);
   const withCta = args.withCta !== "false";
+  const bgCache = ["1", "true", "yes", "on"].includes(String(args.bg_cache || args.bgCache || "false"));
+  const bgRefresh = ["1", "true", "yes", "on"].includes(String(args.bg_refresh || args.bgRefresh || "false"));
+  const bgCacheDir = args.bg_cache_dir || args.bgCacheDir || "tmp/ig/bg_cache";
 
   const storyRaw = fs.existsSync(storyPath) ? readJson(storyPath) : null;
   const story = unwrapStory(storyRaw);
@@ -185,13 +190,58 @@ async function main() {
     dateLabel,
     brand: "ソラのこえ",
     tagline: "今日の星の配置",
+    subLabel: "today's sky",
     sunLine: `☉ ${sunSign}`,
     moonLine: `☽ ${moonSign}`,
     observation,
     swipeLabel: "Swipe →",
   };
 
-  const slideMoon = buildMoonSlide({ story, dateLabel, dateLocal: date });
+  const placements = (() => {
+    const transit = story?.public?.transit_signs || {};
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const bodies = [
+      { key: "sun", label: "太陽", glyph: "☉" },
+      { key: "moon", label: "月", glyph: "☽" },
+      { key: "mercury", label: "水星", glyph: "☿" },
+      { key: "venus", label: "金星", glyph: "♀" },
+      { key: "mars", label: "火星", glyph: "♂" },
+      { key: "jupiter", label: "木星", glyph: "♃" },
+      { key: "saturn", label: "土星", glyph: "♄" },
+      { key: "uranus", label: "天王星", glyph: "♅" },
+      { key: "neptune", label: "海王星", glyph: "♆" },
+      { key: "pluto", label: "冥王星", glyph: "♇" },
+      { key: "lilith", label: "リリス", glyph: "⚸" },
+      { key: "chiron", label: "キロン", glyph: "⚷" },
+    ];
+    return bodies.map((body) => {
+      const signKey = transit?.[body.key]?.sign_key || "";
+      const signJa = transit?.[body.key]?.sign_ja || "—";
+      const signIndex = signIndexFromKey(dict, signKey);
+      const houseNo = Number.isFinite(signIndex) && Number.isFinite(ascIndex)
+        ? houseNumberForSignIndex(signIndex, ascIndex)
+        : null;
+      const houseLabel = houseNo ? `${houseNo}H` : "—";
+      return {
+        glyph: body.glyph,
+        label: body.label,
+        signGlyph: signGlyph(signKey),
+        sign: signJa,
+        house: houseLabel,
+      };
+    });
+  })();
+
+  const slidePlacements = {
+    dateLabel,
+    header: "今日の配置",
+    subLabel: "today's placements",
+    lines: placements,
+    brand: "sora-no-koe",
+  };
+
+  const slideMoon = { ...buildMoonSlide({ story, dateLabel, dateLocal: date }), subLabel: "today's moon" };
 
   const topAspect = story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
   const planetMap = {
@@ -255,6 +305,7 @@ async function main() {
   const slide3 = {
     dateLabel,
     header: "今日の共鳴",
+    subLabel: "today's resonance",
     lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
     lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
     aspectLine,
@@ -275,11 +326,13 @@ async function main() {
   const slides = await renderInstagramCarousel({
     slides: [
       { kind: "cover", data: slide1 },
+      { kind: "placements", data: slidePlacements },
       { kind: "moon", data: slideMoon },
-      { kind: "chart", data: { story, dateLabel } },
+      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
       { kind: "resonance", data: slide3 },
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],
+    backgroundCache: bgCache ? { dir: bgCacheDir, force: bgRefresh } : null,
   });
 
   ensureDir(outDir);

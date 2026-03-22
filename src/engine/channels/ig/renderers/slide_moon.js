@@ -33,6 +33,7 @@ function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "b
 function getAvoidRegions({
   dateLabel,
   header = "今日の月",
+  subLabel = "",
   phaseLabel = "",
   moonSign = "",
   moonAgeLabel = "",
@@ -47,6 +48,13 @@ function getAvoidRegions({
   brand = "sora-no-koe",
 } = {}) {
   const fields = [];
+  const contentStartY = Number.isFinite(Number(TOK.moon.contentStartY))
+    ? Number(TOK.moon.contentStartY)
+    : Number(TOK.contentStartY);
+  const contentOffsetY = Number.isFinite(contentStartY)
+    ? contentStartY - MOON_LAYOUT.y
+    : (Number(TOK.moon.contentOffsetY) || 0);
+  const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   if (header) {
     const w = estimateTextWidth(header, TOK.header.size);
     fields.push(makeField({
@@ -59,11 +67,24 @@ function getAvoidRegions({
       kind: "title",
     }));
   }
-  if (phaseLabel) {
-    const w = estimateTextWidth(phaseLabel, TOK.moon.phaseLabelSize);
+  if (subLabel) {
+    const subLabelY = TOK.moon.headerY + TOK.subLabel.offsetY;
+    const w = estimateTextWidth(subLabel, TOK.subLabel.size);
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.phaseLabelY - TOK.moon.phaseLabelSize,
+      y: subLabelY - TOK.subLabel.size,
+      w,
+      h: TOK.subLabel.size * 1.3,
+      pad: 12,
+      weight: 0.75,
+      kind: "subtitle",
+    }));
+  }
+  if (phaseSignLine) {
+    const w = estimateTextWidth(phaseSignLine, TOK.moon.phaseLabelSize);
+    fields.push(makeField({
+      x: TOK.marginX,
+      y: (TOK.moon.phaseLabelY + contentOffsetY) - TOK.moon.phaseLabelSize,
       w,
       h: TOK.moon.phaseLabelSize * 1.2,
       pad: 16,
@@ -71,24 +92,12 @@ function getAvoidRegions({
       kind: "heroText",
     }));
   }
-  if (moonSign) {
-    const w = estimateTextWidth(moonSign, TOK.moon.signSize);
-    fields.push(makeField({
-      x: TOK.marginX,
-      y: TOK.moon.signY - TOK.moon.signSize,
-      w,
-      h: TOK.moon.signSize * 1.2,
-      pad: 12,
-      weight: 0.85,
-      kind: "subtitle",
-    }));
-  }
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
   if (infoLines.length) {
     const w = Math.max(...infoLines.map((l) => estimateTextWidth(l, TOK.moon.infoSize)));
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.infoY - TOK.moon.infoSize,
+      y: (TOK.moon.infoY + contentOffsetY) - TOK.moon.infoSize,
       w,
       h: TOK.moon.infoLineHeight * infoLines.length,
       pad: 12,
@@ -249,6 +258,7 @@ function buildMoonPhaseGlyph({
 function buildSlideMoonSvg({
   dateLabel,
   header = "今日の月",
+  subLabel = "",
   phaseSymbol = "◑",
   phaseLabel = "",
   moonSign = "",
@@ -269,29 +279,44 @@ function buildSlideMoonSvg({
   const colors = resolveColors(space);
   const marginX = TOK.marginX;
   const headerY = TOK.moon.headerY;
+  const subLabelY = headerY + TOK.subLabel.offsetY;
+  const contentStartY = Number.isFinite(Number(TOK.moon.contentStartY))
+    ? Number(TOK.moon.contentStartY)
+    : Number(TOK.contentStartY);
+  const contentOffsetY = Number.isFinite(contentStartY)
+    ? contentStartY - MOON_LAYOUT.y
+    : (Number(TOK.moon.contentOffsetY) || 0);
+  const moonScale = Number.isFinite(Number(TOK.moon.moonScale)) ? Number(TOK.moon.moonScale) : 1;
+  const moonSymbolOffsetY = Number(TOK.moon.moonSymbolOffsetY) || 0;
   const moonX = MOON_LAYOUT.x;
-  const moonY = MOON_LAYOUT.y;
+  const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
+  const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
   const observationLines = wrapLines(observation, 26, 4);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
+  const nextOpacity = 0.6;
 
   const inner = [
     buildSectionHeader({ label: header, x: marginX, y: headerY, lineWidth: TOK.header.lineWidth, colors }),
+    subLabel
+      ? `<text x=\"${marginX}\" y=\"${subLabelY}\" fill=\"${colors.textDim}\" font-size=\"${TOK.subLabel.size}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
+      : "",
     buildMoonPhaseGlyph({
       id: "moon",
       x: moonX,
       y: moonY,
-      size: moonSize,
+      size: Number(moonSize) * moonScale,
       illumination: moonIllumination,
       waxing: moonWaxing,
     }),
-    `<text x=\"${marginX}\" y=\"${TOK.moon.phaseLabelY}\" fill=\"${colors.textMain}\" font-size=\"${TOK.moon.phaseLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.phaseLabelTracking}em\">${escapeXml(phaseLabel || "")}</text>`,
-    `<text x=\"${marginX}\" y=\"${TOK.moon.signY}\" fill=\"${colors.textSub}\" font-size=\"${TOK.moon.signSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.signTracking}em\">${escapeXml(moonSign || "")}</text>`,
+    phaseSignLine
+      ? `<text x=\"${marginX}\" y=\"${TOK.moon.phaseLabelY + contentOffsetY}\" fill=\"${colors.textMain}\" font-size=\"${TOK.moon.phaseLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.phaseLabelTracking}em\">${escapeXml(phaseSignLine)}</text>`
+      : "",
     textBlock({
       x: marginX,
-      y: TOK.moon.infoY,
+      y: TOK.moon.infoY + contentOffsetY,
       lines: infoLines,
       size: TOK.moon.infoSize,
       lineHeight: TOK.moon.infoLineHeight,
@@ -301,7 +326,7 @@ function buildSlideMoonSvg({
     }),
     textBlock({
       x: marginX,
-      y: TOK.moon.observationY,
+      y: TOK.moon.observationY + contentOffsetY,
       lines: observationLines,
       size: TOK.moon.observationSize,
       lineHeight: TOK.moon.observationLineHeight,
@@ -309,10 +334,10 @@ function buildSlideMoonSvg({
       fontFamily: "SoraBody",
       letterSpacing: TOK.moon.observationTracking,
     }),
-    `<text x=\"${marginX}\" y=\"${TOK.moon.nextLabelY + nextOffsetY}\" fill=\"${colors.textSub}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`,
+    `<text x=\"${marginX}\" y=\"${TOK.moon.nextLabelY + contentOffsetY + nextOffsetY}\" fill=\"${colors.textSub}\" opacity=\"${nextOpacity}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`,
     textBlock({
       x: marginX,
-      y: TOK.moon.nextY + nextOffsetY,
+      y: TOK.moon.nextY + contentOffsetY + nextOffsetY,
       lines: nextLines,
       size: TOK.moon.nextSize,
       lineHeight: TOK.moon.nextLineHeight,
