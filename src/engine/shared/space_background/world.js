@@ -132,7 +132,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   const streamNodes = buildStreamNodes({ rand: nodeRand, stream, count: 3 + Math.floor(nodeRand() * 4) });
   const slideCount = Math.max(1, Math.round(worldWidth / width));
   const safeZone = null;
-  const variantOrderFull = ["slide1", "moon", "slide2", "slide3", "slide4", "slide5"];
+  const variantOrderFull = ["slide1", "slide2", "moon", "slide2", "slide3", "slide5"];
   const variantOrder = slideCount >= 2
     ? variantOrderFull.slice(0, slideCount)
     : Array.from({ length: slideCount }).map(() => "slide1");

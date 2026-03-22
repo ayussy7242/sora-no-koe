@@ -21,6 +21,8 @@ const { generateIgObservationText } = require("../../src/usecases/channels/ig/ig
 const { generateIgResonanceText } = require("../../src/usecases/channels/ig/ig_resonance_ai");
 const { generateIgTsukijiStructureText } = require("../../src/usecases/channels/ig/ig_tsukiji_structure_ai");
 const { generateIgMoonText } = require("../../src/usecases/channels/ig/ig_moon_ai");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../src/domain/astro_compute");
+const { signGlyph } = require("../../src/presenters/shared/text/tokens");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
@@ -284,10 +286,55 @@ function buildSlides({ story, dateLocal, withCta }) {
     dateLabel,
     brand: "ソラのこえ",
     tagline: "今日の星の配置",
+    subLabel: "today's sky",
     sunLine: `☉ ${sunSign}`,
     moonLine: `☽ ${moonSign}`,
     observation,
     swipeLabel: "Swipe →",
+  };
+
+  const placements = (() => {
+    const transit = story?.public?.transit_signs || {};
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const bodies = [
+      { key: "sun", label: "太陽", glyph: "☉" },
+      { key: "moon", label: "月", glyph: "☽" },
+      { key: "mercury", label: "水星", glyph: "☿" },
+      { key: "venus", label: "金星", glyph: "♀" },
+      { key: "mars", label: "火星", glyph: "♂" },
+      { key: "jupiter", label: "木星", glyph: "♃" },
+      { key: "saturn", label: "土星", glyph: "♄" },
+      { key: "uranus", label: "天王星", glyph: "♅" },
+      { key: "neptune", label: "海王星", glyph: "♆" },
+      { key: "pluto", label: "冥王星", glyph: "♇" },
+      { key: "lilith", label: "リリス", glyph: "⚸" },
+      { key: "chiron", label: "キロン", glyph: "⚷" },
+    ];
+    return bodies.map((body) => {
+      const signKey = transit?.[body.key]?.sign_key || "";
+      const signJa = transit?.[body.key]?.sign_ja || "—";
+      const signIndex = signIndexFromKey(dict, signKey);
+      const houseNo = Number.isFinite(signIndex) && Number.isFinite(ascIndex)
+        ? houseNumberForSignIndex(signIndex, ascIndex)
+        : null;
+      const houseLabel = houseNo ? `${houseNo}H` : "—";
+      return {
+        glyph: body.glyph,
+        label: body.label,
+        signGlyph: signGlyph(signKey),
+        sign: signJa,
+        house: houseLabel,
+      };
+    });
+  })();
+
+  const slidePlacements = {
+    dateLabel,
+    header: "今日の配置",
+    subLabel: "today's placements",
+    lines: placements,
+    brand: "sora-no-koe",
   };
 
   const topAspect =
@@ -337,6 +384,7 @@ function buildSlides({ story, dateLocal, withCta }) {
   const slide3 = {
     dateLabel,
     header: "今日の共鳴",
+    subLabel: "today's resonance",
     lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
     lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
     aspectLine,
@@ -344,7 +392,7 @@ function buildSlides({ story, dateLocal, withCta }) {
     bodyAKey: aKey,
     bodyBKey: bKey,
   };
-  const slideMoon = buildMoonSlide({ story, dateLabel, dateLocal });
+  const slideMoon = { ...buildMoonSlide({ story, dateLabel, dateLocal }), subLabel: "today's moon" };
 
   const slide5 = {
     ornament: "☉     ☽",
@@ -360,8 +408,9 @@ function buildSlides({ story, dateLocal, withCta }) {
   return {
     slides: [
       { kind: "cover", data: slide1 },
+      { kind: "placements", data: slidePlacements },
       { kind: "moon", data: slideMoon },
-      { kind: "chart", data: { story, dateLabel } },
+      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
       { kind: "resonance", data: slide3 },
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],
@@ -454,8 +503,8 @@ async function maybeLocalAI({ story, useAi }) {
   return story;
 }
 
-async function renderAndSave({ story, dateLocal, outDir, withCta }) {
-  const slides = await renderInstagramCarousel(buildSlides({ story, dateLocal, withCta }));
+async function renderAndSave({ story, dateLocal, outDir, withCta, backgroundCache }) {
+  const slides = await renderInstagramCarousel({ ...buildSlides({ story, dateLocal, withCta }), backgroundCache });
   const dir = path.join(outDir, dateLocal);
   ensureDir(dir);
   slides.forEach((buf, i) => {
@@ -476,6 +525,9 @@ async function main() {
   const overwrite = ["1", "true", "yes", "on"].includes(String(args.overwrite || "false"));
   const forceAi = ["1", "true", "yes", "on"].includes(String(args.force_ai || "false"));
   const printJson = ["1", "true", "yes", "on"].includes(String(args.print_json || "false"));
+  const bgCache = ["1", "true", "yes", "on"].includes(String(args.bg_cache || args.bgCache || "false"));
+  const bgRefresh = ["1", "true", "yes", "on"].includes(String(args.bg_refresh || args.bgRefresh || "false"));
+  const bgCacheDir = args.bg_cache_dir || args.bgCacheDir || "tmp/ig/bg_cache";
   const stepDays = Number(args.step || 1);
 
   const single = args.date || args.date_local || "";
@@ -526,7 +578,8 @@ async function main() {
       console.log(JSON.stringify(toSave, null, 2));
     }
 
-    const out = await renderAndSave({ story, dateLocal, outDir, withCta });
+    const backgroundCache = bgCache ? { dir: bgCacheDir, force: bgRefresh } : null;
+    const out = await renderAndSave({ story, dateLocal, outDir, withCta, backgroundCache });
     console.log(`[ig_batch] ${dateLocal} -> ${out}`);
   }
 }

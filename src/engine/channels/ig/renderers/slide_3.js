@@ -33,6 +33,7 @@ function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "b
 function getAvoidRegions({
   dateLabel,
   header = "今日の共鳴",
+  subLabel = "",
   lineA,
   lineB,
   aspectLine,
@@ -51,6 +52,19 @@ function getAvoidRegions({
       pad: 14,
       weight: 0.85,
       kind: "title",
+    }));
+  }
+  if (subLabel) {
+    const subLabelY = TOK.resonance.headerY + TOK.subLabel.offsetY;
+    const w = estimateTextWidth(subLabel, TOK.subLabel.size);
+    fields.push(makeField({
+      x: TOK.marginX,
+      y: subLabelY - TOK.subLabel.size,
+      w,
+      h: TOK.subLabel.size * 1.3,
+      pad: 12,
+      weight: 0.75,
+      kind: "subtitle",
     }));
   }
   if (lineA) {
@@ -167,6 +181,7 @@ function resolveGlowColor({ bodyKey, lineText }) {
 function buildSlide3Svg({
   dateLabel,
   header = "今日の共鳴",
+  subLabel = "",
   lineA,
   lineB,
   aspectLine,
@@ -179,6 +194,7 @@ function buildSlide3Svg({
   const colors = resolveColors(space);
   const marginX = TOK.marginX;
   const headerY = TOK.resonance.headerY;
+  const subLabelY = headerY + TOK.subLabel.offsetY;
 
   const structureLines = wrapLines(structure, 26, 99);
   const glyphA = extractGlyph(lineA);
@@ -216,6 +232,9 @@ function buildSlide3Svg({
     glowDefs.length ? `<defs>${glowDefs.join("")}</defs>` : "",
     glowBodies.join(""),
     buildSectionHeader({ label: header, x: marginX, y: headerY, lineWidth: TOK.header.lineWidth, colors }),
+    subLabel
+      ? `<text x=\"${marginX}\" y=\"${subLabelY}\" fill=\"${colors.textDim}\" font-size=\"${TOK.subLabel.size}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
+      : "",
     buildGlyphLine({
       x: marginX,
       y: TOK.resonance.lineY1,

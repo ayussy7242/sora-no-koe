@@ -207,6 +207,7 @@ function getAvoidRegions({
   dateLabel,
   brand = "ソラのこえ",
   tagline = "今日の星の配置",
+  subLabel = "",
   sunLine,
   moonLine,
   observation,
@@ -243,6 +244,19 @@ function getAvoidRegions({
       h: TOK.cover.taglineSize * 1.2,
       pad: 14,
       weight: 0.8,
+      kind: "subtitle",
+    }));
+  }
+  if (subLabel) {
+    const subLabelY = taglineY + TOK.subLabel.offsetY;
+    const w = estimateTextWidth(subLabel, TOK.subLabel.size, "title");
+    fields.push(makeField({
+      x: centerX - w / 2,
+      y: subLabelY - TOK.subLabel.size,
+      w,
+      h: TOK.subLabel.size * 1.3,
+      pad: 12,
+      weight: 0.7,
       kind: "subtitle",
     }));
   }
@@ -314,6 +328,7 @@ function buildSlide1Svg({
   dateLabel,
   brand = "ソラのこえ",
   tagline = "今日の星の配置",
+  subLabel = "",
   sunLine,
   moonLine,
   sunSignKey,
@@ -326,6 +341,7 @@ function buildSlide1Svg({
   const centerX = CANVAS.width / 2;
   const brandY = TOK.cover.brandY;
   const taglineY = TOK.cover.taglineY;
+  const subLabelY = taglineY + TOK.subLabel.offsetY;
   const mainSize = TOK.cover.mainSize;
   const mainGap = TOK.cover.mainGap;
   const mainStartY = TOK.cover.mainStartY;
@@ -386,6 +402,9 @@ function buildSlide1Svg({
     moonConstellation,
     `<text x=\"${centerX}\" y=\"${brandY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${TOK.cover.brandSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cover.brandTracking}em\">${escapeXml(brand)}</text>`,
     `<text x=\"${centerX}\" y=\"${taglineY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${TOK.cover.taglineSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cover.taglineTracking}em\">${escapeXml(tagline)}</text>`,
+    subLabel
+      ? `<text x=\"${centerX}\" y=\"${subLabelY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${TOK.subLabel.size}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
+      : "",
     buildCenteredRow({ text: sunLine || "", y: mainStartY }),
     buildCenteredRow({ text: moonLine || "", y: mainStartY + mainGap }),
     textBlock({

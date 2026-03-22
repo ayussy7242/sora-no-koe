@@ -6,6 +6,7 @@ const opentype = require("opentype.js");
 const PATH_GLYPHS = new Set([
   "☉","☽","☿","♀","♂","♃","♄","♅","♆","♇",
   "⚷","⚸","☊","☋",
+  "♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓",
 ]);
 
 function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
@@ -166,6 +167,7 @@ function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
     glyphBoxWidth,
     glyphGap = 12,
     glyphScale = 1,
+    preferTextGlyph = false,
   }) {
     const raw = normalizeSymbol(text);
     if (!raw.trim()) return "";
@@ -180,7 +182,7 @@ function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
     if (Number.isFinite(glyphBoxWidth)) {
       const boxWidth = Math.max(0, Number(glyphBoxWidth));
       const restX = x + boxWidth + glyphGap;
-      if (PATH_GLYPHS.has(glyph)) {
+      if (!preferTextGlyph && PATH_GLYPHS.has(glyph)) {
         const font = pickGlyphPathFont(glyph);
         let glyphX = x;
         if (font) {
@@ -204,7 +206,7 @@ function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
         : "";
       return `<g>${glyphText}${restText}</g>`;
     }
-    if (!anchor && PATH_GLYPHS.has(glyph)) {
+    if (!anchor && !preferTextGlyph && PATH_GLYPHS.has(glyph)) {
       const font = pickGlyphPathFont(glyph);
       if (font) {
         const advance = glyphAdvanceWidth(font, glyph, size * glyphScale);

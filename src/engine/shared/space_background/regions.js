@@ -125,7 +125,7 @@ function buildHeroRegions({
     : ["cluster", "filament"];
 
   const variantOrder = slideCount >= 5
-    ? ["slide1", "moon", "slide2", "slide3", "slide5"]
+    ? ["slide1", "slide2", "moon", "slide2", "slide3", "slide5"]
     : Array.from({ length: slideCount }).map(() => "slide1");
 
   const heroAnchors = {

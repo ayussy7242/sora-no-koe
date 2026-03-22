@@ -25,7 +25,7 @@ function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "b
   };
 }
 
-function getAvoidRegions({ dateLabel, footerLabel = "sky chart", subLabel = "今日の配置", brand = "sora-no-koe", chartSize = TOK.chart.chartSize } = {}) {
+function getAvoidRegions({ dateLabel, footerLabel = "sky chart", subLabel = "today's chart", brand = "sora-no-koe", chartSize = TOK.chart.chartSize } = {}) {
   const fields = [];
   const left = Math.round((CANVAS.width - chartSize) / 2);
   const top = TOK.chart.chartTop;
@@ -124,7 +124,7 @@ function limitAspects(story, maxLines = 10) {
   return next;
 }
 
-function buildSlide2BaseSvg({ dateLabel, footerLabel = "sky chart", subLabel = "今日の配置", panel, space } = {}) {
+function buildSlide2BaseSvg({ dateLabel, footerLabel = "sky chart", subLabel = "today's chart", panel, space } = {}) {
   const colors = resolveColors(space);
   const inner = [
     panel

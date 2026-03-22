@@ -5,6 +5,8 @@ const { renderInstagramCarousel, formatDateLabel } = require("../../engine/chann
 const { pickObservationLine, renderIGCaption } = require("../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../presenters/format/format/line_common");
 const { buildMoonStatus, formatMoonEventDisplay } = require("../../domain/moon_info");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
+const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
 const { toDateLocalJST } = require("../../utils/time_utils");
 const { generateIgObservationText } = require("../../usecases/channels/ig/ig_observation_ai");
@@ -272,10 +274,55 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     dateLabel,
     brand: "ソラのこえ",
     tagline: "今日の星の配置",
+    subLabel: "today's sky",
     sunLine: `☉ ${sunSign}`,
     moonLine: `☽ ${moonSign}`,
     observation,
     swipeLabel: "Swipe →",
+  };
+
+  const placements = (() => {
+    const transit = story?.public?.transit_signs || {};
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const bodies = [
+      { key: "sun", label: "太陽", glyph: "☉" },
+      { key: "moon", label: "月", glyph: "☽" },
+      { key: "mercury", label: "水星", glyph: "☿" },
+      { key: "venus", label: "金星", glyph: "♀" },
+      { key: "mars", label: "火星", glyph: "♂" },
+      { key: "jupiter", label: "木星", glyph: "♃" },
+      { key: "saturn", label: "土星", glyph: "♄" },
+      { key: "uranus", label: "天王星", glyph: "♅" },
+      { key: "neptune", label: "海王星", glyph: "♆" },
+      { key: "pluto", label: "冥王星", glyph: "♇" },
+      { key: "lilith", label: "リリス", glyph: "⚸" },
+      { key: "chiron", label: "キロン", glyph: "⚷" },
+    ];
+    return bodies.map((body) => {
+      const signKey = transit?.[body.key]?.sign_key || "";
+      const signJa = transit?.[body.key]?.sign_ja || "—";
+      const signIndex = signIndexFromKey(dict, signKey);
+      const houseNo = Number.isFinite(signIndex) && Number.isFinite(ascIndex)
+        ? houseNumberForSignIndex(signIndex, ascIndex)
+        : null;
+      const houseLabel = houseNo ? `${houseNo}H` : "—";
+      return {
+        glyph: body.glyph,
+        label: body.label,
+        signGlyph: signGlyph(signKey),
+        sign: signJa,
+        house: houseLabel,
+      };
+    });
+  })();
+
+  const slidePlacements = {
+    dateLabel,
+    header: "今日の配置",
+    subLabel: "today's placements",
+    lines: placements,
+    brand: "sora-no-koe",
   };
 
   const topAspect =
@@ -330,6 +377,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   const slide3 = {
     dateLabel,
     header: "今日の共鳴",
+    subLabel: "today's resonance",
     lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
     lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
     aspectLine,
@@ -339,7 +387,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     bodyBKey: bKey,
   };
 
-  const slideMoon = buildMoonSlide({ story, dateLabel, dateLocal, dict });
+  const slideMoon = { ...buildMoonSlide({ story, dateLabel, dateLocal, dict }), subLabel: "today's moon" };
 
   const slide5 = {
     ornament: "☉     ☽",
@@ -355,8 +403,9 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   return {
     slides: [
       { kind: "cover", data: slide1 },
+      { kind: "placements", data: slidePlacements },
       { kind: "moon", data: slideMoon },
-      { kind: "chart", data: { story, dateLabel } },
+      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
       { kind: "resonance", data: slide3 },
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],

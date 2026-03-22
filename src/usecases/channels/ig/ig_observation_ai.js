@@ -77,29 +77,31 @@ function validateObservation(text) {
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   const len = countChars(t);
-  if (len < 16) return { ok: false, reason: `too_short:${len}` };
-  if (len > 28) return { ok: false, reason: `too_long:${len}` };
+  if (len < 10) return { ok: false, reason: `too_short:${len}` };
+  if (len > 22) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
 }
 
 function buildRetryNote(reason) {
   const r = String(reason || "unknown");
+  const lenMatch = r.match(/:(\d+)/);
+  const lenInfo = lenMatch ? `いまのは${lenMatch[1]}文字なので、` : "";
   if (r.includes("has_you")) {
-    return `前回は条件外（${r}）。「あなた」を避け、16〜22文字目安（最大28文字）で再出力。`;
+    return `前回は条件外（${r}）。「あなた」を避け、${lenInfo}10〜20文字目安（最大22文字）で再出力。`;
   }
   if (r.includes("too_long")) {
-    return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で短く再出力。`;
+    return `前回は条件外（${r}）。${lenInfo}10〜20文字目安（最大22文字）で再出力。`;
   }
   if (r.includes("too_short")) {
-    return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で整えて再出力。`;
+    return `前回は条件外（${r}）。${lenInfo}10〜20文字目安（最大22文字）で再出力。`;
   }
   if (r.includes("empty")) {
-    return `前回は条件外（${r}）。内容を入れ、16〜22文字目安（最大28文字）で再出力。`;
+    return `前回は条件外（${r}）。内容を入れ、10〜20文字目安（最大22文字）で再出力。`;
   }
-  return `前回は条件外（${r}）。16〜22文字目安（最大28文字）で再出力。`;
+  return `前回は条件外（${r}）。${lenInfo}10〜20文字目安（最大22文字）で再出力。`;
 }
 
-async function generateIgObservationText({ story, dict, openai, maxRetries = 2 }) {
+async function generateIgObservationText({ story, dict, openai, maxRetries = 5 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
