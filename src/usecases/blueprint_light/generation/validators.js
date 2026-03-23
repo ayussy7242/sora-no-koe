@@ -127,6 +127,9 @@ function hasTooShortSectionsV2(source) {
   const deepAxis = source?.deep_axis || {};
   const angles = source?.angles || {};
   const aspectMap = normalizeAspectMapRows(source?.aspect_map);
+  const deepNodesNorth = deepAxis?.nodes_north || deepAxis?.deep_nodes_north || deepAxis?.north || "";
+  const deepNodesSouth = deepAxis?.nodes_south || deepAxis?.deep_nodes_south || deepAxis?.south || "";
+  const hasSplitNodes = Boolean(String(deepNodesNorth || "").trim() || String(deepNodesSouth || "").trim());
 
   const checks = [
     { text: source?.core_tagline, min: LIMITS_V2.core.tagline.min },
@@ -155,7 +158,8 @@ function hasTooShortSectionsV2(source) {
     { text: systemLayers?.personal, min: LIMITS_V2.roles.layer.min },
     { text: systemLayers?.collective, min: LIMITS_V2.roles.layer.min },
     { text: systemLayers?.flow, min: LIMITS_V2.roles.layer_flow.min },
-    { text: deepAxis?.nodes, min: LIMITS_V2.roles.deep_nodes.min },
+    { text: hasSplitNodes ? deepNodesNorth : deepAxis?.nodes, min: hasSplitNodes ? LIMITS_V2.roles.deep_nodes_north.min : LIMITS_V2.roles.deep_nodes.min },
+    { text: hasSplitNodes ? deepNodesSouth : deepAxis?.nodes, min: hasSplitNodes ? LIMITS_V2.roles.deep_nodes_south.min : LIMITS_V2.roles.deep_nodes.min },
     { text: deepAxis?.chiron, min: LIMITS_V2.roles.deep_chiron.min },
     { text: deepAxis?.lilith, min: LIMITS_V2.roles.deep_lilith.min },
     { text: deepAxis?.deep_pattern || deepAxis?.pattern, min: LIMITS_V2.roles.deep_pattern.min },
@@ -192,6 +196,9 @@ function collectV2ValidationIssues(source) {
   const deepAxis = source?.deep_axis || {};
   const angles = source?.angles || {};
   const aspectMap = normalizeAspectMapRows(source?.aspect_map);
+  const deepNodesNorth = deepAxis?.nodes_north || deepAxis?.deep_nodes_north || deepAxis?.north || "";
+  const deepNodesSouth = deepAxis?.nodes_south || deepAxis?.deep_nodes_south || deepAxis?.south || "";
+  const hasSplitNodes = Boolean(String(deepNodesNorth || "").trim() || String(deepNodesSouth || "").trim());
 
   const requireText = (key, value) => {
     if (typeof value !== "string" || !value.trim()) issues.missing.push(key);
@@ -219,7 +226,12 @@ function collectV2ValidationIssues(source) {
   requireText("system_layers.personal", systemLayers?.personal);
   requireText("system_layers.collective", systemLayers?.collective);
   requireText("system_layers.flow", systemLayers?.flow);
-  requireText("deep_axis.nodes", deepAxis?.nodes);
+  if (hasSplitNodes) {
+    requireText("deep_axis.nodes_north", deepNodesNorth);
+    requireText("deep_axis.nodes_south", deepNodesSouth);
+  } else {
+    requireText("deep_axis.nodes", deepAxis?.nodes);
+  }
   requireText("deep_axis.chiron", deepAxis?.chiron);
   requireText("deep_axis.lilith", deepAxis?.lilith);
   requireText("deep_axis.deep_pattern", deepAxis?.deep_pattern || deepAxis?.pattern);
@@ -262,7 +274,12 @@ function collectV2ValidationIssues(source) {
   checkShort("system_layers.personal", systemLayers?.personal, LIMITS_V2.roles.layer.min);
   checkShort("system_layers.collective", systemLayers?.collective, LIMITS_V2.roles.layer.min);
   checkShort("system_layers.flow", systemLayers?.flow, LIMITS_V2.roles.layer_flow.min);
-  checkShort("deep_axis.nodes", deepAxis?.nodes, LIMITS_V2.roles.deep_nodes.min);
+  if (hasSplitNodes) {
+    checkShort("deep_axis.nodes_north", deepNodesNorth, LIMITS_V2.roles.deep_nodes_north.min);
+    checkShort("deep_axis.nodes_south", deepNodesSouth, LIMITS_V2.roles.deep_nodes_south.min);
+  } else {
+    checkShort("deep_axis.nodes", deepAxis?.nodes, LIMITS_V2.roles.deep_nodes.min);
+  }
   checkShort("deep_axis.chiron", deepAxis?.chiron, LIMITS_V2.roles.deep_chiron.min);
   checkShort("deep_axis.lilith", deepAxis?.lilith, LIMITS_V2.roles.deep_lilith.min);
   checkShort(

@@ -29,6 +29,8 @@ const LIMITS_V2 = Object.freeze({
     layer: { min: 100, max: 140, minSentences: 3, maxSentences: 3 },
     layer_flow: { min: 120, max: 150, minSentences: 2, maxSentences: 3 },
     deep_nodes: { min: 150, max: 170, minSentences: 3, maxSentences: 4 },
+    deep_nodes_north: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
+    deep_nodes_south: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
     deep_chiron: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
     deep_lilith: { min: 150, max: 170, minSentences: 4, maxSentences: 4 },
     deep_pattern: { min: 120, max: 160, minSentences: 3, maxSentences: 3 },

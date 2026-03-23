@@ -1508,16 +1508,6 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   const blueprintStorage = bucket ? createBlueprintLightStorage({ bucket, urlExpireDays }) : null;
   const natalService = createNatalService({ db, norm360 });
 
-  async function hasPurchase(lineUserId) {
-    if (!lineUserId) return false;
-    const snap = await db.collection("line_users").doc(lineUserId).get();
-    if (!snap.exists) return false;
-    const data = snap.data() || {};
-    const purchased = data?.purchases?.blueprint_light?.purchased === true;
-    console.log("[blueprint] purchase_lookup", { line_user_id: lineUserId, purchased });
-    return purchased;
-  }
-
   async function getLineUser(lineUserId) {
     if (!lineUserId) return null;
     const snap = await db.collection("line_users").doc(lineUserId).get();
@@ -1527,9 +1517,6 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   async function getOrCreateSignedUrl({ lineUserId, variant = "print" }) {
     if (!lineUserId) return { ok: false, code: "missing_line_user" };
     if (!bucketName || !bucket || !blueprintStorage) return { ok: false, code: "config_missing" };
-
-    const purchased = await hasPurchase(lineUserId);
-    if (!purchased) return { ok: false, code: "not_purchased" };
 
     const manifest = getBlueprintLightManifest({ variant });
     const { pdfPath: filePath } = getBlueprintLightPaths(lineUserId, manifest.variant);

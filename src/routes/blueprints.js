@@ -4,7 +4,26 @@ const express = require("express");
 const { createBlueprintLightService } = require("../usecases/blueprint_light");
 const { enqueueBlueprintGenerate, enqueueBlueprintPdfGenerate } = require("../integrations/cloudtasks/tasks_queue");
 const { createLineApi } = require("../integrations/line/line_api");
+const { LINE_COPY } = require("../content/copy");
 const dict = require("../content/dict");
+
+async function resolveLineDisplayName(db, lineUserId) {
+  if (!db || !lineUserId) return null;
+  const snap = await db.collection("line_users").doc(lineUserId).get();
+  if (!snap.exists) return null;
+  const data = snap.data() || {};
+  const name = data?.line_profile?.display_name || data?.profile?.display_name || null;
+  return name ? String(name).trim() : null;
+}
+
+function formatBlueprintDoneText(text, displayName) {
+  if (!text) return text;
+  if (!String(text).includes("〇〇さんの")) return text;
+  const raw = displayName ? String(displayName).trim() : "";
+  if (!raw) return String(text).replace("〇〇さんの", "あなたの");
+  const withSan = /さん$/.test(raw) ? raw : `${raw}さん`;
+  return String(text).replace("〇〇さんの", `${withSan}の`);
+}
 
 function requireTasksCaller(env, req) {
   const tokenExpected = env?.INTERNAL_TASKS_TOKEN || null;
@@ -335,12 +354,17 @@ function createBlueprintsRouter(deps = {}) {
             accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
             maxText: Number(env.MAX_LINE_TEXT || 4800),
           });
+          const displayName = await resolveLineDisplayName(db, lineUserId);
+          const doneText = formatBlueprintDoneText(
+            LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
+            displayName
+          );
           const templateMessage = {
             type: "template",
-            altText: "星の設計図はこちら",
+            altText: "星の設計図（Blueprint v25）はこちら",
             template: {
               type: "buttons",
-              title: "星の設計図",
+              title: "星の設計図（Blueprint v25）",
               text: "📱スマホ版",
               actions: [
                 {
@@ -351,7 +375,10 @@ function createBlueprintsRouter(deps = {}) {
               ],
             },
           };
-          await lineApiClient.pushMessages(lineUserId, templateMessage);
+          await lineApiClient.pushMessages(lineUserId, [
+            { type: "text", text: doneText },
+            templateMessage,
+          ]);
         }
         await jobRef.set(
           {
@@ -405,12 +432,17 @@ function createBlueprintsRouter(deps = {}) {
           accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
           maxText: Number(env.MAX_LINE_TEXT || 4800),
         });
+        const displayName = await resolveLineDisplayName(db, lineUserId);
+        const doneText = formatBlueprintDoneText(
+          LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
+          displayName
+        );
         const templateMessage = {
           type: "template",
-          altText: "星の設計図はこちら",
+          altText: "星の設計図（Blueprint v25）はこちら",
           template: {
             type: "buttons",
-            title: "星の設計図",
+            title: "星の設計図（Blueprint v25）",
             text: "📱スマホ版",
             actions: [
               {
@@ -421,7 +453,10 @@ function createBlueprintsRouter(deps = {}) {
             ],
           },
         };
-        await lineApiClient.pushMessages(lineUserId, templateMessage);
+        await lineApiClient.pushMessages(lineUserId, [
+          { type: "text", text: doneText },
+          templateMessage,
+        ]);
       }
       await jobRef.set(
         {
