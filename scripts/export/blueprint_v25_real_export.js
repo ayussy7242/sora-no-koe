@@ -163,6 +163,7 @@ function calcMcLon(rowsAngles = []) {
   const html = buildBlueprintV25WireframeHtml({
     data: {
       blueprint: res.data,
+      kernel: aiInput.kernel,
       displayName,
       ownerName: displayName,
       birthText,

@@ -5,9 +5,9 @@ const env = require("../../config/env");
 const { LINE_COPY } = require("../../content/copy");
 const dict = require("../../content/dict");
 const Stripe = require("stripe");
-const { createPurchaseToken } = require("../firebase/purchase_tokens");
 const { createBlueprintLightService } = require("../../usecases/blueprint_light");
 const { getLineSubscription, isPaidLine500 } = require("../firebase/subscription");
+const { enqueueBlueprintGenerate } = require("../cloudtasks/tasks_queue");
 const {
   buildBunpuTop5,
   buildHouseBlock,
@@ -119,55 +119,6 @@ async function createPortalUrl({ lineUserId, db }) {
     return_url: returnUrl,
   });
   return { ok: true, url: session.url };
-}
-
-async function createCheckoutUrlForLight({ token, lineUserId }) {
-  const priceId = env.STRIPE_PRICE_ID_LIGHT || null;
-  const paymentLink = env.STRIPE_PAYMENT_LINK_LIGHT || null;
-
-  const successUrl =
-    pickUrl(env, "STRIPE_SUCCESS_URL", null) ||
-    pickUrl(env, "PUBLIC_BASE_URL", null) ||
-    "https://example.com";
-  const cancelUrl =
-    pickUrl(env, "STRIPE_CANCEL_URL", null) ||
-    pickUrl(env, "PUBLIC_BASE_URL", null) ||
-    "https://example.com";
-
-  if (paymentLink && !priceId) {
-    const url = paymentLink.includes("?")
-      ? `${paymentLink}&client_reference_id=${encodeURIComponent(token)}`
-      : `${paymentLink}?client_reference_id=${encodeURIComponent(token)}`;
-    return { ok: true, url, mode: "payment_link" };
-  }
-
-  if (!env.STRIPE_SECRET_KEY || !priceId) {
-    return { ok: false, error: "stripe_config_missing" };
-  }
-
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    client_reference_id: token,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: {
-      product: "blueprint_light",
-      token,
-      line_user_id: lineUserId || "",
-    },
-  });
-
-  return { ok: true, url: session.url, mode: "checkout_session" };
-}
-
-async function hasBlueprintPurchase({ db, lineUserId }) {
-  if (!db || !lineUserId) return false;
-  const snap = await db.collection("line_users").doc(lineUserId).get();
-  if (!snap.exists) return false;
-  const data = snap.data() || {};
-  return data?.purchases?.blueprint_light?.purchased === true;
 }
 
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers, db, admin, storage }) {
@@ -410,54 +361,12 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PURCHASE) {
-    console.log("[purchase] start", { line_user_id: lineUserId || null, app_user_id: appUserId || null });
-    if (!lineUserId) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "purchase" };
-    }
-    const hasPersonal = await natal.hasNatal(appUserId);
-    if (!hasPersonal) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_NATAL || "先に「はじめる」で登録してね。", stage: "purchase" };
-    }
-
-    if (!db || !admin) {
-      return { text: LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE || "いま購入導線の準備中だよ。", stage: "purchase" };
-    }
-
-    if (await hasBlueprintPurchase({ db, lineUserId })) {
-      return { text: LINE_COPY.BLUEPRINT_ALREADY_PURCHASED || "購入済みだよ。「設計図」でURLを返すね。", stage: "purchase" };
-    }
-
-    const token = await createPurchaseToken({
-      db,
-      admin,
-      lineUserId,
-      product: "blueprint_light",
-      length: 10,
-    });
-
-    let checkout = null;
-    try {
-      checkout = await createCheckoutUrlForLight({ token, lineUserId });
-    } catch (e) {
-      console.log("[purchase] checkout error", { message: e?.message || String(e) });
-      checkout = null;
-    }
-    console.log("[purchase] checkout", {
-      line_user_id: lineUserId,
-      token_tail: token.slice(-4),
-      ok: !!checkout?.ok,
-      mode: checkout?.mode || null,
-      has_url: !!checkout?.url,
-    });
-    if (!checkout || !checkout.ok || !checkout.url) {
-      return { text: LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE || "いま購入導線の準備中だよ。", stage: "purchase" };
-    }
-
-    const text =
-      typeof LINE_COPY.BLUEPRINT_PURCHASE_READY === "function"
-        ? LINE_COPY.BLUEPRINT_PURCHASE_READY(checkout.url)
-        : `購入はこちら\n${checkout.url}`;
-    return { text, stage: "purchase" };
+    return {
+      text:
+        LINE_COPY.BLUEPRINT_FREE_INFO ||
+        "設計図は無料で届くよ。登録済みならこのまま待てばOK。",
+      stage: "purchase_free",
+    };
   }
 
   if (intentKey === intent.INTENT.BLUEPRINT_LIGHT) {
@@ -494,13 +403,14 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       has_url: !!resultMobile?.url,
     });
     if (!resultMobile || !resultMobile.ok) {
+      const code = resultMobile?.code || "";
+      if (code === "not_ready") {
+        await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" }).catch(() => {});
+      }
       const msg =
-        resultMobile?.code === "not_purchased"
-          ? LINE_COPY.BLUEPRINT_NEED_PURCHASE
-          : resultMobile?.code === "natal_not_ready" ||
-            resultMobile?.code === "not_ready"
-            ? LINE_COPY.BLUEPRINT_NOT_READY
-            : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
+        code === "natal_not_ready" || code === "not_ready"
+          ? LINE_COPY.BLUEPRINT_NOT_READY
+          : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
       return { text: msg || "設計図の準備中だよ。", stage: "blueprint_light" };
     }
 
@@ -510,11 +420,11 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     }
     const templateMessage = {
       type: "template",
-      altText: "魂の設計図（LIGHT）はこちら",
+      altText: "星の設計図（Blueprint v25）はこちら",
       template: {
         type: "buttons",
-        title: "魂の設計図（LIGHT）",
-        text: "📱スマホ最適",
+        title: "星の設計図（Blueprint v25）",
+        text: "📱スマホ版",
         actions: actions.length
           ? actions
           : [

@@ -47,10 +47,10 @@ const PAGE_INTROS = {
 
 const UI_SCALE = 1.815;
 const TITLE_SCALE = 1.44;
-const FS_BODY = 14 * UI_SCALE;
-const FS_SUB = 11 * UI_SCALE;
+const FS_BODY = 13.4 * UI_SCALE;
+const FS_SUB = 9.9 * UI_SCALE;
 const FS_HEAD = 16 * UI_SCALE * TITLE_SCALE;
-const LINE_HEIGHT = 1.8;
+const LINE_HEIGHT = 1.72;
 const TEXT_MAX_WIDTH = 520;
 
 const BODY_GLYPH = {
@@ -78,6 +78,33 @@ const BODY_LABEL_JA = {
   neptune: "海王星",
   pluto: "冥王星",
   asc: "ASC",
+};
+
+const PLANET_ROLE_TAGLINES = {
+  sun: "中心の核（自己・存在・意志）",
+  moon: "感情の反応点（安心・無意識・心の動き）",
+  mercury: "思考の回路（言語・思考・伝達）",
+  venus: "価値の向き（好み・関係性・心地よさ）",
+  mars: "行動の起点（行動・衝動・エネルギー）",
+  jupiter: "拡張の方向（成長・拡大・可能性）",
+  saturn: "構造の枠（制限・責任・継続）",
+  uranus: "変化の起点（革新・逸脱・転換）",
+  neptune: "境界の拡散（直感・曖昧・理想）",
+  pluto: "深層の変容点（破壊・再生・極端）",
+};
+
+const AXIS_ROLE_TAGLINES = {
+  asc: "世界への入口｜第一印象・立ち上がり",
+  mc: "社会への方向｜仕事・役割",
+  ic: "内側の基盤｜安心・土台",
+  dc: "他者との接点｜対人・関係",
+};
+
+const DEEP_AXIS_ROLE_TAGLINES = {
+  north_node: "進行の引力（方向・成長）",
+  south_node: "蓄積の基盤（過去・慣れ）",
+  chiron: "揺らぎの核（痛み・感受）",
+  lilith: "抑圧の焦点（欲望・拒絶）",
 };
 
 const SIGN_JA = {
@@ -149,6 +176,9 @@ module.exports = Object.freeze({
   TEXT_MAX_WIDTH,
   BODY_GLYPH,
   BODY_LABEL_JA,
+  PLANET_ROLE_TAGLINES,
+  AXIS_ROLE_TAGLINES,
+  DEEP_AXIS_ROLE_TAGLINES,
   SIGN_JA,
   SIGN_ELEMENT_MAP,
   SIGN_MODALITY_MAP,

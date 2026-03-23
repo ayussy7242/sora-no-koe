@@ -238,33 +238,28 @@ function renderAngPage(ctx) {
       <div class="top">
         <div class="label">STAR AXIS</div>
         <div class="title">星の接続軸</div>
-        <div class="subtext title-en">ANGLES AXIS</div>
         <div class="page-intro">${renderPageIntro(PAGE_INTROS.ang, escapeHtml)}</div>
       </div>
       <div class="middle">
         <div class="ang-grid">
           <div class="chart-box">
-            <div class="card-head">ASC</div>
-            <div class="card-sub">世界への入口</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.asc || "")}</div>
+            <div class="card-title">ASC<span class="card-meta-inline">${p.angleMetaInlineHtml?.asc || escapeHtml(p.angleMeta?.asc || "")}</span></div>
+            <div class="card-role">${escapeHtml(p.angleRoles?.asc || "")}</div>
             <div class="card-body text-block">${renderRichText(p.anglesText?.asc || "")}</div>
           </div>
           <div class="chart-box">
-            <div class="card-head">MC</div>
-            <div class="card-sub">社会への方向</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.mc || "")}</div>
+            <div class="card-title">MC<span class="card-meta-inline">${p.angleMetaInlineHtml?.mc || escapeHtml(p.angleMeta?.mc || "")}</span></div>
+            <div class="card-role">${escapeHtml(p.angleRoles?.mc || "")}</div>
             <div class="card-body text-block">${renderRichText(p.anglesText?.mc || "")}</div>
           </div>
           <div class="chart-box">
-            <div class="card-head">IC</div>
-            <div class="card-sub">内側の根</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.ic || "")}</div>
+            <div class="card-title">IC<span class="card-meta-inline">${p.angleMetaInlineHtml?.ic || escapeHtml(p.angleMeta?.ic || "")}</span></div>
+            <div class="card-role">${escapeHtml(p.angleRoles?.ic || "")}</div>
             <div class="card-body text-block">${renderRichText(p.anglesText?.ic || "")}</div>
           </div>
           <div class="chart-box">
-            <div class="card-head">DC</div>
-            <div class="card-sub">他者との鏡</div>
-            <div class="card-meta">${escapeHtml(p.angleMeta?.dc || "")}</div>
+            <div class="card-title">DC<span class="card-meta-inline">${p.angleMetaInlineHtml?.dc || escapeHtml(p.angleMeta?.dc || "")}</span></div>
+            <div class="card-role">${escapeHtml(p.angleRoles?.dc || "")}</div>
             <div class="card-body text-block">${renderRichText(p.anglesText?.dc || "")}</div>
           </div>
         </div>

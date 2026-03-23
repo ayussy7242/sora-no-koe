@@ -340,7 +340,14 @@ async function generateBlueprintLightTextV2({ env, input }) {
       flow: applyLimits(systemLayers?.flow || "", LIMITS_V2.roles.layer_flow),
     },
     deep_axis: {
-      nodes: applyLimits(deepAxis?.nodes || "", LIMITS_V2.roles.deep_nodes),
+      nodes_north: applyLimits(
+        deepAxis?.nodes_north || deepAxis?.deep_nodes_north || deepAxis?.north || "",
+        LIMITS_V2.roles.deep_nodes_north
+      ),
+      nodes_south: applyLimits(
+        deepAxis?.nodes_south || deepAxis?.deep_nodes_south || deepAxis?.south || "",
+        LIMITS_V2.roles.deep_nodes_south
+      ),
       chiron: applyLimits(deepAxis?.chiron || "", LIMITS_V2.roles.deep_chiron),
       lilith: applyLimits(deepAxis?.lilith || "", LIMITS_V2.roles.deep_lilith),
       deep_pattern: applyLimits(

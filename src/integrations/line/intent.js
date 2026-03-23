@@ -117,6 +117,8 @@ const MAP = new Map([
   ["ソラ図", INTENT.SORAZU],
 
   // PLUS commands
+  ["＋", INTENT.PLUS_MENU],
+  ["+", INTENT.PLUS_MENU],
   ["ぷらす", INTENT.PLUS_MENU],
   ["そらぷらす", INTENT.PLUS_MENU],
   ["ソラぷらす", INTENT.PLUS_MENU],
@@ -191,6 +193,8 @@ function intentFromcommand(rawText) {
     INTENT.PERSONAL_TODAY,
     INTENT.PUBLIC_SKY,
     INTENT.NATAL,
+    INTENT.BLUEPRINT_LIGHT,
+    INTENT.PURCHASE,
     INTENT.PLUS_MENU,
     INTENT.PLUS_JOIN,
     INTENT.PLUS_CANCEL,

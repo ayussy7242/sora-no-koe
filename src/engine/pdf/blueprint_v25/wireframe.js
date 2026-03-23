@@ -29,6 +29,9 @@ const {
   TEXT_MAX_WIDTH,
   BODY_GLYPH,
   BODY_LABEL_JA,
+  PLANET_ROLE_TAGLINES,
+  AXIS_ROLE_TAGLINES,
+  DEEP_AXIS_ROLE_TAGLINES,
   SIGN_JA,
   SIGN_ELEMENT_MAP,
   SIGN_MODALITY_MAP,
@@ -47,6 +50,7 @@ const {
   resolveSignKey,
   formatSignJa,
 } = require("./utils");
+const { replaceGlyphsWithImages, buildGlyphImgTag } = require("./glyphs");
 const { buildStructureLinesFromPlanets } = require("../../../utils/chart_type");
 
 function buildSpaceSvg({ variant, enabled }) {
@@ -157,6 +161,27 @@ function extractFromKernel({ kernel, input, p }) {
     return `${signGlyph ? `${signGlyph} ` : ""}${formatJaDeg(sign, meta.deg, meta.house_no)}`.trim();
   };
 
+  const formatAxisNode = (meta) => {
+    if (!meta) return "";
+    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
+    if (!sign) return "";
+    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
+    const signGlyph = SIGN_SYMBOL[signKey] || "";
+    const degText = Number.isFinite(Number(meta.deg)) ? ` ${Number(meta.deg)}°` : "";
+    const houseText = Number.isFinite(Number(meta.house_no)) ? `｜${Number(meta.house_no)}H` : "";
+    return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
+  };
+
+  const formatAxisSummary = (meta) => {
+    if (!meta) return "";
+    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
+    const house = Number.isFinite(Number(meta.house_no)) ? Number(meta.house_no) : null;
+    if (sign && house) return `${sign}${house}H`;
+    if (sign) return sign;
+    if (house) return `${house}H`;
+    return "";
+  };
+
   const formatNodeWithGlyph = (meta, label) => {
     if (!meta) return "";
     const sign = formatSignJa(meta.sign_ja || meta.sign || "");
@@ -181,6 +206,18 @@ function extractFromKernel({ kernel, input, p }) {
         ? `☋ ${formatSignWithGlyph(southNodeMeta)}`
         : "",
     ].filter(Boolean).join(" / "),
+    northMeta: (northNodeMeta.sign_ja || northNodeMeta.sign)
+      ? formatAxisNode(northNodeMeta)
+      : "",
+    southMeta: (southNodeMeta.sign_ja || southNodeMeta.sign)
+      ? formatAxisNode(southNodeMeta)
+      : "",
+    northSummary: (northNodeMeta.sign_ja || northNodeMeta.sign)
+      ? formatAxisSummary(northNodeMeta)
+      : "",
+    southSummary: (southNodeMeta.sign_ja || southNodeMeta.sign)
+      ? formatAxisSummary(southNodeMeta)
+      : "",
     chiron: (chironMeta.sign_ja || chironMeta.sign)
       ? `${formatSignWithGlyph(chironMeta)}`
       : "",
@@ -193,8 +230,12 @@ function extractFromKernel({ kernel, input, p }) {
     if (!meta) return "";
     const sign = formatSignJa(meta.sign_ja || meta.sign || "");
     if (!sign) return "";
+    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
+    const signGlyph = SIGN_SYMBOL[signKey] || "";
     const degText = Number.isFinite(Number(meta.deg)) ? ` ${Number(meta.deg)}°` : "";
-    return `${label}｜${sign}${degText}`.trim();
+    const axisHouseMap = { ASC: 1, MC: 10, IC: 4, DC: 7 };
+    const houseText = axisHouseMap[label] ? `｜${axisHouseMap[label]}H` : "";
+    return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
   };
   p.angleMeta = {
     asc: formatAngleMeta(angleMetaMap.get("asc"), "ASC"),
@@ -516,6 +557,26 @@ function extractFromMasterChart({ masterChart, p }) {
       p.deepAxisMeta = { ...(p.deepAxisMeta || {}), lilith: formatExtraLine(masterChart.extras.lilith) };
     }
   }
+  if (masterChart?.nodes) {
+    const formatNodeMeta = (node) => {
+      if (!node) return "";
+      const sign = formatSignJa(node.sign_ja || node.sign || "");
+      if (!sign) return "";
+      const signKey = node.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
+      const signGlyph = SIGN_SYMBOL[signKey] || "";
+      const deg = Number(node.degree);
+      const degText = Number.isFinite(deg) ? ` ${deg}°` : "";
+      const house = Number(node.house);
+      const houseText = Number.isFinite(house) ? `｜${house}H` : "";
+      return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
+    };
+    const north = masterChart.nodes.north;
+    const south = masterChart.nodes.south;
+    const nextMeta = { ...(p.deepAxisMeta || {}) };
+    if (!nextMeta.northMeta && north) nextMeta.northMeta = formatNodeMeta(north);
+    if (!nextMeta.southMeta && south) nextMeta.southMeta = formatNodeMeta(south);
+    p.deepAxisMeta = nextMeta;
+  }
   const formatSignDeg = (planet) => {
     if (!planet) return "";
     const sign = formatSignJa(planet.sign_ja || planet.sign || "");
@@ -526,12 +587,41 @@ function extractFromMasterChart({ masterChart, p }) {
     return `${signText}${degText}`.trim();
   };
   if (p.planetRolesAll?.length) {
+    const toRoleLabel = (line) => {
+      if (!line) return "";
+      const raw = String(line).trim();
+      const match = raw.match(/^([^（]+)（(.+)）$/);
+      if (match) return `${match[1]}｜${match[2]}`.trim();
+      return raw;
+    };
+    const stripRoleLine = (text, roleLine) => {
+      if (!text) return "";
+      if (!roleLine) return text;
+      const trimmed = String(text).trimStart();
+      if (!trimmed.startsWith(roleLine)) return text;
+      return trimmed.slice(roleLine.length).replace(/^\s*\n/, "");
+    };
+    const stripMetaSentence = (text) => {
+      const trimmed = String(text || "").trim();
+      if (!trimmed) return "";
+      const end = trimmed.indexOf("。");
+      if (end === -1) return trimmed;
+      const first = trimmed.slice(0, end + 1);
+      if ((/配置|位置/.test(first)) && (/(ハウス|\\dH|H)/.test(first))) {
+        return trimmed.slice(end + 1).trimStart();
+      }
+      return trimmed;
+    };
     p.planetRolesAll = p.planetRolesAll.map((card) => {
       const planet = planetByKey.get(card.key);
       const sign = formatSignDeg(planet);
       const house = Number.isFinite(Number(planet?.house)) ? `${Number(planet.house)}H` : "";
       const meta = sign && house ? `${sign}｜${house}` : sign || house || card.meta;
-      return { ...card, meta };
+      const roleLine = PLANET_ROLE_TAGLINES[card.key] || "";
+      const roleLabel = toRoleLabel(roleLine);
+      let text = stripRoleLine(card.text || "", roleLine);
+      text = stripMetaSentence(text);
+      return { ...card, meta, roleLabel, text };
     });
   }
 
@@ -791,15 +881,20 @@ function extractFromMasterChart({ masterChart, p }) {
     const formatAngleMeta = (angle, label) => {
       if (!angle) return "";
       const sign = formatSignJa(angle.sign_ja || angle.sign || "");
-      const degText = Number.isFinite(Number(angle.degree)) ? ` ${Number(angle.degree)}°` : "";
-      return sign ? `${label}｜${sign}${degText}` : "";
+      if (!sign) return "";
+      const signKey = angle.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
+      const signGlyph = SIGN_SYMBOL[signKey] || "";
+      const degRaw = angle.degree ?? angle.deg;
+      const degText = Number.isFinite(Number(degRaw)) ? ` ${Number(degRaw)}°` : "";
+      const axisHouseMap = { ASC: 1, MC: 10, IC: 4, DC: 7 };
+      const houseText = axisHouseMap[label] ? `｜${axisHouseMap[label]}H` : "";
+      return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
     };
-    p.angleMeta = {
-      asc: formatAngleMeta(masterChart.angles.asc, "ASC"),
-      mc: formatAngleMeta(masterChart.angles.mc, "MC"),
-      ic: formatAngleMeta(masterChart.angles.ic, "IC"),
-      dc: formatAngleMeta(masterChart.angles.dc, "DC"),
-    };
+    p.angleMeta = p.angleMeta || {};
+    p.angleMeta.asc = p.angleMeta.asc || formatAngleMeta(masterChart.angles.asc, "ASC");
+    p.angleMeta.mc = p.angleMeta.mc || formatAngleMeta(masterChart.angles.mc, "MC");
+    p.angleMeta.ic = p.angleMeta.ic || formatAngleMeta(masterChart.angles.ic, "IC");
+    p.angleMeta.dc = p.angleMeta.dc || formatAngleMeta(masterChart.angles.dc, "DC");
   }
   if (masterChart?.nodes) {
     const formatJaDeg = (sign, deg, houseNo, signKey) => {
@@ -812,16 +907,32 @@ function extractFromMasterChart({ masterChart, p }) {
     const south = masterChart.nodes?.south || {};
     const chiron = masterChart.extras?.chiron || {};
     const lilith = masterChart.extras?.lilith || {};
-    p.deepAxisMeta = {
-      north: north.sign_ja || north.sign ? `☊ North Node　${formatJaDeg(north.sign_ja || north.sign, north.degree, north.house, north.sign_key)}` : "",
-      south: south.sign_ja || south.sign ? `☋ South Node　${formatJaDeg(south.sign_ja || south.sign, south.degree, south.house, south.sign_key)}` : "",
-      nodes: [
+    const nextMeta = { ...(p.deepAxisMeta || {}) };
+    if (!nextMeta.north && (north.sign_ja || north.sign)) {
+      nextMeta.north = `☊ North Node　${formatJaDeg(north.sign_ja || north.sign, north.degree, north.house, north.sign_key)}`;
+    }
+    if (!nextMeta.south && (south.sign_ja || south.sign)) {
+      nextMeta.south = `☋ South Node　${formatJaDeg(south.sign_ja || south.sign, south.degree, south.house, south.sign_key)}`;
+    }
+    if (!nextMeta.nodes) {
+      nextMeta.nodes = [
         north.sign_ja || north.sign ? `☊ ${formatJaDeg(north.sign_ja || north.sign, north.degree, north.house, north.sign_key)}` : "",
         south.sign_ja || south.sign ? `☋ ${formatJaDeg(south.sign_ja || south.sign, south.degree, south.house, south.sign_key)}` : "",
-      ].filter(Boolean).join(" / "),
-      chiron: chiron.sign_ja || chiron.sign ? `${formatJaDeg(chiron.sign_ja || chiron.sign, chiron.degree, chiron.house, chiron.sign_key)}` : "",
-      lilith: lilith.sign_ja || lilith.sign ? `${formatJaDeg(lilith.sign_ja || lilith.sign, lilith.degree, lilith.house, lilith.sign_key)}` : "",
-    };
+      ].filter(Boolean).join(" / ");
+    }
+    if (!nextMeta.northMeta && (north.sign_ja || north.sign)) {
+      nextMeta.northMeta = formatJaDeg(north.sign_ja || north.sign, north.degree, north.house, north.sign_key);
+    }
+    if (!nextMeta.southMeta && (south.sign_ja || south.sign)) {
+      nextMeta.southMeta = formatJaDeg(south.sign_ja || south.sign, south.degree, south.house, south.sign_key);
+    }
+    if (!nextMeta.chiron && (chiron.sign_ja || chiron.sign)) {
+      nextMeta.chiron = `${formatJaDeg(chiron.sign_ja || chiron.sign, chiron.degree, chiron.house, chiron.sign_key)}`;
+    }
+    if (!nextMeta.lilith && (lilith.sign_ja || lilith.sign)) {
+      nextMeta.lilith = `${formatJaDeg(lilith.sign_ja || lilith.sign, lilith.degree, lilith.house, lilith.sign_key)}`;
+    }
+    p.deepAxisMeta = nextMeta;
   }
   if (masterChart?.angular_planets) {
     p.angularPlanets = masterChart.angular_planets;
@@ -1228,12 +1339,73 @@ function buildWireframeData(input, placeholders) {
     });
   }
 
+  const prependLine = (text, line) => {
+    if (!line) return text || "";
+    const body = String(text || "");
+    const trimmed = body.trimStart();
+    if (!trimmed) return line;
+    if (trimmed.startsWith(line)) return body;
+    return `${line}\n${body}`.trim();
+  };
+  const stripRoleLine = (text, line) => {
+    if (!line) return text || "";
+    const body = String(text || "");
+    const trimmed = body.trimStart();
+    if (!trimmed.startsWith(line)) return body;
+    return trimmed.slice(line.length).replace(/^\s*\n/, "");
+  };
+
   if (blueprint?.deep_axis) {
     p.deepAxis = {
       nodes: blueprint.deep_axis.nodes || p.deepAxis?.nodes,
+      nodes_north:
+        blueprint.deep_axis.nodes_north ||
+        blueprint.deep_axis.deep_nodes_north ||
+        blueprint.deep_axis.north ||
+        p.deepAxis?.nodes_north ||
+        p.deepAxis?.north,
+      nodes_south:
+        blueprint.deep_axis.nodes_south ||
+        blueprint.deep_axis.deep_nodes_south ||
+        blueprint.deep_axis.south ||
+        p.deepAxis?.nodes_south ||
+        p.deepAxis?.south,
       chiron: blueprint.deep_axis.chiron || p.deepAxis?.chiron,
       lilith: blueprint.deep_axis.lilith || p.deepAxis?.lilith,
       pattern: blueprint.deep_axis.deep_pattern || blueprint.deep_axis.pattern || p.deepAxis?.pattern,
+    };
+  }
+  if (p.deepAxis) {
+    const splitAxisText = (text) => {
+      const raw = String(text || "").trim();
+      if (!raw) return { north: "", south: "" };
+      const sentences = raw.match(/[^。]+。?/g)?.map((s) => s.trim()).filter(Boolean) || [];
+      if (sentences.length === 0) return { north: "", south: "" };
+      if (sentences.length === 1) return { north: sentences[0], south: "" };
+      const north = [];
+      const south = [];
+      sentences.forEach((s, idx) => {
+        if (idx % 2 === 0) north.push(s);
+        else south.push(s);
+      });
+      return { north: north.join(""), south: south.join("") };
+    };
+    const axisSplit = splitAxisText(p.deepAxis.nodes);
+    p.deepAxis = {
+      ...p.deepAxis,
+      nodes: p.deepAxis.nodes,
+      nodesNorth:
+        p.deepAxis?.nodes_north ||
+        p.deepAxis?.deep_nodes_north ||
+        p.deepAxis?.north ||
+        axisSplit.north,
+      nodesSouth:
+        p.deepAxis?.nodes_south ||
+        p.deepAxis?.deep_nodes_south ||
+        p.deepAxis?.south ||
+        axisSplit.south,
+      chiron: prependLine(p.deepAxis.chiron, DEEP_AXIS_ROLE_TAGLINES.chiron),
+      lilith: prependLine(p.deepAxis.lilith, DEEP_AXIS_ROLE_TAGLINES.lilith),
     };
   }
 
@@ -1249,6 +1421,21 @@ function buildWireframeData(input, placeholders) {
         p.anglesText?.axis_structure,
     };
     if (blueprint.angles.intro) p.anglesIntro = blueprint.angles.intro;
+  }
+  if (p.anglesText) {
+    p.angleRoles = {
+      asc: AXIS_ROLE_TAGLINES.asc,
+      mc: AXIS_ROLE_TAGLINES.mc,
+      ic: AXIS_ROLE_TAGLINES.ic,
+      dc: AXIS_ROLE_TAGLINES.dc,
+    };
+    p.anglesText = {
+      ...p.anglesText,
+      asc: stripRoleLine(p.anglesText.asc, AXIS_ROLE_TAGLINES.asc),
+      mc: stripRoleLine(p.anglesText.mc, AXIS_ROLE_TAGLINES.mc),
+      ic: stripRoleLine(p.anglesText.ic, AXIS_ROLE_TAGLINES.ic),
+      dc: stripRoleLine(p.anglesText.dc, AXIS_ROLE_TAGLINES.dc),
+    };
   }
   if (blueprint?.angles_intro) p.anglesIntro = blueprint.angles_intro;
   if (!p.angularPlanets && blueprint?.angular_planets) {
@@ -1324,7 +1511,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
     if (!p.aspectWheelAspects?.length) return "";
     const story = data?.story || data?.kernel?.story;
     if (!story) return "";
-    const size = 542;
+    const size = 650;
     const svg = buildSoraWheelSvg({
       story,
       size,
@@ -1335,7 +1522,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
       ascLonDeg: p.wheelAscLon,
       mcLonDeg: p.wheelMcLon,
     });
-    return `<div style="margin-top:16px; width:110%;">${svg}</div>`;
+    return `<div style="margin-top:16px; width:120%;">${svg}</div>`;
   };
 
   const css = buildBlueprintCss();
@@ -1344,11 +1531,50 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
   const FOOTER_RESERVED = 60;
   const USABLE_HEIGHT = PAGE_HEIGHT - 90 - 110 - HEADER_RESERVED - FOOTER_RESERVED;
 
+  const zodiacGlyphs = Array.from(new Set(Object.values(SIGN_SYMBOL || {}).filter(Boolean)));
+  const zodiacNameMap = Object.entries(SIGN_JA || {}).map(([key, name]) => ({
+    name,
+    glyph: SIGN_SYMBOL?.[key] || "",
+  })).filter((row) => row.name && row.glyph);
+  const ensureZodiacGlyphs = (text) => {
+    let out = String(text || "");
+    zodiacNameMap.forEach(({ name, glyph }) => {
+      if (!out.includes(name)) return;
+      if (out.includes(glyph)) return;
+      out = out.replace(name, `${glyph} ${name}`);
+    });
+    return out;
+  };
+  const wrapZodiacGlyphs = (text) => {
+    let out = ensureZodiacGlyphs(text);
+    zodiacGlyphs.forEach((glyph) => {
+      out = out.split(glyph).join(`<span class="zodiac-glyph">${glyph}</span>`);
+    });
+    return out;
+  };
+  if (p.angleMeta) {
+    const stripAxisLabel = (value) => {
+      const raw = String(value || "");
+      const match = raw.match(/^(ASC|MC|IC|DC)\s*｜\s*(.+)$/i);
+      return match ? match[2] : raw;
+    };
+    p.angleMetaInlineHtml = Object.fromEntries(
+      Object.entries(p.angleMeta).map(([key, value]) => [
+        key,
+        wrapZodiacGlyphs(escapeHtml(stripAxisLabel(value))),
+      ]),
+    );
+  }
+
   const plnBlocks = (p.planetRolesAll || []).map((card) => {
-    const height = estimateBlockHeight({ text: card.text });
+    const textForHeight = [card.roleLabel, card.text].filter(Boolean).join("\n");
+    const height = estimateBlockHeight({ text: textForHeight });
+    const roleHtml = card.roleLabel ? `<div class="card-role">${escapeHtml(card.roleLabel)}</div>` : "";
+    const metaHtml = wrapZodiacGlyphs(escapeHtml(card.meta));
     const html = [
       `<div class="card">`,
-      `<div class="card-title">${escapeHtml(card.label)}<span class="card-meta-inline">${escapeHtml(card.meta)}</span></div>`,
+      `<div class="card-title">${escapeHtml(card.label)}<span class="card-meta-inline">${metaHtml}</span></div>`,
+      roleHtml,
       `<div class="card-text text-block">${renderRichText(card.text)}</div>`,
       `</div>`,
     ].join("");
@@ -1382,37 +1608,72 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
 
   const depBlocks = [
     {
-      key: "nodes",
-      title: "ノード",
-      sub: "NODES",
-      meta: [p.deepAxisMeta?.south, p.deepAxisMeta?.north].filter(Boolean),
-      extra: "axis",
-      text: p.deepAxis.nodes || "",
+      key: "node_north",
+      title: `${buildGlyphImgTag("☊", { className: "glyph-img glyph-img--head", size: 22 })} ノースノード`,
+      meta: [p.deepAxisMeta?.northMeta].filter(Boolean),
+      role: DEEP_AXIS_ROLE_TAGLINES.north_node,
+      text: p.deepAxis.nodesNorth || "",
     },
-    { key: "chiron", title: "<span class=\"glyph\">⚷</span> キロン", sub: "CHIRON", meta: [p.deepAxisMeta?.chiron].filter(Boolean), text: p.deepAxis.chiron || "" },
-    { key: "lilith", title: "<span class=\"glyph\">⚸</span> リリス", sub: "LILITH", meta: [p.deepAxisMeta?.lilith].filter(Boolean), text: p.deepAxis.lilith || "" },
-    { key: "pattern", title: "深層テーマ", sub: "DEEP PATTERN", meta: [], text: p.deepPatternText || "" },
+    {
+      key: "node_south",
+      title: `${buildGlyphImgTag("☋", { className: "glyph-img glyph-img--head", size: 22 })} サウスノード`,
+      meta: [p.deepAxisMeta?.southMeta].filter(Boolean),
+      role: DEEP_AXIS_ROLE_TAGLINES.south_node,
+      text: p.deepAxis.nodesSouth || "",
+    },
+    {
+      key: "chiron",
+      title: `${buildGlyphImgTag("⚷", { className: "glyph-img glyph-img--head", size: 22 })} キロン`,
+      meta: [p.deepAxisMeta?.chiron].filter(Boolean),
+      role: [DEEP_AXIS_ROLE_TAGLINES.chiron].filter(Boolean),
+      text: p.deepAxis.chiron || "",
+    },
+    {
+      key: "lilith",
+      title: `${buildGlyphImgTag("⚸", { className: "glyph-img glyph-img--head", size: 22 })} リリス`,
+      meta: [p.deepAxisMeta?.lilith].filter(Boolean),
+      role: [DEEP_AXIS_ROLE_TAGLINES.lilith].filter(Boolean),
+      text: p.deepAxis.lilith || "",
+    },
   ].map((row) => {
-    const text = `${row.meta.join(" ")} ${row.text}`.trim();
-    let height = estimateBlockHeight({ text });
-    if (row.extra === "axis") height += 80;
-    const isInlineMeta = ["chiron", "lilith"].includes(row.key) && row.meta.length === 1;
-    const metaHtml = isInlineMeta
-      ? ""
-      : row.meta.map((m, idx) => `<div class="card-meta ${idx ? "node-meta" : ""}">${escapeHtml(m)}</div>`).join("");
-    const axisHtml = "";
-    const bodyClass = row.extra === "axis" ? "card-body node-body text-block" : "card-body text-block";
-    const headHtml = isInlineMeta
-      ? `<div class="card-head-line"><div class="card-head">${row.title}</div><div class="card-meta">${escapeHtml(row.meta[0])}</div></div>`
-      : `<div class="card-head">${row.title}</div>`;
-    const boxClass = row.key === "pattern" ? "chart-box full-width" : "chart-box";
+    const meta = Array.isArray(row.meta) ? row.meta : [];
+    const roleLines = Array.isArray(row.role) ? row.role : row.role ? [row.role] : [];
+    const text = [meta.join(" "), roleLines.join(" "), row.text].filter(Boolean).join(" ");
+    let height = estimateBlockHeight({ text, sub: false });
+    if (row.key === "node_north" || row.key === "node_south") height += 10;
+    const metaInline = meta.length
+      ? `<span class="card-meta-inline">${replaceGlyphsWithImages(wrapZodiacGlyphs(escapeHtml(meta[0])), { className: "glyph-img glyph-img--axis", size: 18 })}</span>`
+      : "";
+    const metaHtml = meta.length > 1
+      ? meta.slice(1).map((m, idx) => `<div class="card-meta ${idx ? "node-meta" : ""}">${replaceGlyphsWithImages(wrapZodiacGlyphs(escapeHtml(m)), { className: "glyph-img glyph-img--axis", size: 18 })}</div>`).join("")
+      : "";
+    const bodyClass = "card-text text-block";
+    const headHtml = `<div class="card-title">${row.title}${metaInline}</div>`;
+    const boxClass = "card";
+    const roleHtml = roleLines.length
+      ? roleLines.map((line) => `<div class="card-role">${escapeHtml(line)}</div>`).join("")
+      : "";
+    const stripRoleLines = (textValue, lines) => {
+      if (!textValue || !lines.length) return textValue || "";
+      let out = String(textValue).trimStart();
+      lines.forEach((line) => {
+        if (out.startsWith(line)) {
+          out = out.slice(line.length).replace(/^\s*\n/, "");
+        }
+      });
+      return out;
+    };
+    const bodyText = stripRoleLines(row.text, roleLines);
+    const bodyHtml = bodyText
+      ? `<div class="${bodyClass}">${renderRichText(bodyText)}</div>`
+      : "";
     const html = [
       `<div class="${boxClass}">`,
       headHtml,
-      `<div class="card-sub">${row.sub}</div>`,
+      "",
       metaHtml,
-      axisHtml,
-      `<div class="${bodyClass}">${renderRichText(row.text)}</div>`,
+      roleHtml,
+      bodyHtml,
       `</div>`,
     ].join("");
     return { html, height };
