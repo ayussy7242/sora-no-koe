@@ -1922,7 +1922,6 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   }
 
   return {
-    hasPurchase,
     getOrCreateSignedUrl,
     hasPdf,
     generateAndStore,
