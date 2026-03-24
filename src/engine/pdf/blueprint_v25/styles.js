@@ -277,7 +277,7 @@ body {
 .dep-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--card-gap);
+  gap: 64px;
   width: 100%;
 }
 

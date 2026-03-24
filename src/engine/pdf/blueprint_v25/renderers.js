@@ -80,7 +80,7 @@ function renderMapPage(ctx) {
   const elementGlyph = (glyph, color) =>
     buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
   const modalityGlyph = (glyph, color) =>
-    buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
+    buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 24, color });
   return `
   <section class="page page--map">
     <div class="blueprint-grid"></div>
