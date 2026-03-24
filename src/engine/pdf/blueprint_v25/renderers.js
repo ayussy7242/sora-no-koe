@@ -1,5 +1,7 @@
 "use strict";
 
+const { buildGlyphImgTag } = require("./glyphs");
+
 function renderPageIntro(intro, escapeHtml) {
   if (Array.isArray(intro)) {
     const [head, body] = intro;
@@ -75,6 +77,10 @@ function renderMapPage(ctx) {
     const safe = escapeHtml(row);
     return safe.replace(/^([☊☋⚷⚸])\s*/, '<span class="astro-symbol glyph">$1</span> ');
   });
+  const elementGlyph = (glyph, color) =>
+    buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
+  const modalityGlyph = (glyph, color) =>
+    buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
   return `
   <section class="page page--map">
     <div class="blueprint-grid"></div>
@@ -94,19 +100,19 @@ function renderMapPage(ctx) {
             <div class="card-sub">ELEMENT BALANCE</div>
             <div class="bar-list bar-list--element" style="margin-top:16px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#FF6B6B;">🜂</span><span class="metric-name">火</span><span class="metric-count">${p.elementCounts?.fire ?? ""}</span></div>
+                <div class="metric-label">${elementGlyph("🜂", "#FF6B6B")}<span class="metric-name">火</span><span class="metric-count">${p.elementCounts?.fire ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire ?? 62}%; --bar-color:#FF6B6B;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#E6C36D;">🜃</span><span class="metric-name">地</span><span class="metric-count">${p.elementCounts?.earth ?? ""}</span></div>
+                <div class="metric-label">${elementGlyph("🜃", "#E6C36D")}<span class="metric-name">地</span><span class="metric-count">${p.elementCounts?.earth ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.earth ?? 42}%; --bar-color:#E6C36D;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#7FBF8F;">🜁</span><span class="metric-name">風</span><span class="metric-count">${p.elementCounts?.air ?? ""}</span></div>
+                <div class="metric-label">${elementGlyph("🜁", "#7FBF8F")}<span class="metric-name">風</span><span class="metric-count">${p.elementCounts?.air ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.air ?? 54}%; --bar-color:#7FBF8F;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#7AA7FF;">🜄</span><span class="metric-name">水</span><span class="metric-count">${p.elementCounts?.water ?? ""}</span></div>
+                <div class="metric-label">${elementGlyph("🜄", "#7AA7FF")}<span class="metric-name">水</span><span class="metric-count">${p.elementCounts?.water ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.water ?? 30}%; --bar-color:#7AA7FF;"></div></div>
               </div>
             </div>
@@ -116,15 +122,15 @@ function renderMapPage(ctx) {
             <div class="card-sub">MODALITY BALANCE</div>
             <div class="bar-list bar-list--modality" style="margin-top:16px;">
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#FFB27A;">△</span><span class="metric-name">活動宮</span><span class="metric-count">${p.modalityCounts?.cardinal ?? ""}</span></div>
+                <div class="metric-label">${modalityGlyph("△", "#FFB27A")}<span class="metric-name">活動宮</span><span class="metric-count">${p.modalityCounts?.cardinal ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal ?? 46}%; --bar-color:#FFB27A;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#9EC5FF;">□</span><span class="metric-name">不動宮</span><span class="metric-count">${p.modalityCounts?.fixed ?? ""}</span></div>
+                <div class="metric-label">${modalityGlyph("□", "#9EC5FF")}<span class="metric-name">不動宮</span><span class="metric-count">${p.modalityCounts?.fixed ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed ?? 64}%; --bar-color:#9EC5FF;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#9FD3A8; font-size:26px;">◇</span><span class="metric-name">柔軟宮</span><span class="metric-count">${p.modalityCounts?.mutable ?? ""}</span></div>
+                <div class="metric-label">${modalityGlyph("◇", "#9FD3A8")}<span class="metric-name">柔軟宮</span><span class="metric-count">${p.modalityCounts?.mutable ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable ?? 36}%; --bar-color:#9FD3A8;"></div></div>
               </div>
             </div>

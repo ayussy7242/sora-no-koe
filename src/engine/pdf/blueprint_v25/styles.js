@@ -539,7 +539,15 @@ body {
 }
 
 .bar-list--element .metric-row {
-  column-gap: 0;
+  column-gap: 4px;
+}
+
+.bar-list--element {
+  --metric-label-width: 120px;
+}
+
+.bar-list--element .metric-label {
+  gap: 4px;
 }
 
 .bar-list--modality .metric-row {
@@ -562,6 +570,14 @@ body {
   font-family: 'Noto Sans Symbols 2', 'Noto Sans Symbols', 'Symbola', 'Apple Symbols', 'Segoe UI Symbol', sans-serif;
   margin-right: 2px;
   display: inline-block;
+}
+
+.astro-symbol-img {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: -0.12em;
+  margin-right: 6px;
 }
 
 .metric-count {
