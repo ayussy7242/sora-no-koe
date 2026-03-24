@@ -81,6 +81,13 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   };
 
   mark("start", { dateLocal, dryRun: !!dryRun, force: !!force });
+  mark("eyecatch_config", {
+    enabled: !!env.BLOG_EYECATCH_ENABLED,
+    mode: env.BLOG_EYECATCH_BG_MODE || "image",
+    preset: env.BLOG_EYECATCH_PRESET || "C",
+    force: !!env.BLOG_EYECATCH_FORCE,
+    bgPath: env.BLOG_EYECATCH_BG_PATH || null,
+  });
 
   requiredEnv("OPENAI_API_KEY", env.OPENAI_API_KEY);
   requiredEnv("WP_BASE_URL", env.WP_BASE_URL);
@@ -175,6 +182,10 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   try {
     const existing = await wp.getPostBySlug(slug);
     let featuredMediaId = existing?.featured_media || null;
+    if (featuredMediaId && env.BLOG_EYECATCH_FORCE) {
+      featuredMediaId = null;
+      console.log("[cron/blog/daily] eyecatch force: will overwrite existing featured_media");
+    }
 
     if (!featuredMediaId && env.BLOG_EYECATCH_ENABLED) {
       const { line1, line2, line3 } = buildDailyEyecatchLines(story, dateLocal);
@@ -203,9 +214,11 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
             await wp.updateMedia(featuredMediaId, { alt_text: altText, title: altText });
           }
         }
-      } else if (env.BLOG_EYECATCH_ENABLED) {
-        console.log("[cron/blog/daily] eyecatch skipped: bg_missing");
+      } else {
+        console.log("[cron/blog/daily] eyecatch failed:", rendered?.error || "unknown");
       }
+    } else if (!env.BLOG_EYECATCH_ENABLED) {
+      console.log("[cron/blog/daily] eyecatch skipped: disabled");
     }
 
     if (featuredMediaId) {
