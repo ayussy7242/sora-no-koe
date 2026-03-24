@@ -345,6 +345,45 @@ async function runXNightPost(deps, opts = {}) {
     return { text: res.text, truncated: res.truncated };
   });
 
+  const nightImageEnabled = opts.image === undefined
+    ? toBool(env2.X_NIGHT_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+    : toBool(opts.image, false);
+  const nightImageWidth = Number.isFinite(Number(env2.X_NIGHT_IMAGE_WIDTH))
+    ? Number(env2.X_NIGHT_IMAGE_WIDTH)
+    : (Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH)) ? Number(env2.X_POST_IMAGE_WIDTH) : DEFAULT_X_CANVAS.width);
+  const nightImageHeight = Number.isFinite(Number(env2.X_NIGHT_IMAGE_HEIGHT))
+    ? Number(env2.X_NIGHT_IMAGE_HEIGHT)
+    : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
+  const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
+    || "story_tomorrow";
+
+  let nightMediaId = null;
+  let nightImageInfo = null;
+  if (nightImageEnabled) {
+    nightImageInfo = {
+      enabled: true,
+      width: nightImageWidth,
+      height: nightImageHeight,
+      variant: nightImageVariant,
+    };
+    if (!dryRun) {
+      try {
+        const png = await renderXMorningWheelPng({
+          story,
+          dateLabel: dateLocal,
+          width: nightImageWidth,
+          height: nightImageHeight,
+          variant: nightImageVariant,
+        });
+        const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
+        nightMediaId = uploaded?.id || "";
+        nightImageInfo.media_id = nightMediaId || null;
+      } catch (err) {
+        nightImageInfo.error = err?.message || "image_upload_failed";
+      }
+    }
+  }
+
   if (dryRun) {
     return {
       ok: true,
@@ -352,11 +391,12 @@ async function runXNightPost(deps, opts = {}) {
       date_local: dateLocal,
       as_of: asOfISO,
       posts: trimmed,
+      image: nightImageInfo,
     };
   }
 
   const text = trimmed[0]?.text || "";
-  const res = await postTweet({ text, env: env2 });
+  const res = await postTweet({ text, mediaIds: nightMediaId ? [nightMediaId] : null, env: env2 });
 
   return {
     ok: true,
@@ -365,6 +405,7 @@ async function runXNightPost(deps, opts = {}) {
     as_of: asOfISO,
     posts: trimmed,
     tweet_ids: [res?.id || ""],
+    image: nightImageInfo,
   };
 }
 
