@@ -471,8 +471,8 @@ body {
 
 .map-duo {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 46px;
+  grid-template-columns: 1fr 1fr;
+  gap: 36px;
   align-items: start;
 }
 
@@ -502,14 +502,20 @@ body {
 }
 
 .key-points-title {
-  font-size: calc(var(--fs-card-meta) * 0.95 + var(--fs-bump));
-  letter-spacing: 0.14em;
+  font-size: calc(var(--fs-card-text) * 0.78 + var(--fs-bump));
+  line-height: 1.7;
+  letter-spacing: 0;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .key-points-list {
   display: grid;
   gap: 18px;
+}
+
+.key-points-list > div {
+  white-space: nowrap;
 }
 
 .planet-list,

@@ -263,7 +263,7 @@ function extractFromKernel({ kernel, input, p }) {
     const sign = formatSignJa(meta.sign_ja || meta.sign || "");
     if (!sign) return "";
     const houseNo = normalizeHouseNo(meta.house_no) || normalizeHouseNo(houseFallback);
-    return `${label}　${formatJaDeg(sign, meta.deg, houseNo)}`.trim();
+    return `${label} ${formatJaDeg(sign, meta.deg, houseNo)}`.trim();
   };
 
   const keyPoints = [];
