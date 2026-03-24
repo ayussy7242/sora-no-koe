@@ -21,7 +21,7 @@ const LIMITS_V2 = Object.freeze({
     energy_flow: { min: 110, max: 130, minSentences: 2, maxSentences: 2 },
   },
   obs: {
-    natal_observation: { min: 220, max: 240, minSentences: 5, maxSentences: 6 },
+    natal_observation: { min: 230, max: 260, minSentences: 5, maxSentences: 5 },
   },
   roles: {
     planet: { min: 160, max: 180, minSentences: 4, maxSentences: 4 },
@@ -33,7 +33,7 @@ const LIMITS_V2 = Object.freeze({
     angle: { min: 140, max: 160, minSentences: 3, maxSentences: 4 },
   },
   aspects: {
-    item: { min: 70, max: 90, minSentences: 2, maxSentences: 3 },
+    item: { min: 80, max: 100, minSentences: 2, maxSentences: 3 },
   },
   closing: {
     pattern_name: { min: 8, max: 18, minSentences: 1, maxSentences: 1 },
