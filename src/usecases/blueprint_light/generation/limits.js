@@ -7,9 +7,7 @@
  */
 const LIMITS_V2 = Object.freeze({
   core: {
-    tagline: { min: 20, max: 40, minSentences: 1, maxSentences: 1 },
-    snapshot: { min: 90, max: 150, minSentences: 2, maxSentences: 3 },
-    driving_force: { min: 25, max: 45, minSentences: 1, maxSentences: 2 },
+    star_drive: { min: 25, max: 45, minSentences: 1, maxSentences: 2 },
     star_signature: { min: 150, max: 180, minSentences: 3, maxSentences: 4 },
   },
   map: {

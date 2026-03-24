@@ -277,7 +277,7 @@ body {
 .dep-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 64px;
+  gap: 46px;
   width: 100%;
 }
 
