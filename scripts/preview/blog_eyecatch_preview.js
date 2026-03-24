@@ -87,9 +87,11 @@ async function main() {
 
   const bgPath = args.bg || env.BLOG_EYECATCH_BG_PATH || null;
   const outDir = args.outDir || path.join(process.cwd(), "public", "blog-eyecatch");
-  const outPath = path.join(outDir, `${date}.jpg`);
+  const outPath = args.out
+    ? path.resolve(args.out)
+    : path.join(outDir, `${date}.jpg`);
 
-  fs.mkdirSync(outDir, { recursive: true });
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
   if (String(args.verbose || "").toLowerCase() === "true" || args.verbose) {
     console.log("[eyecatch] bgMode:", bgMode, "story:", story ? "loaded" : "none");

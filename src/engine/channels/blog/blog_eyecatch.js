@@ -125,7 +125,7 @@ function wrapByChars(text, maxChars, maxLines = 2) {
 
 function splitLine2(text, { maxChars = 16, maxLines = 2 } = {}) {
   const fromBreaks = splitLinesByNewline(text);
-  if (fromBreaks.length) {
+  if (fromBreaks.length > 1) {
     return fromBreaks.slice(0, maxLines);
   }
   const raw = String(text || "").trim();
@@ -137,13 +137,29 @@ function splitLine2(text, { maxChars = 16, maxLines = 2 } = {}) {
     const left = raw.slice(0, crossIdx + 1).trim();
     const right = raw.slice(crossIdx + 1).trim();
     if (left && right) {
+      const rightTokens = right.split(/\s+/).filter(Boolean);
+      if (rightTokens.length >= 3) {
+        const head = rightTokens.slice(0, 2).join(" ");
+        const tail = rightTokens.slice(2).join(" ");
+        const line1 = `${left} ${head}`.trim();
+        const line2 = tail.trim();
+        if (line2 && Array.from(line1).length <= maxChars && Array.from(line2).length <= maxChars) {
+          return [line1, line2];
+        }
+      }
       if (Array.from(left).length <= maxChars && Array.from(right).length <= maxChars) {
         return [left, right];
       }
     }
   }
 
-  return wrapByChars(raw, maxChars, maxLines);
+  const wrapped = wrapByChars(raw, maxChars, maxLines);
+  if (maxLines === 2 && wrapped.length === 1) {
+    const chars = Array.from(raw);
+    const half = Math.ceil(chars.length / 2);
+    return [chars.slice(0, half).join(""), chars.slice(half).join("")].filter(Boolean);
+  }
+  return wrapped;
 }
 
 function presetConfig(presetKey) {
@@ -167,10 +183,8 @@ function presetConfig(presetKey) {
     return {
       line1Size: 32,
       line2Size: 60,
-      centerY: 350,
-      line1Y: 300,
-      line2Y: 400,
-      line3Y: 470,
+      line1Y: 200,
+      line3Y: 520,
       line2Weight: "bold",
       lineHeightRatio: 1.35,
       lineGap: 10,
@@ -229,23 +243,23 @@ function computeEyecatchLayout({ width, height, line1, line2, line3, preset }) {
   let line1Y = null;
   let line2Y = null;
   let line3Y = null;
-  if (line2Count === 1 && Number.isFinite(config.line1Y) && Number.isFinite(config.line2Y)) {
-    line1Y = Math.round(config.line1Y);
-    line2Y = Math.round(config.line2Y);
-    if (hasLine3) {
-      line3Y = Number.isFinite(config.line3Y)
-        ? Math.round(config.line3Y)
-        : Math.round(line2Y + line2Size + (config.lineGap || 0) + line3Size);
-    }
-  } else {
-    const top = centerY - totalHeight / 2;
-    line1Y = Math.round(top + line1Size);
-    line2Y = Math.round(top + lineHeight1 + (config.lineGap || 0) + line2Size);
-    if (hasLine3) {
-      line3Y = Math.round(
+  const top = centerY - totalHeight / 2;
+  line1Y = Number.isFinite(config.line1Y)
+    ? Math.round(config.line1Y)
+    : Math.round(top + line1Size);
+  line3Y = hasLine3 && Number.isFinite(config.line3Y)
+    ? Math.round(config.line3Y)
+    : (hasLine3 ? Math.round(
         top + lineHeight1 + (config.lineGap || 0) + line2BlockHeight + (config.lineGap || 0) + line3Size
-      );
-    }
+      ) : null);
+  if (Number.isFinite(config.line2Y)) {
+    line2Y = Math.round(config.line2Y);
+  } else if (hasLine3 && Number.isFinite(line3Y)) {
+    const mid = (line1Y + line3Y) / 2;
+    const blockTop = mid - line2BlockHeight / 2;
+  line2Y = Math.round(blockTop + line2Size - 8);
+  } else {
+    line2Y = Math.round(top + lineHeight1 + (config.lineGap || 0) + line2Size);
   }
 
   const line2Font = config.line2Weight === "bold" ? "SoraLine2Bold" : "SoraLine2";
@@ -434,8 +448,31 @@ async function renderBlogEyecatchImage({
   return { ok: true, buffer, width, height, bgPath: resolvedBg, format: fmt, preset };
 }
 
-async function renderBlogEyecatchJpeg({ bgPath, line1, line2, line3, quality = 92, preset = "C" } = {}) {
-  return renderBlogEyecatchImage({ bgPath, line1, line2, line3, format: "jpeg", quality, preset });
+async function renderBlogEyecatchJpeg({
+  bgPath,
+  bgMode,
+  bgVariant,
+  story,
+  dateLabel,
+  line1,
+  line2,
+  line3,
+  quality = 92,
+  preset = "C",
+} = {}) {
+  return renderBlogEyecatchImage({
+    bgPath,
+    bgMode,
+    bgVariant,
+    story,
+    dateLabel,
+    line1,
+    line2,
+    line3,
+    format: "jpeg",
+    quality,
+    preset,
+  });
 }
 
 module.exports = {

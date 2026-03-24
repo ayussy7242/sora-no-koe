@@ -941,7 +941,7 @@ function buildDailyEyecatchLines(story, dateLocal) {
   return {
     line1: dateDots || "今日のソラ",
     line2: line2 || "今日のソラ",
-    line3: "今日のソラ",
+    line3: "今日のソラ | sora-no-koe",
     kind: "lead_aspect",
   };
 }
