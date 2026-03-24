@@ -48,7 +48,6 @@ function hasAllRequiredKeysV2(source) {
   const anglesV2 = source?.angles || {};
   const aspectMap = normalizeAspectMapRows(source?.aspect_map);
 
-  const coreOk = typeof source?.core_snapshot === "string" && source.core_snapshot.trim();
   const dashboardOk =
     typeof dashboard?.element_balance === "string" &&
     typeof dashboard?.modality_balance === "string" &&
@@ -84,6 +83,7 @@ function hasAllRequiredKeysV2(source) {
   const aspectOk = aspectMap.length >= 1 && aspectMap.every((row) => typeof row?.text === "string");
   const patternNameOk = typeof source?.pattern_name === "string" && source.pattern_name.trim();
   const drivingForceOk =
+    (typeof source?.star_drive === "string" && source.star_drive.trim()) ||
     (typeof source?.driving_force === "string" && source.driving_force.trim()) ||
     (typeof source?.star_focus === "string" && source.star_focus.trim()) ||
     (typeof source?.cosmic_focus === "string" && source.cosmic_focus.trim());
@@ -93,7 +93,6 @@ function hasAllRequiredKeysV2(source) {
   const natalOk = typeof source?.natal_observation === "string" && source.natal_observation.trim();
   const closingOk = typeof source?.closing_summary === "string" && source.closing_summary.trim();
   return (
-    coreOk &&
     dashboardOk &&
     rolesOk &&
     systemOk &&
@@ -121,8 +120,6 @@ function hasTooShortSectionsV2(source) {
   const hasSplitNodes = Boolean(String(deepNodesNorth || "").trim() || String(deepNodesSouth || "").trim());
 
   const checks = [
-    { text: source?.core_tagline, min: LIMITS_V2.core.tagline.min },
-    { text: source?.core_snapshot, min: LIMITS_V2.core.snapshot.min },
     { text: dashboard?.element_balance, min: LIMITS_V2.map.element_balance.min },
     { text: dashboard?.modality_balance, min: LIMITS_V2.map.modality_balance.min },
     { text: dashboard?.dominant_signs, min: LIMITS_V2.map.dominant_signs.min },
@@ -151,7 +148,7 @@ function hasTooShortSectionsV2(source) {
     { text: angles?.ic, min: LIMITS_V2.roles.angle.min },
     { text: angles?.dc, min: LIMITS_V2.roles.angle.min },
     { text: source?.pattern_name, min: LIMITS_V2.closing.pattern_name.min },
-    { text: source?.driving_force || source?.star_focus || source?.cosmic_focus, min: LIMITS_V2.core.driving_force.min },
+    { text: source?.star_drive || source?.driving_force || source?.star_focus || source?.cosmic_focus, min: LIMITS_V2.core.star_drive.min },
     { text: source?.star_signature || source?.cosmic_signature, min: LIMITS_V2.core.star_signature.min },
     { text: source?.natal_observation, min: LIMITS_V2.obs.natal_observation.min },
     { text: source?.closing_summary, min: LIMITS_V2.closing.closing_summary.min },
@@ -187,8 +184,6 @@ function collectV2ValidationIssues(source) {
     if (isTooShort(value, min)) issues.tooShort.push(key);
   };
 
-  requireText("core_tagline", source?.core_tagline);
-  requireText("core_snapshot", source?.core_snapshot);
   requireText("dashboard.element_balance", dashboard?.element_balance);
   requireText("dashboard.modality_balance", dashboard?.modality_balance);
   requireText("dashboard.dominant_signs", dashboard?.dominant_signs);
@@ -213,13 +208,11 @@ function collectV2ValidationIssues(source) {
     requireText(`angles.${key}`, angles?.[key]);
   }
   requireText("pattern_name", source?.pattern_name);
-  requireText("driving_force", source?.driving_force || source?.star_focus || source?.cosmic_focus);
+  requireText("star_drive", source?.star_drive || source?.driving_force || source?.star_focus || source?.cosmic_focus);
   requireText("star_signature", source?.star_signature || source?.cosmic_signature);
   requireText("natal_observation", source?.natal_observation);
   requireText("closing_summary", source?.closing_summary);
 
-  checkShort("core_tagline", source?.core_tagline, LIMITS_V2.core.tagline.min);
-  checkShort("core_snapshot", source?.core_snapshot, LIMITS_V2.core.snapshot.min);
   checkShort("dashboard.element_balance", dashboard?.element_balance, LIMITS_V2.map.element_balance.min);
   checkShort("dashboard.modality_balance", dashboard?.modality_balance, LIMITS_V2.map.modality_balance.min);
   checkShort("dashboard.dominant_signs", dashboard?.dominant_signs, LIMITS_V2.map.dominant_signs.min);
@@ -252,7 +245,11 @@ function collectV2ValidationIssues(source) {
   checkShort("angles.ic", angles?.ic, LIMITS_V2.roles.angle.min);
   checkShort("angles.dc", angles?.dc, LIMITS_V2.roles.angle.min);
   checkShort("pattern_name", source?.pattern_name, LIMITS_V2.closing.pattern_name.min);
-  checkShort("driving_force", source?.driving_force || source?.star_focus || source?.cosmic_focus, LIMITS_V2.core.driving_force.min);
+  checkShort(
+    "star_drive",
+    source?.star_drive || source?.driving_force || source?.star_focus || source?.cosmic_focus,
+    LIMITS_V2.core.star_drive.min
+  );
   checkShort("star_signature", source?.star_signature || source?.cosmic_signature, LIMITS_V2.core.star_signature.min);
   checkShort("natal_observation", source?.natal_observation, LIMITS_V2.obs.natal_observation.min);
   checkShort("closing_summary", source?.closing_summary, LIMITS_V2.closing.closing_summary.min);

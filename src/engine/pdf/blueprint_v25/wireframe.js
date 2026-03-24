@@ -1239,7 +1239,10 @@ function buildWireframeData(input, placeholders) {
   if (blueprint?.chart_pattern) p.chartPattern = blueprint.chart_pattern;
   if (blueprint?.closing_summary) p.closingSummary = blueprint.closing_summary;
   if (blueprint?.deep_axis) p.deepAxis = blueprint.deep_axis;
-  if (blueprint?.driving_force) p.drivingForceLines = splitLines(blueprint.driving_force);
+  if (blueprint?.star_drive) p.drivingForceLines = splitLines(blueprint.star_drive);
+  if (!p.drivingForceLines?.length && blueprint?.driving_force) {
+    p.drivingForceLines = splitLines(blueprint.driving_force);
+  }
   if (!p.drivingForceLines?.length && blueprint?.star_focus) p.drivingForceLines = splitLines(blueprint.star_focus);
   if (!p.drivingForceLines?.length && blueprint?.cosmic_focus) p.drivingForceLines = splitLines(blueprint.cosmic_focus);
   if (blueprint?.star_signature) {

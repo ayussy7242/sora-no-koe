@@ -5,9 +5,7 @@
  * Used to show the model exact expected schema.
  */
 const SHAPE_CORE = `{
-  "core_tagline": "...",
-  "core_snapshot": "...",
-  "driving_force": "...",
+  "star_drive": "...",
   "star_signature": "..."
 }`;
 

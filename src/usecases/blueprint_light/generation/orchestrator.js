@@ -150,6 +150,30 @@ function applyLimitsOverride(text, limits, overrides = {}) {
   });
 }
 
+function buildDashboardFallbacks(mapData = {}) {
+  const elementText = mapData?.element_balance_text || "";
+  const modalityText = mapData?.modality_balance_text || "";
+  const dominantSigns = Array.isArray(mapData?.dominant_signs)
+    ? mapData.dominant_signs.map((row) => row.sign).filter(Boolean)
+    : [];
+  const dominantHouses = Array.isArray(mapData?.dominant_houses)
+    ? mapData.dominant_houses.map((row) => row.house).filter(Boolean)
+    : [];
+  const planetDistributionText = mapData?.planet_distribution_text || "";
+  const element_balance = elementText ? `エレメントは${elementText}の分布です。` : "";
+  const modality_balance = modalityText ? `モードは${modalityText}の構成です。` : "";
+  const dominant_signs = dominantSigns.length ? `目立つサイン帯は${dominantSigns.join("・")}です。` : "";
+  const dominant_houses = dominantHouses.length ? `主要ハウスは${dominantHouses.join("・")}です。` : "";
+  const planet_distribution = planetDistributionText ? `天体分布は${planetDistributionText}です。` : "";
+  return {
+    element_balance,
+    modality_balance,
+    dominant_signs,
+    dominant_houses,
+    planet_distribution,
+  };
+}
+
 async function generateBlueprintLightTextV2({ env, input }) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
@@ -299,6 +323,7 @@ async function generateBlueprintLightTextV2({ env, input }) {
     ...(segment6.data || {}),
   };
   const dashboard = source?.dashboard || {};
+  const dashboardFallbacks = buildDashboardFallbacks(mapData);
   const planetRoles = source?.planet_roles || {};
   const systemLayers = source?.system_layers || {};
   const deepAxis = source?.deep_axis || {};
@@ -307,15 +332,31 @@ async function generateBlueprintLightTextV2({ env, input }) {
 
   const data = {
     version: "blueprint_light_v2",
-    core_tagline: applyLimits(source?.core_tagline || "", LIMITS_V2.core.tagline),
-    core_snapshot: applyLimits(source?.core_snapshot || "", LIMITS_V2.core.snapshot),
     dashboard: {
-      element_balance: applyLimits(dashboard?.element_balance || "", LIMITS_V2.map.element_balance),
-      modality_balance: applyLimits(dashboard?.modality_balance || "", LIMITS_V2.map.modality_balance),
-      dominant_signs: applyLimits(dashboard?.dominant_signs || "", LIMITS_V2.map.dominant_signs),
-      dominant_houses: applyLimits(dashboard?.dominant_houses || "", LIMITS_V2.map.dominant_houses),
-      planet_distribution: applyLimits(dashboard?.planet_distribution || "", LIMITS_V2.map.planet_distribution),
-      energy_flow: applyLimits(dashboard?.energy_flow || "", LIMITS_V2.map.energy_flow),
+      element_balance: applyLimits(
+        dashboard?.element_balance || dashboardFallbacks.element_balance || "",
+        LIMITS_V2.map.element_balance
+      ),
+      modality_balance: applyLimits(
+        dashboard?.modality_balance || dashboardFallbacks.modality_balance || "",
+        LIMITS_V2.map.modality_balance
+      ),
+      dominant_signs: applyLimits(
+        dashboard?.dominant_signs || dashboardFallbacks.dominant_signs || "",
+        LIMITS_V2.map.dominant_signs
+      ),
+      dominant_houses: applyLimits(
+        dashboard?.dominant_houses || dashboardFallbacks.dominant_houses || "",
+        LIMITS_V2.map.dominant_houses
+      ),
+      planet_distribution: applyLimits(
+        dashboard?.planet_distribution || dashboardFallbacks.planet_distribution || "",
+        LIMITS_V2.map.planet_distribution
+      ),
+      energy_flow: applyLimits(
+        dashboard?.energy_flow || "",
+        LIMITS_V2.map.energy_flow
+      ),
     },
     planet_roles: {
       sun: applyLimits(planetRoles?.sun || "", LIMITS_V2.roles.planet),
@@ -361,9 +402,9 @@ async function generateBlueprintLightTextV2({ env, input }) {
       return acc;
     }, {}),
     pattern_name: applyLimits(source?.pattern_name || "", LIMITS_V2.closing.pattern_name),
-    driving_force: applyLimits(
-      source?.driving_force || source?.star_focus || source?.cosmic_focus || "",
-      LIMITS_V2.core.driving_force
+    star_drive: applyLimits(
+      source?.star_drive || source?.driving_force || source?.star_focus || source?.cosmic_focus || "",
+      LIMITS_V2.core.star_drive
     ),
     star_signature: applyLimits(
       source?.star_signature || source?.cosmic_signature || "",
