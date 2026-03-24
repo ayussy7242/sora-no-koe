@@ -44,9 +44,9 @@ ${buildFontFaceCss()}
   --space-3: 72px;
   --space-4: 96px;
   --page-margin-bump: 10px;
-  --page-margin-x: calc(var(--space-4) + var(--page-margin-bump));
-  --page-margin-top: calc(90px + var(--page-margin-bump));
-  --page-margin-bottom: calc(110px + var(--page-margin-bump));
+  --page-margin-x: calc((var(--space-4) + var(--page-margin-bump)) * 0.65);
+  --page-margin-top: calc((90px + var(--page-margin-bump)) * 0.8);
+  --page-margin-bottom: calc((110px + var(--page-margin-bump)) * 0.8);
   --section-gap: var(--space-3);
   --card-gap: var(--space-2);
   --column-gap: 40px;
@@ -54,10 +54,10 @@ ${buildFontFaceCss()}
   --nav-gap: 80px;
   --content-max: 888px;
   --ui: 1.815;
-  --title-scale: 1.44;
-  --fs-bump: 2px;
+  --title-scale: 1.5;
+  --fs-bump: 3px;
   --fs-title: calc(24px * var(--ui) * var(--title-scale));
-  --fs-label: calc(10px * var(--ui));
+  --fs-label: calc(14px * var(--ui) - 2px);
   --fs-body: calc(13.4px * var(--ui));
   --fs-sub: calc(9.9px * var(--ui));
   --fs-sub-label: calc(13.2px * var(--ui));
@@ -66,6 +66,9 @@ ${buildFontFaceCss()}
   --fs-card-meta: calc(10.2px * var(--ui));
   --fs-card-text: calc(13.4px * var(--ui));
   --fs-card-list: calc(13px * var(--ui));
+  --fs-body-text: calc(var(--fs-body) + var(--fs-bump) + 2px);
+  --lh-body-text: calc(1.72em + 3px);
+  --metric-label-width: 160px;
   --lh-sub-label: 1.5;
   --ls-sub-label: 0.01em;
   --fs-tag: calc(12px * var(--ui));
@@ -79,6 +82,7 @@ body {
   font-family: 'Zen Kaku Gothic', sans-serif;
   color: var(--text);
   background: var(--bg);
+  text-align: justify;
 }
 
 .page {
@@ -179,7 +183,7 @@ body {
   align-self: stretch;
   width: 100%;
   max-width: var(--content-max);
-  margin: 0 auto;
+  margin: 0;
 }
 
 .bottom {
@@ -190,7 +194,7 @@ body {
   align-self: stretch;
   width: 100%;
   max-width: var(--content-max);
-  margin: 0 auto;
+  margin: 0;
   padding-bottom: var(--nav-gap);
 }
 
@@ -257,7 +261,7 @@ body {
 
 .ang-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   row-gap: var(--card-gap);
   column-gap: var(--column-gap);
   width: 100%;
@@ -298,8 +302,8 @@ body {
 }
 
 .text {
-  font-size: calc(var(--fs-body) + var(--fs-bump));
-  line-height: 2.1;
+  font-size: var(--fs-body-text);
+  line-height: var(--lh-body-text);
   color: var(--text);
 }
 
@@ -310,7 +314,7 @@ body {
 }
 
 .title-en {
-  font-size: calc(var(--fs-title) * 0.6 + var(--fs-bump));
+  font-size: calc(var(--fs-title) * 0.42 + var(--fs-bump));
   letter-spacing: var(--ls-sub);
   color: var(--muted);
 }
@@ -321,16 +325,17 @@ body {
 }
 
 .sys-owner {
-  margin-top: 6px;
-  font-size: calc(var(--fs-body) - 2px + var(--fs-bump));
+  margin-top: 36px;
+  font-size: calc(var(--fs-body) + 2px + var(--fs-bump));
   letter-spacing: 0.04em;
 }
 
 .sys-birth {
   margin-top: 0;
-  line-height: 1.2;
-  margin-bottom: 32px;
+  line-height: 2;
+  margin-bottom: 48px;
   letter-spacing: 0.08em;
+  font-size: calc(var(--fs-body) + 4px + var(--fs-bump));
 }
 
 .sys-signline {
@@ -338,10 +343,10 @@ body {
 }
 
 .page-intro {
-  font-size: calc(14px * var(--ui) + var(--fs-bump));
+  font-size: calc(15px * var(--ui) + var(--fs-bump));
   opacity: 0.7;
   margin-top: 10px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
   letter-spacing: 0.02em;
   line-height: 1.6;
 }
@@ -447,7 +452,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 28px;
-  margin-top: 18px;
+  margin-top: 28px;
 }
 
 .map-grid .chart-box {
@@ -456,7 +461,7 @@ body {
 
 .map-block-full {
   grid-column: 1 / -1;
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 
 .map-title {
@@ -467,7 +472,7 @@ body {
 .map-duo {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
-  gap: 58px;
+  gap: 46px;
   align-items: start;
 }
 
@@ -491,11 +496,9 @@ body {
 .planet-list {
   display: grid;
   grid-template-columns: max-content max-content;
-  row-gap: 8px;
-  column-gap: 58px;
+  row-gap: 18px;
+  column-gap: 42px;
   justify-content: start;
-  font-size: calc(var(--fs-card-text) * 0.77 + var(--fs-bump));
-  line-height: 1.7;
 }
 
 .key-points-title {
@@ -506,8 +509,12 @@ body {
 
 .key-points-list {
   display: grid;
-  gap: 8px;
-  font-size: calc(var(--fs-card-text) * 0.77 + var(--fs-bump));
+  gap: 18px;
+}
+
+.planet-list,
+.key-points-list {
+  font-size: calc(var(--fs-card-text) * 0.78 + var(--fs-bump));
   line-height: 1.7;
   font-family: 'Zen Kaku Gothic', 'Noto Symbols 2', 'Noto Symbols', 'Symbola', sans-serif;
 }
@@ -521,36 +528,53 @@ body {
 .bar-list {
   width: 100%;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .metric-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--metric-label-width) 1fr;
+  column-gap: 8px;
   align-items: center;
-  gap: 10px;
+}
+
+.bar-list--element .metric-row {
+  column-gap: 0;
+}
+
+.bar-list--modality .metric-row {
+  column-gap: 24px;
 }
 
 .metric-label {
   min-width: 0;
   white-space: nowrap;
-  padding-right: 14px;
+  padding-right: 0;
+  font-size: var(--fs-body-text);
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-start;
 }
 
 .astro-symbol {
-  font-family: 'Noto Sans Symbols', 'Symbola', 'Apple Symbols', 'Segoe UI Symbol', sans-serif;
+  font-family: 'Noto Sans Symbols 2', 'Noto Sans Symbols', 'Symbola', 'Apple Symbols', 'Segoe UI Symbol', sans-serif;
   margin-right: 2px;
   display: inline-block;
 }
 
 .metric-count {
-  margin-left: 12px;
+  margin-left: 0;
   opacity: 0.95;
-  padding-right: 32px;
+  padding-right: 0;
+  min-width: 28px;
+  text-align: right;
 }
 
 .metric-bar {
   flex: 1;
-  margin-left: 14px;
+  margin-left: 0;
 }
 
 .bar {
@@ -668,7 +692,7 @@ body {
   color: var(--muted);
   margin-top: 6px;
 }
-.card-text { font-size: calc(var(--fs-card-text) + var(--fs-bump)); line-height: 1.72; margin-top: 8px; color: var(--text); }
+.card-text { font-size: var(--fs-body-text); line-height: var(--lh-body-text); margin-top: 8px; color: var(--text); }
 
 
 .page--dep .card-head-line {
@@ -685,7 +709,7 @@ body {
   font-weight: 500;
 }
 .card-meta-inline {
-  font-size: calc(var(--fs-sub-label) + var(--fs-bump));
+  font-size: calc(var(--fs-sub-label) + 4px + var(--fs-bump));
   line-height: var(--lh-sub-label);
   letter-spacing: var(--ls-sub-label);
   color: var(--muted);
@@ -701,7 +725,7 @@ body {
 
 .card-role {
   margin: 6px 0 10px;
-  font-size: calc(var(--fs-sub-label) - 2px + var(--fs-bump));
+  font-size: calc(var(--fs-sub-label) + var(--fs-bump));
   line-height: var(--lh-sub-label);
   color: var(--muted);
   opacity: 0.72;
@@ -766,18 +790,19 @@ body {
 }
 
 .card-sub {
-  font-size: calc(var(--fs-sub-label) + var(--fs-bump));
+  font-size: calc(var(--fs-sub-label) - 2px + var(--fs-bump));
   letter-spacing: var(--ls-sub-label);
   line-height: var(--lh-sub-label);
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 4px;
+  opacity: 0.75;
+  margin-top: 8px;
   white-space: nowrap;
 }
 
 .card-body {
-  font-size: calc(var(--fs-body) + var(--fs-bump));
-  line-height: 1.72;
+  font-size: var(--fs-body-text);
+  line-height: var(--lh-body-text);
   margin-top: var(--space-1);
   color: var(--text);
 }
@@ -798,7 +823,7 @@ body {
 .card-body p,
 .card-text p {
   margin: 0 0 10px;
-  line-height: 1.7;
+  line-height: var(--lh-body-text);
 }
 
 .text-block p:last-child,
@@ -811,14 +836,14 @@ body {
   margin-top: var(--space-1);
   display: grid;
   gap: 6px;
-  font-size: calc(var(--fs-card-list) + var(--fs-bump));
+  font-size: var(--fs-body-text);
 }
 
 .card-list.inline {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: calc(16px + var(--fs-bump));
+  font-size: calc(16px + 2px + var(--fs-bump));
   opacity: 0.8;
 }
 
@@ -826,6 +851,18 @@ body {
   content: "ー";
   margin: 0 8px;
   color: var(--muted);
+}
+
+.aspect-list {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.aspect-list li {
+  margin: 0;
 }
 
 .card-list.inline > div:last-child::after {
@@ -947,6 +984,58 @@ body {
 
 .page--pat .pat-grid .text-block {
   max-width: 100%;
+}
+
+.page--pat .pat-summary {
+  margin-top: 32px;
+}
+
+.page--pat .pat-footnote {
+  margin-top: 0;
+  font-size: calc(var(--fs-sub) * 1.35 + var(--fs-bump));
+  opacity: 0.6;
+}
+
+.page--pat .subtext {
+  font-size: calc(var(--fs-sub) + 12px + var(--fs-bump));
+  line-height: 6;
+  margin-top: 0;
+}
+
+.page--pat .slide {
+  padding-top: calc(var(--page-margin-top) + 12px);
+  padding-bottom: calc(var(--page-margin-bottom) + 12px);
+  row-gap: calc(var(--section-gap) * 1.1);
+  text-align: center;
+}
+
+.page--pat .top .title {
+  margin-bottom: 8px;
+}
+
+.page--pat .pat-name {
+  margin-bottom: 24px;
+}
+
+.page--pat .pat-summary .card-body {
+  margin-top: calc(var(--space-1) + 12px);
+  line-height: calc(var(--lh-body-text) + 4px);
+}
+
+.page--pat .pat-summary .text-block {
+  max-width: 90%;
+  margin: 42px 0 0 66px;
+  text-align: justify;
+}
+
+.page--pat .chart-box {
+  border-left: none;
+  padding-left: 0;
+}
+
+.page--pat .card-head::after {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .asp-energy {

@@ -1569,8 +1569,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       shouldForceRegen: !!shouldForceRegen,
     });
 
-    if (pdfExists && jsonExists && !shouldForceRegen) {
-      console.log("[blueprint] generate skip (exists)", { file_path: filePath });
+    if (pdfExists && !shouldForceRegen) {
+      console.log("[blueprint] generate skip (pdf exists)", { file_path: filePath, json_exists: jsonExists });
       return { ok: true, filePath, skipped: true };
     }
 

@@ -43,10 +43,14 @@ function renderInlineText(text) {
 function estimateTextHeight(text, { fontSize = FS_BODY, lineHeight = LINE_HEIGHT, maxWidth = TEXT_MAX_WIDTH } = {}) {
   const raw = String(text || "");
   if (!raw.trim()) return 0;
-  const avgCharWidth = fontSize * 0.56;
+  const hasCjk = /[\u3040-\u30ff\u3400-\u9fff\uF900-\uFAFF]/.test(raw);
+  const fontSizePx = fontSize + 2; // closer to actual body size
+  const avgCharWidth = fontSizePx * (hasCjk ? 0.82 : 0.54);
   const charsPerLine = Math.max(10, Math.floor(maxWidth / avgCharWidth));
-  const lines = Math.max(1, Math.ceil(raw.replace(/\n/g, "").length / charsPerLine));
-  return lines * fontSize * lineHeight;
+  const lines = raw
+    .split(/\n+/)
+    .reduce((sum, chunk) => sum + Math.max(1, Math.ceil(chunk.length / charsPerLine)), 0);
+  return lines * (fontSizePx * lineHeight + 2);
 }
 
 function estimateBlockHeight({ title = true, sub = true, text = "" } = {}) {

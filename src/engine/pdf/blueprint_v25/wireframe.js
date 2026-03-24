@@ -414,12 +414,17 @@ function extractFromKernel({ kernel, input, p }) {
   const sunSign = signByKey.get("sun") || "";
   const moonSign = signByKey.get("moon") || "";
   const ascSign = kernel?.houses?.asc_sign_ja || "";
+  const ascLine = p.angleMeta?.asc
+    ? `ASC ${p.angleMeta.asc}`
+    : ascSign
+      ? `ASC ${ascSign}`
+      : "";
   const sunHouse = houseByKey.get("sun");
   const moonHouse = houseByKey.get("moon");
   p.coreAxisLines = [
     sunSign && sunHouse ? `☉太陽 ${sunSign}｜${sunHouse}H` : p.coreAxisLines[0],
     moonSign && moonHouse ? `☽月 ${moonSign}｜${moonHouse}H` : p.coreAxisLines[1],
-    ascSign ? `ASC ${ascSign}` : p.coreAxisLines[2],
+    ascLine || p.coreAxisLines[2],
   ];
 
   const formatBodyLine = (key) => {
@@ -436,7 +441,7 @@ function extractFromKernel({ kernel, input, p }) {
     core: [
       formatBodyLine("sun"),
       formatBodyLine("moon"),
-      ascSign ? `ASC ${ascSign}` : "",
+      ascLine,
     ].filter(Boolean),
     personal: [
       formatBodyLine("mercury"),
@@ -523,7 +528,7 @@ function extractFromMasterChart({ masterChart, p }) {
     const signText = sign ? `${sign}${degText}`.trim() : "";
     const label = BODY_LABEL_JA[key] || key;
     const glyph = BODY_GLYPH[key] || "";
-    return `${glyph} ${label}　${signText}${house}`.trim();
+    return `${glyph} ${label} ${signText}${house}`.trim();
   };
   const leftOrder = distOrder.slice(0, 5);
   const rightOrder = distOrder.slice(5);
@@ -637,7 +642,9 @@ function extractFromMasterChart({ masterChart, p }) {
   const ascSignJa = formatSignJa(masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "");
   const ascSignKey = SIGN_JA_TO_KEY[ascSignJa] || SIGN_NAME_TO_KEY[String(masterChart?.ascendant?.sign || "").toLowerCase()];
   const ascSignGlyph = SIGN_SYMBOL[ascSignKey] || "";
-  const ascSign = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}` : "";
+  const ascDeg = masterChart?.ascendant?.degree ?? masterChart?.ascendant?.deg ?? null;
+  const ascDegText = Number.isFinite(Number(ascDeg)) ? ` ${Number(ascDeg)}°` : "";
+  const ascSign = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}${ascDegText}｜1H` : "";
   const formatAxisLine = (key, label) => {
     const planet = planetByKey.get(key);
     if (!planet) return "";
@@ -965,7 +972,7 @@ function extractFromMasterChart({ masterChart, p }) {
     const degText = Number.isFinite(deg) ? ` ${deg}°` : "";
     const house = Number(houseValue);
     const houseText = Number.isFinite(house) ? `｜${house}H` : "";
-    return `${label}　${sign}${degText}${houseText}`.trim();
+    return `${label} ${sign}${degText}${houseText}`.trim();
   };
   const keyPoints = [];
   const asc = masterChart?.angles?.asc || null;
@@ -1189,8 +1196,6 @@ function finalizeWireframeData({ p, placeholders, elementCountsInput, modalityCo
   }
 
   if (!p.deepAxis) p.deepAxis = placeholders.deepAxis || {};
-  if (!p.deepPatternText && p.deepAxis?.pattern) p.deepPatternText = p.deepAxis.pattern;
-  if (!p.deepPatternText && p.deepAxis?.nodes) p.deepPatternText = p.deepAxis.nodes;
   if (!p.deepAxisMeta) p.deepAxisMeta = placeholders.deepAxisMeta || {};
   if (!p.anglesText) p.anglesText = placeholders.anglesText || {};
   if (!p.anglesIntro) p.anglesIntro = placeholders.anglesIntro || "";
@@ -1231,9 +1236,6 @@ function buildWireframeData(input, placeholders) {
   if (blueprint?.dashboard?.element_balance) p.elementBalanceText = blueprint.dashboard.element_balance;
   if (blueprint?.dashboard?.modality_balance) p.modalityBalanceText = blueprint.dashboard.modality_balance;
   if (blueprint?.dashboard?.energy_flow) p.energyFlowText = blueprint.dashboard.energy_flow;
-  if (blueprint?.dashboard?.star_overview) p.starOverviewText = blueprint.dashboard.star_overview;
-  if (!p.starOverviewText && blueprint?.dashboard?.star_structure) p.starOverviewText = blueprint.dashboard.star_structure;
-  if (!p.starOverviewText && blueprint?.dashboard?.cosmic_structure) p.starOverviewText = blueprint.dashboard.cosmic_structure;
   if (blueprint?.chart_pattern) p.chartPattern = blueprint.chart_pattern;
   if (blueprint?.closing_summary) p.closingSummary = blueprint.closing_summary;
   if (blueprint?.deep_axis) p.deepAxis = blueprint.deep_axis;
@@ -1251,10 +1253,6 @@ function buildWireframeData(input, placeholders) {
     p.dominantSignsText = blueprint.dashboard.dominant_signs;
   }
   if (blueprint?.natal_observation) p.natalObservation = blueprint.natal_observation;
-  if (blueprint?.deep_pattern) p.deepPatternText = blueprint.deep_pattern;
-  if (!p.deepPatternText && blueprint?.deep_axis?.deep_pattern) {
-    p.deepPatternText = blueprint.deep_axis.deep_pattern;
-  }
   if (blueprint?.aspect_dynamics) p.aspectEnergyText = blueprint.aspect_dynamics;
   if (blueprint?.pattern_name) p.patternName = blueprint.pattern_name;
   if (blueprint?.structural_flow) p.structuralFlow = blueprint.structural_flow;
@@ -1292,7 +1290,6 @@ function buildWireframeData(input, placeholders) {
         planetGroups.social ||
         p.planetGroups?.socialTranspersonal ||
         p.planetGroups?.social,
-      flow: systemLayers.flow || p.planetGroups?.flow,
     };
   }
 
@@ -1372,7 +1369,6 @@ function buildWireframeData(input, placeholders) {
         p.deepAxis?.south,
       chiron: blueprint.deep_axis.chiron || p.deepAxis?.chiron,
       lilith: blueprint.deep_axis.lilith || p.deepAxis?.lilith,
-      pattern: blueprint.deep_axis.deep_pattern || blueprint.deep_axis.pattern || p.deepAxis?.pattern,
     };
   }
   if (p.deepAxis) {
@@ -1415,10 +1411,6 @@ function buildWireframeData(input, placeholders) {
       mc: blueprint.angles.mc || p.anglesText?.mc,
       ic: blueprint.angles.ic || p.anglesText?.ic,
       dc: blueprint.angles.dc || p.anglesText?.dc,
-      axis_structure:
-        blueprint.angles.axis_structure ||
-        blueprint.angles.axis_summary ||
-        p.anglesText?.axis_structure,
     };
     if (blueprint.angles.intro) p.anglesIntro = blueprint.angles.intro;
   }
@@ -1511,7 +1503,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
     if (!p.aspectWheelAspects?.length) return "";
     const story = data?.story || data?.kernel?.story;
     if (!story) return "";
-    const size = 650;
+    const size = 630;
     const svg = buildSoraWheelSvg({
       story,
       size,
@@ -1527,8 +1519,8 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
 
   const css = buildBlueprintCss();
 
-  const HEADER_RESERVED = 220;
-  const FOOTER_RESERVED = 60;
+  const HEADER_RESERVED = 180;
+  const FOOTER_RESERVED = 40;
   const USABLE_HEIGHT = PAGE_HEIGHT - 90 - 110 - HEADER_RESERVED - FOOTER_RESERVED;
 
   const zodiacGlyphs = Array.from(new Set(Object.values(SIGN_SYMBOL || {}).filter(Boolean)));
@@ -1587,10 +1579,9 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
   }
 
   const layBlocks = [
-    { key: "core", title: "CORE LAYER", sub: "コアレイヤー", lines: p.systemLayerLines?.core || [], text: p.planetGroups.core || "" },
-    { key: "personal", title: "PERSONAL LAYER", sub: "パーソナルレイヤー", lines: p.systemLayerLines?.personal || [], text: p.planetGroups.personal || "" },
-    { key: "collective", title: "COLLECTIVE LAYER", sub: "コレクティブレイヤー", lines: p.systemLayerLines?.collective || [], text: p.planetGroups.socialTranspersonal || p.planetGroups.social || "" },
-    { key: "flow", title: "LAYER FLOW", sub: "レイヤーの流れ", lines: [], text: p.planetGroups.flow || p.planetGroups.core || "" },
+    { key: "core", title: "中心の層", sub: "CORE LAYER", lines: p.systemLayerLines?.core || [], text: p.planetGroups.core || "" },
+    { key: "personal", title: "個の層", sub: "PERSONAL LAYER", lines: p.systemLayerLines?.personal || [], text: p.planetGroups.personal || "" },
+    { key: "collective", title: "外の層", sub: "COLLECTIVE LAYER", lines: p.systemLayerLines?.collective || [], text: p.planetGroups.socialTranspersonal || p.planetGroups.social || "" },
   ].map((row) => {
     const text = `${(row.lines || []).join(" ")} ${row.text || ""}`.trim();
     const height = estimateBlockHeight({ text });
@@ -1690,7 +1681,7 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
         `<div class="chart-box full-width">`,
         `<div class="card-head">主要アスペクト</div>`,
         `<div class="card-sub">CORE ASPECTS</div>`,
-        `<div class="card-body text-block">${(p.aspectMap || []).map((text) => `• ${renderInlineText(text)}`).join("<br/>")}</div>`,
+        `<div class="card-body text-block"><ul class="aspect-list">${(p.aspectMap || []).map((text) => `<li>${renderInlineText(text)}</li>`).join("")}</ul></div>`,
         `</div>`,
       ].join(""),
     },

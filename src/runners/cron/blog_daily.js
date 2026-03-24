@@ -178,8 +178,12 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
 
     if (!featuredMediaId && env.BLOG_EYECATCH_ENABLED) {
       const { line1, line2, line3 } = buildDailyEyecatchLines(story, dateLocal);
+      const dateLabel = String(dateLocal || "").trim().replace(/-/g, ".");
       const rendered = await renderBlogEyecatchJpeg({
         bgPath: env.BLOG_EYECATCH_BG_PATH,
+        bgMode: env.BLOG_EYECATCH_BG_MODE || "image",
+        story,
+        dateLabel,
         line1,
         line2,
         line3,
