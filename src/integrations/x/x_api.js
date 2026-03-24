@@ -108,11 +108,25 @@ async function oauth1Fetch({ url, method, body, contentType, extraParams, env })
   return fetch(url, opts);
 }
 
-async function postTweetV2({ text, replyToId, env }) {
+function normalizeMediaIds(input) {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.map((id) => String(id || "").trim()).filter(Boolean);
+  if (typeof input === "string" || typeof input === "number") {
+    const s = String(input).trim();
+    return s ? [s] : [];
+  }
+  return [];
+}
+
+async function postTweetV2({ text, replyToId, mediaIds, env }) {
   const url = "https://api.x.com/2/tweets";
   const payload = replyToId
     ? { text, reply: { in_reply_to_tweet_id: replyToId } }
     : { text };
+  const media = normalizeMediaIds(mediaIds);
+  if (media.length) {
+    payload.media = { media_ids: media };
+  }
 
   const res = await oauth1Fetch({
     url,
@@ -176,16 +190,61 @@ async function postTweetV1({ text, replyToId, env }) {
   return { id, raw: json };
 }
 
-async function postTweet({ text, replyToId, env }) {
+async function uploadMedia({ buffer, mediaType = "image/png", env }) {
+  if (!buffer || !Buffer.isBuffer(buffer)) {
+    const err = new Error("X media upload buffer missing");
+    err.code = "X_MEDIA_BUFFER_MISSING";
+    throw err;
+  }
+
+  const url = "https://upload.twitter.com/1.1/media/upload.json";
+  const media = buffer.toString("base64");
+  const params = {
+    media,
+    media_category: "tweet_image",
+  };
+  if (mediaType) params.media_type = mediaType;
+
+  const body = new URLSearchParams(params).toString();
+
+  const res = await oauth1Fetch({
+    url,
+    method: "POST",
+    body,
+    contentType: "application/x-www-form-urlencoded",
+    extraParams: params,
+    env,
+  });
+
+  const resBody = await res.text();
+  if (!res.ok) {
+    const err = new Error(`X media upload failed: ${res.status} / ${resBody}`);
+    err.status = res.status;
+    err.body = resBody;
+    throw err;
+  }
+
+  let json = null;
+  try {
+    json = JSON.parse(resBody);
+  } catch (_) {
+    json = null;
+  }
+  const id = json?.media_id_string || json?.media_id || "";
+  return { id, raw: json };
+}
+
+async function postTweet({ text, replyToId, mediaIds, env }) {
   if (!String(text || "").trim()) {
     const err = new Error("X post text empty");
     err.code = "X_EMPTY_TEXT";
     throw err;
   }
 
-  return await postTweetV2({ text, replyToId, env });
+  return await postTweetV2({ text, replyToId, mediaIds, env });
 }
 
 module.exports = {
   postTweet,
+  uploadMedia,
 };

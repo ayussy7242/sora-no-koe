@@ -6,7 +6,8 @@ const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
 const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
 const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
-const { postTweet } = require("../../integrations/x/x_api");
+const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
+const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/channels/x/renderers/morning_wheel");
 
 function isYYYYMMDD(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -109,8 +110,10 @@ async function buildNightPosts({ story, dict, renderers, openai, useAi }) {
 async function postThreadToX({ posts, env }) {
   const ids = [];
   let replyTo = null;
-  for (const text of posts) {
-    const res = await postTweet({ text, replyToId: replyTo, env });
+  for (const item of posts) {
+    const text = typeof item === "string" ? item : item?.text;
+    const mediaIds = typeof item === "string" ? null : item?.mediaIds;
+    const res = await postTweet({ text, replyToId: replyTo, mediaIds, env });
     const id = res?.id || "";
     ids.push(id);
     replyTo = id || replyTo;
@@ -205,6 +208,44 @@ async function runXMorningPost(deps, opts = {}) {
     return { text: res.text, truncated: res.truncated };
   });
 
+  const imageEnabled = opts.image === undefined
+    ? toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+    : toBool(opts.image, false);
+  const imageWidth = Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH))
+    ? Number(env2.X_POST_IMAGE_WIDTH)
+    : DEFAULT_X_CANVAS.width;
+  const imageHeight = Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT))
+    ? Number(env2.X_POST_IMAGE_HEIGHT)
+    : DEFAULT_X_CANVAS.height;
+  const imageVariant = String(env2.X_POST_IMAGE_VARIANT || "story_today").trim() || "story_today";
+
+  let mediaId = null;
+  let imageInfo = null;
+  if (imageEnabled) {
+    imageInfo = {
+      enabled: true,
+      width: imageWidth,
+      height: imageHeight,
+      variant: imageVariant,
+    };
+    if (!dryRun) {
+      try {
+        const png = await renderXMorningWheelPng({
+          story,
+          dateLabel: dateLocal,
+          width: imageWidth,
+          height: imageHeight,
+          variant: imageVariant,
+        });
+        const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
+        mediaId = uploaded?.id || "";
+        imageInfo.media_id = mediaId || null;
+      } catch (err) {
+        imageInfo.error = err?.message || "image_upload_failed";
+      }
+    }
+  }
+
   if (dryRun) {
     return {
       ok: true,
@@ -213,11 +254,17 @@ async function runXMorningPost(deps, opts = {}) {
       as_of: asOfISO,
       posts: trimmed,
       has_resonance: hasResonance,
+      image: imageInfo,
     };
   }
 
-  const texts = trimmed.map((p) => p.text).filter(Boolean);
-  const tweetIds = await postThreadToX({ posts: texts, env: env2 });
+  const payloads = trimmed
+    .map((p, idx) => ({
+      text: p.text,
+      mediaIds: idx === 0 && mediaId ? [mediaId] : null,
+    }))
+    .filter((p) => String(p.text || "").trim());
+  const tweetIds = await postThreadToX({ posts: payloads, env: env2 });
 
   return {
     ok: true,
@@ -227,6 +274,7 @@ async function runXMorningPost(deps, opts = {}) {
     posts: trimmed,
     tweet_ids: tweetIds,
     has_resonance: hasResonance,
+    image: imageInfo,
   };
 }
 
