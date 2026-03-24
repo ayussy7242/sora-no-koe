@@ -166,29 +166,6 @@ function renderX(story, deps = {}) {
   return joinLines(lines);
 }
 
-function appendTagsWithTrim(baseLines, tags, maxChars = 180) {
-  const countChars = (text) => Array.from(String(text || "")).length;
-  const baseRaw = Array.isArray(baseLines) ? baseLines : [];
-  const base = [...baseRaw];
-  while (base.length && !String(base[base.length - 1] || "").trim()) {
-    base.pop();
-  }
-  const cleanTags = (Array.isArray(tags) ? tags : []).filter(Boolean);
-
-  let tagsToUse = [...cleanTags];
-  let out = joinLines([...base, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
-
-  while (tagsToUse.length && countChars(out) > maxChars) {
-    tagsToUse.pop();
-    out = joinLines([...base, ...(tagsToUse.length ? ["", ...tagsToUse] : [])]);
-  }
-
-  if (!tagsToUse.length && countChars(out) > maxChars) {
-    return joinLines(base);
-  }
-  return out;
-}
-
 function renderXMorning(story, deps = {}) {
   return renderXMorningMain(story, deps);
 }
@@ -204,29 +181,17 @@ function renderXMorningMain(story, deps = {}) {
   const timeLabel = formatJstTimeLabel(asOfISO);
   const header = `🌌 今日の空｜${[dateLabel, timeLabel].filter(Boolean).join(" ")}`.trim();
 
-  const dominantSign = pickDominantSignLabel(story, deps);
-  const tags = [
-    "#今日の空",
-    "#星の観測",
-    dominantSign ? `#${dominantSign}` : "",
-  ].filter(Boolean);
-
   const baseLines = [header];
   if (ai) baseLines.push("", ai);
-  return appendTagsWithTrim(baseLines, tags, 180);
+  return joinLines(baseLines);
 }
 
 function renderXMorningLog(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const logLines = buildMainLogLines(story, { ...deps, includeHeader: false, includePoints: false });
 
-  const tags = [
-    "#星の配置",
-    "#天体観測",
-  ];
-
   const baseLines = ["🌌 星の配置", "", joinLines(logLines)];
-  return appendTagsWithTrim(baseLines, tags, 180);
+  return joinLines(baseLines);
 }
 
 function renderXNight(story, deps = {}) {
@@ -240,21 +205,9 @@ function renderXNight(story, deps = {}) {
   const timeLabel = formatJstTimeLabel(asOfISO);
   const header = `🌙 ${[dateLabel, timeLabel].filter(Boolean).join(" ")}｜夜の空`.trim();
 
-  const dict = deps?.dict || require("../../../content/dict");
-  const moonSignKey = story?.public?.moon?.sign_key || story?.public?.transit_signs?.moon?.sign_key || "";
-  const moonSignLabel = story?.public?.moon?.sign_ja ||
-    story?.public?.transit_signs?.moon?.sign_ja ||
-    (moonSignKey ? signJa(dict, moonSignKey) : "");
-
-  const tags = [
-    "#夜の空",
-    "#星の観測",
-    moonSignLabel ? `#${moonSignLabel}` : "",
-  ].filter(Boolean);
-
   const lines = [header];
   if (ai) lines.push("", ai);
-  return appendTagsWithTrim(lines, tags, 180);
+  return joinLines(lines);
 }
 
 function renderXResonance(story, deps = {}) {
@@ -266,19 +219,10 @@ function renderXResonance(story, deps = {}) {
   const display = buildResonanceDisplay(story, { ...deps, dict });
   if (!display) return "";
 
-  const signA = raw?.a_sign_ja || signJa(dict, raw?.a_sign_key || "");
-  const signB = raw?.b_sign_ja || signJa(dict, raw?.b_sign_key || "");
-  const tags = [
-    "#共鳴の空",
-    "#星の観測",
-    signA ? `#${signA}` : "",
-    signB ? `#${signB}` : "",
-  ].filter(Boolean);
-
   const lines = ["🌌 共鳴の空"];
   if (ai) lines.push("", ai);
   lines.push("", SEP, "", ...display);
-  return appendTagsWithTrim(lines, tags, 180);
+  return joinLines(lines);
 }
 
 function resolveMoonEventDisplay(story, dict) {
@@ -294,11 +238,9 @@ function renderXMoonEvent(story, deps = {}) {
   const event = resolveMoonEventDisplay(story, dict);
   if (!event) return "";
   const ai = String(story?.meta?.x_ai?.moon_event || "").trim();
-  const tag = event.kind === "full" ? "#満月" : "#新月";
-
   const lines = [event.line1, event.line2].filter(Boolean);
   if (ai) lines.push("", ai);
-  return appendTagsWithTrim(lines, [tag], 180);
+  return joinLines(lines);
 }
 
 function renderXMonthly(story, deps = {}) {
@@ -329,7 +271,7 @@ function renderXMonthly(story, deps = {}) {
     "",
     "今月の空を、毎日置いていきます 🌌",
   ];
-  return appendTagsWithTrim(lines, ["#ソラのこえ", "#今月の空"], 180);
+  return joinLines(lines);
 }
 
 module.exports = {
