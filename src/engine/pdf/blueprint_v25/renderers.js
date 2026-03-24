@@ -1,6 +1,6 @@
 "use strict";
 
-const { buildGlyphImgTag } = require("./glyphs");
+const { buildGlyphImgTag, replaceGlyphsWithImages } = require("./glyphs");
 
 function renderPageIntro(intro, escapeHtml) {
   if (Array.isArray(intro)) {
@@ -75,7 +75,7 @@ function renderMapPage(ctx) {
   const { nextPageNumber, escapeHtml, renderRichText, p, PAGE_INTROS, dominantSignRows } = ctx;
   const keyPointRows = (p.keyPointsList || []).map((row) => {
     const safe = escapeHtml(row);
-    return safe.replace(/^([☊☋⚷⚸])\s*/, '<span class="astro-symbol glyph">$1</span> ');
+    return replaceGlyphsWithImages(safe, { className: "glyph-img", size: 20 });
   });
   const elementGlyph = (glyph, color) =>
     buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
