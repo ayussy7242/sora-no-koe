@@ -316,10 +316,6 @@ async function generateBlueprintLightTextV2({ env, input }) {
       dominant_houses: applyLimits(dashboard?.dominant_houses || "", LIMITS_V2.map.dominant_houses),
       planet_distribution: applyLimits(dashboard?.planet_distribution || "", LIMITS_V2.map.planet_distribution),
       energy_flow: applyLimits(dashboard?.energy_flow || "", LIMITS_V2.map.energy_flow),
-      star_overview: applyLimits(
-        dashboard?.star_overview || dashboard?.star_structure || dashboard?.cosmic_structure || "",
-        LIMITS_V2.map.star_overview
-      ),
     },
     planet_roles: {
       sun: applyLimits(planetRoles?.sun || "", LIMITS_V2.roles.planet),
@@ -337,7 +333,6 @@ async function generateBlueprintLightTextV2({ env, input }) {
       core: applyLimits(systemLayers?.core || "", LIMITS_V2.roles.layer),
       personal: applyLimits(systemLayers?.personal || "", LIMITS_V2.roles.layer),
       collective: applyLimits(systemLayers?.collective || "", LIMITS_V2.roles.layer),
-      flow: applyLimits(systemLayers?.flow || "", LIMITS_V2.roles.layer_flow),
     },
     deep_axis: {
       nodes_north: applyLimits(
@@ -350,21 +345,12 @@ async function generateBlueprintLightTextV2({ env, input }) {
       ),
       chiron: applyLimits(deepAxis?.chiron || "", LIMITS_V2.roles.deep_chiron),
       lilith: applyLimits(deepAxis?.lilith || "", LIMITS_V2.roles.deep_lilith),
-      deep_pattern: applyLimits(
-        deepAxis?.deep_pattern || deepAxis?.pattern || "",
-        LIMITS_V2.roles.deep_pattern
-      ),
     },
     angles: {
-      intro: applyLimits(angles?.intro || "", LIMITS_V2.roles.angle_intro),
       asc: applyLimits(angles?.asc || "", LIMITS_V2.roles.angle),
       mc: applyLimits(angles?.mc || "", LIMITS_V2.roles.angle),
       ic: applyLimits(angles?.ic || "", LIMITS_V2.roles.angle),
       dc: applyLimits(angles?.dc || "", LIMITS_V2.roles.angle),
-      axis_structure: applyLimits(
-        angles?.axis_structure || angles?.axis_summary || "",
-        LIMITS_V2.roles.axis_structure
-      ),
     },
     aspect_map: aspectMap.slice(0, 5).reduce((acc, row, idx) => {
       const key = String(row?.key || `aspect_${idx + 1}`).trim();
@@ -382,11 +368,6 @@ async function generateBlueprintLightTextV2({ env, input }) {
     star_signature: applyLimits(
       source?.star_signature || source?.cosmic_signature || "",
       LIMITS_V2.core.star_signature
-    ),
-    chart_pattern: applyLimits(source?.chart_pattern || "", LIMITS_V2.closing.chart_pattern),
-    structural_flow: applyLimits(
-      source?.structural_flow || source?.life_direction || "",
-      LIMITS_V2.closing.structural_flow
     ),
     natal_observation: applyLimits(source?.natal_observation || "", LIMITS_V2.obs.natal_observation),
     closing_summary: applyLimits(source?.closing_summary || "", LIMITS_V2.closing.closing_summary),

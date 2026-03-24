@@ -37,8 +37,8 @@ function renderSysPage(ctx) {
             </div>
           </div>
           <div class="chart-box">
-            <div class="card-head">チャート駆動力</div>
-            <div class="card-sub">DRIVING FORCE</div>
+            <div class="card-head">星の駆動</div>
+            <div class="card-sub">STAR DRIVE</div>
             <div class="card-list">
             ${(p.drivingForceLines || []).map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
@@ -51,8 +51,8 @@ function renderSysPage(ctx) {
             </div>
           </div>
           <div class="chart-box">
-            <div class="card-head">チャート構造</div>
-            <div class="card-sub">CHART TYPE</div>
+            <div class="card-head">星の構成</div>
+            <div class="card-sub">STAR COMPOSITION</div>
             <div class="card-list">
               ${p.structureLines.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
             </div>
@@ -73,7 +73,7 @@ function renderMapPage(ctx) {
   const { nextPageNumber, escapeHtml, renderRichText, p, PAGE_INTROS, dominantSignRows } = ctx;
   const keyPointRows = (p.keyPointsList || []).map((row) => {
     const safe = escapeHtml(row);
-    return safe.replace(/^([☊☋⚷⚸])\s*/, '<span class="glyph">$1</span> ');
+    return safe.replace(/^([☊☋⚷⚸])\s*/, '<span class="astro-symbol glyph">$1</span> ');
   });
   return `
   <section class="page page--map">
@@ -84,15 +84,15 @@ function renderMapPage(ctx) {
       <div class="top">
         <div class="label">STAR MAP</div>
         <div class="title">星の構造マップ</div>
-        <div class="subtext title-en">STAR STRUCTURE MAP</div>
+        
         <div class="page-intro">${renderPageIntro(PAGE_INTROS.map, escapeHtml)}</div>
       </div>
       <div class="middle">
         <div class="grid-6">
           <div class="chart-box span-3">
-            <div class="card-head map-title">エレメントバランス</div>
+            <div class="card-head map-title">エレメント</div>
             <div class="card-sub">ELEMENT BALANCE</div>
-            <div class="bar-list" style="margin-top:10px;">
+            <div class="bar-list bar-list--element" style="margin-top:16px;">
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol" style="color:#FF6B6B;">🜂</span><span class="metric-name">火</span><span class="metric-count">${p.elementCounts?.fire ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.elementBars?.fire ?? 62}%; --bar-color:#FF6B6B;"></div></div>
@@ -114,7 +114,7 @@ function renderMapPage(ctx) {
           <div class="chart-box span-3">
             <div class="card-head map-title">モード</div>
             <div class="card-sub">MODALITY BALANCE</div>
-            <div class="bar-list" style="margin-top:10px;">
+            <div class="bar-list bar-list--modality" style="margin-top:16px;">
               <div class="metric-row">
                 <div class="metric-label"><span class="astro-symbol" style="color:#FFB27A;">△</span><span class="metric-name">活動宮</span><span class="metric-count">${p.modalityCounts?.cardinal ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.cardinal ?? 46}%; --bar-color:#FFB27A;"></div></div>
@@ -124,10 +124,15 @@ function renderMapPage(ctx) {
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.fixed ?? 64}%; --bar-color:#9EC5FF;"></div></div>
               </div>
               <div class="metric-row">
-                <div class="metric-label"><span class="astro-symbol" style="color:#9FD3A8;">◇</span><span class="metric-name">柔軟宮</span><span class="metric-count">${p.modalityCounts?.mutable ?? ""}</span></div>
+                <div class="metric-label"><span class="astro-symbol" style="color:#9FD3A8; font-size:26px;">◇</span><span class="metric-name">柔軟宮</span><span class="metric-count">${p.modalityCounts?.mutable ?? ""}</span></div>
                 <div class="metric-bar"><div class="bar" style="--bar-fill:${p.modalityBars?.mutable ?? 36}%; --bar-color:#9FD3A8;"></div></div>
               </div>
             </div>
+          </div>
+          <div class="chart-box span-6">
+            <div class="card-head">エネルギーの流れ</div>
+            <div class="card-sub">ENERGY FLOW</div>
+            <div class="card-body text-block">${renderRichText(p.energyFlowText)}</div>
           </div>
         </div>
         <div class="map-grid">
@@ -182,18 +187,7 @@ function renderMapPage(ctx) {
         </div>
       </div>
       <div class="bottom">
-        <div class="grid-6">
-          <div class="chart-box span-3">
-            <div class="card-head">エネルギーの流れ</div>
-            <div class="card-sub">ENERGY FLOW</div>
-            <div class="card-body text-block">${renderRichText(p.energyFlowText)}</div>
-          </div>
-          <div class="chart-box span-3">
-            <div class="card-head">星の概要</div>
-            <div class="card-sub">STAR OVERVIEW</div>
-            <div class="card-body text-block">${renderRichText(p.starOverviewText)}</div>
-          </div>
-        </div>
+        
       </div>
     </div>
   </section>`;
@@ -264,13 +258,7 @@ function renderAngPage(ctx) {
           </div>
         </div>
       </div>
-      <div class="bottom">
-        <div class="chart-box full-width">
-          <div class="card-head">軸の構造</div>
-          <div class="card-sub">AXIS STRUCTURE</div>
-          <div class="card-body text-block">${renderRichText(p.anglesText?.axis_structure || "")}</div>
-        </div>
-      </div>
+      <div class="bottom"></div>
     </div>
   </section>`;
 }
@@ -382,7 +370,7 @@ function renderAspPages(ctx) {
 function renderPatPage(ctx) {
   const { renderBg, strongBg, nextPageNumber, escapeHtml, renderRichText, p, PAGE_INTROS } = ctx;
   return `
-  <section class="page page--space" style="--space-opacity: 0.9;">
+  <section class="page page--space page--pat" style="--space-opacity: 0.9;">
     ${renderBg("pat", strongBg)}
     <div class="blueprint-grid"></div>
     ${nextPageNumber()}
@@ -395,30 +383,20 @@ function renderPatPage(ctx) {
       </div>
       <div class="middle">
         <div class="pat-grid">
-          <div class="chart-box">
+          <div class="chart-box pat-name">
             <div class="card-head">パターン名</div>
             <div class="card-sub">PATTERN NAME</div>
             <div class="card-body text-block">${renderRichText(p.patternName)}</div>
           </div>
-          <div class="chart-box">
-            <div class="card-head">星の構造</div>
-            <div class="card-sub">STAR STRUCTURE</div>
-            <div class="card-body text-block">${renderRichText(p.chartPattern)}</div>
-          </div>
-          <div class="chart-box full-width">
-            <div class="card-head">構造の流れ</div>
-            <div class="card-sub">STRUCTURAL FLOW</div>
-            <div class="card-body text-block">${renderRichText(p.structuralFlow)}</div>
-          </div>
         </div>
       </div>
       <div class="bottom">
-        <div class="chart-box full-width">
+        <div class="chart-box full-width pat-summary">
           <div class="card-head">構造まとめ</div>
           <div class="card-sub">STRUCTURE SUMMARY</div>
           <div class="card-body text-block">${renderRichText(p.closingSummary)}</div>
         </div>
-        <div class="subtext">This chart is a living system.</div>
+        <div class="subtext pat-footnote">This chart is a living system.</div>
       </div>
     </div>
   </section>`;

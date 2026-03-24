@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
+const { buildSpaceBackground } = require("../../shared/space_background");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
@@ -96,6 +97,55 @@ function clamp(n, min, max) {
   return Math.min(Math.max(n, min), max);
 }
 
+function splitLinesByNewline(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function wrapByChars(text, maxChars, maxLines = 2) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const chars = Array.from(raw);
+  if (chars.length <= maxChars) return [raw];
+  const lines = [];
+  let buf = "";
+  for (const ch of chars) {
+    if (Array.from(buf).length >= maxChars) {
+      lines.push(buf);
+      buf = "";
+      if (lines.length >= maxLines) break;
+    }
+    buf += ch;
+  }
+  if (buf && lines.length < maxLines) lines.push(buf);
+  return lines.slice(0, maxLines);
+}
+
+function splitLine2(text, { maxChars = 16, maxLines = 2 } = {}) {
+  const fromBreaks = splitLinesByNewline(text);
+  if (fromBreaks.length) {
+    return fromBreaks.slice(0, maxLines);
+  }
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  if (Array.from(raw).length <= maxChars) return [raw];
+
+  const crossIdx = raw.indexOf("×");
+  if (crossIdx >= 0) {
+    const left = raw.slice(0, crossIdx + 1).trim();
+    const right = raw.slice(crossIdx + 1).trim();
+    if (left && right) {
+      if (Array.from(left).length <= maxChars && Array.from(right).length <= maxChars) {
+        return [left, right];
+      }
+    }
+  }
+
+  return wrapByChars(raw, maxChars, maxLines);
+}
+
 function presetConfig(presetKey) {
   const key = String(presetKey || "C").trim().toUpperCase();
   if (key === "B") {
@@ -152,7 +202,7 @@ function clampCenterY(centerY, totalHeight, h) {
   return clamp(centerY, min, max);
 }
 
-function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
+function computeEyecatchLayout({ width, height, line1, line2, line3, preset }) {
   const w = Number(width) || CANVAS_WIDTH;
   const h = Number(height) || CANVAS_HEIGHT;
   const centerX = w / 2;
@@ -164,11 +214,14 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
   const line3Size = config.line3Size || 22;
   const lineHeight1 = line1Size * lineHeightRatio;
   const lineHeight2 = line2Size * lineHeightRatio;
+  const line2Lines = splitLine2(line2, { maxChars: 16, maxLines: 2 });
+  const line2Count = line2Lines.length || 1;
+  const line2BlockHeight = lineHeight2 * line2Count;
   const hasLine3 = line3 != null && String(line3).trim() !== "";
   const lineHeight3 = hasLine3 ? line3Size * lineHeightRatio : 0;
   const totalHeight =
     lineHeight1 +
-    lineHeight2 +
+    line2BlockHeight +
     (config.lineGap || 0) +
     (hasLine3 ? (config.lineGap || 0) + lineHeight3 : 0);
   const centerY = clampCenterY(config.centerY, totalHeight, h);
@@ -176,7 +229,7 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
   let line1Y = null;
   let line2Y = null;
   let line3Y = null;
-  if (Number.isFinite(config.line1Y) && Number.isFinite(config.line2Y)) {
+  if (line2Count === 1 && Number.isFinite(config.line1Y) && Number.isFinite(config.line2Y)) {
     line1Y = Math.round(config.line1Y);
     line2Y = Math.round(config.line2Y);
     if (hasLine3) {
@@ -190,7 +243,7 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
     line2Y = Math.round(top + lineHeight1 + (config.lineGap || 0) + line2Size);
     if (hasLine3) {
       line3Y = Math.round(
-        top + lineHeight1 + (config.lineGap || 0) + lineHeight2 + (config.lineGap || 0) + line3Size
+        top + lineHeight1 + (config.lineGap || 0) + line2BlockHeight + (config.lineGap || 0) + line3Size
       );
     }
   }
@@ -199,23 +252,120 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
   const line1Spacing = Number.isFinite(config.line1LetterSpacing) ? config.line1LetterSpacing : 0.08;
   const line2Spacing = Number.isFinite(config.line2LetterSpacing) ? config.line2LetterSpacing : 0.04;
   const line3Spacing = Number.isFinite(config.line3LetterSpacing) ? config.line3LetterSpacing : 0.1;
+  const line3Font = config.line3Weight === "bold" ? "SoraLine2Bold" : "SoraLine1";
+
+  return {
+    w,
+    h,
+    centerX,
+    config,
+    line1Size,
+    line2Size,
+    line3Size,
+    line2Lines,
+    line2Count,
+    line2LineHeight: lineHeight2,
+    hasLine3,
+    line1Y,
+    line2Y,
+    line3Y,
+    line2Font,
+    line3Font,
+    line1Spacing,
+    line2Spacing,
+    line3Spacing,
+  };
+}
+
+function buildEyecatchAvoidRegions({ width, height, line1, line2, line3, preset }) {
+  const layout = computeEyecatchLayout({ width, height, line1, line2, line3, preset });
+  const {
+    w,
+    h,
+    line1Y,
+    line2Y,
+    line3Y,
+    line1Size,
+    line2Size,
+    line3Size,
+    hasLine3,
+    line2Count,
+    line2LineHeight,
+  } = layout;
+  const tops = [line1Y - line1Size, line2Y - line2Size];
+  const line2Bottom = line2Y + line2LineHeight * Math.max(0, line2Count - 1);
+  const bottoms = [line1Y, line2Bottom];
+  if (hasLine3) {
+    tops.push(line3Y - line3Size);
+    bottoms.push(line3Y);
+  }
+  const top = Math.min(...tops);
+  const bottom = Math.max(...bottoms);
+  const padX = Math.round(w * 0.12);
+  const padY = Math.round(h * 0.08);
+  const x = clamp(padX, 0, w);
+  const y = clamp(Math.round(top - padY), 0, h);
+  const regionW = clamp(w - padX * 2, 0, w);
+  const bottomClamped = clamp(Math.round(bottom + padY), 0, h);
+  const regionH = clamp(bottomClamped - y, 0, h);
+  return [
+    {
+      x,
+      y,
+      w: regionW,
+      h: regionH,
+      weight: 1,
+      feather: Math.round(Math.max(48, h * 0.08)),
+    },
+  ];
+}
+
+function buildEyecatchSvg({ width, height, line1, line2, line3, preset, space = null }) {
+  const layout = computeEyecatchLayout({ width, height, line1, line2, line3, preset });
+  const {
+    w,
+    h,
+    centerX,
+    line1Size,
+    line2Size,
+    line3Size,
+    hasLine3,
+    line2Lines,
+    line2LineHeight,
+    line1Y,
+    line2Y,
+    line3Y,
+    line2Font,
+    line3Font,
+    line1Spacing,
+    line2Spacing,
+    line3Spacing,
+  } = layout;
+
   const safeLine1 = String(line1 || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const safeLine2 = String(line2 || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const safeLine3 = String(line3 || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const line3Font = config.line3Weight === "bold" ? "SoraLine2Bold" : "SoraLine1";
+  const line2Blocks = (line2Lines.length ? line2Lines : [String(line2 || "")])
+    .map((line, i) => `<tspan x="${centerX}" dy="${i === 0 ? 0 : line2LineHeight}">${String(line || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")}</tspan>`)
+    .join("");
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`,
     `<defs>`,
     `<style>${fontFaceCss()}</style>`,
+    space?.defs || "",
     `<filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">`,
     `<feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.35"/>`,
     `</filter>`,
     `</defs>`,
+    space?.body || "",
     `<g filter="url(#shadow)">`,
     `<text x="${centerX}" y="${line1Y}" text-anchor="middle" fill="#F6F7FB" font-size="${line1Size}" font-family="SoraLine1,sans-serif" letter-spacing="${line1Spacing}em">${safeLine1}</text>`,
-    `<text x="${centerX}" y="${line2Y}" text-anchor="middle" fill="#FFFFFF" font-size="${line2Size}" font-family="${line2Font},serif" letter-spacing="${line2Spacing}em">${safeLine2}</text>`,
+    `<text x="${centerX}" y="${line2Y}" text-anchor="middle" fill="#FFFFFF" font-size="${line2Size}" font-family="${line2Font},serif" letter-spacing="${line2Spacing}em">${line2Blocks}</text>`,
     hasLine3
       ? `<text x="${centerX}" y="${line3Y}" text-anchor="middle" fill="#E5E7F4" font-size="${line3Size}" font-family="${line3Font},sans-serif" letter-spacing="${line3Spacing}em">${safeLine3}</text>`
       : "",
@@ -226,6 +376,10 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset }) {
 
 async function renderBlogEyecatchImage({
   bgPath,
+  bgMode = "image",
+  bgVariant = "slide1",
+  story,
+  dateLabel,
   line1,
   line2,
   line3,
@@ -233,6 +387,32 @@ async function renderBlogEyecatchImage({
   quality = 92,
   preset = "C",
 } = {}) {
+  const width = CANVAS_WIDTH;
+  const height = CANVAS_HEIGHT;
+  const fmt = String(format || "jpeg").toLowerCase();
+  const mode = String(bgMode || "image").trim().toLowerCase();
+
+  if (mode === "space") {
+    const avoidRegions = buildEyecatchAvoidRegions({ width, height, line1, line2, line3, preset });
+    const space = buildSpaceBackground({
+      story,
+      dateLabel,
+      width,
+      height,
+      variant: bgVariant || "slide1",
+      avoidRegions,
+    });
+    const svg = buildEyecatchSvg({ width, height, line1, line2, line3, preset, space });
+    let pipeline = sharp(Buffer.from(svg));
+    if (fmt === "png") {
+      pipeline = pipeline.png({ compressionLevel: 9 });
+    } else {
+      pipeline = pipeline.jpeg({ quality, chromaSubsampling: "4:4:4" });
+    }
+    const buffer = await pipeline.toBuffer();
+    return { ok: true, buffer, width, height, bgMode: "space", format: fmt, preset };
+  }
+
   const resolvedBg = resolveBgPath(bgPath);
   if (!resolvedBg) {
     return { ok: false, error: "bg_missing" };
@@ -242,12 +422,8 @@ async function renderBlogEyecatchImage({
     fit: "cover",
     position: "top",
   });
-  const width = CANVAS_WIDTH;
-  const height = CANVAS_HEIGHT;
-
   const svg = buildEyecatchSvg({ width, height, line1, line2, line3, preset });
   let pipeline = base.composite([{ input: Buffer.from(svg) }]);
-  const fmt = String(format || "jpeg").toLowerCase();
   if (fmt === "png") {
     pipeline = pipeline.png({ compressionLevel: 9 });
   } else {

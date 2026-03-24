@@ -18,8 +18,7 @@ const SHAPE_MAP = `{
     "dominant_signs": "...",
     "dominant_houses": "...",
     "planet_distribution": "...",
-    "energy_flow": "...",
-    "star_overview": "..."
+    "energy_flow": "..."
   }
 }`;
 
@@ -43,22 +42,18 @@ const SHAPE_ROLES = `{
   "system_layers": {
     "core": "...",
     "personal": "...",
-    "collective": "...",
-    "flow": "..."
+    "collective": "..."
   },
   "deep_axis": {
     "nodes": "...",
     "chiron": "...",
-    "lilith": "...",
-    "deep_pattern": "..."
+    "lilith": "..."
   },
   "angles": {
-    "intro": "...",
     "asc": "...",
     "mc": "...",
     "ic": "...",
-    "dc": "...",
-    "axis_structure": "..."
+    "dc": "..."
   }
 }`;
 
@@ -72,8 +67,6 @@ const SHAPE_ASPECTS = `{
 
 const SHAPE_CLOSING = `{
   "pattern_name": "...",
-  "chart_pattern": "...",
-  "structural_flow": "...",
   "closing_summary": "..."
 }`;
 
