@@ -1322,7 +1322,11 @@ async function renderPdfBufferMobileV25({
       const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
       await Promise.all([...imgPromises, fontsReady]);
     });
-    await page.waitForTimeout(300);
+    if (typeof page.waitForTimeout === "function") {
+      await page.waitForTimeout(300);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
     const pdfBuffer = await page.pdf({
       width: `${PAGE_WIDTH}px`,
       height: `${PAGE_HEIGHT}px`,

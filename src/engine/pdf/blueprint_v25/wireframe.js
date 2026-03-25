@@ -634,7 +634,7 @@ function extractFromMasterChart({ masterChart, p }) {
     const planet = planetByKey.get(key);
     if (!planet) return "";
     const sign = formatSignDeg(planet);
-    const house = Number.isFinite(Number(planet.house)) ? `｜${Number(planet.house)}H` : "";
+    const house = Number.isFinite(Number(planet.house)) ? ` ${Number(planet.house)}H` : "";
     const glyph = BODY_GLYPH[key] || "";
     const label = BODY_LABEL_JA[key] || key;
     return `${glyph}${label} ${sign}${house}`.trim();
@@ -644,7 +644,7 @@ function extractFromMasterChart({ masterChart, p }) {
   const ascSignGlyph = SIGN_SYMBOL[ascSignKey] || "";
   const ascDeg = masterChart?.ascendant?.degree ?? masterChart?.ascendant?.deg ?? null;
   const ascDegText = Number.isFinite(Number(ascDeg)) ? ` ${Number(ascDeg)}°` : "";
-  const ascSign = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}${ascDegText}｜1H` : "";
+  const ascSign = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}${ascDegText} 1H` : "";
   const formatAxisLine = (key, label) => {
     const planet = planetByKey.get(key);
     if (!planet) return "";
@@ -1064,10 +1064,25 @@ function finalizeWireframeData({ p, placeholders, elementCountsInput, modalityCo
     let topHouses = [];
     if (masterChart?.house_counts) {
       const entries = Object.entries(masterChart.house_counts)
-        .map(([house, count]) => ({ house: Number(house), count: Number(count || 0) }));
-      const max = Math.max(...entries.map((e) => e.count));
-      if (Number.isFinite(max) && max > 0) {
-        topHouses = entries.filter((e) => e.count === max).map((e) => e.house).filter(Number.isFinite);
+        .map(([house, count]) => ({ house: Number(house), count: Number(count || 0) }))
+        .filter((row) => Number.isFinite(row.house) && Number.isFinite(row.count));
+      if (entries.length) {
+        const hasTriple = entries.some((e) => e.count >= 3);
+        const hasDouble = entries.some((e) => e.count >= 2);
+        const threshold = hasTriple ? 3 : hasDouble ? 2 : null;
+        const picked = threshold
+          ? entries
+              .filter((e) => e.count >= threshold)
+              .sort((a, b) => (b.count - a.count) || (a.house - b.house))
+              .slice(0, 3)
+          : [];
+        topHouses = picked.length
+          ? picked.map((e) => e.house)
+          : entries
+              .filter((e) => e.count > 0)
+              .sort((a, b) => (b.count - a.count) || (a.house - b.house))
+              .slice(0, 1)
+              .map((e) => e.house);
       }
     } else if (Array.isArray(masterChart?.dominant_houses) && masterChart.dominant_houses.length) {
       topHouses = masterChart.dominant_houses.map((row) => row?.house).filter(Number.isFinite);
