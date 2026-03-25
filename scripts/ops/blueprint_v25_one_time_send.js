@@ -111,16 +111,38 @@ async function main() {
   if (!lineToken && !dryRun) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
   const lineApi = lineToken ? createLineApi({ accessToken: lineToken, maxText: env.MAX_LINE_TEXT }) : null;
 
-  const lineSnap = await db.collection("line_users").get();
+  const lineRef = db.collection("line_users");
+  const lineDocs = [];
+  if (targetSet) {
+    const targetIds = Array.from(targetSet);
+    for (const id of targetIds) {
+      const doc = await lineRef.doc(id).get();
+      lineDocs.push(doc);
+    }
+  } else {
+    const lineSnap = await lineRef.get();
+    lineDocs.push(...lineSnap.docs);
+  }
 
   const results = [];
   let processed = 0;
 
-  for (const doc of lineSnap.docs) {
+  for (const doc of lineDocs) {
     const lineUserId = doc.id;
     if (targetSet && !targetSet.has(lineUserId)) continue;
     if (limit && processed >= limit) break;
     processed += 1;
+    if (targetSet && !doc.exists) {
+      results.push({
+        lineUserId,
+        name: "",
+        generated: false,
+        sent: false,
+        url: "",
+        error: "line_user_not_found",
+      });
+      continue;
+    }
     const lineUser = doc.data() || {};
 
     const result = {
