@@ -23,8 +23,26 @@ function toBool(val) {
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
-const TEMPLATE =
-  "🌌 ソラのこえより大事なお知らせ💫 テストユーザー限定で、〇〇さんの 星の設計図（Blueprint v25）をお届けします 生まれた瞬間の天体配置をもとに、配置の重心やつながりをまとめたPDFです✨ 🌟 感想を3つだけ教えてほしいです！1. 全体の印象はどうだった？（一言でOK）2. 特に「これいい！」って思ったページや部分は？3. 「ここもっとこうしてほしい」ってところある？ 反応待ってます！🛸✨️ 「ソラのこえ＋」の最初の波紋になります 登録者に無料で配るのでぜひみんなにもシェアしてもらえたら嬉しいです！ こちらから開けます👇✨️";
+const TEMPLATE = `🌌 ソラのこえより大事なお知らせ💫
+
+テストユーザー限定で、〇〇さんの
+星の設計図（Blueprint v25）をお届けします
+
+生まれた瞬間の天体配置をもとに、
+配置の重心やつながりをまとめたPDFです✨
+
+🌟 感想を3つだけ教えてほしいです！
+1. 全体の印象はどうだった？（一言でOK）
+2. 特に「これいい！」って思ったページや部分は？
+3. 「ここもっとこうしてほしい」ってところある？
+
+反応待ってます！🛸✨️
+「ソラのこえ＋」の最初の波紋になります
+
+登録者に無料で配るので
+ぜひみんなにもシェアしてもらえたら嬉しいです！
+
+こちらから開けます👇✨️`;
 
 async function resolveDisplayName({ db, lineUser }) {
   const fromLine =
@@ -122,8 +140,27 @@ async function main() {
       result.url = signed.url;
 
       if (!dryRun) {
-        const text = `${TEMPLATE.replace("〇〇", result.name)}\n${result.url}`;
-        await lineApi.pushMessages(lineUserId, [{ type: "text", text }]);
+        const text = TEMPLATE.replace("〇〇", result.name);
+        const templateMessage = {
+          type: "template",
+          altText: "星の設計図（Blueprint v25）はこちら",
+          template: {
+            type: "buttons",
+            title: "星の設計図（Blueprint v25）",
+            text: "📱スマホ版",
+            actions: [
+              {
+                type: "uri",
+                label: "📱 スマホ版",
+                uri: result.url,
+              },
+            ],
+          },
+        };
+        await lineApi.pushMessages(lineUserId, [
+          { type: "text", text },
+          templateMessage,
+        ]);
         result.sent = true;
       }
     } catch (err) {
