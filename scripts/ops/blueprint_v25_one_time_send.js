@@ -23,26 +23,40 @@ function toBool(val) {
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
-const TEMPLATE = `🌌 ソラのこえより大事なお知らせ💫
+const TEMPLATE = `🌌 ソラのこえより
 
-テストユーザー限定で、〇〇さんの
-星の設計図（Blueprint v25）をお届けします
+｛ユーザーネーム｝さんの
+星の設計図（Blueprint v25）をお届けします💫💫
 
 生まれた瞬間の天体配置をもとに、
-配置の重心やつながりをまとめたPDFです✨
+配置の重心やつながりをまとめたPDF完成！！
 
-🌟 感想を3つだけ教えてほしいです！
-1. 全体の印象はどうだった？（一言でOK）
-2. 特に「これいい！」って思ったページや部分は？
-3. 「ここもっとこうしてほしい」ってところある？
+したので暇なときにみてもらえたら
+嬉しい限りでございます🎁⭐️
 
-反応待ってます！🛸✨️
-「ソラのこえ＋」の最初の波紋になります
+もしよければ、
+ 感想を3つだけ教えてほしいです🌟
 
-登録者に無料で配るので
+1. 全体の印象はどうだった？（一言OK）
+2. 特に「これいい！」って思ったページや部分ある〜？
+3. 「ここもっとこうしてほしい」ってところある〜？
+
+反応待ってます〜🪐✨️🌟💫
+
+今後展開する「ソラのこえ＋」の最初の波紋になります〜！！
+
+登録してくれた方に、無料で配るので
 ぜひみんなにもシェアしてもらえたら嬉しいです！
 
 こちらから開けます👇✨️`;
+
+function applyNameTemplate(text, name) {
+  const safeName = name || "お客さま";
+  return String(text || "")
+    .replaceAll("｛ユーザーネーム｝", safeName)
+    .replaceAll("{ユーザーネーム}", safeName)
+    .replaceAll("〇〇", safeName);
+}
 
 async function resolveDisplayName({ db, lineUser }) {
   const fromLine =
@@ -140,7 +154,7 @@ async function main() {
       result.url = signed.url;
 
       if (!dryRun) {
-        const text = TEMPLATE.replace("〇〇", result.name);
+        const text = applyNameTemplate(TEMPLATE, result.name);
         const templateMessage = {
           type: "template",
           altText: "星の設計図（Blueprint v25）はこちら",
