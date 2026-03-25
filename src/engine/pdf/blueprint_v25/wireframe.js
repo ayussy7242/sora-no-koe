@@ -289,13 +289,13 @@ function extractFromKernel({ kernel, input, p }) {
     signCounts.set(sign, (signCounts.get(sign) || 0) + 1);
   });
   const sortedSigns = [...signCounts.entries()].sort((a, b) => b[1] - a[1]).map(([sign]) => sign);
-  if (sortedSigns.length) p.dominantSigns = sortedSigns.slice(0, 2);
+  if (sortedSigns.length) p.dominantSigns = sortedSigns.slice(0, 3);
 
   const houseCounts = kernel?.houses?.counts || {};
   const houseSorted = Object.entries(houseCounts)
     .map(([house, count]) => ({ house: Number(house), count: toNumber(count) }))
     .sort((a, b) => (b.count - a.count) || (a.house - b.house));
-  if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 2).map((row) => `${row.house}H`);
+  if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 3).map((row) => `${row.house}H`);
   const planetEntriesForStructure = (kernel?.bodies || []).map((row) => {
     const meta = row?.kernel?.meta || {};
     return {
@@ -768,7 +768,43 @@ function extractFromMasterChart({ masterChart, p }) {
       })),
     };
   }
-  if (Array.isArray(masterChart.dominant_signs) && masterChart.dominant_signs.length) {
+  const aggregateForDominance = (() => {
+    const items = [];
+    const pushItem = (row) => {
+      if (!row) return;
+      items.push(row);
+    };
+    (masterChart?.planets || []).forEach(pushItem); // 太陽〜冥王星
+    pushItem(masterChart?.angles?.asc); // ASC
+    pushItem(masterChart?.angles?.mc); // MC
+    pushItem(masterChart?.nodes?.north); // ノード（北）
+    pushItem(masterChart?.extras?.chiron); // キロン
+    pushItem(masterChart?.extras?.lilith); // リリス
+    if (!items.length) return null;
+
+    const signCounts = new Map();
+    const houseCounts = new Map();
+    items.forEach((row) => {
+      const signKey = resolveSignKey(row);
+      if (signKey) signCounts.set(signKey, (signCounts.get(signKey) || 0) + 1);
+      const house = Number(row.house);
+      if (Number.isFinite(house)) houseCounts.set(house, (houseCounts.get(house) || 0) + 1);
+    });
+
+    const sortedSigns = Array.from(signCounts.entries())
+      .sort((a, b) => (b[1] - a[1]) || String(a[0]).localeCompare(String(b[0])));
+    const sortedHouses = Array.from(houseCounts.entries())
+      .sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]));
+
+    return { sortedSigns, sortedHouses };
+  })();
+
+  if (aggregateForDominance?.sortedSigns?.length) {
+    p.dominantSigns = aggregateForDominance.sortedSigns
+      .slice(0, 3)
+      .map(([key]) => SIGN_JA[key] || SIGN_EN[key] || key)
+      .filter(Boolean);
+  } else if (Array.isArray(masterChart.dominant_signs) && masterChart.dominant_signs.length) {
     p.dominantSigns = masterChart.dominant_signs
       .map((row) => {
         if (row.sign_ja) return formatSignJa(row.sign_ja);
@@ -778,28 +814,18 @@ function extractFromMasterChart({ masterChart, p }) {
       })
       .filter(Boolean);
   }
-  if ((!p.dominantSigns || !p.dominantSigns.length) && Array.isArray(masterChart?.planets)) {
-    const counts = new Map();
-    masterChart.planets.forEach((row) => {
-      const key = resolveSignKey(row);
-      if (!key) return;
-      counts.set(key, (counts.get(key) || 0) + 1);
-    });
-    const northKey = resolveSignKey(masterChart?.nodes?.north || {});
-    if (northKey) counts.set(northKey, (counts.get(northKey) || 0) + 0.5);
-    const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-    const strong = ranked.filter(([, count]) => count >= 3);
-    const picked = strong.length ? strong : ranked.slice(0, 2);
-    p.dominantSigns = picked
-      .map(([key]) => SIGN_JA[key] || SIGN_EN[key] || key)
-      .filter(Boolean);
-  }
 
-  const houseCounts = masterChart?.house_counts || {};
-  const houseSorted = Object.entries(houseCounts)
-    .map(([house, count]) => ({ house: Number(house), count: toNumber(count) }))
-    .sort((a, b) => (b.count - a.count) || (a.house - b.house));
-  if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 2).map((row) => `${row.house}H`);
+  if (aggregateForDominance?.sortedHouses?.length) {
+    p.dominantHouses = aggregateForDominance.sortedHouses
+      .slice(0, 3)
+      .map(([house]) => `${house}H`);
+  } else {
+    const houseCounts = masterChart?.house_counts || {};
+    const houseSorted = Object.entries(houseCounts)
+      .map(([house, count]) => ({ house: Number(house), count: toNumber(count) }))
+      .sort((a, b) => (b.count - a.count) || (a.house - b.house));
+    if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 2).map((row) => `${row.house}H`);
+  }
   if (masterChart?.element_balance) {
     p.elementCounts = {
       fire: toNumber(masterChart.element_balance.fire),
@@ -1062,30 +1088,53 @@ function finalizeWireframeData({ p, placeholders, elementCountsInput, modalityCo
       : null;
 
     let topHouses = [];
-    if (masterChart?.house_counts) {
-      const entries = Object.entries(masterChart.house_counts)
-        .map(([house, count]) => ({ house: Number(house), count: Number(count || 0) }))
-        .filter((row) => Number.isFinite(row.house) && Number.isFinite(row.count));
-      if (entries.length) {
-        const hasTriple = entries.some((e) => e.count >= 3);
-        const hasDouble = entries.some((e) => e.count >= 2);
-        const threshold = hasTriple ? 3 : hasDouble ? 2 : null;
-        const picked = threshold
-          ? entries
-              .filter((e) => e.count >= threshold)
-              .sort((a, b) => (b.count - a.count) || (a.house - b.house))
-              .slice(0, 3)
-          : [];
-        topHouses = picked.length
-          ? picked.map((e) => e.house)
-          : entries
-              .filter((e) => e.count > 0)
-              .sort((a, b) => (b.count - a.count) || (a.house - b.house))
-              .slice(0, 1)
-              .map((e) => e.house);
+    let entries = [];
+    if (masterChart?.planet_distribution && typeof masterChart.planet_distribution === "object") {
+      entries = Object.entries(masterChart.planet_distribution)
+        .map(([house, list]) => ({ house: Number(house), count: Array.isArray(list) ? list.length : 0 }));
+    } else if (masterChart?.house_counts) {
+      entries = Object.entries(masterChart.house_counts)
+        .map(([house, count]) => ({ house: Number(house), count: Number(count || 0) }));
+    }
+
+    entries = entries.filter((row) => Number.isFinite(row.house) && Number.isFinite(row.count));
+    const sorted = entries
+      .filter((e) => e.count > 0)
+      .sort((a, b) => (b.count - a.count) || (a.house - b.house));
+    if (sorted.length) {
+      const primary = sorted.filter((e) => e.count >= 3);
+      const secondary = primary.length ? [] : sorted.filter((e) => e.count >= 2);
+      const picked = (primary.length ? primary : secondary).slice(0, 3);
+      const pickedSet = new Set(picked.map((e) => e.house));
+      if (picked.length < 3) {
+        for (const row of sorted) {
+          if (picked.length >= 3) break;
+          if (pickedSet.has(row.house)) continue;
+          picked.push(row);
+          pickedSet.add(row.house);
+        }
+      }
+      topHouses = picked.map((e) => e.house);
+
+      const houseByKey = new Map((masterChart?.planets || []).map((p) => [p.key, p.house]));
+      const mcHouse = Number(masterChart?.angles?.mc?.house);
+      const focusKeys = ["sun", "moon", "mercury"];
+      const focusScore = (house) => focusKeys.reduce((sum, key) => sum + (houseByKey.get(key) === house ? 1 : 0), 0);
+      const maxCount = sorted[0]?.count ?? null;
+      const tied = sorted.filter((e) => e.count === maxCount);
+      if (tied.length) {
+        const focusPick = tied
+          .map((row) => ({
+            ...row,
+            focus: focusScore(row.house),
+            mc: Number.isFinite(mcHouse) && mcHouse === row.house ? 1 : 0,
+          }))
+          .sort((a, b) => (b.focus - a.focus) || (b.mc - a.mc) || (a.house - b.house))[0];
+        if (focusPick?.house) p.dominancePrimaryHouse = focusPick.house;
       }
     } else if (Array.isArray(masterChart?.dominant_houses) && masterChart.dominant_houses.length) {
       topHouses = masterChart.dominant_houses.map((row) => row?.house).filter(Number.isFinite);
+      if (topHouses.length) p.dominancePrimaryHouse = topHouses[0];
     }
 
     if (!p.dominanceLines || p.dominanceLines.length < 3) {
@@ -1094,8 +1143,11 @@ function finalizeWireframeData({ p, placeholders, elementCountsInput, modalityCo
     if (elementText) p.dominanceLines[0] = `エレメント　${elementText}`;
     if (modalityText) p.dominanceLines[1] = `モード　　　${modalityText}宮`;
     if (topHouses.length) {
-      const houseText = topHouses.map((h) => `${h}H`).join("・");
-      p.dominanceLines[2] = `強調ハウス　${houseText}`;
+      p.dominantHouses = topHouses.map((h) => `${h}H`);
+      const primaryHouse = Number.isFinite(p.dominancePrimaryHouse) ? p.dominancePrimaryHouse : topHouses[0];
+      if (Number.isFinite(primaryHouse)) {
+        p.dominanceLines[2] = `強調ハウス　${primaryHouse}H`;
+      }
     }
   };
   resolveDominanceLines();

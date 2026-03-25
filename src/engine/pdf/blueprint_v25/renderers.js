@@ -77,6 +77,8 @@ function renderMapPage(ctx) {
     const safe = escapeHtml(row);
     return replaceGlyphsWithImages(safe, { className: "glyph-img", size: 20 });
   });
+  const dominantSignText = (dominantSignRows || []).slice(0, 3).join("｜");
+  const dominantHouseText = (p.dominantHouses || []).slice(0, 3).join("｜");
   const elementGlyph = (glyph, color) =>
     buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
   const modalityGlyph = (glyph, color) =>
@@ -146,14 +148,14 @@ function renderMapPage(ctx) {
             <div class="card-head map-title">支配サイン</div>
             <div class="card-sub">DOMINANT SIGNS</div>
             <div class="card-list">
-              ${dominantSignRows.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
+              ${dominantSignText ? `<div>${escapeHtml(dominantSignText)}</div>` : ""}
             </div>
           </div>
           <div class="chart-box">
             <div class="card-head map-title">支配ハウス</div>
             <div class="card-sub">DOMINANT HOUSES</div>
             <div class="card-list">
-              ${p.dominantHouses.map((row) => `<div>${escapeHtml(row)}</div>`).join("")}
+              ${dominantHouseText ? `<div>${escapeHtml(dominantHouseText)}</div>` : ""}
             </div>
           </div>
           <div class="chart-box map-block-full">
