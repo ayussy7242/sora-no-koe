@@ -223,12 +223,43 @@ function renderXResonance(story, deps = {}) {
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const dict = deps?.dict || require("../../../content/dict");
   const raw = resolveResonanceRaw(story, dict, { fallback: false });
-  const display = buildResonanceDisplay(story, { ...deps, dict });
-  if (!display) return "";
+  if (!raw) return "";
 
-  const lines = ["🌌 共鳴の空"];
+  const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const aKey = normalizeBodyKey(raw?.a || "");
+  const bKey = normalizeBodyKey(raw?.b || "");
+  const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
+  const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
+  const aSign = raw?.a_sign_ja || signJa(dict, raw?.a_sign_key || "");
+  const bSign = raw?.b_sign_ja || signJa(dict, raw?.b_sign_key || "");
+  const aGlyph = glyphForBody(aKey);
+  const bGlyph = glyphForBody(bKey);
+
+  const aspect = aspectInfo(dict, raw?.type || raw?.aspT || raw?.aspect, raw?.aspect_deg);
+  const aspectLabel = aspect?.label_ja || "";
+  const aspectDeg = Number.isFinite(Number(raw?.aspect_deg))
+    ? Number(raw.aspect_deg)
+    : Number.isFinite(Number(aspect?.deg))
+      ? Number(aspect.deg)
+      : null;
+  const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
+  const orb = Number.isFinite(Number(raw?.orb_deg)) ? Number(raw.orb_deg) : null;
+  const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
+  const infoParts = [];
+  if (aspectLabel) infoParts.push(aspectLabel);
+  if (degText) infoParts.push(degText);
+  if (orbText) infoParts.push(`orb ${orbText}`);
+  const infoLine = infoParts.join("｜");
+
+  const lines = [
+    `🌌 星の配置｜${dateLabel}`,
+    "",
+    `${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSign ? `（${aSign}）` : ""}`,
+    "×",
+    `${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSign ? `（${bSign}）` : ""}`,
+  ];
+  if (infoLine) lines.push("", infoLine);
   if (ai) lines.push("", ai);
-  lines.push("", SEP, "", ...display);
   return joinLines(lines);
 }
 
