@@ -520,7 +520,7 @@ body {
 
 .planet-list,
 .key-points-list {
-  font-size: calc(var(--fs-card-text) * 0.78 + var(--fs-bump));
+  font-size: calc(var(--fs-card-text) * 0.77 + var(--fs-bump));
   line-height: 1.7;
   font-family: 'Zen Kaku Gothic', 'Noto Symbols 2', 'Noto Symbols', 'Symbola', sans-serif;
 }
@@ -864,8 +864,9 @@ body {
 .card-list.inline {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  font-size: calc(16px + 2px + var(--fs-bump));
+  gap: 8px 2px;
+  font-size: calc(14px + var(--fs-bump));
+  letter-spacing: 0;
   opacity: 0.8;
 }
 
