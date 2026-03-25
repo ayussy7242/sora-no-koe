@@ -65,6 +65,8 @@ function buildMainLogLines(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
   const includePoints = deps?.includePoints !== false;
+  const skipGlyphFor = Array.isArray(deps?.skipGlyphFor) ? deps.skipGlyphFor : [];
+  const skipGlyphSet = new Set(skipGlyphFor.map((v) => String(v || "").trim().toLowerCase()).filter(Boolean));
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
@@ -88,7 +90,7 @@ function buildMainLogLines(story, deps = {}) {
     signLabel = String(signLabel || "").trim();
     if (!signLabel) return "";
 
-    const glyph = glyphForBody(k);
+    const glyph = skipGlyphSet.has(String(k || "").toLowerCase()) ? "" : glyphForBody(k);
     const bodyJa = (dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || k).toString();
     const retro = retroMap[k] ? "(R)" : "";
     const bodyText = `${bodyJa}${retro}`;
@@ -188,7 +190,12 @@ function renderXMorningMain(story, deps = {}) {
 
 function renderXMorningLog(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
-  const logLines = buildMainLogLines(story, { ...deps, includeHeader: false, includePoints: false });
+  const logLines = buildMainLogLines(story, {
+    ...deps,
+    includeHeader: false,
+    includePoints: true,
+    skipGlyphFor: ["lilith", "chiron"],
+  });
 
   const baseLines = ["🌌 星の配置", "", joinLines(logLines)];
   return joinLines(baseLines);
