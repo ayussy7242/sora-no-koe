@@ -1291,7 +1291,6 @@ function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, m
   const elementBiasTerms = buildElementBiasTerms(element || {});
   const modalityBiasTerms = buildModalityBiasTerms(modality || {});
   const houseEmphasis =
-    buildHouseEmphasisFromCusps({ rowsMain, rowsExtra, cusps, dict, system: houseSystem }) ||
     buildHouseEmphasis({ rowsMain, rowsExtra, rowsAngles, dict }) ||
     {};
   const houseNoByKey = new Map((houseEmphasis.placements || []).map((row) => [row.key, row.house_no]));
