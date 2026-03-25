@@ -1506,6 +1506,49 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   const bucket = bucketName ? storage.bucket(bucketName) : null;
   const blueprintStorage = bucket ? createBlueprintLightStorage({ bucket, urlExpireDays }) : null;
   const natalService = createNatalService({ db, norm360 });
+  const allowRegenBg = env?.BLUEPRINT_BG_REGEN !== false;
+
+  async function buildOrReuseV25BgImages({ lineUserId, aiData, rowsMain, rowsExtra, elementCounts, dateLabel }) {
+    const bgKeys = BG_IMAGE_KEYS;
+    const story = buildStoryStub({ rowsMain, rowsExtra, elementCounts, dateLabel });
+    if (!allowRegenBg && blueprintStorage) {
+      const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
+      const count = Object.keys(signedBg?.urls || {}).length;
+      if (signedBg?.ok && count === bgKeys.length) {
+        console.log("[blueprint] bg reuse", { lineUserId, count });
+        return { bgImages: signedBg.urls, story, reused: true };
+      }
+    }
+
+    const bgDir = path.join(process.cwd(), "tmp", "blueprint_bg", lineUserId);
+    await buildBlueprintV25BgImages({
+      blueprint: aiData,
+      rowsMain,
+      rowsExtra,
+      elementCounts,
+      dateLabel,
+      outDir: bgDir,
+      inline: false,
+    });
+    const bgBuffers = {};
+    bgKeys.forEach((key) => {
+      const filePath = path.join(bgDir, `bg_${key}.png`);
+      if (fs.existsSync(filePath)) {
+        bgBuffers[key] = fs.readFileSync(filePath);
+      }
+    });
+    for (const key of bgKeys) {
+      const buf = bgBuffers[key];
+      if (buf && blueprintStorage) await blueprintStorage.saveBgImage(lineUserId, key, buf);
+    }
+    let bgImages = null;
+    if (blueprintStorage) {
+      const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
+      if (signedBg?.ok && signedBg.urls) bgImages = signedBg.urls;
+    }
+    console.log("[blueprint] bg regen", { lineUserId, allowRegenBg });
+    return { bgImages, story, reused: false };
+  }
 
   async function getLineUser(lineUserId) {
     if (!lineUserId) return null;
@@ -1776,31 +1819,16 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     if (useV25 && variant === "mobile") {
       const elementCounts = aiData?.master_chart?.element_balance || element;
       const dateLabel = birthText || "";
-      story = buildStoryStub({ rowsMain, rowsExtra, elementCounts, dateLabel });
-      const bgDir = path.join(process.cwd(), "tmp", "blueprint_bg", lineUserId);
-      await buildBlueprintV25BgImages({
-        blueprint: aiData,
+      const bgResult = await buildOrReuseV25BgImages({
+        lineUserId,
+        aiData,
         rowsMain,
         rowsExtra,
         elementCounts,
         dateLabel,
-        outDir: bgDir,
-        inline: false,
       });
-      const bgKeys = BG_IMAGE_KEYS;
-      const bgBuffers = {};
-      bgKeys.forEach((key) => {
-        const filePath = path.join(bgDir, `bg_${key}.png`);
-        if (fs.existsSync(filePath)) {
-          bgBuffers[key] = fs.readFileSync(filePath);
-        }
-      });
-      for (const key of bgKeys) {
-        const buf = bgBuffers[key];
-        if (buf) await blueprintStorage.saveBgImage(lineUserId, key, buf);
-      }
-      const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
-      if (signedBg?.ok && signedBg.urls) bgImages = signedBg.urls;
+      story = bgResult.story;
+      bgImages = bgResult.bgImages;
     }
 
     const pdfBuffer = await renderPdfBuffer({
@@ -1875,31 +1903,16 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     let story = null;
     const elementCounts = aiData?.master_chart?.element_balance || element;
     const dateLabel = birthText || "";
-    story = buildStoryStub({ rowsMain, rowsExtra, elementCounts, dateLabel });
-    const bgDir = path.join(process.cwd(), "tmp", "blueprint_bg", lineUserId);
-    await buildBlueprintV25BgImages({
-      blueprint: aiData,
+    const bgResult = await buildOrReuseV25BgImages({
+      lineUserId,
+      aiData,
       rowsMain,
       rowsExtra,
       elementCounts,
       dateLabel,
-      outDir: bgDir,
-      inline: false,
     });
-    const bgKeys = BG_IMAGE_KEYS;
-    const bgBuffers = {};
-    bgKeys.forEach((key) => {
-      const filePath = path.join(bgDir, `bg_${key}.png`);
-      if (fs.existsSync(filePath)) {
-        bgBuffers[key] = fs.readFileSync(filePath);
-      }
-    });
-    for (const key of bgKeys) {
-      const buf = bgBuffers[key];
-      if (buf) await blueprintStorage.saveBgImage(lineUserId, key, buf);
-    }
-    const signedBg = await blueprintStorage.getBgSignedUrls(lineUserId);
-    if (signedBg?.ok && signedBg.urls) bgImages = signedBg.urls;
+    story = bgResult.story;
+    bgImages = bgResult.bgImages;
 
     const pdfBuffer = await renderPdfBuffer({
       manifest,
