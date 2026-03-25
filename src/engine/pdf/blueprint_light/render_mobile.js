@@ -1310,6 +1310,19 @@ async function renderPdfBufferMobileV25({
     await page.setViewport({ width: PAGE_WIDTH, height: PAGE_HEIGHT, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 180000 });
     await page.emulateMediaType("screen");
+    await page.evaluate(async () => {
+      const imgs = Array.from(document.images || []);
+      const imgPromises = imgs.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      });
+      const fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      await Promise.all([...imgPromises, fontsReady]);
+    });
+    await page.waitForTimeout(300);
     const pdfBuffer = await page.pdf({
       width: `${PAGE_WIDTH}px`,
       height: `${PAGE_HEIGHT}px`,
