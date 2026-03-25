@@ -501,6 +501,10 @@ function extractFromKernel({ kernel, input, p }) {
 function extractFromMasterChart({ masterChart, p }) {
   if (!masterChart) return;
 
+  if (Number.isFinite(Number(masterChart.primary_house))) {
+    p.dominancePrimaryHouse = Number(masterChart.primary_house);
+  }
+
   const structureLines = buildStructureLinesFromPlanets(masterChart?.planets || []);
   if (structureLines?.length) p.structureLines = structureLines;
 
