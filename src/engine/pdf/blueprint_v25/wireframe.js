@@ -1671,8 +1671,9 @@ function buildBlueprintV25WireframeHtml({ data = {}, useSpace = true } = {}) {
 
   const plnBlocks = (p.planetRolesAll || []).map((card) => {
     const textForHeight = [card.roleLabel, card.text].filter(Boolean).join("\n");
+    const basePad = 14;
     const extraPad = card.key === "pluto" ? 20 : 0;
-    const height = estimateBlockHeight({ text: textForHeight }) + extraPad;
+    const height = estimateBlockHeight({ text: textForHeight }) + basePad + extraPad;
     const roleHtml = card.roleLabel ? `<div class="card-role">${escapeHtml(card.roleLabel)}</div>` : "";
     const metaHtml = wrapZodiacGlyphs(escapeHtml(card.meta));
     const html = [
