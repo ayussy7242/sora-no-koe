@@ -639,12 +639,14 @@ function extractFromMasterChart({ masterChart, p }) {
     const label = BODY_LABEL_JA[key] || key;
     return `${glyph}${label} ${sign}${house}`.trim();
   };
+  const ascMetaLine = p.angleMeta?.asc || "";
+  const ascLine = ascMetaLine ? `ASC ${ascMetaLine}` : "";
   const ascSignJa = formatSignJa(masterChart?.ascendant?.sign_ja || masterChart?.ascendant?.sign || "");
   const ascSignKey = SIGN_JA_TO_KEY[ascSignJa] || SIGN_NAME_TO_KEY[String(masterChart?.ascendant?.sign || "").toLowerCase()];
   const ascSignGlyph = SIGN_SYMBOL[ascSignKey] || "";
   const ascDeg = masterChart?.ascendant?.degree ?? masterChart?.ascendant?.deg ?? null;
   const ascDegText = Number.isFinite(Number(ascDeg)) ? ` ${Number(ascDeg)}°` : "";
-  const ascSign = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}${ascDegText} 1H` : "";
+  const ascSignFallback = ascSignJa ? `${ascSignGlyph ? `${ascSignGlyph} ` : ""}${ascSignJa}${ascDegText}｜1H` : "";
   const formatAxisLine = (key, label) => {
     const planet = planetByKey.get(key);
     if (!planet) return "";
@@ -656,10 +658,10 @@ function extractFromMasterChart({ masterChart, p }) {
   p.coreAxisLines = [
     formatAxisLine("sun", "太陽"),
     formatAxisLine("moon", "月"),
-    ascSign ? `ASC ${ascSign}` : "",
+    ascLine || (ascSignFallback ? `ASC ${ascSignFallback}` : ""),
   ].filter(Boolean);
   p.systemLayerLines = {
-    core: [formatLine("sun"), formatLine("moon"), ascSign ? `ASC ${ascSign}` : ""].filter(Boolean),
+    core: [formatLine("sun"), formatLine("moon"), ascLine || (ascSignFallback ? `ASC ${ascSignFallback}` : "")].filter(Boolean),
     personal: [formatLine("mercury"), formatLine("venus"), formatLine("mars")].filter(Boolean),
     collective: [
       formatLine("jupiter"),
