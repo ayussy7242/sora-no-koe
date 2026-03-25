@@ -207,6 +207,66 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
     return top;
   })();
 
+  const primaryHouse = (() => {
+    const houseCountsMap = new Map();
+    const housePlanetCounts = new Map();
+    const houseCoreCounts = new Map();
+    const inc = (map, key, by = 1) => {
+      map.set(key, (map.get(key) || 0) + by);
+    };
+    const houseByKey = new Map(planets.map((p) => [p.key, p.house]));
+    planets.forEach((p) => {
+      const house = Number(p.house);
+      if (!Number.isFinite(house)) return;
+      inc(houseCountsMap, house);
+      inc(housePlanetCounts, house);
+      if (["sun", "moon", "mercury"].includes(String(p.key))) {
+        inc(houseCoreCounts, house);
+      }
+    });
+    const extrasList = [
+      angles?.asc,
+      angles?.mc,
+      nodes?.north,
+      extras?.chiron,
+      extras?.lilith,
+    ].filter(Boolean);
+    extrasList.forEach((row) => {
+      const house = Number(row.house);
+      if (!Number.isFinite(house)) return;
+      inc(houseCountsMap, house);
+    });
+    const mcHouse = Number(angles?.mc?.house);
+    if (Number.isFinite(mcHouse)) inc(houseCoreCounts, mcHouse);
+    const sorted = Array.from(houseCountsMap.entries())
+      .map(([house, total]) => ({
+        house,
+        total,
+        planets: housePlanetCounts.get(house) || 0,
+        core: houseCoreCounts.get(house) || 0,
+      }))
+      .sort((a, b) =>
+        (b.total - a.total) ||
+        (b.planets - a.planets) ||
+        (b.core - a.core) ||
+        (a.house - b.house)
+      );
+    if (!sorted.length) return null;
+    const max = sorted[0]?.total ?? null;
+    const tied = sorted.filter((row) => row.total === max);
+    const focusKeys = ["sun", "moon", "mercury"];
+    const focusScore = (house) =>
+      focusKeys.reduce((sum, key) => sum + (houseByKey.get(key) === house ? 1 : 0), 0);
+    const pick = (tied.length ? tied : sorted)
+      .map((row) => ({
+        ...row,
+        focus: focusScore(row.house),
+        mc: Number.isFinite(mcHouse) && mcHouse === row.house ? 1 : 0,
+      }))
+      .sort((a, b) => (b.focus - a.focus) || (b.mc - a.mc) || (a.house - b.house))[0];
+    return pick?.house ?? sorted[0]?.house ?? null;
+  })();
+
   const majorAspects = (() => {
     const list = aspectsEnriched
       .filter((a) => a && a.p1 && a.p2)
@@ -259,6 +319,7 @@ function buildMasterChartFromKernel(kernel = {}, longitudes = null) {
     angular_planets: angularPlanets,
     dominant_signs: dominantSigns,
     dominant_houses: dominantHouses,
+    primary_house: primaryHouse,
     energy_center: energyCenter,
     major_aspects: majorAspects,
     chart_pattern: chartPattern,

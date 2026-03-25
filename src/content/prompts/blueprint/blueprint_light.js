@@ -91,7 +91,7 @@ ${BLUEPRINT_BATCH_PREFIX}
 この出生図の中心核と推進方向を、入口として置く。
 
 #担当範囲
-- star_drive (STAR DRIVE)
+- star_drive
 - star_signature
 
 #出力JSONの形 (必須)
@@ -115,16 +115,20 @@ ${BLUEPRINT_BATCH_PREFIX}
 
 ────────────────
 
-[star_drive (STAR DRIVE)]
-#FACT SOURCE: house_counts, planet_distribution, planets[], angles.mc, element_balance
+[star_drive]
+#FACT SOURCE: primary_house, house_counts, planet_distribution, planets[], angles.mc, element_balance
 #役割: この図の中心圧がどこで生まれ、どの経路を通り、どんな性質で外へ押し出されるかを書く。
 #構造: 1文目＝圧が生まれる集中帯、2文目＝その圧がどの性質を通り、どのような外向きの出方を取るか
 #文字量: 25〜45文字 (最大45文字)
+#
+#補助ルール:
+- primary_house がある場合はそれを「中心圧の発生帯」として優先する
+- house_counts の最大帯が primary_house と異なる場合は「分布帯」として補助的に触れる
 
 ────────────────
 
 [star_signature]
-#FACT SOURCE: house_counts, planet_distribution, planets[], angles.asc, angles.mc, element_balance, modality_balance
+#FACT SOURCE: primary_house, house_counts, planet_distribution, planets[], angles.asc, angles.mc, element_balance, modality_balance
 #役割: この出生図の「中心圧」と「向き」を短く掴ませる。重心・出方・流れを一つのまとまりとして示す。
 #構成 (4〜5文):
 - 1文目: 重心配置 (どこに圧が集まるか)
@@ -298,7 +302,7 @@ ${BLUEPRINT_BATCH_PREFIX}
 - 抽象語だけで終わらせず、具体的な感覚を入れる
 
 #angles
-- ASC / MC / IC / DC の4軸それぞれで
+- asc / mc / ic / dc の4軸それぞれで
 - 配置から立ち上がる接触・表現・関係の現れ方を書く
 - 文字量: 各140〜150文字を厳密に目指す**
 - **最大150文字**
