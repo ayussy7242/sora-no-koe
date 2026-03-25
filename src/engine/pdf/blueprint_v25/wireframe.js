@@ -960,11 +960,17 @@ function extractFromMasterChart({ masterChart, p }) {
       const houseText = axisHouseMap[label] ? `｜${axisHouseMap[label]}H` : "";
       return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
     };
-    p.angleMeta = p.angleMeta || {};
-    p.angleMeta.asc = p.angleMeta.asc || formatAngleMeta(masterChart.angles.asc, "ASC");
-    p.angleMeta.mc = p.angleMeta.mc || formatAngleMeta(masterChart.angles.mc, "MC");
-    p.angleMeta.ic = p.angleMeta.ic || formatAngleMeta(masterChart.angles.ic, "IC");
-    p.angleMeta.dc = p.angleMeta.dc || formatAngleMeta(masterChart.angles.dc, "DC");
+    const next = {
+      asc: formatAngleMeta(masterChart.angles.asc, "ASC"),
+      mc: formatAngleMeta(masterChart.angles.mc, "MC"),
+      ic: formatAngleMeta(masterChart.angles.ic, "IC"),
+      dc: formatAngleMeta(masterChart.angles.dc, "DC"),
+    };
+    const merged = { ...(p.angleMeta || {}) };
+    Object.entries(next).forEach(([key, value]) => {
+      if (value) merged[key] = value;
+    });
+    p.angleMeta = merged;
   }
   if (masterChart?.nodes) {
     const formatJaDeg = (sign, deg, houseNo, signKey) => {

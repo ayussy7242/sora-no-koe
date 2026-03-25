@@ -122,7 +122,7 @@ async function createPortalUrl({ lineUserId, db }) {
 }
 
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers, db, admin, storage }) {
-  const { natal, story } = modules;
+  const { natal, story, relation } = modules;
 
   // 1) utilities（intentより先）
   const util = await story.handleUtilities({ cmd, appUserId, lineUserId });
@@ -138,6 +138,29 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   const intentKey = intent.intentFromcommand(cmd);
 
   const plusEnabled = !!env.PLUS_ENABLED;
+
+  // 3.1) relation flow (番号待ち / 登録フロー)
+  if (relation?.getRelationState) {
+    const relState = await relation.getRelationState(lineUserId);
+    if (relState?.state) {
+      if (env.PAID_MODE_ENABLED) {
+        const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+        const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+        if (!paid && !allow) {
+          await relation.clearRelationState?.(lineUserId);
+          return { text: paidOnlyMessage("relation"), stage: "relation_paid_only", mode: "relation" };
+        }
+      }
+      if (relation.handleRelationRegisterStep) {
+        const reg = await relation.handleRelationRegisterStep({ rawText, lineUserId, appUserId });
+        if (reg) return reg;
+      }
+      if (relation.handleRelationSelection) {
+        const relResult = await relation.handleRelationSelection({ rawText, lineUserId, appUserId });
+        if (relResult) return relResult;
+      }
+    }
+  }
 
   if (intentKey === intent.INTENT.PLUS_MENU || intentKey === intent.INTENT.PLUS_JOIN) {
     if (!plusEnabled) {
@@ -234,6 +257,30 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       return { text: "期限情報が見つかりませんでした。", stage: "plus_expire_missing" };
     }
     return { text: `次回更新日：${date}`, stage: "plus_expire" };
+  }
+
+  if (intentKey === intent.INTENT.RELATION) {
+    if (!lineUserId) {
+      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "relation_need_line" };
+    }
+    if (env.PAID_MODE_ENABLED) {
+      const { paid } = await getPaidStatus({ db, appUserId, lineUserId });
+      const allow = await isPaidAllowed({ appUserId, lineUserId, modules });
+      if (!paid && !allow) {
+        return { text: paidOnlyMessage("relation"), stage: "relation_paid_only", mode: "relation" };
+      }
+    }
+    if (!relation?.handleRelationCommand) {
+      return { text: LINE_COPY.RELATION_PDF_UNAVAILABLE || "いま関係性PDFの準備中だよ。", stage: "relation_missing" };
+    }
+    return await relation.handleRelationCommand({ lineUserId, appUserId });
+  }
+
+  if (intentKey === intent.INTENT.RELATION_REGISTER) {
+    if (!relation?.handleRelationRegisterCommand) {
+      return { text: LINE_COPY.RELATION_PDF_UNAVAILABLE || "いま関係性PDFの準備中だよ。", stage: "relation_register_missing" };
+    }
+    return await relation.handleRelationRegisterCommand({ lineUserId, appUserId });
   }
 
   if (intentKey === intent.INTENT.NATAL) {

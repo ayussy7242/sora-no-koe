@@ -60,6 +60,8 @@ const INTENT = Object.freeze({
   PLUS_EXPIRE: "plus_expire",
   PLUS_MENU: "plus_menu",
   BLUEPRINT_LIGHT: "blueprint_light",
+  RELATION: "relation",
+  RELATION_REGISTER: "relation_register",
   PURCHASE: "purchase",
 
   HELP: "help",
@@ -148,6 +150,20 @@ const MAP = new Map([
   ["blueprint", INTENT.BLUEPRINT_LIGHT],
   ["natalpdf", INTENT.BLUEPRINT_LIGHT],
 
+  // RELATION
+  ["相性", INTENT.RELATION],
+  ["あいしょう", INTENT.RELATION],
+  ["あいしょ", INTENT.RELATION],
+  ["ふたり", INTENT.RELATION],
+  ["ふたりの星", INTENT.RELATION],
+  ["関係性", INTENT.RELATION],
+
+  // RELATION REGISTER (owner only)
+  ["相性登録", INTENT.RELATION_REGISTER],
+  ["あいしょう登録", INTENT.RELATION_REGISTER],
+  ["ふたり登録", INTENT.RELATION_REGISTER],
+  ["ふたりの星登録", INTENT.RELATION_REGISTER],
+
   // PURCHASE
   ["購入", INTENT.PURCHASE],
   ["こうにゅう", INTENT.PURCHASE],
@@ -194,6 +210,8 @@ function intentFromcommand(rawText) {
     INTENT.PUBLIC_SKY,
     INTENT.NATAL,
     INTENT.BLUEPRINT_LIGHT,
+    INTENT.RELATION,
+    INTENT.RELATION_REGISTER,
     INTENT.PURCHASE,
     INTENT.PLUS_MENU,
     INTENT.PLUS_JOIN,
