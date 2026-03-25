@@ -591,6 +591,40 @@ function extractFromMasterChart({ masterChart, p }) {
     const signText = signGlyph ? `${signGlyph} ${sign}` : sign;
     return `${signText}${degText}`.trim();
   };
+
+  const formatAngleMetaFromMaster = (angle, label) => {
+    if (!angle) return "";
+    const sign = formatSignJa(angle.sign_ja || angle.sign || "");
+    if (!sign) return "";
+    const signKey = angle.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(angle.sign || "").toLowerCase()];
+    const signGlyph = SIGN_SYMBOL[signKey] || "";
+    const degText = Number.isFinite(Number(angle.degree)) ? ` ${Number(angle.degree)}°` : "";
+    const axisHouseMap = { ASC: 1, MC: 10, IC: 4, DC: 7 };
+    const houseText = axisHouseMap[label] ? `｜${axisHouseMap[label]}H` : "";
+    return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
+  };
+
+  if (masterChart.angles) {
+    const nextAngleMeta = { ...(p.angleMeta || {}) };
+    if (masterChart.angles.asc) {
+      const val = formatAngleMetaFromMaster(masterChart.angles.asc, "ASC");
+      if (val) nextAngleMeta.asc = val;
+    }
+    if (masterChart.angles.mc) {
+      const val = formatAngleMetaFromMaster(masterChart.angles.mc, "MC");
+      if (val) nextAngleMeta.mc = val;
+    }
+    if (masterChart.angles.ic) {
+      const val = formatAngleMetaFromMaster(masterChart.angles.ic, "IC");
+      if (val) nextAngleMeta.ic = val;
+    }
+    if (masterChart.angles.dc) {
+      const val = formatAngleMetaFromMaster(masterChart.angles.dc, "DC");
+      if (val) nextAngleMeta.dc = val;
+    }
+    p.angleMeta = nextAngleMeta;
+  }
+
   if (p.planetRolesAll?.length) {
     const toRoleLabel = (line) => {
       if (!line) return "";
