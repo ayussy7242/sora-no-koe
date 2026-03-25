@@ -27,6 +27,7 @@ const intent = require("../integrations/line/intent");
 const userMod = require("../integrations/line/user");
 const natalMod = require("../integrations/line/natal");
 const storyMod = require("../integrations/line/story");
+const relationMod = require("../integrations/line/relation");
 const { createLineApi } = require("../integrations/line/line_api");
 const { processCommand } = require("../integrations/line/pipeline");
 const {
@@ -51,6 +52,7 @@ function pickFactory(mod, name) {
 const createLineUser = pickFactory(userMod, "createLineUser");
 const createLineNatal = pickFactory(natalMod, "createLineNatal");
 const createLineStory = pickFactory(storyMod, "createLineStory");
+const createLineRelation = pickFactory(relationMod, "createLineRelation");
 
 // -------------------- messageId dedupe (in-memory) --------------------
 const messageDeduper = createMessageDeduper({
@@ -81,6 +83,7 @@ function requireDeps(d) {
   if (!createLineUser) throw new Error("[line] createLineUser export not found (line/user.js)");
   if (!createLineNatal) throw new Error("[line] createLineNatal export not found (line/natal.js)");
   if (!createLineStory) throw new Error("[line] createLineStory export not found (line/story.js)");
+  if (!createLineRelation) throw new Error("[line] createLineRelation export not found (line/relation.js)");
 }
 
 function buildModules(d, env) {
@@ -88,7 +91,16 @@ function buildModules(d, env) {
   const user = createLineUser({ db: d.db, admin: d.admin, config: env });
   const natal = createLineNatal({ db: d.db, admin: d.admin, geocoder: d.geocoder, renderers: d.renderers, config: env });
   const story = createLineStory({ db: d.db, storyService: d.storyService, renderers: d.renderers, natal, config: env });
-  return { user, natal, story };
+  const relation = d.relationService
+    ? createLineRelation({
+        db: d.db,
+        admin: d.admin,
+        relationService: d.relationService,
+        geocoder: d.geocoder || null,
+        config: env,
+      })
+    : null;
+  return { user, natal, story, relation };
 }
 
 // -------------------- router factory --------------------

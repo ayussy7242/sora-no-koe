@@ -180,7 +180,29 @@ const LINE_COPY = Object.freeze({
     paid_sorazu:
       "🔵 ソラのこえ＋(有料)でお届けしています。\n" +
       "入会は「＋」または「ぷらす入会」と送ってください。",
+    relation:
+      "🔵 ソラのこえ＋(有料)でお届けしています。\n" +
+      "入会は「＋」または「ぷらす入会」と送ってください。",
   },
+  RELATION_NO_PAIRS:
+    "関係性リストがまだ無いみたい。\n" +
+    "相手の登録ができたらここに出るよ。",
+  RELATION_PICK_TITLE: "関係性のリストだよ",
+  RELATION_PICK_FOOTER: "番号で選んでね。やめるなら「やめる」。",
+  RELATION_PICK_INVALID: "番号で選んでね。",
+  RELATION_PICK_CANCEL: "キャンセルしたよ。",
+  RELATION_PDF_UNAVAILABLE: "いま関係性PDFの準備中だよ。",
+  RELATION_REGISTER_OWNER_ONLY: "これはオーナー専用だよ。",
+  RELATION_REGISTER_START: "相手の名前を送ってね。",
+  RELATION_REGISTER_ASK_DATE: "生年月日を送ってね（例: 1990-01-23）",
+  RELATION_REGISTER_ASK_TIME: "出生時刻を送ってね（例: 14:35 / 不明なら「不明」）",
+  RELATION_REGISTER_ASK_PLACE: "出生地を送ってね（例: 東京 / 35.68,139.76）",
+  RELATION_REGISTER_NAME_INVALID: "名前を送ってね。",
+  RELATION_REGISTER_DATE_INVALID: "日付の形式が違うみたい。",
+  RELATION_REGISTER_TIME_INVALID: "時刻の形式が違うみたい。",
+  RELATION_REGISTER_PLACE_INVALID: "出生地がうまく取得できなかった。",
+  RELATION_REGISTER_DONE: "登録完了。計算が終わったら「ふたりの星」で開けるよ。",
+  RELATION_REGISTER_CANCEL: "キャンセルしたよ。",
   PLUS_PAUSED: "ソラのこえ＋は現在準備中です。",
   PLUS_UNAVAILABLE: "いま入会導線の準備中だよ。",
   PLUS_INVITE: (url) =>

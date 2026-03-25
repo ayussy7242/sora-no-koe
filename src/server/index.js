@@ -54,6 +54,7 @@ const geocoder = createGeocoder({
 
 // -------------------- Engine --------------------
 const { createStoryService } = require("../usecases/story/story");
+const { createRelationService } = require("../usecases/relations");
 const { createRenderers } = require("../presenters/shared/text");
 const { buildResonanceBullets } = require("../presenters/shared/text/resonance");
 const { Storage } = require("@google-cloud/storage");
@@ -129,6 +130,21 @@ const renderers = createRenderers({ dict });
 // -------------------- Storage (GCS) --------------------
 const storage = new Storage();
 
+// -------------------- relationService --------------------
+let relationService = null;
+try {
+  relationService = createRelationService({
+    db,
+    admin: fb.admin,
+    dict,
+    storage,
+    env,
+  });
+} catch (e) {
+  console.error("[BOOT] relationService disabled:", e?.message || String(e));
+  relationService = null;
+}
+
 // ---- tiny boot log (helps confirm “dict is actually used”) ----
 // ※うるさくしたくないので最小限。必要なら後で env でON/OFFできる。
 if (process.env.DEBUG_BOOT === "1") {
@@ -150,6 +166,7 @@ const deps = {
   renderers,
   geocoder,
   storage,
+  relationService,
   dict, // ←必要なら routes/debug で参照できる
 };
 
