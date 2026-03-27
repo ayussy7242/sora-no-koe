@@ -35,9 +35,9 @@ function astroPhaseFromDeg(phaseDeg) {
   if (d < 22.5 || d >= 337.5) return { key: "new", name: "新月", symbol: "🌑" };
   if (d < 67.5) return { key: "waxing_crescent", name: "三日月", symbol: "🌒" };
   if (d < 112.5) return { key: "first_quarter", name: "上弦", symbol: "🌓" };
-  if (d < 157.5) return { key: "waxing_gibbous", name: "満ちていく月", symbol: "🌔" };
+  if (d < 157.5) return { key: "waxing_gibbous", name: "満ちゆく月", symbol: "🌔" };
   if (d < 202.5) return { key: "full", name: "満月", symbol: "🌕" };
-  if (d < 247.5) return { key: "waning_gibbous", name: "欠けていく月", symbol: "🌖" };
+  if (d < 247.5) return { key: "waning_gibbous", name: "欠けゆく月", symbol: "🌖" };
   if (d < 292.5) return { key: "last_quarter", name: "下弦", symbol: "🌗" };
   return { key: "waning_crescent", name: "残月", symbol: "🌘" };
 }
