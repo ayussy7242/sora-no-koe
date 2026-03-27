@@ -97,15 +97,72 @@ async function oauth1Fetch({ url, method, body, contentType, extraParams, env })
   };
   if (contentType) headers["content-type"] = contentType;
 
-  const opts = {
-    method: String(method || "GET").toUpperCase(),
-    headers,
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const timeoutMs = Number.isFinite(Number(env2.X_API_TIMEOUT_MS))
+    ? Number(env2.X_API_TIMEOUT_MS)
+    : 8000;
+  const maxRetries = Number.isFinite(Number(env2.X_API_RETRY_MAX))
+    ? Number(env2.X_API_RETRY_MAX)
+    : 3;
+  const baseDelayMs = Number.isFinite(Number(env2.X_API_RETRY_BASE_MS))
+    ? Number(env2.X_API_RETRY_BASE_MS)
+    : 1000;
+
+  const shouldRetryStatus = (status) => status === 429 || (status >= 500 && status <= 599);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const backoffMs = (retryIndex) => {
+    const base = baseDelayMs * Math.pow(2, Math.max(0, retryIndex - 1));
+    const jitter = 0.7 + Math.random() * 0.6;
+    return Math.round(base * jitter);
   };
-  if (opts.method !== "GET" && body != null) {
-    opts.body = body;
+
+  const attemptFetch = async () => {
+    const opts = {
+      method: String(method || "GET").toUpperCase(),
+      headers,
+    };
+    if (opts.method !== "GET" && body != null) {
+      opts.body = body;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error("timeout")), timeoutMs);
+    try {
+      return await fetch(url, { ...opts, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  let lastErr = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const res = await attemptFetch();
+      if (res.ok) return res;
+      if (attempt < maxRetries && shouldRetryStatus(res.status)) {
+        const wait = backoffMs(attempt + 1);
+        console.warn(`[x_api] retrying (${attempt + 1}/${maxRetries}) status=${res.status} wait=${wait}ms`);
+        await sleep(wait);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      const name = String(err?.name || "");
+      const message = String(err?.message || "");
+      const isAbort = name === "AbortError" || message.includes("timeout");
+      if (attempt < maxRetries && isAbort) {
+        const wait = backoffMs(attempt + 1);
+        console.warn(`[x_api] retrying (${attempt + 1}/${maxRetries}) reason=timeout wait=${wait}ms`);
+        await sleep(wait);
+        continue;
+      }
+      throw err;
+    }
   }
 
-  return fetch(url, opts);
+  if (lastErr) throw lastErr;
+  return attemptFetch();
 }
 
 function normalizeMediaIds(input) {

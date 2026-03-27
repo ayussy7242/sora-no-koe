@@ -5,7 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { buildTodayMoonInfo } = require("../../../domain/moon_info");
+const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../domain/moon_info");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -31,10 +31,23 @@ function buildMoonFallback({ moonSign, phaseLabel } = {}) {
   return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
 }
 
+function buildMoonChangeHint(change) {
+  if (!change || !change.changeType) return "";
+  if (change.changeType === "just_ingressed" && change?.sign?.label) {
+    return `${change.sign.label}に入ったばかり`;
+  }
+  if (change.changeType === "imminent" && change?.next?.to?.label) {
+    return `まもなく${change.next.to.label}へ移る`;
+  }
+  return "";
+}
+
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
+  const change = buildMoonSignChangeState({ asOfISO, dict });
   const moonSign = safeText(info?.moonSign || "");
   const phaseLabel = safeText(info?.phase?.name || "");
+  const moonChangeHint = safeText(buildMoonChangeHint(change));
 
   return [
     SORA_AI_USER_GUIDE_IG_MOON,
@@ -42,6 +55,7 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
     "INPUT:",
     `MOON_SIGN: ${moonSign}`,
     `PHASE_LABEL: ${phaseLabel}`,
+    `MOON_CHANGE_HINT: ${moonChangeHint}`,
   ].join("\n");
 }
 
