@@ -164,7 +164,7 @@ function plainMoonSymbol(kind) {
   return "◑";
 }
 
-function pickPreferredResonanceAspect(story) {
+function pickPreferredResonanceAspect(story, opts = {}) {
   const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   const pool = [...skyTop, ...skyAll];
@@ -173,25 +173,40 @@ function pickPreferredResonanceAspect(story) {
   const coreBodies = new Set([
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
   ]);
+  const deepBodies = new Set(["lilith", "chiron"]);
+  const resonanceMode = opts.resonanceMode || story?.meta?.resonance_mode || "core";
 
-  const withinOne = pool
+  const corePool = pool.filter((row) => {
+    const aKey = String(row?.a || "").toLowerCase();
+    const bKey = String(row?.b || "").toLowerCase();
+    return coreBodies.has(aKey) && coreBodies.has(bKey);
+  });
+  const deepPool = pool.filter((row) => {
+    const aKey = String(row?.a || "").toLowerCase();
+    const bKey = String(row?.b || "").toLowerCase();
+    return deepBodies.has(aKey) || deepBodies.has(bKey);
+  });
+  const useDeep = resonanceMode === "deep";
+  const targetPool = useDeep
+    ? (deepPool.length ? deepPool : corePool)
+    : (corePool.length ? corePool : deepPool);
+  if (!targetPool.length) return null;
+
+  const withinOne = targetPool
     .map((row) => ({ row, orb: Number(row?.orb_deg) }))
     .filter((r) => Number.isFinite(r.orb) && r.orb <= 1.0);
 
-  const coreHits = withinOne.filter(({ row }) => coreBodies.has(row?.a) && coreBodies.has(row?.b));
+  const coreHits = withinOne;
   if (coreHits.length) {
     coreHits.sort((a, b) => a.orb - b.orb);
     return coreHits[0].row;
   }
 
-  const outerBodies = new Set(["lilith", "chiron"]);
-  const outerHits = withinOne.filter(({ row }) => outerBodies.has(row?.a) || outerBodies.has(row?.b));
-  if (outerHits.length) {
-    outerHits.sort((a, b) => a.orb - b.orb);
-    return outerHits[0].row;
-  }
-
-  return skyTop[0] || skyAll[0] || null;
+  const sortedCore = targetPool
+    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
+    .filter((r) => Number.isFinite(r.orb))
+    .sort((a, b) => a.orb - b.orb);
+  return sortedCore[0]?.row || null;
 }
 
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
@@ -405,8 +420,8 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
       { kind: "cover", data: slide1 },
       { kind: "placements", data: slidePlacements },
       { kind: "moon", data: slideMoon },
-      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
       { kind: "resonance", data: slide3 },
+      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],
   };
@@ -480,7 +495,7 @@ async function runIgPost(deps, opts = {}) {
   });
 
   const igOut = ensureIgOutputs(story);
-  const preferredAspect = pickPreferredResonanceAspect(story);
+  const preferredAspect = pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
   if (preferredAspect) {
     igOut.source.resonance_aspect = preferredAspect;
     igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect, { includeOrb: true });
