@@ -6,6 +6,7 @@ const path = require("path");
 const dict = require("../../../content/dict");
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
+const { buildSoraWheelSvg } = require("../../../engine/graphics/sora_wheel");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
@@ -869,10 +870,15 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   const aftertaste = pick(["余韻"]);
 
   const moonHtml = buildMoonBlockHtml({ story, asOfISO });
+  const wheelHtml = buildWheelHtml({ story, dateLocal });
   const houseHtml = buildHouseBlockHtml({ story, asOfISO });
 
   const freeParts = [];
-  if (overview?.html) freeParts.push(replaceH2Title(overview.html, "1｜全体圧"));
+  if (overview?.html) {
+    const base = replaceH2Title(overview.html, "1｜全体圧");
+    const combined = wheelHtml ? `${base}\n${wheelHtml}` : base;
+    freeParts.push(combined);
+  }
   if (positions?.html) freeParts.push(replaceH2Title(positions.html, "2｜配置"));
   if (moonHtml) freeParts.push(replaceH2Title(moonHtml, "3｜月"));
   if (resonance?.html) freeParts.push(replaceH2Title(resonance.html, "4｜共鳴"));
@@ -923,6 +929,32 @@ function addHeadingSpacing(html) {
     }
     return "<br>\n<h2>";
   });
+}
+
+function buildWheelHtml({ story, dateLocal } = {}) {
+  const enabled = String(process.env.BLOG_WHEEL_ENABLED || "1") !== "0";
+  if (!enabled) return "";
+  if (!story) return "";
+  const mode = String(process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
+  if (mode === "media") return "<!--SORA_WHEEL_MEDIA-->";
+  const dateLabel = String(dateLocal || story?.meta?.date_local || story?.public?.date_local || "")
+    .trim()
+    .replace(/-/g, ".");
+  try {
+    const svg = buildSoraWheelSvg({ story, dateLabel, size: 720 });
+    if (!svg) return "";
+    const responsiveSvg = String(svg).replace(
+      "<svg ",
+      "<svg style=\"width:100%;height:auto;display:block;\" "
+    );
+    return [
+      "<div style=\"max-width:720px;margin:28px auto 40px;\">",
+      responsiveSvg,
+      "</div>",
+    ].join("\n");
+  } catch (_e) {
+    return "";
+  }
 }
 
 function buildDailyEyecatchLines(story, dateLocal) {
