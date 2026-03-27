@@ -1,7 +1,9 @@
 "use strict";
 
 const crypto = require("crypto");
+const sharp = require("sharp");
 const { createWpClient } = require("../../integrations/wordpress/wp_client");
+const { buildSoraWheelSvg } = require("../../engine/graphics/sora_wheel");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const {
   generateDailyDraft,
@@ -18,6 +20,7 @@ function requiredEnv(name, value) {
 }
 
 const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
+const WHEEL_MARKER = "<!--SORA_WHEEL_MEDIA-->";
 
 function nowIso(ms = Date.now()) {
   return new Date(ms).toISOString();
@@ -143,6 +146,50 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   content = hasHtmlHeadings
     ? content
     : markdownToHtml(content, { h1: "" });
+
+  const wheelMode = String(env.BLOG_WHEEL_MODE || process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
+  if (wheelMode === "media" && content.includes(WHEEL_MARKER)) {
+    if (dryRun) {
+      content = content.replace(WHEEL_MARKER, "");
+    } else {
+      try {
+        mark("wheel_render_before");
+        const dateLabel = String(dateLocal || story?.meta?.date_local || story?.public?.date_local || "")
+          .trim()
+          .replace(/-/g, ".");
+        const svg = buildSoraWheelSvg({ story, dateLabel, size: 1200 });
+        const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
+        const filename = `sora-wheel-${dateLocal || dateLabel || Date.now()}.png`;
+        mark("wheel_upload_before");
+        const wp = createWpClient({
+          baseUrl: env.WP_BASE_URL,
+          user: env.WP_USER,
+          appPassword: env.WP_APP_PASSWORD,
+        });
+        const media = await wp.uploadMedia({
+          filename,
+          buffer: pngBuffer,
+          mimeType: "image/png",
+        });
+        const url = media?.source_url || media?.guid?.rendered || null;
+        mark("wheel_upload_after", { id: media?.id || null });
+        if (url) {
+          const wheelHtml = [
+            "<div style=\"max-width:720px;margin:28px auto 40px;\">",
+            `<img src="${url}" alt="今日のソラ" style="width:100%;height:auto;display:block;" />`,
+            "</div>",
+          ].join("\n");
+          content = content.replace(WHEEL_MARKER, wheelHtml);
+        } else {
+          content = content.replace(WHEEL_MARKER, "");
+        }
+      } catch (e) {
+        console.error("[cron/blog/daily] wheel render/upload failed:", e?.message || String(e));
+        if (e?.stack) console.error(e.stack);
+        content = content.replace(WHEEL_MARKER, "");
+      }
+    }
+  }
 
   if (dryRun) {
     mark("end", { ok: true, dryRun: true, slug });

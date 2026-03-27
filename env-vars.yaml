@@ -30,6 +30,7 @@ BLOG_EYECATCH_FORCE: "1"
 BLOG_EYECATCH_BG_PATH: "assets/img/blog/eyecatch-bg.jpg"
 BLOG_EYECATCH_PRESET: "C"
 BLOG_WHEEL_ENABLED: "1"
+BLOG_WHEEL_MODE: "media"
 
 # Public URL / GCS
 PUBLIC_BASE_URL: ""
