@@ -799,7 +799,16 @@ async function processOneNatalJob(deps = {}, opts = {}) {
           null;
         const shouldEnqueue = String(lastEnqueuedHash || "") !== String(birthHash);
         if (shouldEnqueue) {
+          console.log("[worker] blueprint enqueue", {
+            app_user_id: appUserId || null,
+            line_user_id: lineUserId || null,
+            birth_hash: birthHash || null,
+          });
           await enqueueBlueprintGenerate({ env: env2, lineUserId, blueprintType: "light" });
+          console.log("[worker] blueprint enqueued", {
+            app_user_id: appUserId || null,
+            line_user_id: lineUserId || null,
+          });
           await cacheRef.set(
             {
               "notify.blueprint_last_enqueued_birth_hash": birthHash,
@@ -808,6 +817,12 @@ async function processOneNatalJob(deps = {}, opts = {}) {
             },
             { merge: true }
           );
+        } else {
+          console.log("[worker] blueprint enqueue skipped (same birth_hash)", {
+            app_user_id: appUserId || null,
+            line_user_id: lineUserId || null,
+            birth_hash: birthHash || null,
+          });
         }
       }
     }
