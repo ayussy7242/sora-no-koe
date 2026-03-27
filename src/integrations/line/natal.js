@@ -13,7 +13,6 @@
 
 const { isunknown } = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
-const { enqueueBlueprintGenerate } = require("../cloudtasks/tasks_queue");
 
 function createLineNatal({ db, admin, geocoder = null, renderers, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -111,15 +110,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
     // line_users.state は READY
     if (lineUserId) await setLineState(lineUserId, FLOW_STATE.READY);
-  }
-
-  async function enqueueBlueprintIfPossible(lineUserId) {
-    if (!lineUserId) return;
-    try {
-      await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" });
-    } catch (e) {
-      console.log("[line] enqueue blueprint failed:", e?.message || String(e));
-    }
   }
 
   async function resetNatal(appUserId, lineUserId) {
@@ -348,7 +338,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
         await saveBirthPlace(appUserId, { placeText: null, geo: null });
         await enqueueNatalCalcJob(appUserId);
         await finalizeNatal(appUserId, lineUserId);
-        await enqueueBlueprintIfPossible(lineUserId);
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 
@@ -360,7 +349,6 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       if (geo?.ok) {
         await enqueueNatalCalcJob(appUserId);
         await finalizeNatal(appUserId, lineUserId);
-        await enqueueBlueprintIfPossible(lineUserId);
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 

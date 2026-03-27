@@ -23,6 +23,7 @@
 const crypto = require("crypto");
 const { createRenderers } = require("../../presenters/shared/text");
 const dict = require("../../content/dict");
+const { enqueueBlueprintGenerate } = require("../../integrations/cloudtasks/tasks_queue");
 const { renderNatalListFromcache } = createRenderers({ dict });
 
 // --------------------
@@ -782,6 +783,37 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   };
 
   await cacheRef.set(patch, { merge: true });
+
+  // --------------------
+  // OPTIONAL: enqueue blueprint after natal cache ready (idempotent / non-blocking)
+  // --------------------
+  try {
+    const ENABLE_BLUEPRINT = String(env2.WORKER_ENQUEUE_BLUEPRINT || "1") === "1";
+    if (ENABLE_BLUEPRINT) {
+      const userSnap = await db.collection("users").doc(appUserId).get();
+      const user = userSnap.exists ? (userSnap.data() || {}) : {};
+      const lineUserId = user?.channels?.line?.line_user_id || null;
+      if (lineUserId) {
+        const lastEnqueuedHash =
+          existing?.notify?.blueprint_last_enqueued_birth_hash ||
+          null;
+        const shouldEnqueue = String(lastEnqueuedHash || "") !== String(birthHash);
+        if (shouldEnqueue) {
+          await enqueueBlueprintGenerate({ env: env2, lineUserId, blueprintType: "light" });
+          await cacheRef.set(
+            {
+              "notify.blueprint_last_enqueued_birth_hash": birthHash,
+              "notify.blueprint_last_enqueued_line_user_id": lineUserId,
+              "notify.blueprint_last_enqueued_at": admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.log("[worker] blueprint enqueue skipped/failed:", e?.message || String(e));
+  }
 
   // --------------------
   // OPTIONAL: push natal result to LINE (idempotent / non-blocking)
