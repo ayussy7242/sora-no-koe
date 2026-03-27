@@ -386,15 +386,15 @@ function createBlueprintsRouter(deps = {}) {
           );
           const templateMessage = {
             type: "template",
-            altText: "星の設計図（Blueprint v25）はこちら",
+            altText: "星の設計図（Blueprint v25）",
             template: {
               type: "buttons",
               title: "星の設計図（Blueprint v25）",
-              text: "📱スマホ版",
+              text: "設計図を開く",
               actions: [
                 {
                   type: "uri",
-                  label: "📱 スマホ版",
+                  label: "設計図を開く",
                   uri: signedMobile.url,
                 },
               ],
@@ -471,15 +471,15 @@ function createBlueprintsRouter(deps = {}) {
         );
         const templateMessage = {
           type: "template",
-          altText: "星の設計図（Blueprint v25）はこちら",
+          altText: "星の設計図（Blueprint v25）",
           template: {
             type: "buttons",
             title: "星の設計図（Blueprint v25）",
-            text: "📱スマホ版",
+            text: "設計図を開く",
             actions: [
               {
                 type: "uri",
-                label: "📱 スマホ版",
+                label: "設計図を開く",
                 uri: signedMobile.url,
               },
             ],
