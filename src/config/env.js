@@ -180,6 +180,7 @@ const WP_CATEGORY_ASPECT = numEnv("WP_CATEGORY_ASPECT", 9);
 const BLOG_RECO_ENABLED = boolEnv("BLOG_RECO_ENABLED", true);
 const BLOG_RECO_COUNT = numEnv("BLOG_RECO_COUNT", 3);
 const BLOG_WHEEL_ENABLED = boolEnv("BLOG_WHEEL_ENABLED", true);
+const BLOG_AIOSEO_ENABLED = boolEnv("BLOG_AIOSEO_ENABLED", false);
 const BLOG_EYECATCH_ENABLED = boolEnv("BLOG_EYECATCH_ENABLED", false);
 const BLOG_EYECATCH_BG_MODE = getEnv("BLOG_EYECATCH_BG_MODE", { defaultValue: "image" });
 const BLOG_EYECATCH_FORCE = boolEnv("BLOG_EYECATCH_FORCE", false);
