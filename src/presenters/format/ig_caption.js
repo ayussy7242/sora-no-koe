@@ -285,7 +285,10 @@ function renderIGCaption(story, deps = {}) {
   lines.push("解釈はあなたのもの。");
   lines.push("");
   lines.push("LINEでは毎朝、");
-  lines.push("ソラの配置とネイタルとの重なりも届けています。");
+  lines.push("ソラの配置とネイタルとの重なりも届けています🌌");
+  lines.push("");
+  lines.push("登録時には、");
+  lines.push("生まれた瞬間の配置をまとめた設計図（Blueprint）もお届けしています🌙");
   lines.push("");
   lines.push("#占星術");
   lines.push("#ホロスコープ");
