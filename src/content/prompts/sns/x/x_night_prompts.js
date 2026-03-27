@@ -26,6 +26,8 @@ X夜投稿の1投稿目冒頭に置く「夜の空の観測メッセージ」を
  - NEXT_MOON_SIGN_CHANGE がある場合は、その時刻を必ず書く（例: 3/25 02:18（牡牛座へ））
  - NEXT_MOON_SIGN_CHANGE が空なら TOMORROW_MOON_SIGN を使い「明日も◯◯座に留まる」で締める
  - LAST_MOON_SIGN_CHANGE があれば「今夜は◯◯座入りしたばかり」など一言で触れてよい
+ - MOON_CHANGE_HINT が空でない場合は、必ず短く入れる（「入りたて」「もうすぐ移る」など）
+ - MOON_SIGN_DEG / MOON_SIGN_PHASE は必要なときにだけ補助的に使う（数値は出さない）
 
 文章構造（必ずこの順番）:
 1) ホイール図を見ての夜の第一印象（1行で短く）
@@ -55,6 +57,9 @@ INPUT:
 - NEXT_MOON_SIGN_CHANGE
 - TOMORROW_MOON_SIGN
 - 今日の日付
+- MOON_CHANGE_HINT
+- MOON_SIGN_DEG
+- MOON_SIGN_PHASE
 
 ${X_PUBLIC_COMMON}
 ${POLITE_TONE_COMMON}
