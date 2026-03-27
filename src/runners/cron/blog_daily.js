@@ -174,13 +174,17 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     categories: [Number(env.WP_CATEGORY_DAILY)],
   };
 
-  const aioseoMeta = buildAioseoMeta({ story, dateLocal, title });
-  if (aioseoMeta && Object.values(aioseoMeta).some((v) => String(v || "").trim())) {
-    payload.meta = { ...(payload.meta || {}), ...aioseoMeta };
+  if (env.BLOG_AIOSEO_ENABLED) {
+    const aioseoMeta = buildAioseoMeta({ story, dateLocal, title });
+    if (aioseoMeta && Object.values(aioseoMeta).some((v) => String(v || "").trim())) {
+      payload.meta = { ...(payload.meta || {}), ...aioseoMeta };
+    }
   }
 
   try {
+    mark("wp_get_post_before");
     const existing = await wp.getPostBySlug(slug);
+    mark("wp_get_post_after", { found: !!existing?.id });
     let featuredMediaId = existing?.featured_media || null;
     if (featuredMediaId && env.BLOG_EYECATCH_FORCE) {
       featuredMediaId = null;
@@ -202,16 +206,20 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
       });
       if (rendered?.ok && rendered.buffer) {
         const filename = `sora-eyecatch-${slug}.jpg`;
+        mark("wp_media_upload_before");
         const media = await wp.uploadMedia({
           filename,
           buffer: rendered.buffer,
           mimeType: "image/jpeg",
         });
+        mark("wp_media_upload_after", { id: media?.id || null });
         featuredMediaId = media?.id || null;
         if (featuredMediaId) {
           const altText = [line1, line2].filter(Boolean).join("｜");
           if (altText) {
+            mark("wp_media_update_before");
             await wp.updateMedia(featuredMediaId, { alt_text: altText, title: altText });
+            mark("wp_media_update_after", { id: featuredMediaId });
           }
         }
       } else {
@@ -226,19 +234,25 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     }
 
     if (existing?.id) {
+      mark("wp_update_post_before", { id: existing.id });
       const updated = await wp.updatePost(existing.id, payload);
+      mark("wp_update_post_after", { id: updated?.id });
       mark("wp_after", { updated: true, id: updated?.id });
       if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: updated?.id });
       mark("end", { ok: true, updated: true, id: updated?.id });
       return { ok: true, updated: true, id: updated.id, link: updated.link };
     }
 
+    mark("wp_create_post_before");
     const created = await wp.createPost(payload);
+    mark("wp_create_post_after", { id: created?.id });
     mark("wp_after", { created: true, id: created?.id });
     if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: created?.id });
     mark("end", { ok: true, created: true, id: created?.id });
     return { ok: true, created: true, id: created.id, link: created.link };
   } catch (e) {
+    console.error("[cron/blog/daily] failed:", e?.message || String(e));
+    if (e?.stack) console.error(e.stack);
     if (lockRef) {
       await markBlogLock(lockRef, { status: "failed", runId: lockRunId, error: e?.message || String(e) });
     }
