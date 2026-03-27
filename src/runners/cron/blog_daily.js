@@ -7,7 +7,6 @@ const {
   generateDailyDraft,
   buildDailyTitle,
   buildDailyEyecatchLines,
-  buildAioseoMeta,
   markdownToHtml,
   escapeHtml,
 } = require("../../usecases/channels/blog/blog_daily");
@@ -174,12 +173,6 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     categories: [Number(env.WP_CATEGORY_DAILY)],
   };
 
-  if (env.BLOG_AIOSEO_ENABLED) {
-    const aioseoMeta = buildAioseoMeta({ story, dateLocal, title });
-    if (aioseoMeta && Object.values(aioseoMeta).some((v) => String(v || "").trim())) {
-      payload.meta = { ...(payload.meta || {}), ...aioseoMeta };
-    }
-  }
 
   try {
     mark("wp_get_post_before");
