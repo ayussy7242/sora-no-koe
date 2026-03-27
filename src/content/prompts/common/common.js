@@ -76,6 +76,7 @@ const POLITE_TONE_COMMON = `
 丁寧体ルール:
 - 解説文は「です・ます」に統一する。
 - かたすぎず、やわらかく、静かな温度で書く。
+- 美しい自然な日本語で書く。
 `.trim();
 
 module.exports = Object.freeze({
