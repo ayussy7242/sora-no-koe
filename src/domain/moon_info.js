@@ -2,7 +2,14 @@
 
 const dictDefault = require("../content/dict");
 const { swisseph } = require("../config/swisseph");
-const { jdUtFromIso, calcTransitLon, findNextMoonPhase, formatDateYmdHm, absAngularDistance } = require("./astro_compute");
+const {
+  jdUtFromIso,
+  calcTransitLon,
+  findNextMoonPhase,
+  formatDateYmdHm,
+  absAngularDistance,
+  norm360,
+} = require("./astro_compute");
 let signLabelJa = () => "";
 try {
   ({ signLabelJa } = require("../presenters/shared/text/tokens"));
