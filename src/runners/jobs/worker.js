@@ -40,6 +40,18 @@ function randomId(len = 8) {
   return s;
 }
 
+async function setLineUserState({ db, admin, lineUserId, state, eventType = "state_update" }) {
+  if (!db || !admin || !lineUserId || !state) return;
+  await db.collection("line_users").doc(lineUserId).set(
+    {
+      state,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      meta: { last_event_type: eventType, last_seen_at: admin.firestore.FieldValue.serverTimestamp() },
+    },
+    { merge: true }
+  );
+}
+
 async function getFetch() {
   if (typeof fetch === "function") return fetch;
   // Node18未満などの保険（入ってなければエラーになるが、その場合は push だけスキップされる）
@@ -545,6 +557,20 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   const appUserId = job.app_user_id;
   if (!appUserId) throw new Error("job.app_user_id missing");
 
+  const userSnap = await db.collection("users").doc(appUserId).get();
+  const user = userSnap.exists ? (userSnap.data() || {}) : {};
+  const lineUserId = user?.channels?.line?.line_user_id || null;
+
+  if (lineUserId) {
+    await setLineUserState({
+      db,
+      admin,
+      lineUserId,
+      state: "running_natal_calc",
+      eventType: "natal_calc_running",
+    });
+  }
+
   const birth = job.birth || {};
   const lat = isFiniteNumber(birth.lat) ? birth.lat : (isFiniteNumber(job.lat) ? job.lat : null);
   const lon = isFiniteNumber(birth.lon) ? birth.lon : (isFiniteNumber(job.lon) ? job.lon : null);
@@ -790,15 +816,19 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   try {
     const ENABLE_BLUEPRINT = String(env2.WORKER_ENQUEUE_BLUEPRINT || "1") === "1";
     if (ENABLE_BLUEPRINT) {
-      const userSnap = await db.collection("users").doc(appUserId).get();
-      const user = userSnap.exists ? (userSnap.data() || {}) : {};
-      const lineUserId = user?.channels?.line?.line_user_id || null;
       if (lineUserId) {
         const lastEnqueuedHash =
           existing?.notify?.blueprint_last_enqueued_birth_hash ||
           null;
         const shouldEnqueue = String(lastEnqueuedHash || "") !== String(birthHash);
         if (shouldEnqueue) {
+          await setLineUserState({
+            db,
+            admin,
+            lineUserId,
+            state: "queued_blueprint",
+            eventType: "blueprint_queued",
+          });
           console.log("[worker] blueprint enqueue", {
             app_user_id: appUserId || null,
             line_user_id: lineUserId || null,
@@ -828,6 +858,15 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     }
   } catch (e) {
     console.log("[worker] blueprint enqueue skipped/failed:", e?.message || String(e));
+    if (lineUserId) {
+      await setLineUserState({
+        db,
+        admin,
+        lineUserId,
+        state: "blueprint_failed",
+        eventType: "blueprint_enqueue_failed",
+      });
+    }
   }
 
   // --------------------
@@ -846,9 +885,6 @@ async function processOneNatalJob(deps = {}, opts = {}) {
     // ✅ オーナー限定中なら、オーナー以外は送らない
     if (OWNER_APP && !OWNER_ONLY) return;
 
-    const userSnap = await db.collection("users").doc(appUserId).get();
-    const user = userSnap.exists ? (userSnap.data() || {}) : {};
-    const lineUserId = user?.channels?.line?.line_user_id || null;
     if (!lineUserId) return;
 
     const latest = (await cacheRef.get()).data() || patch;

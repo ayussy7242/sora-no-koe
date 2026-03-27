@@ -54,6 +54,18 @@ function getJobRef(db, lineUserId) {
   return db.collection("jobs").doc("blueprint_light").collection("items").doc(lineUserId);
 }
 
+async function setLineUserState({ db, admin, lineUserId, state, eventType = "state_update" }) {
+  if (!db || !admin || !lineUserId || !state) return;
+  await db.collection("line_users").doc(lineUserId).set(
+    {
+      state,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      meta: { last_event_type: eventType, last_seen_at: admin.firestore.FieldValue.serverTimestamp() },
+    },
+    { merge: true }
+  );
+}
+
 function getNowMillis() {
   return Date.now();
 }
@@ -345,6 +357,13 @@ function createBlueprintsRouter(deps = {}) {
     if (!shouldRun) {
       return res.status(200).json({ ok: true, code: "skipped" });
     }
+    await setLineUserState({
+      db,
+      admin,
+      lineUserId,
+      state: "running_blueprint",
+      eventType: "blueprint_running",
+    });
 
     const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
     try {
@@ -397,6 +416,13 @@ function createBlueprintsRouter(deps = {}) {
           },
           { merge: true }
         );
+        await setLineUserState({
+          db,
+          admin,
+          lineUserId,
+          state: "blueprint_done",
+          eventType: "blueprint_done",
+        });
         return res.json({ ok: true, code: "pdf_generated" });
       }
 
@@ -475,6 +501,13 @@ function createBlueprintsRouter(deps = {}) {
         },
         { merge: true }
       );
+      await setLineUserState({
+        db,
+        admin,
+        lineUserId,
+        state: "blueprint_done",
+        eventType: "blueprint_done",
+      });
       return res.json({ ok: true, code: genMobile?.skipped ? "already_exists" : "generated" });
     } catch (e) {
       const message = String(e?.message || e || "");
@@ -510,6 +543,13 @@ function createBlueprintsRouter(deps = {}) {
             },
             { merge: true }
           );
+          await setLineUserState({
+            db,
+            admin,
+            lineUserId,
+            state: "queued_blueprint",
+            eventType: "blueprint_retry_queued",
+          });
           return res.status(200).json({ ok: true, code: "queued_pdf_retry" });
         }
       }
@@ -520,6 +560,13 @@ function createBlueprintsRouter(deps = {}) {
           { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
           { merge: true }
         );
+        await setLineUserState({
+          db,
+          admin,
+          lineUserId,
+          state: "blueprint_failed",
+          eventType: "blueprint_failed",
+        });
         return res.status(200).json({ ok: false, nonRetry: true, error: message });
       }
 
@@ -528,6 +575,13 @@ function createBlueprintsRouter(deps = {}) {
         { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
         { merge: true }
       );
+      await setLineUserState({
+        db,
+        admin,
+        lineUserId,
+        state: "queued_blueprint",
+        eventType: "blueprint_retry_queued",
+      });
       return res.status(500).json({ ok: false, error: "internal_error" });
     }
   };

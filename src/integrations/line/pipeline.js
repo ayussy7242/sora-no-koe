@@ -102,6 +102,18 @@ function formatEpochDate(epochSec) {
   return `${y}.${m}.${day}`;
 }
 
+async function setLineUserState({ db, admin, lineUserId, state, eventType = "state_update" }) {
+  if (!db || !admin || !lineUserId || !state) return;
+  await db.collection("line_users").doc(lineUserId).set(
+    {
+      state,
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      meta: { last_event_type: eventType, last_seen_at: admin.firestore.FieldValue.serverTimestamp() },
+    },
+    { merge: true }
+  );
+}
+
 async function createPortalUrl({ lineUserId, db }) {
   if (!env.STRIPE_SECRET_KEY) return { ok: false, error: "stripe_config_missing" };
   const sub = await getLineSubscription(db, lineUserId);
@@ -453,6 +465,13 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       const code = resultMobile?.code || "";
       if (code === "not_ready") {
         await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" }).catch(() => {});
+        await setLineUserState({
+          db,
+          admin,
+          lineUserId,
+          state: "queued_blueprint",
+          eventType: "blueprint_queued",
+        });
       }
       const msg =
         code === "natal_not_ready" || code === "not_ready"

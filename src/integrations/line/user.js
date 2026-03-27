@@ -31,6 +31,12 @@ function createLineUser({ db, admin, config = {} }) {
     PENDING_BIRTH_DATE: "pending_birth_date",
     PENDING_BIRTH_TIME: "pending_birth_time",
     PENDING_BIRTH_PLACE: "pending_birth_place",
+    QUEUED_NATAL_CALC: "queued_natal_calc",
+    RUNNING_NATAL_CALC: "running_natal_calc",
+    QUEUED_BLUEPRINT: "queued_blueprint",
+    RUNNING_BLUEPRINT: "running_blueprint",
+    BLUEPRINT_DONE: "blueprint_done",
+    BLUEPRINT_FAILED: "blueprint_failed",
     READY: "ready",
   });
 

@@ -27,6 +27,12 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     PENDING_BIRTH_DATE: "pending_birth_date",
     PENDING_BIRTH_TIME: "pending_birth_time",
     PENDING_BIRTH_PLACE: "pending_birth_place",
+    QUEUED_NATAL_CALC: "queued_natal_calc",
+    RUNNING_NATAL_CALC: "running_natal_calc",
+    QUEUED_BLUEPRINT: "queued_blueprint",
+    RUNNING_BLUEPRINT: "running_blueprint",
+    BLUEPRINT_DONE: "blueprint_done",
+    BLUEPRINT_FAILED: "blueprint_failed",
     READY: "ready",
   });
 
@@ -91,7 +97,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     );
   }
 
-  async function finalizeNatal(appUserId, lineUserId) {
+  async function finalizeNatal(appUserId, lineUserId, { nextState = FLOW_STATE.READY } = {}) {
     // users側に「登録済み」フラグを持つ（storyServiceが参照してもよい）
     if (appUserId) {
       await db.collection("users").doc(appUserId).set(
@@ -109,7 +115,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     }
 
     // line_users.state は READY
-    if (lineUserId) await setLineState(lineUserId, FLOW_STATE.READY);
+    if (lineUserId && nextState) await setLineState(lineUserId, nextState);
   }
 
   async function resetNatal(appUserId, lineUserId) {
@@ -299,8 +305,14 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
     const state = await getLineState(lineUserId);
 
-    // READY は通常処理へ
-    if (state === FLOW_STATE.READY) return null;
+    // 収集中以外は通常処理へ
+    if (
+      state !== FLOW_STATE.PENDING_BIRTH_DATE &&
+      state !== FLOW_STATE.PENDING_BIRTH_TIME &&
+      state !== FLOW_STATE.PENDING_BIRTH_PLACE
+    ) {
+      return null;
+    }
 
     // pending_birth_date
     if (state === FLOW_STATE.PENDING_BIRTH_DATE) {
@@ -337,7 +349,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       if (isunknown(rawText)) {
         await saveBirthPlace(appUserId, { placeText: null, geo: null });
         await enqueueNatalCalcJob(appUserId);
-        await finalizeNatal(appUserId, lineUserId);
+        await finalizeNatal(appUserId, lineUserId, { nextState: FLOW_STATE.QUEUED_NATAL_CALC });
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 
@@ -348,7 +360,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
       if (geo?.ok) {
         await enqueueNatalCalcJob(appUserId);
-        await finalizeNatal(appUserId, lineUserId);
+        await finalizeNatal(appUserId, lineUserId, { nextState: FLOW_STATE.QUEUED_NATAL_CALC });
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 
