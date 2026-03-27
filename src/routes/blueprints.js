@@ -301,6 +301,12 @@ function createBlueprintsRouter(deps = {}) {
     const forceRegen = forceHint || toBool(body?.forceRegen || body?.force) || forceRun;
     const pdfOnly = pdfOnlyRequired ? true : toBool(body?.pdf_only || body?.pdfOnly);
     const pdfAttempt = Number(body?.pdf_attempt || 0);
+    console.log("[blueprint] worker request", {
+      line_user_id: lineUserId || null,
+      pdf_only: !!pdfOnly,
+      pdf_attempt: pdfAttempt || 0,
+      force_regen: !!forceRegen,
+    });
     if (!lineUserId) {
       await markFailed_(db, admin, null, {
         stage: "validate_input",
