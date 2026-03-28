@@ -611,11 +611,24 @@ function renderXNext30DaysFlow(story, deps = {}) {
   const eventLines = events
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((e) => {
-      const tags = buildMoonEventTags(e);
       const prefix = e.kind === "full" ? "🌕" : "🌑";
-      const core = `${prefix}${e.line}`;
-      return tags.length ? `${core} ${tags.join(" ")}` : core;
+      const kindLabel = e.kind === "full" ? "満月" : "新月";
+      const sign = e.signJa ? String(e.signJa).trim() : "";
+      const base = sign ? `${sign}${kindLabel}` : kindLabel;
+      const extra = e.specialName || (e.kind === "full" ? e.moonName : "") || "";
+      const dateLabel = e.dateLabel || "";
+      const parts = [prefix, base, extra, dateLabel].filter(Boolean);
+      return parts.join(" ");
     });
+  const eventTags = events
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((e) => {
+      const sign = e.signJa ? String(e.signJa).trim() : "";
+      const kindLabel = e.kind === "new" ? "新月" : "満月";
+      return sign ? toHashtag(`${sign}${kindLabel}`) : "";
+    })
+    .filter(Boolean);
+  const eventTagsLine = eventTags.length ? eventTags.join(" ") : "";
   if (!eventLines.length) return "";
 
   const retro = findRetrogradeRangeInMonth("mercury", ctx.monthKey);
@@ -643,6 +656,8 @@ function renderXNext30DaysFlow(story, deps = {}) {
     retroLine ? `💫${retroLine}` : null,
     "",
     "これからの空を、毎日置いていきます✨️",
+    eventTagsLine ? "" : null,
+    eventTagsLine || null,
   ];
   return joinLines(lines);
 }
