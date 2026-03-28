@@ -24,7 +24,7 @@ const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost } = require("../runners/cron/ig_post");
-const { runXMorningPost, runXNightPost, runXMoonEventPost } = require("../runners/cron/x_post");
+const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x_post");
 const { runDailyIgStoryDelivery } = require("../usecases/ig_story/run_daily_story_delivery");
 
 // -------------------- helpers --------------------
@@ -341,6 +341,40 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/moon_event" });
+    }
+  });
+
+  // ✅ POST /cron/x/next_30_days : Xこれからの1ヶ月（いつでも）
+  router.post("/x/next_30_days", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/next_30_days" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
+
+      const asOfRaw = b.as_of || q.as_of;
+      const dtLocalRaw = b.datetime_local || q.datetime_local;
+      const asOfISO =
+        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
+        normalizeDateTimeLocalJST(dtLocalRaw) ||
+        null;
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const useAiRaw = b.ai ?? q.ai;
+      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+
+      const result = await runXNext30DaysPost(
+        { env, storyService, renderers, dict },
+        { dateLocal, asOfISO, dryRun, useAi }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/next_30_days" });
     }
   });
 
