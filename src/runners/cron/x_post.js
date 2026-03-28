@@ -7,6 +7,7 @@ const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_so
 const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
 const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
+const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/channels/x/renderers/morning_wheel");
 
@@ -536,8 +537,94 @@ async function runXMoonEventPost(deps, opts = {}) {
   };
 }
 
+async function runXNext30DaysPost(deps, opts = {}) {
+  const { env, storyService, renderers, dict } = deps || {};
+  if (!env) throw new Error("env required");
+  if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
+  if (!renderers?.renderXNext30Days) throw new Error("renderers.renderXNext30Days missing");
+
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
+  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+
+  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
+  const dateLocal = isYYYYMMDD(opts.dateLocal)
+    ? String(opts.dateLocal)
+    : toDateLocalJST(new Date(asOfISO));
+
+  if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
+    throw new Error("OPENAI_API_KEY missing");
+  }
+
+  const story = await storyService.buildStoryForUser(
+    normalizeStoryArgs({
+      appUserId: "public",
+      mode: "public",
+      dateLocal,
+      asOfISO,
+    })
+  );
+
+  if (useAi) {
+    const res = await generateXNext30DaysAiText({
+      story,
+      dict,
+      openai: { apiKey: env2.OPENAI_API_KEY, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+    });
+    if (res?.ok && res.text) {
+      story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+      story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+      story.meta.x_ai.next_30_days = res.text;
+      story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
+      story.meta.x_source.next_30_days_context = res.context || buildNext30DaysContext({ story, dict, asOfISO });
+    } else {
+      story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+      story.meta.x_next_30_days_ai_error = res?.error || "unknown";
+      if (res?.reason) story.meta.x_next_30_days_ai_error_reason = res.reason;
+    }
+  }
+
+  const textRaw = await renderers.renderXNext30Days(story);
+  const textTrimmed = String(textRaw || "").trim();
+  if (!textTrimmed) {
+    return {
+      ok: false,
+      dry_run: dryRun,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      error: "next_30_days_text_empty",
+    };
+  }
+
+  const maxChars = Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS))
+    ? Number(env2.X_POST_MONTHLY_MAX_CHARS)
+    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const trimmed = truncateForX(textTrimmed, maxChars);
+
+  if (dryRun) {
+    return {
+      ok: true,
+      dry_run: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      post: trimmed,
+    };
+  }
+
+  const res = await postTweet({ text: trimmed.text, env: env2 });
+  return {
+    ok: true,
+    dry_run: false,
+    date_local: dateLocal,
+    as_of: asOfISO,
+    post: trimmed,
+    tweet_ids: [res?.id || ""],
+  };
+}
+
 module.exports = {
   runXMorningPost,
   runXNightPost,
   runXMoonEventPost,
+  runXNext30DaysPost,
 };

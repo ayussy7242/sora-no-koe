@@ -1,0 +1,105 @@
+"use strict";
+
+const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
+const { X_NEXT_30_DAYS_USER_GUIDE } = require("../../../content/prompts/sns/x/x_next_30_days_prompts");
+const { buildMonthlyContext } = require("./generate_x_monthly_ai");
+const { toDateLocalJST } = require("../../../utils/time_utils");
+const { validateXAiText } = require("./x_ai_common");
+
+function addDaysDateLocalJST(dateLocal, offsetDays) {
+  if (!dateLocal) return "";
+  const base = new Date(`${dateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(base.getTime())) return "";
+  const shifted = new Date(base.getTime() + Number(offsetDays) * 86400000);
+  return toDateLocalJST(shifted);
+}
+
+function formatDateLocalYmd(dateLocal) {
+  const [y, m, d] = String(dateLocal || "").split("-");
+  if (!y || !m || !d) return "";
+  return `${Number(y)}.${String(m).padStart(2, "0")}.${String(d).padStart(2, "0")}`;
+}
+
+function formatRangeLabel(startLocal, endLocal) {
+  const s = formatDateLocalYmd(startLocal);
+  const e = formatDateLocalYmd(endLocal);
+  if (!s || !e) return "";
+  return `${s}〜${e}`;
+}
+
+function buildNext30DaysContext({ story, dict, asOfISO }) {
+  const base = buildMonthlyContext({ story, dict, asOfISO });
+  const dateLocal = base?.dateLocal || story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
+  const rangeStart = dateLocal;
+  const rangeEnd = addDaysDateLocalJST(dateLocal, 30);
+  const rangeLabel = formatRangeLabel(rangeStart, rangeEnd);
+  return { ...base, rangeStart, rangeEnd, rangeLabel };
+}
+
+function buildNext30DaysPrompt({ story, dict, context }) {
+  const ctx = context || buildNext30DaysContext({ story, dict });
+  const points = ctx.points && ctx.points.length ? ctx.points.join(" / ") : "none";
+  const newLine = ctx.newEvent?.label ? `${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "—";
+  const fullLine = ctx.fullEvent?.label ? `${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim() : "—";
+
+  return [
+    X_NEXT_30_DAYS_USER_GUIDE,
+    "",
+    "INPUT:",
+    `RANGE: ${ctx.rangeLabel || "—"}`,
+    `POINTS: ${points}`,
+    `NEW_MOON: ${newLine}`,
+    `FULL_MOON: ${fullLine}`,
+  ].join("\n");
+}
+
+function validateText(text) {
+  return validateXAiText(text, { minChars: 0, maxChars: 180, maxHashtags: 3, trimHashtags: true });
+}
+
+async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, context }) {
+  const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
+  if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
+
+  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const ctx = context || buildNext30DaysContext({ story, dict });
+
+  let retryNote = "";
+  let lastReason = "";
+  let lastText = "";
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const userPrompt = buildNext30DaysPrompt({ story, dict, context: ctx }) +
+      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
+      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
+
+    const text = await createChatCompletion({
+      apiKey,
+      baseUrl,
+      model,
+      messages: [
+        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+      maxTokens: 200,
+    });
+
+    const verdict = validateText(text);
+    if (verdict.ok) return { ok: true, text: verdict.text, model, context: ctx };
+
+    lastReason = verdict.reason || "";
+    lastText = String(text || "").trim();
+    retryNote = `前回は条件外でした（${lastReason}）。3〜6行で短く整えて再出力。`;
+  }
+
+  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText, context: ctx };
+}
+
+module.exports = {
+  buildNext30DaysContext,
+  buildNext30DaysPrompt,
+  generateXNext30DaysAiText,
+};

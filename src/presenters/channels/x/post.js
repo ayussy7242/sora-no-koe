@@ -13,6 +13,7 @@ const { toDateLocalJST } = require("../../../utils/time_utils");
 const { pickPrimaryResonanceAspect } = require("../../../usecases/channels/x/generate_x_resonance_ai");
 const { detectMoonEvent } = require("../../../usecases/channels/x/generate_x_moon_event_ai");
 const { buildMonthlyContext } = require("../../../usecases/channels/x/generate_x_monthly_ai");
+const { buildNext30DaysContext } = require("../../../usecases/channels/x/generate_x_next_30_days_ai");
 
 const SEP = "────────";
 
@@ -300,7 +301,9 @@ function renderXMonthly(story, deps = {}) {
     buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
   if (!ctx?.monthLabel) return "";
 
-  const ai = String(story?.meta?.x_ai?.monthly || "").trim();
+  const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
+  const rawAi = String(story?.meta?.x_ai?.monthly || "").trim();
+  const ai = rawAi ? formatXAiText(rawAi) : "";
   const points = Array.isArray(ctx.points) ? ctx.points.slice(0, 3) : [];
   const pointLines = points.map((p) => `・${p}`);
   const newLine = ctx.newEvent?.label ? `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "";
@@ -324,6 +327,41 @@ function renderXMonthly(story, deps = {}) {
   return joinLines(lines);
 }
 
+function renderXNext30Days(story, deps = {}) {
+  const dict = deps?.dict || require("../../../content/dict");
+  const resonanceMode = deps?.resonanceMode || story?.meta?.resonance_mode || "core";
+  const ctx = story?.meta?.x_source?.next_30_days_context ||
+    buildNext30DaysContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
+  if (!ctx) return "";
+
+  const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
+  const rawAi = String(story?.meta?.x_ai?.next_30_days || "").trim();
+  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const points = Array.isArray(ctx.points) ? ctx.points.slice(0, 3) : [];
+  const pointLines = points.map((p) => `・${p}`);
+  const newLine = ctx.newEvent?.label ? `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "";
+  const fullLine = ctx.fullEvent?.label ? `満月｜${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim() : "";
+  const rangeLine = ctx.rangeLabel ? `期間｜${ctx.rangeLabel}` : "";
+
+  const lines = [
+    "🌌 これからの1ヶ月の空模様",
+    rangeLine,
+    "",
+    ai,
+    "",
+    SEP,
+    "",
+    "注目の流れ",
+    ...pointLines,
+    "",
+    newLine,
+    fullLine,
+    "",
+    "これからの空を、毎日置いていきます 🌌",
+  ];
+  return joinLines(lines);
+}
+
 module.exports = {
   renderX,
   renderXMorning,
@@ -333,4 +371,5 @@ module.exports = {
   renderXResonance,
   renderXMoonEvent,
   renderXMonthly,
+  renderXNext30Days,
 };

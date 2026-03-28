@@ -296,6 +296,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const fnXResonance = resolveFn(chX, ["renderXResonance"], "channels/x/post");
   const fnXMoonEvent = resolveFn(chX, ["renderXMoonEvent"], "channels/x/post");
   const fnXMonthly = resolveFn(chX, ["renderXMonthly"], "channels/x/post");
+  const fnXNext30Days = resolveFn(chX, ["renderXNext30Days"], "channels/x/post");
   const fnXThread = resolveFn(chXThread, ["renderXThread"], "channels/x/thread");
   const fnThreads = resolveFn(chThreads, ["renderThreads"], "channels/threads/post");
 
@@ -553,6 +554,9 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   function renderXMonthly(story) {
     return fnXMonthly(story, ctxFor(story));
   }
+  function renderXNext30Days(story) {
+    return fnXNext30Days(story, ctxFor(story));
+  }
   function renderXThread(story) {
     return fnXThread(story, ctxFor(story));
   }
@@ -580,6 +584,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
     renderXResonance,
     renderXMoonEvent,
     renderXMonthly,
+    renderXNext30Days,
     renderXThread,
     renderIG,
     renderThreads,
