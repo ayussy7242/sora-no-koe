@@ -901,7 +901,7 @@ function buildBlogClosingBlock() {
   const lineUrl = process.env.LINE_ADD_FRIEND_URL || "https://lin.ee/ZDjvxg8E";
   return [
     "<p>星は答えを示さず、構造だけを置いています。<br>星は語る。解釈はあなたのもの🌃</p>",
-    "<p>毎朝<br>LINEで<br>ソラの配置<br>あなたの星×きょうの空<br>配信中: " + escapeHtml(lineUrl) + "</p>",
+    "<p>毎朝<br>LINEでソラの配置<br>あなたの星×きょうの空配信中✨️<br>ともだち登録であなたの星の設計図 PDFプレゼント🎁<br>" + escapeHtml(lineUrl) + "</p>",
   ].join("\n");
 }
 
