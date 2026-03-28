@@ -380,7 +380,8 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     const asOfISO = storyObj?.meta?.as_of || null;
 
     if (intentKey === intent.INTENT.BUNPU) {
-      const lines = [...buildBunpuTop5(storyObj, dict)];
+      const { bunpuLines } = buildBunpuTop5(storyObj, dict);
+      const lines = [...bunpuLines];
       return { text: lines.join("\n").trim(), stage: "paid_bunpu" };
     }
 
