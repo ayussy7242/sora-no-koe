@@ -120,6 +120,7 @@ function mergeTrailingEmojiLines(lines, maxChars = 4) {
 
 function formatXAiText(text, opts = {}) {
   const normalizeSpaces = opts.normalizeSpaces !== false;
+  const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : 180;
   const raw = String(text || "").trim();
   if (!raw) return "";
 
@@ -161,7 +162,21 @@ function formatXAiText(text, opts = {}) {
     cleaned.push("", tags.join(" "));
   }
 
-  return cleaned.join("\n").trim();
+  let out = cleaned.join("\n").trim();
+
+  if (maxChars && tags.length && countChars(out) > maxChars) {
+    let curTags = tags.slice();
+    while (curTags.length && countChars(out) > maxChars) {
+      curTags.pop();
+      const rebuilt = cleaned.slice(0, cleaned.length - 2);
+      if (curTags.length) {
+        rebuilt.push("", curTags.join(" "));
+      }
+      out = rebuilt.join("\n").trim();
+    }
+  }
+
+  return out;
 }
 
 function validateXAiText(text, opts = {}) {
