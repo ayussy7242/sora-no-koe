@@ -8,6 +8,7 @@
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../../format/format/line_common");
+const { formatDateYmdHm } = require("../../../domain/astro_compute");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { pickPrimaryResonanceAspect } = require("../../../usecases/channels/x/generate_x_resonance_ai");
 const { detectMoonEvent } = require("../../../usecases/channels/x/generate_x_moon_event_ai");
@@ -113,7 +114,7 @@ function resolveResonanceRaw(story, dict, opts = {}) {
   const raw = story?.meta?.x_source?.resonance_aspect || null;
   if (raw) return raw;
   if (opts?.fallback === false) return null;
-  const picked = pickPrimaryResonanceAspect({ story, dict });
+  const picked = pickPrimaryResonanceAspect({ story, dict, resonanceMode: story?.meta?.resonance_mode });
   return picked?.raw || null;
 }
 
@@ -272,11 +273,20 @@ function resolveMoonEventDisplay(story, dict) {
 }
 
 function renderXMoonEvent(story, deps = {}) {
+  const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
   const dict = deps?.dict || require("../../../content/dict");
   const event = resolveMoonEventDisplay(story, dict);
   if (!event) return "";
-  const ai = String(story?.meta?.x_ai?.moon_event || "").trim();
-  const lines = [event.line1, event.line2].filter(Boolean);
+  const rawAi = String(story?.meta?.x_ai?.moon_event || "").trim();
+  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const phaseName = event.phaseName || (event.kind === "new" ? "新月" : "満月");
+  const signJa = event.signJa && event.signJa !== "—" ? event.signJa : "";
+  const core = signJa ? `${signJa}${phaseName}` : phaseName;
+  const suffixName = event.specialName || (event.kind === "full" ? event.moonName : "") || "";
+  const line1 = `${event.phaseSymbol || "🌙"} ${core}${suffixName ? `｜${suffixName}` : ""}`.trim();
+  const dateTextRaw = event.date instanceof Date ? formatDateYmdHm(event.date) : (event.dateLabel || "");
+  const line2 = dateTextRaw ? `${dateTextRaw} JST` : "";
+  const lines = [line1, line2].filter(Boolean);
   if (ai) lines.push("", ai);
   return joinLines(lines);
 }
@@ -285,7 +295,9 @@ function renderXMonthly(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const dateLocal = story?.meta?.date_local || story?.public?.date_local || "";
   if (!String(dateLocal || "").endsWith("-01")) return "";
-  const ctx = story?.meta?.x_source?.monthly_context || buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of });
+  const resonanceMode = deps?.resonanceMode || story?.meta?.resonance_mode || "core";
+  const ctx = story?.meta?.x_source?.monthly_context ||
+    buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
   if (!ctx?.monthLabel) return "";
 
   const ai = String(story?.meta?.x_ai?.monthly || "").trim();

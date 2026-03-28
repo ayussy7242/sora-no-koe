@@ -6,6 +6,7 @@ const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
 const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
 const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
+const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/channels/x/renderers/morning_wheel");
 
@@ -28,6 +29,16 @@ function parseJsonSafe(raw) {
   } catch (_) {
     return null;
   }
+}
+
+function addDaysToDateLocalJST(dateLocal, offsetDays) {
+  if (!isYYYYMMDD(dateLocal)) return dateLocal;
+  const base = new Date(`${dateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(base.getTime())) return dateLocal;
+  const shiftMs = Number(offsetDays) * 86400000;
+  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
+  const shifted = new Date(base.getTime() + shiftMs);
+  return toDateLocalJST(shifted);
 }
 
 function truncateForX(text, maxChars) {
@@ -409,7 +420,124 @@ async function runXNightPost(deps, opts = {}) {
   };
 }
 
+async function runXMoonEventPost(deps, opts = {}) {
+  const { env, storyService, renderers, dict } = deps || {};
+  if (!env) throw new Error("env required");
+  if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
+  if (!renderers?.renderXMoonEvent) throw new Error("renderers.renderXMoonEvent missing");
+
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
+  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+
+  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
+  const baseDateLocal = isYYYYMMDD(opts.dateLocal)
+    ? String(opts.dateLocal)
+    : toDateLocalJST(new Date(asOfISO));
+
+  const offsetRaw = opts.dateOffsetDays ?? opts.date_offset_days ?? opts.dateOffset ?? opts.date_offset;
+  const offsetDays = Number.isFinite(Number(offsetRaw))
+    ? Number(offsetRaw)
+    : Number.isFinite(Number(env2.X_MOON_EVENT_DATE_OFFSET_DAYS))
+      ? Number(env2.X_MOON_EVENT_DATE_OFFSET_DAYS)
+      : 1;
+
+  const dateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
+
+  const story = await storyService.buildStoryForUser(
+    normalizeStoryArgs({
+      appUserId: "public",
+      mode: "public",
+      dateLocal,
+      asOfISO,
+    })
+  );
+
+  const event = detectMoonEvent({ story, dict, asOfISO });
+  if (!event) {
+    return {
+      ok: true,
+      dry_run: dryRun,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      skipped: true,
+      reason: "moon_event_missing",
+      date_offset_days: offsetDays,
+    };
+  }
+
+  if (useAi) {
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (apiKey) {
+      try {
+        const res = await generateXMoonEventAiText({
+          story,
+          dict,
+          event,
+          openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+        });
+        if (res?.ok && res.text) {
+          story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+          story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+          story.meta.x_ai.moon_event = res.text;
+        } else if (story?.meta) {
+          story.meta.x_moon_event_ai_error = res?.error || "unknown";
+          if (res?.reason) story.meta.x_moon_event_ai_error_reason = res.reason;
+        }
+      } catch (err) {
+        if (story?.meta) story.meta.x_moon_event_ai_error = err?.message || "unknown";
+      }
+    } else if (story?.meta) {
+      story.meta.x_moon_event_ai_error = "OPENAI_API_KEY missing";
+    }
+  }
+
+  const textRaw = await renderers.renderXMoonEvent(story);
+  const textTrimmed = String(textRaw || "").trim();
+  if (!textTrimmed) {
+    return {
+      ok: true,
+      dry_run: dryRun,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      skipped: true,
+      reason: "moon_event_text_empty",
+      date_offset_days: offsetDays,
+    };
+  }
+
+  const maxChars = Number.isFinite(Number(env2.X_POST_MOON_EVENT_MAX_CHARS))
+    ? Number(env2.X_POST_MOON_EVENT_MAX_CHARS)
+    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const trimmed = truncateForX(textTrimmed, maxChars);
+
+  if (dryRun) {
+    return {
+      ok: true,
+      dry_run: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      event,
+      post: trimmed,
+      date_offset_days: offsetDays,
+    };
+  }
+
+  const res = await postTweet({ text: trimmed.text, env: env2 });
+  return {
+    ok: true,
+    dry_run: false,
+    date_local: dateLocal,
+    as_of: asOfISO,
+    event,
+    post: trimmed,
+    tweet_ids: [res?.id || ""],
+    date_offset_days: offsetDays,
+  };
+}
+
 module.exports = {
   runXMorningPost,
   runXNightPost,
+  runXMoonEventPost,
 };

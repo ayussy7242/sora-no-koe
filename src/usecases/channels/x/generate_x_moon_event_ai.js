@@ -41,7 +41,12 @@ function buildMoonEventPrompt({ story, event }) {
 }
 
 function validateText(text) {
-  return validateXAiText(text);
+  return validateXAiText(text, {
+    minChars: 0,
+    maxChars: 180,
+    maxHashtags: 3,
+    trimHashtags: true,
+  });
 }
 
 async function generateXMoonEventAiText({ story, dict, openai, maxRetries = 1, event }) {
