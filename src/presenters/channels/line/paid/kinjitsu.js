@@ -37,9 +37,16 @@ function formatKinjitsu({ items = [], moonEvents = [], dict, formatDateYmdHm }) 
   });
 
   moonEvents.forEach((ev) => {
-    if (!ev?.line1) return;
-    lines.push("", ev.line1);
-    if (ev.line2) lines.push(ev.line2);
+    if (!ev) return;
+    const phaseSymbol = ev.phaseSymbol || (ev.kind === "new" ? "🌑" : "🌕");
+    const phaseName = ev.phaseName || (ev.kind === "new" ? "新月" : "満月");
+    const signJaLabel = ev.signJa || "";
+    const core = signJaLabel && signJaLabel !== "—" ? `${signJaLabel}${phaseName}` : phaseName;
+    const suffix = ev.specialName || (ev.kind === "full" ? ev.moonName : "");
+    const line1 = suffix ? `${phaseSymbol} ${core}（${suffix}）` : `${phaseSymbol} ${core}`;
+    const line2 = ev.line2 || ev.dateLabel || "";
+    lines.push("", line1);
+    if (line2) lines.push(line2);
   });
 
   return lines.filter((x) => x !== null && x !== undefined);

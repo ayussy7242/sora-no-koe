@@ -8,18 +8,14 @@ const {
 } = require("../../../usecases/channels/line/line_paid_500");
 const { SPEC } = require("../../../config/sora_spec");
 
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
-
 async function renderDistributionLine(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
-  const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
-  const lines = [`🔵 観測ログ＋｜${dateLabel}`, ""];
+  const lines = ["🔵 観測ログ＋", ""];
 
-  lines.push(...buildBunpuTop5(story, dict));
+  const { bunpuLines, uraLines } = buildBunpuTop5(story, dict);
+  lines.push(...bunpuLines);
   lines.push("", SPEC.separators.section, "");
 
   lines.push("🏠 はうす（接点あり）", "");
@@ -31,6 +27,9 @@ async function renderDistributionLine(story, deps = {}) {
   lines.push("", SPEC.separators.section, "");
 
   lines.push(...buildKinjitsuBlock(story, dict, asOfISO));
+  lines.push("", SPEC.separators.section, "");
+
+  lines.push(...uraLines);
 
   return lines.join("\n").trim();
 }

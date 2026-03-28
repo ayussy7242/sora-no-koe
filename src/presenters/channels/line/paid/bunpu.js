@@ -1,23 +1,12 @@
 "use strict";
 
-const {
-  glyphForBody,
-  signJa,
-  formatAspectDisplay,
-} = require("../../../format/format/line_common");
-const { SPEC } = require("../../../../config/sora_spec");
-
 function formatBunpu({
   dateLabel,
   totalCount = 0,
   stats,
   quality = { same: 0, tension: 0, harmony: 0 },
+  micro = { c30_150: 0, c45_135: 0, c72_144: 0, c40_80_160: 0 },
   houseCounts = {},
-  elementCounts = { fire: 0, earth: 0, air: 0, water: 0 },
-  modalityCounts = { cardinal: 0, fixed: 0, mutable: 0 },
-  ura = [],
-  retroMap = {},
-  dict,
 }) {
   const lines = [];
   lines.push(`📊 ぶんぷ｜構造圧｜${dateLabel || "-"}`, "");
@@ -37,57 +26,22 @@ function formatBunpu({
   lines.push(`緊張（90°/180°）：${Number(quality.tension || 0)}`);
   lines.push(`協調（60°/120°）：${Number(quality.harmony || 0)}`, "");
 
-  lines.push("【領域（接触ハウス）】");
+  lines.push("【微細構造】");
+  lines.push(`接触（30°/150°）：${Number(micro.c30_150 || 0)}`);
+  lines.push(`刺激（45°/135°）：${Number(micro.c45_135 || 0)}`);
+  lines.push(`創造（72°/144°）：${Number(micro.c72_144 || 0)}`);
+  lines.push(`内側（40°/80°/160°）：${Number(micro.c40_80_160 || 0)}`, "");
+
   const houseLine = Object.entries(houseCounts)
     .map(([k, v]) => ({ h: Number(k), n: Number(v) }))
     .filter((x) => Number.isFinite(x.h) && Number.isFinite(x.n) && x.n > 0)
     .sort((a, b) => (b.n - a.n) || (a.h - b.h))
     .map((x) => `${x.h}H:${x.n}`)
     .join(" / ");
-  lines.push(houseLine || "—", "");
-
-  lines.push("【揺れ（N側属性）】");
-  lines.push(`元素：火${Number(elementCounts.fire || 0)} 地${Number(elementCounts.earth || 0)} 風${Number(elementCounts.air || 0)} 水${Number(elementCounts.water || 0)}`);
-  lines.push(`三区分：活動${Number(modalityCounts.cardinal || 0)} 不動${Number(modalityCounts.fixed || 0)} 柔軟${Number(modalityCounts.mutable || 0)}`, "");
-
-  lines.push("", "─────────────", "");
-  lines.push("🌑 うら｜きょうに出ていない接点（全件）", "");
-
-  if (!ura.length) {
-    lines.push("該当なし");
-    return lines;
+  if (houseLine) {
+    lines.push("【領域（接触ハウス）】");
+    lines.push(houseLine, "");
   }
-
-  ura.forEach((row, idx) => {
-    if (idx > 0) lines.push("");
-    const it = row.item;
-    const nKey = row?.nKey || String(it?.natal_body_or_point || it?.natal_body || it?.a || "").toLowerCase();
-    const tKey = row?.tKey || String(it?.transit_body || it?.b || "").toLowerCase();
-    const nGlyph = glyphForBody(nKey);
-    const tGlyph = glyphForBody(tKey);
-    const nLabel = dict?.PLANETS_V2?.bodies?.[nKey]?.label_ja || dict?.POINTS_V1?.points?.[nKey]?.label_ja || nKey;
-    const tLabel = dict?.PLANETS_V2?.bodies?.[tKey]?.label_ja || dict?.POINTS_V1?.points?.[tKey]?.label_ja || tKey;
-    const nSign = it?.natal_sign_ja || signJa(dict, it?.natal_sign_key || it?.natal_sign || "");
-    const tSign = it?.transit_sign_ja || signJa(dict, it?.transit_sign_key || it?.transit_sign || "");
-    const nSignText = nSign ? `（${nSign}）` : "";
-    const tRetro = retroMap[tKey] ? SPEC.retro.suffix : "";
-    const tSignText = tSign ? `（${tSign}）` : "";
-    const tLabelR = `${tLabel}${tRetro}`;
-
-    const aspectMeta = formatAspectDisplay({
-      dict,
-      rawType: it?.aspect || it?.type || it?.aspectType || it?.aspect_label_ja,
-      aspectDeg: it?.aspect_deg,
-      orbDeg: it?.orb_deg,
-      orbPrecision: 1,
-    });
-    const degText = aspectMeta.degText || "";
-    const orbText = aspectMeta.orbText || "";
-
-    lines.push(`${idx + 1}) (N) ${nGlyph ? `${nGlyph} ` : ""}${nLabel}${nSignText}`);
-    lines.push(`   × (T) ${tGlyph ? `${tGlyph} ` : ""}${tLabelR}${tSignText}`);
-    lines.push(`   ${aspectMeta.label} ${degText}｜orb ${orbText}`.trim());
-  });
 
   return lines;
 }

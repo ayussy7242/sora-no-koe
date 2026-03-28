@@ -6,7 +6,6 @@ const { SPEC } = require("../../../config/sora_spec");
 const { weightForBody, scoreForAspect } = require("../../../domain/touch_point_scoring");
 const { computeOrbStats } = require("../../../domain/aspect_stats");
 const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point_selection");
-const { normElement, normModality } = require("../../../utils/normalize");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -31,6 +30,7 @@ const { formatHouse } = require("../../../presenters/channels/line/paid/house");
 const { formatTsukiji } = require("../../../presenters/channels/line/paid/tsukiji");
 const { formatKinjitsu } = require("../../../presenters/channels/line/paid/kinjitsu");
 const { formatElements } = require("../../../presenters/channels/line/paid/elements");
+const { formatUra } = require("../../../presenters/channels/line/paid/ura");
 
 const SLOW_TRANSITS = new Set(["saturn", "uranus", "neptune", "pluto"]);
 const TSUKIJI_MIN_DAYS = SPEC.tsukiji.minDays;
@@ -82,37 +82,22 @@ function buildBunpuTop5(story, dict) {
   const stats = computeOrbStats(scored.map((row) => Number(row?.item?.orb_deg)));
   const quality = { same: 0, tension: 0, harmony: 0 };
   const houseCounts = {};
-  const elementCounts = { fire: 0, earth: 0, air: 0, water: 0 };
-  const modalityCounts = { cardinal: 0, fixed: 0, mutable: 0 };
-
-  const pickSignMeta = (keyRaw) => {
-    if (!keyRaw) return null;
-    const key = String(keyRaw || "");
-    const signs = dict?.SIGNS_V2?.signs || dict?.SIGNS?.signs || {};
-    if (signs[key]) return signs[key];
-    const low = key.toLowerCase();
-    if (signs[low]) return signs[low];
-    const hit = Object.keys(signs).find((k) => k.toLowerCase() === low);
-    return hit ? signs[hit] : null;
-  };
+  const micro = { c30_150: 0, c45_135: 0, c72_144: 0, c40_80_160: 0 };
 
   scored.forEach((row) => {
     const degRaw = Number.isFinite(Number(row?.item?.aspect_deg)) ? Math.round(Number(row.item.aspect_deg)) : null;
     if (degRaw === 0) quality.same += 1;
     else if (degRaw === 90 || degRaw === 180) quality.tension += 1;
     else if (degRaw === 60 || degRaw === 120) quality.harmony += 1;
+    else if (degRaw === 30 || degRaw === 150) micro.c30_150 += 1;
+    else if (degRaw === 45 || degRaw === 135) micro.c45_135 += 1;
+    else if (degRaw === 72 || degRaw === 144) micro.c72_144 += 1;
+    else if (degRaw === 40 || degRaw === 80 || degRaw === 160) micro.c40_80_160 += 1;
 
     const house = Number(row?.item?.house_focus);
     if (Number.isFinite(house) && house >= 1 && house <= 12) {
       houseCounts[house] = (houseCounts[house] || 0) + 1;
     }
-
-    const signKey = row?.item?.natal_sign_key || row?.item?.natal_sign || null;
-    const meta = pickSignMeta(signKey);
-    const e = normElement(meta?.element);
-    const m = normModality(meta?.modality);
-    if (e && e !== "unknown") elementCounts[e] = (elementCounts[e] || 0) + 1;
-    if (m && m !== "unknown") modalityCounts[m] = (modalityCounts[m] || 0) + 1;
   });
 
   const retroMap = buildRetrogradeMap(
@@ -120,18 +105,18 @@ function buildBunpuTop5(story, dict) {
     ura.map((row) => String(row?.item?.transit_body || row?.item?.b || "").toLowerCase()).filter(Boolean)
   );
 
-  return formatBunpu({
+  const bunpuLines = formatBunpu({
     dateLabel: dateLabel || (asOfISO ? formatDateYmd(new Date(asOfISO)) : "-"),
     totalCount: scored.length,
     stats,
     quality,
+    micro,
     houseCounts,
-    elementCounts,
-    modalityCounts,
-    ura,
-    retroMap,
-    dict,
   });
+
+  const uraLines = formatUra({ ura, retroMap, dict });
+
+  return { bunpuLines, uraLines };
 }
 
 function buildHouseBlock(story, dict, asOfISO) {
