@@ -21,6 +21,33 @@ function joinLines(lines = []) {
   return lines.filter((v) => v !== undefined && v !== null).join("\n").trim();
 }
 
+function toHashtag(raw) {
+  const t = String(raw || "")
+    .replace(/[#＃]/g, "")
+    .replace(/[｜|]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  if (!t) return "";
+  return `#${t}`;
+}
+
+function buildMoonEventTags({ kind, signJa, specialName, moonName }) {
+  const kindLabel = kind === "new" ? "新月" : "満月";
+  const tags = [];
+  tags.push(toHashtag(kindLabel));
+  if (signJa) tags.push(toHashtag(`${signJa}${kindLabel}`));
+  const extra = specialName || (kind === "full" ? moonName : "") || "";
+  if (extra) tags.push(toHashtag(extra));
+  const uniq = [];
+  const seen = new Set();
+  for (const tag of tags) {
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    uniq.push(tag);
+  }
+  return uniq.slice(0, 3);
+}
+
 function pickDominantSignLabel(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const transitSigns = story?.public?.transit_signs || {};
@@ -337,25 +364,69 @@ function renderXNext30Days(story, deps = {}) {
   const { formatXAiText } = require("../../../usecases/channels/x/x_ai_common");
   const rawAi = String(story?.meta?.x_ai?.next_30_days || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
-  const points = Array.isArray(ctx.points) ? ctx.points.slice(0, 3) : [];
-  const pointLines = points.map((p) => `・${p}`);
-  const newLine = ctx.newEvent?.label ? `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "";
-  const fullLine = ctx.fullEvent?.label ? `満月｜${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim() : "";
-  const rangeLine = ctx.rangeLabel ? `期間｜${ctx.rangeLabel}` : "";
+  const events = [
+    ctx.newEvent?.date instanceof Date ? {
+      kind: "新月",
+      date: ctx.newEvent.date,
+      line: `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim(),
+    } : null,
+    ctx.fullEvent?.date instanceof Date ? {
+      kind: "満月",
+      date: ctx.fullEvent.date,
+      line: `満月｜${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim(),
+    } : null,
+  ].filter(Boolean);
+  const eventLines = events
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((e) => e.line);
 
   const lines = [
-    "🌌 これからの1ヶ月の空模様",
-    rangeLine,
+    "🌌 今月の空模様",
     "",
     ai,
-    "",
-    SEP,
+  ];
+  return joinLines(lines);
+}
+
+function renderXNext30DaysFlow(story, deps = {}) {
+  const dict = deps?.dict || require("../../../content/dict");
+  const resonanceMode = deps?.resonanceMode || story?.meta?.resonance_mode || "core";
+  const ctx = story?.meta?.x_source?.next_30_days_context ||
+    buildNext30DaysContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
+  if (!ctx) return "";
+
+  const events = [
+    ctx.newEvent?.date instanceof Date ? {
+      kind: "new",
+      signJa: ctx.newEvent.signJa,
+      specialName: ctx.newEvent.specialName,
+      moonName: ctx.newEvent.moonName,
+      date: ctx.newEvent.date,
+      line: `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim(),
+    } : null,
+    ctx.fullEvent?.date instanceof Date ? {
+      kind: "full",
+      signJa: ctx.fullEvent.signJa,
+      specialName: ctx.fullEvent.specialName,
+      moonName: ctx.fullEvent.moonName,
+      date: ctx.fullEvent.date,
+      line: `満月｜${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim(),
+    } : null,
+  ].filter(Boolean);
+  const eventLines = events
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((e) => {
+      const tags = buildMoonEventTags(e);
+      return tags.length ? `${e.line} ${tags.join(" ")}` : e.line;
+    });
+  if (!eventLines.length) return "";
+
+  const lines = [
+    "────────",
     "",
     "注目の流れ",
-    ...pointLines,
     "",
-    newLine,
-    fullLine,
+    ...eventLines,
     "",
     "これからの空を、毎日置いていきます 🌌",
   ];
@@ -372,4 +443,5 @@ module.exports = {
   renderXMoonEvent,
   renderXMonthly,
   renderXNext30Days,
+  renderXNext30DaysFlow,
 };

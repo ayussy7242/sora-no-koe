@@ -7,34 +7,25 @@ const { buildMonthlyContext } = require("./generate_x_monthly_ai");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { validateXAiText } = require("./x_ai_common");
 
-function addDaysDateLocalJST(dateLocal, offsetDays) {
-  if (!dateLocal) return "";
-  const base = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(base.getTime())) return "";
-  const shifted = new Date(base.getTime() + Number(offsetDays) * 86400000);
-  return toDateLocalJST(shifted);
-}
-
-function formatDateLocalYmd(dateLocal) {
-  const [y, m, d] = String(dateLocal || "").split("-");
-  if (!y || !m || !d) return "";
-  return `${Number(y)}.${String(m).padStart(2, "0")}.${String(d).padStart(2, "0")}`;
-}
-
-function formatRangeLabel(startLocal, endLocal) {
-  const s = formatDateLocalYmd(startLocal);
-  const e = formatDateLocalYmd(endLocal);
-  if (!s || !e) return "";
-  return `${s}〜${e}`;
+function monthKeyFromDateLocal(dateLocal) {
+  const parts = String(dateLocal || "").split("-");
+  if (parts.length < 2) return "";
+  return `${parts[0]}-${String(parts[1]).padStart(2, "0")}`;
 }
 
 function buildNext30DaysContext({ story, dict, asOfISO }) {
   const base = buildMonthlyContext({ story, dict, asOfISO });
   const dateLocal = base?.dateLocal || story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
-  const rangeStart = dateLocal;
-  const rangeEnd = addDaysDateLocalJST(dateLocal, 30);
-  const rangeLabel = formatRangeLabel(rangeStart, rangeEnd);
-  return { ...base, rangeStart, rangeEnd, rangeLabel };
+  const monthKey = monthKeyFromDateLocal(dateLocal);
+  const filterInMonth = (ev) => {
+    if (!ev?.date || !(ev.date instanceof Date)) return null;
+    const evKey = toDateLocalJST(ev.date).slice(0, 7);
+    return evKey === monthKey ? ev : null;
+  };
+  const newEvent = filterInMonth(base?.newEvent);
+  const fullEvent = filterInMonth(base?.fullEvent);
+
+  return { ...base, dateLocal, monthKey, newEvent, fullEvent };
 }
 
 function buildNext30DaysPrompt({ story, dict, context }) {
@@ -47,7 +38,7 @@ function buildNext30DaysPrompt({ story, dict, context }) {
     X_NEXT_30_DAYS_USER_GUIDE,
     "",
     "INPUT:",
-    `RANGE: ${ctx.rangeLabel || "—"}`,
+    `MONTH: ${ctx.monthLabel || "—"}`,
     `POINTS: ${points}`,
     `NEW_MOON: ${newLine}`,
     `FULL_MOON: ${fullLine}`,
