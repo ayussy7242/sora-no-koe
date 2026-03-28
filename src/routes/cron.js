@@ -24,7 +24,7 @@ const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost } = require("../runners/cron/ig_post");
-const { runXMorningPost, runXNightPost } = require("../runners/cron/x_post");
+const { runXMorningPost, runXNightPost, runXMoonEventPost } = require("../runners/cron/x_post");
 const { runDailyIgStoryDelivery } = require("../usecases/ig_story/run_daily_story_delivery");
 
 // -------------------- helpers --------------------
@@ -306,6 +306,44 @@ function createCronRouter(deps = {}) {
     }
   });
 
+  // ✅ POST /cron/x/moon_event : X満月/新月イベント（該当日だけ投稿）
+  router.post("/x/moon_event", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/moon_event" });
+
+    try {
+      const q = req.query || {};
+      const b = req.body || {};
+
+      const dateLocalRaw = b.date_local || q.date_local;
+      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
+
+      const asOfRaw = b.as_of || q.as_of;
+      const dtLocalRaw = b.datetime_local || q.datetime_local;
+      const asOfISO =
+        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
+        normalizeDateTimeLocalJST(dtLocalRaw) ||
+        null;
+
+      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const useAiRaw = b.ai ?? q.ai;
+      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+      const dateOffsetDays = toNumberSafe(
+        b.date_offset_days ?? q.date_offset_days ?? b.dateOffsetDays ?? q.dateOffsetDays ?? b.date_offset ?? q.date_offset,
+        undefined
+      );
+
+      const result = await runXMoonEventPost(
+        { env, storyService, renderers, dict },
+        { dateLocal, asOfISO, dryRun, useAi, dateOffsetDays }
+      );
+
+      return res.json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/moon_event" });
+    }
+  });
+
   // ✅ POST /cron/ig/post : Instagram carousel auto-post
   router.post("/ig/post", async (req, res) => {
     const gate = requireCronToken(req);
@@ -371,6 +409,8 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      console.error("[cron/blog/daily] error:", e?.message || String(e));
+      if (e?.stack) console.error(e.stack);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/blog/daily" });
     }
   });

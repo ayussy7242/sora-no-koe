@@ -12,6 +12,32 @@ function hasForbidden(text) {
   return forbidden.test(t);
 }
 
+function splitTrailingHashtags(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return { body: "", tags: [] };
+  const parts = trimmed.split(/\s+/);
+  const tags = [];
+  while (parts.length) {
+    const last = parts[parts.length - 1];
+    if (/^#[^\s#]+$/.test(last)) {
+      tags.unshift(last);
+      parts.pop();
+      continue;
+    }
+    break;
+  }
+  return { body: parts.join(" ").trim(), tags };
+}
+
+function joinBodyAndTags(body, tags) {
+  const cleanBody = String(body || "").trim();
+  const cleanTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  if (!cleanBody && !cleanTags.length) return "";
+  if (!cleanBody) return cleanTags.join(" ").trim();
+  if (!cleanTags.length) return cleanBody;
+  return `${cleanBody} ${cleanTags.join(" ")}`.trim();
+}
+
 function findSplitIndex(chars, maxChars, marks, maxOverflow = 2, minSplitChars = 6) {
   const splitMarks = new Set(marks);
   const candidates = [];
@@ -93,72 +119,85 @@ function mergeTrailingEmojiLines(lines, maxChars = 4) {
 }
 
 function formatXAiText(text, opts = {}) {
-  const maxLineChars = Number.isFinite(Number(opts.maxLineChars)) ? Number(opts.maxLineChars) : 20;
-  const mergeEmoji = opts.mergeEmoji !== false;
+  const normalizeSpaces = opts.normalizeSpaces !== false;
+  const raw = String(text || "").trim();
+  if (!raw) return "";
 
-  const normalizedText = String(text || "")
+  const { body, tags } = splitTrailingHashtags(raw);
+
+  let base = String(body || "")
     .replace(/\r\n/g, "\n")
-    // 絵文字直後の「。」は削る
-    .replace(/(\p{Extended_Pictographic}\uFE0F?)。/gu, "$1")
-    // 絵文字直前の「。」は削る
     .replace(/[。．.]\s*(?=\p{Extended_Pictographic})/gu, "")
-    // 絵文字の直後に改行が無い場合は改行を入れる
-    .replace(/(\p{Extended_Pictographic}\uFE0F?)(?!\n)(?=\S)/gu, "$1\n");
+    .replace(/(\p{Extended_Pictographic}\uFE0F?)。/gu, "$1");
 
-  const rawLines = normalizedText.split("\n");
+  if (normalizeSpaces) {
+    base = base.replace(/[ \t]+/g, " ");
+  }
 
+  base = base.replace(/。\s*/g, "。\n");
+  base = base.replace(/(\p{Extended_Pictographic}\uFE0F?)(?!\n)/gu, "$1\n\n");
+
+  const rawLines = base.split("\n");
   const normalized = collapseBlankRuns(rawLines);
 
   const out = [];
   for (const line of normalized) {
-    const isBlank = !String(line || "").trim();
-    if (isBlank) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed) {
       out.push("");
       continue;
     }
-    const trimmed = String(line || "").trim();
-    const chars = Array.from(trimmed);
-    let rest = trimmed;
-    while (true) {
-      const restChars = Array.from(rest);
-      if (restChars.length <= maxLineChars) {
-        out.push(rest);
-        break;
-      }
-      let splitAt = findSplitIndex(restChars, maxLineChars, ["、"]);
-      let splitMark = "、";
-      if (splitAt == null) {
-        splitAt = findSplitIndex(restChars, maxLineChars, ["。"]);
-        splitMark = "。";
-      }
-      if (splitAt == null) {
-        out.push(rest);
-        break;
-      }
-      const left = restChars.slice(0, splitAt).join("").trim();
-      const right = restChars.slice(splitAt).join("").trim();
-      if (!left || !right) {
-        out.push(rest);
-        break;
-      }
-      out.push(left);
-      if (splitMark === "。") out.push("");
-      rest = right;
-    }
+    out.push(trimmed);
   }
 
-  const merged = mergeEmoji ? mergeTrailingEmojiLines(out) : out;
-  return merged.join("\n").trim();
+  let cleaned = out;
+  while (cleaned.length && !String(cleaned[cleaned.length - 1] || "").trim()) {
+    cleaned = cleaned.slice(0, -1);
+  }
+
+  if (tags.length) {
+    cleaned.push("", tags.join(" "));
+  }
+
+  return cleaned.join("\n").trim();
 }
 
 function validateXAiText(text, opts = {}) {
-  const t = formatXAiText(text, opts);
+  let t = formatXAiText(text, opts);
   if (!t) return { ok: false, reason: "empty" };
   if (t.includes("あなた")) return { ok: false, reason: "has_you" };
   if (hasForbidden(t)) return { ok: false, reason: "has_forbidden" };
-  const len = countChars(t);
+
   const minChars = Number.isFinite(Number(opts.minChars)) ? Number(opts.minChars) : 60;
   const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : 180;
+  const maxHashtags = Number.isFinite(Number(opts.maxHashtags)) ? Number(opts.maxHashtags) : null;
+  const trimHashtags = opts.trimHashtags === true;
+  const minBodyChars = Number.isFinite(Number(opts.minBodyChars)) ? Number(opts.minBodyChars) : null;
+  const maxBodyChars = Number.isFinite(Number(opts.maxBodyChars)) ? Number(opts.maxBodyChars) : null;
+
+  const split = t ? splitTrailingHashtags(t) : { body: "", tags: [] };
+  if ((maxHashtags != null || trimHashtags) && t) {
+    let tags = split.tags.slice();
+    if (maxHashtags != null && tags.length > maxHashtags) {
+      tags = tags.slice(0, maxHashtags);
+    }
+    let rebuilt = joinBodyAndTags(split.body, tags);
+    if (trimHashtags && Number.isFinite(maxChars)) {
+      while (tags.length && countChars(rebuilt) > maxChars) {
+        tags.pop();
+        rebuilt = joinBodyAndTags(split.body, tags);
+      }
+    }
+    t = rebuilt;
+  }
+
+  if (minBodyChars != null || maxBodyChars != null) {
+    const bodyLen = countChars(split.body);
+    if (minBodyChars != null && bodyLen < minBodyChars) return { ok: false, reason: `body_too_short:${bodyLen}` };
+    if (maxBodyChars != null && bodyLen > maxBodyChars) return { ok: false, reason: `body_too_long:${bodyLen}` };
+  }
+
+  const len = countChars(t);
   if (len < minChars) return { ok: false, reason: `too_short:${len}` };
   if (len > maxChars) return { ok: false, reason: `too_long:${len}` };
   return { ok: true, text: t, len };
