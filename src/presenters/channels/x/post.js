@@ -208,7 +208,7 @@ function buildResonanceSummaryLines(story, dict) {
   const aSignText = aSign ? `（${aSign}）` : "";
   const bSignText = bSign ? `（${bSign}）` : "";
   const lines = [
-    "共鳴",
+    "🪐共鳴",
     `${aLabel}${aSignText}× ${bLabel}${bSignText}`.trim(),
     `${aspectLabel} ${degText}｜${orbText}${peakLabel ? `（${peakLabel}）` : ""}`.trim(),
   ];
@@ -612,7 +612,9 @@ function renderXNext30DaysFlow(story, deps = {}) {
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .map((e) => {
       const tags = buildMoonEventTags(e);
-      return tags.length ? `${e.line} ${tags.join(" ")}` : e.line;
+      const prefix = e.kind === "full" ? "🌕" : "🌑";
+      const core = `${prefix}${e.line}`;
+      return tags.length ? `${core} ${tags.join(" ")}` : core;
     });
   if (!eventLines.length) return "";
 
@@ -632,15 +634,15 @@ function renderXNext30DaysFlow(story, deps = {}) {
   const lines = [
     "────────",
     "",
-    "注目の流れ",
+    "🌌注目の流れ",
     "",
     ...resonanceLines,
     resonanceLines.length ? "" : null,
     ...eventLines,
     retroLine ? "" : null,
-    retroLine || null,
+    retroLine ? `💫${retroLine}` : null,
     "",
-    "これからの空を、毎日置いていきます🌌",
+    "これからの空を、毎日置いていきます✨️",
   ];
   return joinLines(lines);
 }
