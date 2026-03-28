@@ -542,6 +542,7 @@ async function runXNext30DaysPost(deps, opts = {}) {
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXNext30Days) throw new Error("renderers.renderXNext30Days missing");
+  if (!renderers?.renderXNext30DaysFlow) throw new Error("renderers.renderXNext30DaysFlow missing");
 
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
@@ -584,9 +585,9 @@ async function runXNext30DaysPost(deps, opts = {}) {
     }
   }
 
-  const textRaw = await renderers.renderXNext30Days(story);
-  const textTrimmed = String(textRaw || "").trim();
-  if (!textTrimmed) {
+  const mainRaw = await renderers.renderXNext30Days(story);
+  const mainTrimmed = String(mainRaw || "").trim();
+  if (!mainTrimmed) {
     return {
       ok: false,
       dry_run: dryRun,
@@ -599,7 +600,11 @@ async function runXNext30DaysPost(deps, opts = {}) {
   const maxChars = Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS))
     ? Number(env2.X_POST_MONTHLY_MAX_CHARS)
     : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
-  const trimmed = truncateForX(textTrimmed, maxChars);
+  const mainTrim = truncateForX(mainTrimmed, maxChars);
+
+  const flowRaw = await renderers.renderXNext30DaysFlow(story);
+  const flowTrimmed = String(flowRaw || "").trim();
+  const flowTrim = flowTrimmed ? truncateForX(flowTrimmed, maxChars) : null;
 
   if (dryRun) {
     return {
@@ -607,18 +612,20 @@ async function runXNext30DaysPost(deps, opts = {}) {
       dry_run: true,
       date_local: dateLocal,
       as_of: asOfISO,
-      post: trimmed,
+      posts: flowTrim ? [mainTrim, flowTrim] : [mainTrim],
     };
   }
 
-  const res = await postTweet({ text: trimmed.text, env: env2 });
+  const res = flowTrim
+    ? await postThreadToX({ posts: [mainTrim, flowTrim], env: env2 })
+    : [await postTweet({ text: mainTrim.text, env: env2 })];
   return {
     ok: true,
     dry_run: false,
     date_local: dateLocal,
     as_of: asOfISO,
-    post: trimmed,
-    tweet_ids: [res?.id || ""],
+    posts: flowTrim ? [mainTrim, flowTrim] : [mainTrim],
+    tweet_ids: Array.isArray(res) ? res : [res?.id || ""],
   };
 }
 
