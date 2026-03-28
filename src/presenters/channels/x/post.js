@@ -21,6 +21,85 @@ function joinLines(lines = []) {
   return lines.filter((v) => v !== undefined && v !== null).join("\n").trim();
 }
 
+function formatJstYmd(date) {
+  const { toDateLocalJST } = require("../../../utils/time_utils");
+  const ymd = (date instanceof Date && !Number.isNaN(date.getTime())) ? toDateLocalJST(date) : "";
+  return ymd ? ymd.replace(/-/g, ".") : "";
+}
+
+function monthBoundsFromKey(monthKey) {
+  if (!monthKey) return null;
+  const [yRaw, mRaw] = String(monthKey).split("-");
+  const y = Number(yRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+  const start = new Date(`${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01T00:00:00+09:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const nextMonth = m >= 12 ? 1 : m + 1;
+  const nextYear = m >= 12 ? y + 1 : y;
+  const end = new Date(`${String(nextYear).padStart(4, "0")}-${String(nextMonth).padStart(2, "0")}-01T00:00:00+09:00`);
+  return { start, end };
+}
+
+function findRetrogradeRangeInMonth(bodyKey, monthKey) {
+  const { isRetrograde } = require("../../../domain/astro/retrograde");
+  const { toIsoAtJstNoon } = require("../../../domain/astro_compute");
+  const bounds = monthBoundsFromKey(monthKey);
+  if (!bounds) return null;
+  const { start, end } = bounds;
+  let cur = new Date(start.getTime());
+  let first = null;
+  let last = null;
+  while (cur.getTime() < end.getTime()) {
+    const iso = toIsoAtJstNoon(cur);
+    if (iso && isRetrograde(bodyKey, iso)) {
+      if (!first) first = new Date(cur.getTime());
+      last = new Date(cur.getTime());
+    }
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  if (!first) return null;
+  return { start: first, end: last || first };
+}
+
+function buildResonanceSummaryLines(story, dict) {
+  const raw = resolveResonanceRaw(story, dict, { fallback: true });
+  if (!raw) return [];
+  const aKey = normalizeBodyKey(raw?.a || "");
+  const bKey = normalizeBodyKey(raw?.b || "");
+  const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
+  const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
+  const aSign = raw?.a_sign_ja || signJa(dict, raw?.a_sign_key || "");
+  const bSign = raw?.b_sign_ja || signJa(dict, raw?.b_sign_key || "");
+  const aspect = aspectInfo(dict, raw?.type || raw?.aspT || raw?.aspect, raw?.aspect_deg);
+  const aspectLabel = aspect?.label_ja || "";
+  const aspectDeg = Number.isFinite(Number(raw?.aspect_deg))
+    ? Number(raw.aspect_deg)
+    : Number.isFinite(Number(aspect?.deg))
+      ? Number(aspect.deg)
+      : null;
+  const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
+  const orb = Number.isFinite(Number(raw?.orb_deg)) ? Number(raw.orb_deg) : null;
+  const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
+  const infoParts = [aspectLabel, degText, orbText ? `(${orbText})` : ""].filter(Boolean);
+  const infoLine = infoParts.join(" ");
+  const peakIso = raw?.peak_at || raw?.peak_at_iso || raw?.peak_at_utc || story?.meta?.as_of || null;
+  const peak = peakIso ? new Date(peakIso) : null;
+  const peakLabel = peak instanceof Date && !Number.isNaN(peak.getTime())
+    ? `${formatDateYmdHm(peak)}`
+    : "";
+
+  const aSignText = aSign ? `（${aSign}）` : "";
+  const bSignText = bSign ? `（${bSign}）` : "";
+  const lines = [
+    "最大の共鳴",
+    `${aLabel}${aSignText}× ${bLabel}${bSignText}`.trim(),
+  ];
+  if (infoLine) lines.push(infoLine);
+  if (peakLabel) lines.push(peakLabel);
+  return lines;
+}
+
 function toHashtag(raw) {
   const t = String(raw || "")
     .replace(/[#＃]/g, "")
@@ -395,6 +474,7 @@ function renderXNext30DaysFlow(story, deps = {}) {
     buildNext30DaysContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
   if (!ctx) return "";
 
+  const resonanceLines = buildResonanceSummaryLines(story, dict);
   const events = [
     ctx.newEvent?.date instanceof Date ? {
       kind: "new",
@@ -421,12 +501,21 @@ function renderXNext30DaysFlow(story, deps = {}) {
     });
   if (!eventLines.length) return "";
 
+  const retro = findRetrogradeRangeInMonth("mercury", ctx.monthKey);
+  const retroLine = retro
+    ? `逆行：水星 ${formatJstYmd(retro.start)}~${formatJstYmd(retro.end)}`
+    : "";
+
   const lines = [
     "────────",
     "",
     "注目の流れ",
     "",
+    ...resonanceLines,
+    resonanceLines.length ? "" : null,
     ...eventLines,
+    retroLine ? "" : null,
+    retroLine || null,
     "",
     "これからの空を、毎日置いていきます 🌌",
   ];
