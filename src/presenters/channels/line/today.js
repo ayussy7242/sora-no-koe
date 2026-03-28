@@ -29,7 +29,7 @@ const FREE_EXCLUDED_BODY_KEYS = new Set([
 async function renderLine(story, deps = {}) {
   const dict = deps?.dict || require("../../../content/dict");
   const includeHeader = deps?.includeHeader !== false;
-  const includeSummary = deps?.includeSummary !== false;
+  const includeSummary = deps?.includeSummary === true;
   const isPaid = deps?.paid === true;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
