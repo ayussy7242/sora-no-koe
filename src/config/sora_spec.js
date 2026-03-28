@@ -12,9 +12,9 @@ const SPEC = Object.freeze({
   labels: {
     sora: {
       listAll: "【配置一覧】",
-      closest: "【今日の共鳴（最大orb接近）】",
-      closestRef: (orbText) => `【今日の共鳴（最大orb接近｜参考｜orb ${orbText}°）】`,
-      closestPaid: (orb) => `【今日の共鳴（orb≤${orb}°）】`,
+      closest: "🔥 今日の最大接近",
+      closestRef: (orbText) => `🔥 今日の最大接近（参考｜orb ${orbText}°）`,
+      closestPaid: (orb) => `🔥 今日の最大接近（orb≤${orb}°）`,
       aspectSummaryPrefix: "角度構成：",
     },
     kinjitsu: {

@@ -26,6 +26,7 @@ async function renderSoraLine(story, deps = {}) {
   const includeAspect = deps?.includeAspect !== false;
   const includeHouse = deps?.includeHouse === true;
   const isPaid = deps?.paid === true;
+  const resonanceMode = deps?.resonanceMode || (deps?.deepMode ? "deep" : "core");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
@@ -75,9 +76,27 @@ async function renderSoraLine(story, deps = {}) {
     bodyLines.push(line);
   });
 
+  const coreBodies = new Set([
+    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
+  ]);
+  const deepBodies = new Set(["lilith", "chiron"]);
   const allWithOrb = listWithOrb(skyAll);
-  const within = filterWithinOrb(allWithOrb, orbLimit);
-  const minItem = minByOrb(allWithOrb);
+  const coreList = allWithOrb.filter((r) => {
+    const aKey = normalizeBodyKey(r?.a || "");
+    const bKey = normalizeBodyKey(r?.b || "");
+    return coreBodies.has(aKey) && coreBodies.has(bKey);
+  });
+  const deepList = allWithOrb.filter((r) => {
+    const aKey = normalizeBodyKey(r?.a || "");
+    const bKey = normalizeBodyKey(r?.b || "");
+    return deepBodies.has(aKey) || deepBodies.has(bKey);
+  });
+  const useDeep = resonanceMode === "deep";
+  const resonancePool = useDeep
+    ? (deepList.length ? deepList : coreList)
+    : (coreList.length ? coreList : deepList);
+  const within = filterWithinOrb(resonancePool, orbLimit);
+  const minItem = minByOrb(resonancePool);
 
   let picked = [];
   let listTitleAspect = "";
@@ -170,6 +189,9 @@ async function renderSoraLine(story, deps = {}) {
   const lines = [];
   if (includeHeader) lines.push(headerLine, "");
   lines.push(listTitleAll, "", ...bodyLines);
+  if (distLines.length) {
+    lines.push("", ...distLines);
+  }
 
   const moonInfo = formatTodayMoonLines({ asOfISO, story, dict });
   if (moonInfo.lines.length) {
@@ -187,10 +209,6 @@ async function renderSoraLine(story, deps = {}) {
       ...(aspectSummaryLines.length ? [""] : []),
       ...aspectLines
     );
-  }
-
-  if (distLines.length) {
-    lines.push("", ...distLines);
   }
 
   return lines.filter((x) => x !== null && x !== undefined).join("\n").trim();
