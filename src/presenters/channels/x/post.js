@@ -616,7 +616,7 @@ function renderXNext30DaysFlow(story, deps = {}) {
       const sign = e.signJa ? String(e.signJa).trim() : "";
       const base = sign ? `${sign}${kindLabel}` : kindLabel;
       const extra = e.specialName || (e.kind === "full" ? e.moonName : "") || "";
-      const dateLabel = e.dateLabel || "";
+      const dateLabel = e.date instanceof Date ? formatDateYmdHm(e.date) : (e.dateLabel || "");
       const parts = [prefix, base, extra, dateLabel].filter(Boolean);
       return parts.join(" ");
     });
@@ -638,11 +638,11 @@ function renderXNext30DaysFlow(story, deps = {}) {
       const win = findRetrogradeRangeInMonth(key, ctx.monthKey);
       if (!win) return null;
       const label = dict?.PLANETS_V2?.bodies?.[key]?.label_ja || dict?.POINTS_V1?.points?.[key]?.label_ja || key;
-      const range = formatRangeShort(win.start, win.end);
-      return range ? `${label} ${range}` : null;
+      const endLabel = formatJstYmd(win.end);
+      return endLabel ? `${label} ${endLabel}まで` : null;
     })
     .filter(Boolean);
-  const retroLine = retroItems.length ? `逆行｜${retroItems.join(" / ")}` : "";
+  const retroLine = retroItems.length ? `逆行｜${retroItems.join(" / ")}` : "逆行：なし";
 
   const lines = [
     "────────",
@@ -652,8 +652,8 @@ function renderXNext30DaysFlow(story, deps = {}) {
     ...resonanceLines,
     resonanceLines.length ? "" : null,
     ...eventLines,
-    retroLine ? "" : null,
-    retroLine ? `💫${retroLine}` : null,
+    "",
+    `💫${retroLine}`,
     "",
     "これからの空を、毎日置いていきます✨️",
     eventTagsLine ? "" : null,
