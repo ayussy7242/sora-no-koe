@@ -8,7 +8,7 @@
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../../format/format/line_common");
-const { formatDateYmdHm } = require("../../../domain/astro_compute");
+const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon, absAngularDistance } = require("../../../domain/astro_compute");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { pickPrimaryResonanceAspect } = require("../../../usecases/channels/x/generate_x_resonance_ai");
 const { detectMoonEvent } = require("../../../usecases/channels/x/generate_x_moon_event_ai");
@@ -25,6 +25,29 @@ function formatJstYmd(date) {
   const { toDateLocalJST } = require("../../../utils/time_utils");
   const ymd = (date instanceof Date && !Number.isNaN(date.getTime())) ? toDateLocalJST(date) : "";
   return ymd ? ymd.replace(/-/g, ".") : "";
+}
+
+function formatRangeShort(start, end) {
+  if (!(start instanceof Date) || Number.isNaN(start.getTime())) return "";
+  if (!(end instanceof Date) || Number.isNaN(end.getTime())) return "";
+  const startYmd = formatJstYmd(start);
+  const endYmd = formatJstYmd(end);
+  const [sy, sm, sd] = startYmd.split(".");
+  const [ey, em, ed] = endYmd.split(".");
+  if (sy && sm && sd && ey && em && ed && sy === ey && sm === em) {
+    return `${startYmd}〜${em}.${ed}`;
+  }
+  return `${startYmd}〜${endYmd}`;
+}
+
+const SIGN_ORDER = [
+  "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
+];
+
+function signKeyFromLonLocal(lon) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
+  return SIGN_ORDER[idx] || null;
 }
 
 function monthBoundsFromKey(monthKey) {
@@ -63,40 +86,132 @@ function findRetrogradeRangeInMonth(bodyKey, monthKey) {
 }
 
 function buildResonanceSummaryLines(story, dict) {
-  const raw = resolveResonanceRaw(story, dict, { fallback: true });
-  if (!raw) return [];
-  const aKey = normalizeBodyKey(raw?.a || "");
-  const bKey = normalizeBodyKey(raw?.b || "");
-  const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
-  const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
-  const aSign = raw?.a_sign_ja || signJa(dict, raw?.a_sign_key || "");
-  const bSign = raw?.b_sign_ja || signJa(dict, raw?.b_sign_key || "");
-  const aspect = aspectInfo(dict, raw?.type || raw?.aspT || raw?.aspect, raw?.aspect_deg);
+  const aspectWeights = new Map([
+    [0, 1.0],
+    [180, 0.95],
+    [90, 0.93],
+    [120, 0.90],
+    [60, 0.82],
+    [45, 0.72],
+    [135, 0.72],
+  ]);
+  const aspectList = Array.from(aspectWeights.keys());
+  const orbLimit = 3;
+
+  const personal = new Set(["sun","moon","mercury","venus","mars"]);
+  const social = new Set(["jupiter","saturn"]);
+  const outer = new Set(["uranus","neptune","pluto"]);
+
+  const classOf = (k) => {
+    if (outer.has(k)) return "outer";
+    if (social.has(k)) return "social";
+    if (personal.has(k)) return "personal";
+    return "personal";
+  };
+
+  const planetClassBonus = (a, b) => {
+    const ca = classOf(a);
+    const cb = classOf(b);
+    if (ca === "outer" && cb === "outer") return 0.20;
+    if ((ca === "outer" && cb === "social") || (ca === "social" && cb === "outer")) return 0.14;
+    if (ca === "social" && cb === "social") return 0.10;
+    if ((ca === "personal" && cb === "social") || (ca === "social" && cb === "personal")) return 0.08;
+    return 0.0;
+  };
+
+  const durationBonus = (days) => {
+    if (days >= 21) return 0.25;
+    if (days >= 14) return 0.18;
+    if (days >= 7) return 0.10;
+    return 0;
+  };
+
+  const monthKey = story?.meta?.date_local?.slice(0, 7) || story?.public?.date_local?.slice(0, 7) || "";
+  const bounds = monthBoundsFromKey(monthKey);
+  if (!bounds) return [];
+
+  const bodyList = ["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"];
+
+  const scanWindow = (aKey, bKey, aspectDeg) => {
+    let cur = new Date(bounds.start.getTime());
+    let start = null;
+    let end = null;
+    let peak = null;
+    let bestOrb = Infinity;
+    while (cur.getTime() < bounds.end.getTime()) {
+      const iso = toIsoAtJstNoon(cur);
+      const lonA = calcTransitLon(aKey, iso);
+      const lonB = calcTransitLon(bKey, iso);
+      if (lonA != null && lonB != null) {
+        const dist = absAngularDistance(lonA, lonB);
+        const orb = Math.abs(dist - aspectDeg);
+        if (orb <= orbLimit) {
+          if (!start) start = new Date(cur.getTime());
+          end = new Date(cur.getTime());
+          if (orb < bestOrb) {
+            bestOrb = orb;
+            peak = new Date(cur.getTime());
+          }
+        }
+      }
+      cur = new Date(cur.getTime() + 86400000);
+    }
+    if (!start || !end || bestOrb === Infinity) return null;
+    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    return { start, end, peak, bestOrb, days };
+  };
+
+  const candidates = [];
+  for (let i = 0; i < bodyList.length; i++) {
+    for (let j = i + 1; j < bodyList.length; j++) {
+      const aKey = bodyList[i];
+      const bKey = bodyList[j];
+      if ((aKey === "sun" && bKey === "moon") || (aKey === "moon" && bKey === "sun")) continue;
+      for (const deg of aspectList) {
+        const window = scanWindow(aKey, bKey, deg);
+        if (!window) continue;
+        const aspectWeight = aspectWeights.get(deg) || 0;
+        const orbBonus = (orbLimit - window.bestOrb) / orbLimit;
+        const score = aspectWeight + orbBonus + durationBonus(window.days) + planetClassBonus(aKey, bKey);
+        candidates.push({ aKey, bKey, aspectDeg: deg, score, ...window });
+      }
+    }
+  }
+
+  if (!candidates.length) return [];
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.bestOrb !== b.bestOrb) return a.bestOrb - b.bestOrb;
+    const ta = a.peak?.getTime() || 0;
+    const tb = b.peak?.getTime() || 0;
+    return ta - tb;
+  });
+  const top = candidates[0];
+  if (!top) return [];
+
+  const aLabel = dict?.PLANETS_V2?.bodies?.[top.aKey]?.label_ja || dict?.POINTS_V1?.points?.[top.aKey]?.label_ja || top.aKey;
+  const bLabel = dict?.PLANETS_V2?.bodies?.[top.bKey]?.label_ja || dict?.POINTS_V1?.points?.[top.bKey]?.label_ja || top.bKey;
+  const peakIso = top.peak ? toIsoAtJstNoon(top.peak) : null;
+  const lonA = peakIso ? calcTransitLon(top.aKey, peakIso) : null;
+  const lonB = peakIso ? calcTransitLon(top.bKey, peakIso) : null;
+  const aSignKey = signKeyFromLonLocal(lonA);
+  const bSignKey = signKeyFromLonLocal(lonB);
+  const aSign = aSignKey ? signJa(dict, aSignKey) : "";
+  const bSign = bSignKey ? signJa(dict, bSignKey) : "";
+
+  const aspect = aspectInfo(dict, null, top.aspectDeg);
   const aspectLabel = aspect?.label_ja || "";
-  const aspectDeg = Number.isFinite(Number(raw?.aspect_deg))
-    ? Number(raw.aspect_deg)
-    : Number.isFinite(Number(aspect?.deg))
-      ? Number(aspect.deg)
-      : null;
-  const degText = aspectDeg != null ? `${Math.round(aspectDeg)}°` : "";
-  const orb = Number.isFinite(Number(raw?.orb_deg)) ? Number(raw.orb_deg) : null;
-  const orbText = orb != null ? `${orb.toFixed(1)}°` : "";
-  const infoParts = [aspectLabel, degText, orbText ? `(${orbText})` : ""].filter(Boolean);
-  const infoLine = infoParts.join(" ");
-  const peakIso = raw?.peak_at || raw?.peak_at_iso || raw?.peak_at_utc || story?.meta?.as_of || null;
-  const peak = peakIso ? new Date(peakIso) : null;
-  const peakLabel = peak instanceof Date && !Number.isNaN(peak.getTime())
-    ? `${formatDateYmdHm(peak)}`
-    : "";
+  const degText = `${Math.round(top.aspectDeg)}°`;
+  const orbText = Number.isFinite(Number(top.bestOrb)) ? `${top.bestOrb.toFixed(1)}°` : "";
+  const peakLabel = top.peak ? formatDateYmdHm(top.peak) : "";
 
   const aSignText = aSign ? `（${aSign}）` : "";
   const bSignText = bSign ? `（${bSign}）` : "";
   const lines = [
-    "最大の共鳴",
+    "共鳴",
     `${aLabel}${aSignText}× ${bLabel}${bSignText}`.trim(),
+    `${aspectLabel} ${degText}｜${orbText}${peakLabel ? `（${peakLabel}）` : ""}`.trim(),
   ];
-  if (infoLine) lines.push(infoLine);
-  if (peakLabel) lines.push(peakLabel);
   return lines;
 }
 
@@ -502,9 +617,17 @@ function renderXNext30DaysFlow(story, deps = {}) {
   if (!eventLines.length) return "";
 
   const retro = findRetrogradeRangeInMonth("mercury", ctx.monthKey);
-  const retroLine = retro
-    ? `逆行：水星 ${formatJstYmd(retro.start)}~${formatJstYmd(retro.end)}`
-    : "";
+  const retroBodies = ["mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+  const retroItems = retroBodies
+    .map((key) => {
+      const win = findRetrogradeRangeInMonth(key, ctx.monthKey);
+      if (!win) return null;
+      const label = dict?.PLANETS_V2?.bodies?.[key]?.label_ja || dict?.POINTS_V1?.points?.[key]?.label_ja || key;
+      const range = formatRangeShort(win.start, win.end);
+      return range ? `${label} ${range}` : null;
+    })
+    .filter(Boolean);
+  const retroLine = retroItems.length ? `逆行｜${retroItems.join(" / ")}` : "";
 
   const lines = [
     "────────",
@@ -517,7 +640,7 @@ function renderXNext30DaysFlow(story, deps = {}) {
     retroLine ? "" : null,
     retroLine || null,
     "",
-    "これからの空を、毎日置いていきます 🌌",
+    "これからの空を、毎日置いていきます🌌",
   ];
   return joinLines(lines);
 }
