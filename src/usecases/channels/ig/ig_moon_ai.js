@@ -6,6 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../domain/moon_info");
+const { formatDateYmdHm } = require("../../../domain/astro_compute");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -48,6 +49,13 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const moonSign = safeText(info?.moonSign || "");
   const phaseLabel = safeText(info?.phase?.name || "");
   const moonChangeHint = safeText(buildMoonChangeHint(change));
+  const nextChange = change?.next || null;
+  const nextChangeText = nextChange?.date
+    ? `${formatDateYmdHm(nextChange.date)}（${nextChange.to?.label || ""}へ）`
+    : "";
+  const nextChangeHours = Number.isFinite(Number(nextChange?.hoursAhead))
+    ? Number(nextChange.hoursAhead).toFixed(1)
+    : "";
 
   return [
     SORA_AI_USER_GUIDE_IG_MOON,
@@ -56,6 +64,8 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
     `MOON_SIGN: ${moonSign}`,
     `PHASE_LABEL: ${phaseLabel}`,
     `MOON_CHANGE_HINT: ${moonChangeHint}`,
+    `NEXT_MOON_SIGN_CHANGE: ${safeText(nextChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeText(nextChangeHours)}`,
   ].join("\n");
 }
 
