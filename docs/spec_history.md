@@ -31,3 +31,13 @@ Short, append-only log of spec changes. Keep README small.
 - Public sky closest label updated to:
   - `【今日の共鳴（最大orb接近）】`
   - Reference case: `【今日の共鳴（最大orb接近｜参考｜orb X°）】`
+
+---
+
+## 2026-03-29 (JST)
+
+### SSOT / Runtime Policy
+
+- SSOT is **runtime story generation** (per execution time), not a daily fixed canonical.
+- `stories/*` is treated as **snapshot / cache / delivery record** (optional).
+- Snapshot save failures are **warnings only** and must not block delivery flows.

@@ -4,7 +4,6 @@ const crypto = require("crypto");
 const sharp = require("sharp");
 const { createWpClient } = require("../../integrations/wordpress/wp_client");
 const { buildSoraWheelSvg } = require("../../engine/graphics/sora_wheel");
-const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const {
   generateDailyDraft,
   buildDailyTitle,
@@ -13,6 +12,7 @@ const {
   escapeHtml,
 } = require("../../usecases/channels/blog/blog_daily");
 const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eyecatch");
+const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -116,14 +116,7 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
   }
 
   mark("story_before");
-  const story = await storyService.buildStoryForUser(
-    normalizeStoryArgs({
-      appUserId: "public",
-      dateLocal,
-      asOfISO,
-      mode: "public",
-    })
-  );
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
   mark("story_after");
 
   mark("openai_before");

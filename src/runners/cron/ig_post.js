@@ -21,6 +21,7 @@ const {
   generateIgCarouselObservationText,
 } = require("../../usecases/channels/ig/ig_carousel_caption_ai");
 const { ensureIgOutputs } = require("../../usecases/story/output_helpers");
+const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const {
   createImageContainer,
   createCarouselContainer,
@@ -875,12 +876,7 @@ async function runIgPost(deps, opts = {}) {
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
 
-  let story = await storyService.buildStoryForUser({
-    appUserId: "public",
-    dateLocal,
-    asOfISO,
-    mode: "public",
-  });
+  let story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const igOut = ensureIgOutputs(story);
   const preferredAspect = pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
@@ -1028,12 +1024,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
   const eventDateLocal = toDateLocalJST(event.date);
   const eventAsOfISO = event?.date instanceof Date ? event.date.toISOString() : asOfISO;
 
-  const story = await storyService.buildStoryForUser({
-    appUserId: "public",
-    dateLocal: eventDateLocal,
-    asOfISO: eventAsOfISO,
-    mode: "public",
-  });
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal: eventDateLocal, asOfISO: eventAsOfISO, save: false })).story;
 
   let summaryText = "";
   if (useAi) {

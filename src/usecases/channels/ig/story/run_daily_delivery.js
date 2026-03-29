@@ -7,6 +7,7 @@ const { renderStoryBackgroundSet } = require("../../../../engine/renderers/ig/st
 const { formatIgStoryLinePayload } = require("./format_message");
 const { sendIgStoryToLine } = require("./send_to_line");
 const { runDailyBlog } = require("../../../../runners/cron/blog_daily");
+const { buildPublicStorySnapshot } = require("../../../story/store");
 
 function addDays(dateLocal, days = 1) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -66,6 +67,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
   if (!storage) throw new Error("storage missing");
+  if (!db) throw new Error("db missing");
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
@@ -73,19 +75,9 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
   const asOfTomorrowISO = opts.asOfTomorrowISO || (tomorrowLocal ? asOfIsoFromDateLocalJST(tomorrowLocal) : asOfISO);
   const dryRun = opts.dryRun === true || opts.dry_run === true;
 
-  const story = await storyService.buildStoryForUser({
-    appUserId: "public",
-    dateLocal,
-    asOfISO,
-    mode: "public",
-  });
+  const { story } = await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false });
   const tomorrowStory = tomorrowLocal
-    ? await storyService.buildStoryForUser({
-        appUserId: "public",
-        dateLocal: tomorrowLocal,
-        asOfISO: asOfTomorrowISO,
-        mode: "public",
-      })
+    ? (await buildPublicStorySnapshot({ storyService, dateLocal: tomorrowLocal, asOfISO: asOfTomorrowISO, save: false })).story
     : story;
 
   const blogResult = await runDailyBlog(
