@@ -137,9 +137,9 @@ async function main() {
 
   const dict = require("../../src/content/dict");
 
-  const { renderSoraLine } = require("../../src/presenters/channels/line/sora");
-  const { renderLine } = require("../../src/presenters/channels/line/today");
-  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../../src/usecases/channels/line/line_paid_500");
+  const { renderSoraLine } = require("../../src/presenters/line/sora");
+  const { renderLine } = require("../../src/presenters/line/today");
+  const { buildBunpuTop5, buildHouseBlock, buildTsukijiBlock, buildKinjitsuBlock } = require("../../src/usecases/channels/line/paid_500");
   const { buildSoraWheelSvg } = require("../../src/engine/graphics/sora_wheel");
 
   const dateLabel = date.replace(/-/g, ".");
@@ -147,7 +147,10 @@ async function main() {
   const sora = await renderSoraLine(story, { dict });
   const kyou = await renderLine(story, { dict });
 
-  const bunpu = [...buildBunpuTop5(story, dict)].join("\n");
+  const bunpuResult = buildBunpuTop5(story, dict);
+  const bunpuLines = Array.isArray(bunpuResult) ? bunpuResult : (bunpuResult?.bunpuLines || []);
+  const uraLines = Array.isArray(bunpuResult) ? [] : (bunpuResult?.uraLines || []);
+  const bunpu = [...bunpuLines, ...uraLines].join("\n");
   const house = ["🏠 はうす（全ハウス）｜" + dateLabel, "", ...buildHouseBlock(story, dict, story.meta.as_of)].join("\n");
   const tsukiji = ["🌙 つきじ｜" + dateLabel, "", ...buildTsukijiBlock(story, dict, story.meta.as_of)].join("\n");
   const kinjitsu = buildKinjitsuBlock(story, dict, story.meta.as_of).join("\n");

@@ -3,11 +3,8 @@
 // cron_utils.js
 // - daily8 / rebuild8 など cron 系で共通の小物を集約
 
-const { toDateLocalJST, asOfIsoFromDateLocalJST } = require("../../utils/time_utils");
-
-function isYYYYMMDD(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
+const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { clamp, toNumberSafe, normLower } = require("../../utils/parse");
 
 function toSafeText(x, maxLen = 4800) {
   const s = x == null ? "" : String(x);
@@ -17,12 +14,6 @@ function toSafeText(x, maxLen = 4800) {
 function isNonEmptyText(x) {
   const s = x == null ? "" : String(x);
   return s.trim().length > 0;
-}
-
-function normLower(x, fallback = "") {
-  const s = x == null ? "" : String(x);
-  const t = s.trim().toLowerCase();
-  return t || fallback;
 }
 
 function pickMode(x) {
@@ -36,12 +27,7 @@ function pickTarget(x) {
 }
 
 function pickNum(v, fallback) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
+  return toNumberSafe(v, fallback);
 }
 
 function getLineUserIdFromUserDoc(user) {

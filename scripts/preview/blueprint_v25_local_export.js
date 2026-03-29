@@ -13,8 +13,8 @@ const { createNatalService } = require("../../src/usecases/story/story_natal");
 const {
   buildBlueprintLightRows,
   buildAiInput,
-} = require("../../src/usecases/blueprint_light/index");
-const { generateBlueprintLightTextV2 } = require("../../src/usecases/blueprint_light/generate_text");
+} = require("../../src/usecases/pdf/blueprint/index");
+const { generateBlueprintLightTextV2 } = require("../../src/usecases/pdf/blueprint/generate_text");
 const { buildBlueprintV25WireframeHtml } = require("../../src/engine/pdf/blueprint_v25/wireframe");
 const {
   buildBlueprintV25BgImages,

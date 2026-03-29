@@ -24,13 +24,13 @@ const pickersPublic = require("../../format/data/pickers_public");
 const { pickStable, getUserId } = require("../../format/utils/seed");
 
 // channels
-const chLineToday = require("../../channels/line/today");
-const chLineSora = require("../../channels/line/sora");
-const chLineDistribution = require("../../channels/line/distribution");
-const chIG = require("../../channels/ig");
-const chX = require("../../channels/x/post");
-const chXThread = require("../../channels/x/thread");
-const chThreads = require("../../channels/threads/post");
+const chLineToday = require("../../line/today");
+const chLineSora = require("../../line/sora");
+const chLineDistribution = require("../../line/distribution");
+const chIG = require("../../ig");
+const chX = require("../../x/post");
+const chXThread = require("../../x/thread");
+const chThreads = require("../../threads/post");
 
 // SSOT: export名ズレ吸収 + 日本語postfix
 const { resolveFn, postFixFusionJa } = require("../../format/utils/text_postfix_ja");
@@ -41,9 +41,9 @@ const blendV2 = require("../../../content/dict/blend.v2");
 // natal_list (揺れ吸収)
 let chNatalList = null;
 try {
-  chNatalList = require("../../channels/line/natal_list");
+  chNatalList = require("../../line/natal_list");
 } catch (_) {
-  chNatalList = require("../../channels/line/natal_list");
+  chNatalList = require("../../line/natal_list");
 }
 
 function safeStr(v) {

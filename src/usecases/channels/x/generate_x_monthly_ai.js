@@ -6,7 +6,7 @@ const { X_MONTHLY_USER_GUIDE } = require("../../../content/prompts/sns/x/x_month
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon_info");
 const { listWithOrb } = require("../../../domain/aspect_selection");
 const { normalizeBodyKey } = require("../../../domain/canonical");
-const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
+const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { validateXAiText } = require("./x_ai_common");
 
@@ -26,17 +26,29 @@ function formatMonthLabel(dateLocal) {
   return `${Number(y)}年${Number(m)}月`;
 }
 
-function buildMonthlyPoints({ story, dict, max = 3 }) {
+function buildMonthlyPoints({ story, dict, max = 3, resonanceMode }) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const allowed = new Set([
+  const coreBodies = new Set([
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
   ]);
-  const picked = listWithOrb(skyAll)
-    .filter((row) => {
-      const aKey = normalizeBodyKey(row?.a || "");
-      const bKey = normalizeBodyKey(row?.b || "");
-      return allowed.has(aKey) && allowed.has(bKey);
-    })
+  const deepBodies = new Set(["lilith", "chiron"]);
+  const mode = resonanceMode || story?.meta?.resonance_mode || "core";
+  const all = listWithOrb(skyAll);
+  const corePool = all.filter((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    return coreBodies.has(aKey) && coreBodies.has(bKey);
+  });
+  const deepPool = all.filter((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    return deepBodies.has(aKey) || deepBodies.has(bKey);
+  });
+  const useDeep = mode === "deep";
+  const pool = useDeep
+    ? (deepPool.length ? deepPool : corePool)
+    : (corePool.length ? corePool : deepPool);
+  const picked = pool
     .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
     .slice(0, max);
 
@@ -53,10 +65,10 @@ function buildMonthlyPoints({ story, dict, max = 3 }) {
   });
 }
 
-function buildMonthlyContext({ story, dict, asOfISO }) {
+function buildMonthlyContext({ story, dict, asOfISO, resonanceMode }) {
   const dateLocal = story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
   const monthLabel = formatMonthLabel(dateLocal);
-  const points = buildMonthlyPoints({ story, dict, max: 3 });
+  const points = buildMonthlyPoints({ story, dict, max: 3, resonanceMode });
   const events = buildNextMoonEvents(asOfISO || story?.meta?.as_of, dict);
   const newEvent = events?.new ? formatMoonEventDisplay(events.new) : null;
   const fullEvent = events?.full ? formatMoonEventDisplay(events.full) : null;

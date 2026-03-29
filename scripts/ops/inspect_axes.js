@@ -8,7 +8,7 @@ const { createNatalService } = require("../../src/usecases/story/story_natal");
 const { createSignHelpers } = require("../../src/usecases/story/story_signs");
 const { norm360 } = require("../../src/usecases/story/story_math");
 const { signGlyph } = require("../../src/presenters/shared/text/tokens");
-const { buildBlueprintLightRows } = require("../../src/usecases/blueprint_light");
+const { buildBlueprintLightRows } = require("../../src/usecases/pdf/blueprint");
 
 function getArg(name, fallback = null) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

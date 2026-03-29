@@ -1,6 +1,6 @@
 "use strict";
 
-const { signJa } = require("../../../presenters/format/format/line_common");
+const { signJa } = require("../../../presenters/format/format/common");
 
 function countChars(text) {
   return Array.from(String(text || "")).length;
@@ -143,17 +143,17 @@ function formatXAiText(text, opts = {}) {
   const rawLines = base.split("\n");
   const normalized = collapseBlankRuns(rawLines);
 
-  const out = [];
+  const outLines = [];
   for (const line of normalized) {
     const trimmed = String(line || "").trim();
     if (!trimmed) {
-      out.push("");
+      outLines.push("");
       continue;
     }
-    out.push(trimmed);
+    outLines.push(trimmed);
   }
 
-  let cleaned = out;
+  let cleaned = outLines;
   while (cleaned.length && !String(cleaned[cleaned.length - 1] || "").trim()) {
     cleaned = cleaned.slice(0, -1);
   }

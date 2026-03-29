@@ -1,6 +1,6 @@
 "use strict";
 
-const { toDateLocalJST } = require("../../utils/time_utils");
+const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
@@ -9,11 +9,7 @@ const { generateXResonanceAiText, pickPrimaryResonanceAspect } = require("../../
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
-const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/channels/x/renderers/morning_wheel");
-
-function isYYYYMMDD(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
+const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
 
 function toBool(v, fallback = false) {
   if (v === true) return true;

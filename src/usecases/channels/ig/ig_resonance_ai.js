@@ -7,7 +7,7 @@ const {
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
-const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
+const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
 
 function safeText(x) {
   return String(x || "").trim();

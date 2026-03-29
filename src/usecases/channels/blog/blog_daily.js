@@ -40,7 +40,7 @@ const {
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../domain/canonical");
-const { formatAspectDisplay } = require("../../../presenters/format/format/line_common");
+const { formatAspectDisplay } = require("../../../presenters/format/format/common");
 const {
   formatTodayMoonLines,
   formatNextMoonLines,

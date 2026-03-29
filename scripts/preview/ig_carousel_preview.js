@@ -13,7 +13,7 @@ const { selectNextMajorPhase } = require("../../src/domain/moon_phase");
 const {
   renderInstagramCarousel,
   formatDateLabel,
-} = require("../../src/engine/channels/ig/ig_carousel");
+} = require("../../src/engine/renderers/ig/ig_carousel");
 const { computeSpaceTheme } = require("../../src/engine/shared/space_background/theme");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../src/domain/astro_compute");

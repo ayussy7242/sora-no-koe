@@ -23,39 +23,83 @@ Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Fra
 - Firestore 保存（multi DB 対応）
 - story.json 中心設計（唯一の真実）
 - BLOG 日次下書き生成（WordPress）
+- IG / X / Threads / LINE 向け出力
+- Blueprint（PDF）生成とGCS保存
 
 ---
 
-## 0.5 レイヤー役割（責務）
+## 1. レイヤー役割（責務）
 
-- `src/engine`: 描画・生成の本体レイヤー。IGカルーセル/宇宙背景/画像・SVGレンダリングなどをここで育てる。
-- `src/integrations`: 外部サービス接続 + 公開用/互換入口。`integrations/media` は互換入口の薄い層として維持。
-- `src/domain`: 宇宙/占星データの意味・計算ルール（例: アスペクト、月相、天体計算）。
-- `src/usecases`: 何を作るかの業務フロー（例: story/blueprint/daily 生成）。
-- `src/presenters`: チャンネル向け整形（例: LINE/X/ブログ/IGキャプション）。
+- `src/domain`：宇宙/占星データの意味・計算ルール（アスペクト、月相、天体計算）
+- `src/usecases`：何を作るかの業務フロー（story / blueprint / channels / cron）
+- `src/integrations`：外部サービス接続（LINE / Firebase / GCS / IG など）
+- `src/presenters`：チャンネル向け整形（LINE / X / IG / Threads）
+- `src/engine`：描画・生成レイヤー（画像・SVG・PDFなど）
+- `src/routes`：HTTP 入口（薄いルーティング層）
 
-`space_background` 内の役割
-
-- `world.js`: 全宇宙の組み立て（生成の中心）
-- `render.js`: slice と公開API
-- `layers/*`: 表現パーツ
-- `theme` / `fields` / `regions`: 世界生成の基盤
-
-互換入口の削除条件
-
-- 参照元がすべて `src/engine` へ移行済み
-- `scripts` / `routes` / `integrations` 側に旧参照が残っていない
-- 2〜3回の生成確認が完了している
+`engine/renderers` で描画責務を統一。
 
 ---
 
-## 1. Production URL（Cloud Run）
+## 2. ディレクトリ構成（重要部分）
+
+```
+src/
+  domain/
+    astro/
+    moon/
+  usecases/
+    story/
+    cron/
+    channels/
+      ig/
+      line/
+      x/
+      blog/
+    pdf/
+      blueprint/
+        compute/
+        render/
+        generation/
+        jobs/
+      relation/
+  integrations/
+    line/
+      api.js
+      blueprint.js
+      intent.js
+      messaging.js
+      state.js
+      user.js
+  presenters/
+    ig/
+    line/
+    threads/
+    x/
+  engine/
+    renderers/
+      ig/
+        slides/
+        story/
+      x/
+      blog/
+    pdf/
+  routes/
+```
+
+補足
+- `presenters/ig.js` / `presenters/x.js` / `presenters/threads.js` は互換ラッパとして残している
+- `engine/renderers/ig/story/render_backgrounds.js` は IG story 背景描画のSSOT
+
+---
+
+## 3. Production URL（Cloud Run）
 
 https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
 
 ---
 
-## 1.1 Build / Deploy（Dockerfile）
+## 4. Build / Deploy（Dockerfile）
 
 Cloud Run では **Buildpacks ではなく Dockerfile でビルド**します。  
 Swiss Ephemeris（swisseph）のネイティブアドオンが **ビルド環境と実行環境のABI不整合で落ちる**ため、
@@ -68,7 +112,7 @@ gcloud builds submit --config cloudbuild.yaml
 
 ---
 
-## 2. ローカル起動（開発）
+## 5. ローカル起動（開発）
 
 依存インストール
 ```bash
@@ -88,7 +132,23 @@ curl http://localhost:8080/meta
 
 ---
 
-## 3. エンドポイント一覧（最新版）
+## 6. 環境変数（最低限）
+
+ローカルは `config/.env` に置く。
+
+必須になりやすいもの
+- `GCLOUD_PROJECT` / `GOOGLE_CLOUD_PROJECT`
+- `FIRESTORE_DATABASE_ID`（既定: `sora-no-koe-db`）
+- `GCS_BUCKET_BLUEPRINTS`
+- `LINE_CHANNEL_ACCESS_TOKEN`
+- `OPENAI_API_KEY`（生成テスト時のみ）
+
+Firestore 認証
+- ローカルは ADC を推奨（`gcloud auth application-default login`）
+
+---
+
+## 7. エンドポイント一覧（最新版）
 
 Health
 - `GET /health`
@@ -127,7 +187,7 @@ Debug
 
 ---
 
-## 4. /stories の使い方（統一API）
+## 8. /stories の使い方（統一API）
 
 主なクエリ
 - `app_user_id` 例: `public` / `u_xxx`
@@ -136,7 +196,7 @@ Debug
 - `as_of` ISO 例: `2026-02-12T03:00:00.000Z`
 - `datetime_local` 例: `2026-02-12T18:10:00`（JST扱い）
 - `format` 例: `json` / `text` / `line` / `x` / `ig` / `threads`
-- `channel` 例: `line` / `sora_line` / `line_sora_all` / `sora_ura` / `anshin` / `natal` / `x` / `threads`
+- `channel` 例: `line` / `line_sora` / `line_distribution` / `line_natal` / `x` / `threads` / `ig`
 - `outputs` 例: `true` / `false`（default true）
 - `orb` 例: `6`
 - `precision` 例: `0.01`
@@ -144,25 +204,16 @@ Debug
 - `final` 例: `true` / `false`（保存時のみ意味あり）
 - `force` 例: `true` / `false`（保存時のみ意味あり）
 
-チャンネル別（代表例）
+代表例
 ```bash
 # personal main
 curl -s "http://localhost:8080/stories?app_user_id=u_me_xxx&mode=auto&format=text&channel=line&outputs=true"
 
 # public sora
-curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=text&channel=sora_line&outputs=true"
-
-# sora all
-curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=text&channel=line_sora_all&outputs=true"
-
-# sora ura (menu)
-curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=text&channel=sora_ura&outputs=true"
-
-# anshin
-curl -s "http://localhost:8080/stories?app_user_id=u_me_xxx&mode=auto&format=text&channel=anshin&outputs=true"
+curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=text&channel=line_sora&outputs=true"
 
 # natal list
-curl -s "http://localhost:8080/stories?app_user_id=u_me_xxx&mode=auto&format=text&channel=natal&outputs=true"
+curl -s "http://localhost:8080/stories?app_user_id=u_me_xxx&mode=auto&format=text&channel=line_natal&outputs=true"
 
 # X / Threads
 curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=text&channel=x&outputs=true"
@@ -172,159 +223,91 @@ curl -s "http://localhost:8080/stories?app_user_id=public&mode=public&format=tex
 メモ
 - `format=text` は `text/plain` で返す
 - `outputs=true` のときは内部スロットも返る
-- `sora系` と `SNS系` は自動で `public` 固定になる
+- `sora系` と `SNS系` は自動で `public` 固定
 
 ---
 
-## 5. /transit の使い方
+## 9. ローカルの軽い確認（scripts）
 
+Stories / X / LINE
 ```bash
-curl -s "http://localhost:8080/transit?date_local=2026-02-12"
-curl -s "http://localhost:8080/transit?as_of=2026-02-12T03:00:00.000Z&precision=0.01"
+node scripts/test/test-render.js --date 2026-03-20 --story tmp/stories/2026-03-20.json --save tmp/previews/out_story.txt
+node scripts/test/test-line-commands.js --date 2026-03-20 --story tmp/stories/2026-03-20.json
 ```
 
----
-
-## 6. /cron の使い方（要CRON_TOKEN）
-
-共通
-- Header: `x-cron-token: $CRON_TOKEN`
-
-daily8（legacy/デバッグ）
+IG caption
 ```bash
-curl -s -X POST "http://localhost:8080/cron/daily8?date_local=2026-02-12&dryRun=1" \
-  -H "x-cron-token: $CRON_TOKEN"
+node scripts/preview/ig_caption_preview.js --story tmp/stories/2026-03-20.json --out tmp/previews/ig_caption_2026-03-20.txt
 ```
 
-rebuild8 / send8（本番運用の2段構え）
+IG carousel（重い）
 ```bash
-curl -s -X POST "http://localhost:8080/cron/rebuild8?date_local=2026-02-12" \
-  -H "x-cron-token: $CRON_TOKEN"
-
-curl -s -X POST "http://localhost:8080/cron/send8?date_local=2026-02-12" \
-  -H "x-cron-token: $CRON_TOKEN"
+node scripts/preview/ig_carousel_preview.js --story tmp/stories/2026-03-20.json --date 2026-03-20
 ```
 
-blog daily
+X morning wheel
 ```bash
-curl -s -X POST "http://localhost:8080/cron/blog/daily?date_local=2026-02-12&dryRun=1" \
-  -H "x-cron-token: $CRON_TOKEN"
+node scripts/preview/x_morning_wheel_preview.js --story tmp/stories/2026-03-20.json --date 2026-03-20
 ```
 
-worker
+Blueprint mock
 ```bash
-curl -s -X POST "http://localhost:8080/cron/worker" \
-  -H "x-cron-token: $CRON_TOKEN"
-```
-
----
-
-## 7. /jobs の使い方（natal calc）
-
-```bash
-curl -s -X POST "http://localhost:8080/jobs/worker" \
-  -H "x-cron-token: $CRON_TOKEN"
-```
-
-DEBUG のときだけ
-```bash
-DEBUG=1 curl -s "http://localhost:8080/jobs/worker"
+node - <<'NODE'
+const { renderBlueprintLightPdf } = require('./src/usecases/pdf/blueprint/render/pdf_render');
+const mockPayload = {
+  manifest: { version: 'test', created_at: new Date().toISOString() },
+  displayName: 'Test User',
+  birthText: '出生: 1990-07-24 12:18',
+  rowsMain: [],
+  rowsAngles: [],
+  rowsExtra: [],
+  summary: 'テストサマリー',
+  element: { fire: 3, earth: 2, air: 3, water: 2 },
+  modality: { cardinal: 3, fixed: 4, mutable: 3 },
+  blueprintText: 'テストBlueprint',
+  bgImages: { main: null },
+  story: {}
+};
+(async () => {
+  const buffer = await renderBlueprintLightPdf(mockPayload);
+  console.log('PDF generated:', !!buffer, 'size:', buffer?.length);
+})();
+NODE
 ```
 
 ---
 
-## 8. LINE Webhook
-
-- `POST /line/webhook`
-- raw body 署名検証（最重要）
-- `LINE_WEBHOOK_STRICT=1` のとき署名NGで401
-
----
-
-## 9. Firestore コレクション
-
-- `line_users/{lineUserId}` 登録フロー状態
-- `users/{app_user_id}` ユーザー基本情報
-- `natal_cache/{app_user_id}` ネイタル計算結果
-- `jobs_natal_calc/{jobId}` ネイタル計算ジョブ
-- `stories/{userId-dateLocal}` 日次 story
-
----
-
-## 10. 環境変数（主要）
-
-Core
-- `PROJECT`
-- `SCHEMA_VERSION`
-- `DEFAULT_TZ`（default: Asia/Tokyo）
-- `PORT`（default: 8080）
+## 10. 外部依存ありの実フロー確認（参考）
 
 Firestore
-- `FIRESTORE_DATABASE_ID`
+- `stories` は `sora-no-koe-db` に存在
 
-Swiss Ephemeris
-- `SWISSEPH_EPH_PATH`（ephe ディレクトリの絶対 or 相対パス）
-- `SWISSEPH_PATH`（legacy）
+GCS（Blueprint）
+- `GCS_BUCKET_BLUEPRINTS` を使って JSON / PDF を確認
 
-LINE
-- `LINE_CHANNEL_SECRET`
-- `LINE_CHANNEL_ACCESS_TOKEN`
-- `LINE_WEBHOOK_STRICT`
-- `OWNER_LINE_USER_ID`
-- `OWNER_APP_USER_ID`
-
-Cron / Jobs
-- `CRON_TOKEN`
-- `DEBUG`
-
-Blog (WordPress)
-- `WP_BASE_URL`
-- `WP_USER`
-- `WP_APP_PASSWORD`
-- `WP_CATEGORY_DAILY`
+LINE 実送信
+- `OWNER_LINE_USER_ID` 宛に push して動作確認
 
 OpenAI
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `OPENAI_MODEL`
-
-Geo
-- `GOOGLE_MAPS_API_KEY`
+- `OPENAI_API_KEY` を設定して生成スクリプト実行
 
 ---
 
-## 11. SSOT / ドキュメント
+## 11. Notes
 
-- `docs/sora_ai_prompts.md`（SSOT: 読み物）
-- `engine/prompts/sora_ai_prompts.js`（SSOT: 実コード）
-- `TEST.md`（テストチェックリスト完全版）
-
----
-
-## 12. テスト
-
-自動チェック（叩き台）
-```bash
-CRON_TOKEN=YOUR_TOKEN node scripts/debug/check_outputs.js
-```
+- IG carousel は重いので長めのタイムアウト推奨
+- macOS の `XType` 警告はフォントアクセスの環境警告で、生成自体は成功する
+- `presenters/*.js` は互換ラッパ扱い（将来 `presenters/<channel>/index.js` へ統合予定）
 
 ---
 
-## 13. 運用メモ
+## 12. Docs 構想（任意）
 
-このプロジェクトは「占い」ではない。
-予測・断定・指示を避け、構造だけを置く。
-解釈と選択の主権は、常に人にある。
+README は入口として残し、詳細な設計メモは `docs/` にまとめる運用が相性良い。
+必要なら以下のように分割すると読みやすい。
 
----
+- `docs/architecture.md`
+- `docs/blueprint.md`
+- `docs/channels.md`
+- `docs/operations.md`
 
-## 14. Third-Party Libraries
-
-This project uses Swiss Ephemeris for astronomical calculations.
-
-Swiss Ephemeris  
-Official website: https://www.astro.com/swisseph/  
-Source code: https://github.com/aloistr/swisseph  
-
-Swiss Ephemeris is developed by Astrodienst AG, Switzerland.  
-License terms apply. See the official website for details.

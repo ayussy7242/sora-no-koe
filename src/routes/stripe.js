@@ -5,7 +5,7 @@ const Stripe = require("stripe");
 const rawBody = require("../middleware/rawBody");
 const { getPurchaseToken } = require("../integrations/firebase/purchase_tokens");
 const { enqueueBlueprintGenerate } = require("../integrations/cloudtasks/tasks_queue");
-const { createLineApi } = require("../integrations/line/line_api");
+const { createLineApi } = require("../integrations/line/api");
 const { LINE_COPY } = require("../content/copy");
 
 function createStripeClient(env) {

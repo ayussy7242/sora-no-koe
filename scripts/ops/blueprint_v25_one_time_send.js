@@ -8,8 +8,8 @@ const env = require("../../src/config/env");
 const dict = require("../../src/content/dict");
 const { admin, getDb } = require("../../src/integrations/firebase/firebase");
 const { createLineApi } = require("../../src/integrations/line/line_api");
-const { createBlueprintLightService } = require("../../src/usecases/blueprint_light");
-const { createBlueprintLightStorage } = require("../../src/usecases/blueprint_light/storage");
+const { createBlueprintLightService } = require("../../src/usecases/pdf/blueprint");
+const { createBlueprintLightStorage } = require("../../src/usecases/pdf/blueprint/storage");
 
 function getArg(name, fallback = null) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
@@ -23,31 +23,7 @@ function toBool(val) {
   return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
-const TEMPLATE = `🌌 ソラのこえより
-
-｛ユーザーネーム｝さんの
-星の設計図（Blueprint v25）をお届けします💫💫
-
-｛ユーザーネーム｝さんの生まれた瞬間の天体配置をもとに、配置の重心やつながりをまとめた１枚のPDFになります⭐️
-
-暇なときにみてもらえたら
-嬉しい限りでございます🎁⭐️
-
-もしよければ、
-感想を3つだけ教えてほしいです🌟
-
-1. 全体の印象はどうだった？（一言OK）
-2. 特に「これいい！」って思ったページや部分ある〜？
-3. 「ここもっとこうしてほしい」ってところある〜？
-
-反応待ってます〜🪐✨️🌟💫
-
-今後展開する「ソラのこえ＋」の最初の波紋になります〜！！
-
-登録してくれた方に、無料で配るので
-ぜひみんなにもシェアしてもらえたら嬉しいです！
-
-こちらから開けます👇✨️`;
+const TEMPLATE = `🌌 ソラのこえより大事なお知らせ💫 テストユーザー限定で、〇〇さんの 星の設計図（Blueprint v25）をお届けします 生まれた瞬間の天体配置をもとに、配置の重心やつながりをまとめたPDFです✨ 🌟 感想を3つだけ教えてほしいです！1. 全体の印象はどうだった？（一言でOK）2. 特に「これいい！」って思ったページや部分は？3. 「ここもっとこうしてほしい」ってところある？ 反応待ってます！🛸✨️ 「ソラのこえ＋」の最初の波紋になります 登録者に無料で配るのでぜひみんなにもシェアしてもらえたら嬉しいです！ こちらから開けます👇✨️`;
 
 function applyNameTemplate(text, name) {
   const safeName = name || "お客さま";
@@ -95,6 +71,11 @@ async function main() {
       )
     : null;
 
+  console.log(
+    "[blueprint] target line_user_id count:",
+    targetSet ? targetSet.size : 0
+  );
+
   const db = getDb();
   const storage = new Storage();
   const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
@@ -123,6 +104,7 @@ async function main() {
     const lineSnap = await lineRef.get();
     lineDocs.push(...lineSnap.docs);
   }
+  console.log("[blueprint] line_docs count:", lineDocs.length);
 
   const results = [];
   let processed = 0;

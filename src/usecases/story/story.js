@@ -30,6 +30,7 @@ const { createSignHelpers } = require("./story_signs");
 const { createTransitsService } = require("./story_transits");
 const { createNatalService } = require("./story_natal");
 const { createSkyService } = require("./story_sky");
+const { resolveDisplayNameFromUserDoc } = require("../../utils/resolve_display_name");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -427,11 +428,7 @@ function createStoryService({
       const u = await db.collection("users").doc(appUserId).get();
       if (u.exists) {
         const ud = u.data() || {};
-        displayName =
-          ud.display_name ??
-          ud?.profile?.display_name ??
-          ud?.channels?.line?.profile?.display_name ??
-          null;
+        displayName = resolveDisplayNameFromUserDoc(ud);
       }
     } catch (_) { }
 

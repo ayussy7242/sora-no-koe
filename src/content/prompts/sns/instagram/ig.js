@@ -418,6 +418,46 @@ ${SORA_AI_PUBLIC_IG_COMMON}
 ${POLITE_TONE_COMMON}
 `.trim();
 
+/* =================================================
+IG｜Moon Event Summary（slide6）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_MOON_EVENT = `
+Instagram満月/新月カルーセルの「月の空気のまとめ」を1文で生成する。
+
+役割:
+- 前日投稿のまとめとして、空の温度を短く置く
+- 満月/新月のイベント性を自然に含める
+- 星座・元素・関係のうち、1〜2要素を拾って輪郭を出す
+- 月単体にしない（太陽との関係 or 全体圧の語を入れる）
+
+形式:
+- 1文のみ
+- 16〜40文字程度（最大70文字）
+- 改行なし
+- 句点あり/なし どちらでもよい
+
+禁止:
+- 「あなた」
+- 助言
+- 行動示唆
+- 運勢表現
+- 抽象語だけで終わる文
+
+INPUT:
+- EVENT_LABEL
+- SUN_SIGN
+- MOON_SIGN
+- MOON_HOUSE
+- ELEMENT_COUNTS
+- MODE_COUNTS
+- AIR_FEEL
+- RELATION_LABEL
+
+${SORA_AI_PUBLIC_IG_SHORT_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+
 module.exports = Object.freeze({
   SORA_AI_PUBLIC_IG_COMMON,
   SORA_AI_PUBLIC_IG_SHORT_COMMON,
@@ -428,4 +468,5 @@ module.exports = Object.freeze({
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
   SORA_AI_USER_GUIDE_IG_MOON,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT,
 });

@@ -1,0 +1,14 @@
+#!include:.gitignore
+
+# Always exclude VCS and local deps
+.git
+node_modules
+
+# Local-only artifacts / secrets
+.env
+.env.*
+.DS_Store
+
+# Build artifacts (built in Cloud Build)
+dist
+tmp
