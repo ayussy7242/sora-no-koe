@@ -9,6 +9,8 @@ const {
 } = require("../../src/engine/renderers/ig/ig_carousel");
 const dict = require("../../src/content/dict");
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic, buildTsukijiThemeLine } = require("../../src/domain/tsukiji_public");
+const { findNextMoonSignChangeDetailed } = require("../../src/domain/moon_info");
+const { formatDateYmdHm } = require("../../src/domain/astro");
 const {
   buildMoonStatus,
   formatMoonEventDisplay,
@@ -16,7 +18,7 @@ const {
 const { selectNextMajorPhase } = require("../../src/domain/moon_phase");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
 const { renderIGCaption } = require("../../src/presenters/format/ig_caption");
-const { aspectInfo } = require("../../src/presenters/format/format/line_common");
+const { aspectInfo } = require("../../src/presenters/format/format/common");
 const { generateIgObservationText } = require("../../src/usecases/channels/ig/ig_observation_ai");
 const { generateIgResonanceText } = require("../../src/usecases/channels/ig/ig_resonance_ai");
 const { generateIgTsukijiStructureText } = require("../../src/usecases/channels/ig/ig_tsukiji_structure_ai");
@@ -503,6 +505,42 @@ async function maybeLocalAI({ story, useAi }) {
   return story;
 }
 
+function buildNextMoonMoveLabel({ story, dateLocal }) {
+  if (!dateLocal) return "";
+  const asOfISO = `${dateLocal}T12:00:00+09:00`;
+  const next = findNextMoonSignChangeDetailed({ dict, asOfISO });
+  if (!next?.date || !next?.to?.label) return "";
+  const when = formatDateYmdHm(next.date);
+  return `${when} に ${next.to.label} へ`;
+}
+
+function printTextOnly({ story, dateLocal }) {
+  const igOut = story?.outputs?.ig || {};
+  const parts = igOut?.parts || {};
+  const carousel = igOut?.carousel || {};
+  const renderedCarousel = igOut?.rendered?.carousel || {};
+  const nextMoonMove = buildNextMoonMoveLabel({ story, dateLocal });
+  const slideBundle = buildSlides({ story, dateLocal, withCta: false });
+  const resonanceSlide = slideBundle?.slides?.find((s) => s.kind === "resonance")?.data || null;
+
+  const out = {
+    date_local: dateLocal,
+    observation: igOut.observation_text || parts.observation || carousel.slide1_observation || renderedCarousel.slide1_observation || "",
+    moon: igOut.moon_text || parts.moon || carousel.slide2_text || renderedCarousel.slide2_text || "",
+    resonance: igOut.resonance_text || parts.resonance || carousel.slide3_text || renderedCarousel.slide3_text || resonanceSlide?.structure || "",
+    resonance_line_a: resonanceSlide?.lineA || "",
+    resonance_line_b: resonanceSlide?.lineB || "",
+    resonance_aspect: resonanceSlide?.aspectLine || "",
+    tsukiji_structure: igOut.tsukiji_structure_text || parts.structure_label || carousel.slide4_structure || renderedCarousel.slide4_structure || "",
+    caption: igOut.caption || "",
+    caption_center: parts.caption_center || "",
+    caption_observation: parts.caption_observation || "",
+    next_moon_move: nextMoonMove,
+  };
+
+  console.log(JSON.stringify(out, null, 2));
+}
+
 async function renderAndSave({ story, dateLocal, outDir, withCta, backgroundCache }) {
   const slides = await renderInstagramCarousel({ ...buildSlides({ story, dateLocal, withCta }), backgroundCache });
   const dir = path.join(outDir, dateLocal);
@@ -525,6 +563,7 @@ async function main() {
   const overwrite = ["1", "true", "yes", "on"].includes(String(args.overwrite || "false"));
   const forceAi = ["1", "true", "yes", "on"].includes(String(args.force_ai || "false"));
   const printJson = ["1", "true", "yes", "on"].includes(String(args.print_json || "false"));
+  const textOnly = ["1", "true", "yes", "on"].includes(String(args.text_only || args.textOnly || "false"));
   const bgCache = ["1", "true", "yes", "on"].includes(String(args.bg_cache || args.bgCache || "false"));
   const bgRefresh = ["1", "true", "yes", "on"].includes(String(args.bg_refresh || args.bgRefresh || "false"));
   const bgCacheDir = args.bg_cache_dir || args.bgCacheDir || "tmp/ig/bg_cache";
@@ -576,6 +615,12 @@ async function main() {
     if (printJson) {
       if (dates.length > 1) console.log(`\n# ${dateLocal}`);
       console.log(JSON.stringify(toSave, null, 2));
+    }
+
+    if (textOnly) {
+      if (dates.length > 1) console.log(`\n# ${dateLocal}`);
+      printTextOnly({ story, dateLocal });
+      continue;
     }
 
     const backgroundCache = bgCache ? { dir: bgCacheDir, force: bgRefresh } : null;

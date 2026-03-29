@@ -7,7 +7,8 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
 } = require("../../../../content/prompts/sora/sora_ai_prompts");
-const { buildTodayMoonInfo } = require("../../../../domain/moon_info");
+const { buildTodayMoonInfo, findNextMoonSignChangeDetailed } = require("../../../../domain/moon_info");
+const { formatDateYmdHm } = require("../../../../domain/astro");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text/tokens");
 
@@ -178,25 +179,63 @@ function formatAspectLine({ label, deg }) {
   return [safeText(label), degText].filter(Boolean).join(" ");
 }
 
-function buildTodayDataLines({ moonSign, phaseLabel, moonAge, illumination }) {
-  return [
+function buildResonanceAspectLine({ aspectInput } = {}) {
+  const a = aspectInput || {};
+  const aspectLine = formatAspectLine({ label: a.aspectLabel, deg: a.aspectDeg });
+  const orbText = Number.isFinite(Number(a.orb)) ? `${Number(a.orb).toFixed(2)}°` : "";
+  if (!aspectLine) return "";
+  return `${aspectLine}${orbText ? ` / orb ${orbText}` : ""}`;
+}
+
+function buildTodayDataLines({ moonSign, phaseLabel, moonAge, illumination, nextMove } = {}) {
+  const lines = [
     `月相: ${safeText(phaseLabel) || "—"}`,
     `月の星座: ${safeText(moonSign) || "—"}`,
     `月齢: ${formatMoonAge(moonAge)}`,
     `照度: ${formatIllumination(illumination)}`,
   ];
+  if (nextMove?.date && nextMove?.to?.label) {
+    const when = formatDateYmdHm(nextMove.date);
+    lines.push(`次の月移動: ${when} に ${nextMove.to.label} へ`);
+  }
+  return lines;
 }
 
 function buildResonanceDataLines({ aspectInput } = {}) {
+  const aspectLine = buildResonanceAspectLine({ aspectInput });
+  return aspectLine ? [aspectLine] : [];
+}
+
+function buildResonanceSignature({ aspectInput } = {}) {
   const a = aspectInput || {};
-  return [
-    `天体A: ${safeText(a.aLabel) || "—"}`,
-    `天体B: ${safeText(a.bLabel) || "—"}`,
-    `星座: ${safeText(a.aSign) || "—"} × ${safeText(a.bSign) || "—"}`,
-    `アスペクト: ${formatAspectLine({ label: a.aspectLabel, deg: a.aspectDeg })}`,
-    `角度: ${Number.isFinite(Number(a.aspectDeg)) ? `${Math.round(Number(a.aspectDeg))}°` : "—"}`,
-    `orb: ${Number.isFinite(Number(a.orb)) ? `${Number(a.orb).toFixed(2)}°` : "—"}`,
-  ];
+  if (!a?.aLabel || !a?.bLabel || !a?.aSign || !a?.bSign) return "";
+  return `${safeText(a.aSign)}の${safeText(a.aLabel)} × ${safeText(a.bSign)}の${safeText(a.bLabel)}`;
+}
+
+function injectResonanceSignature(text, { aspectInput } = {}) {
+  const signature = buildResonanceSignature({ aspectInput });
+  const aspectLine = buildResonanceAspectLine({ aspectInput });
+  const t = normalizeText(text);
+  if (!signature && !aspectLine) return t;
+
+  const a = aspectInput || {};
+  const plain = a?.aLabel && a?.bLabel ? `${safeText(a.aLabel)} × ${safeText(a.bLabel)}` : "";
+  const plainNoSpace = a?.aLabel && a?.bLabel ? `${safeText(a.aLabel)}×${safeText(a.bLabel)}` : "";
+  let body = t;
+  if (signature) {
+    body = body.replace(plain, signature).replace(plainNoSpace, signature);
+  }
+
+  const leadLines = ["✨ 今日の共鳴", signature, aspectLine].filter(Boolean);
+  if (!leadLines.length) return body;
+
+  const isResonanceHeading = (line) => line.replace(/[✨\s]/g, "") === "今日の共鳴";
+  const bodyLines = body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !leadLines.includes(line) && !isResonanceHeading(line));
+
+  return [leadLines.join("\n"), bodyLines.join("\n")].filter(Boolean).join("\n\n");
 }
 
 function buildTomorrowDataLines({ nextStory, nextAspectInput, dict } = {}) {
@@ -293,7 +332,7 @@ function fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput } = {}
   const a = nextAspectInput?.aLabel || "";
   const b = nextAspectInput?.bLabel || "";
   const aspect = a && b ? `${a}×${b}` : "ひとつの接続";
-  return `明日は${sign}の月、${phase}の空。\n${aspect}が見えやすい配置です。\n朝8:10 更新します。`;
+  return `明日は${sign}の月、${phase}の空。\n${aspect}が見えやすい配置です。\nこの流れは、明日にもそのまま続いていきます。\nどんな空になりそうですか？`;
 }
 
 async function generateIgStoryTexts({
@@ -357,11 +396,13 @@ async function generateIgStoryTexts({
     maxTokens: 180,
   });
 
+  const nextMoonMove = findNextMoonSignChangeDetailed({ dict: useDict, asOfISO });
   const todayFixedLines = buildTodayDataLines({
     moonSign,
     phaseLabel,
     moonAge: info?.moonAge,
     illumination: info?.illumination,
+    nextMove: nextMoonMove,
   });
   const resonanceFixedLines = buildResonanceDataLines({ aspectInput: resonanceInput });
   const tomorrowFixedLines = buildTomorrowDataLines({
@@ -375,7 +416,10 @@ async function generateIgStoryTexts({
     todayFixedLines
   );
   const resonanceBody = appendFixedLines(
-    resonanceText.ok ? resonanceText.text : fallbackResonance({ aspectInput: resonanceInput }),
+    injectResonanceSignature(
+      resonanceText.ok ? resonanceText.text : fallbackResonance({ aspectInput: resonanceInput }),
+      { aspectInput: resonanceInput }
+    ),
     resonanceFixedLines
   );
   const tomorrowBody = appendFixedLines(
