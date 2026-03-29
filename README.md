@@ -107,6 +107,11 @@ src/
 - `presenters/ig.js` / `presenters/x.js` / `presenters/threads.js` は互換ラッパとして残している
 - `engine/renderers/ig/story/render_backgrounds.js` は IG story 背景描画のSSOT
 
+## 2.5 ドキュメント
+
+- `docs/testing.md`：テストチェックリスト（旧 `TEST.md`）
+- `docs/ops_check_log.md`：本番前の簡易確認ログテンプレ
+
 ---
 
 ## 3. Production URL（Cloud Run）
