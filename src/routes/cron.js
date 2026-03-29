@@ -154,10 +154,11 @@ function createCronRouter(deps = {}) {
       const { q, b } = getRequestParts(req);
       const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
       const dryRun = pickDryRun({ q, b });
+      const textOnly = pickBoolFlag({ q, b, keys: ["text_only", "textOnly", "textonly"], defaultValue: false });
 
       const result = await runDailyIgStoryDelivery(
         { env, storyService, storage, dict, db },
-        { dateLocal, dryRun }
+        { dateLocal, dryRun, textOnly }
       );
 
       return res.json(result);

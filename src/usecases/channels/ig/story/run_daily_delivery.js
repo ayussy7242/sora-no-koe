@@ -1,6 +1,8 @@
 "use strict";
 
 const path = require("path");
+const { Storage } = require("@google-cloud/storage");
+const { GoogleAuth, Impersonated } = require("google-auth-library");
 const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time_utils");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/ig/story/render_backgrounds");
@@ -57,6 +59,27 @@ async function uploadStoryImages({
   return { ok: true, urls, paths, bucket: bucketName };
 }
 
+async function createImpersonatedStorage({ targetPrincipal, projectId }) {
+  if (!targetPrincipal) throw new Error("targetPrincipal missing");
+
+  const scopes = ["https://www.googleapis.com/auth/cloud-platform"];
+  const baseAuth = new GoogleAuth({ scopes, projectId });
+  const sourceClient = await baseAuth.getClient();
+  const impersonatedClient = new Impersonated({
+    sourceClient,
+    targetPrincipal,
+    targetScopes: scopes,
+  });
+
+  const authClient = new GoogleAuth({
+    authClient: impersonatedClient,
+    scopes,
+    projectId,
+  });
+
+  return new Storage({ authClient, projectId });
+}
+
 async function runDailyIgStoryDelivery(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = { ...(env || {}), ...(process.env || {}) };
@@ -66,8 +89,26 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
   const dict = deps?.dict || require("../../../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
-  if (!storage) throw new Error("storage missing");
   if (!db) throw new Error("db missing");
+
+  const textOnly = opts.textOnly === true || opts.text_only === true;
+  const impersonate =
+    env2.GOOGLE_IMPERSONATE_SERVICE_ACCOUNT || process.env.GOOGLE_IMPERSONATE_SERVICE_ACCOUNT || null;
+  const projectId =
+    env2.GOOGLE_CLOUD_PROJECT ||
+    env2.GCLOUD_PROJECT ||
+    env2.GCP_PROJECT_ID ||
+    env2.PROJECT ||
+    process.env.GOOGLE_CLOUD_PROJECT ||
+    process.env.GCLOUD_PROJECT ||
+    process.env.GCP_PROJECT_ID ||
+    null;
+
+  const storageClient = impersonate
+    ? await createImpersonatedStorage({ targetPrincipal: impersonate, projectId })
+    : storage;
+
+  if (!textOnly && !storageClient) throw new Error("storage missing");
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
@@ -118,19 +159,21 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     line_url: lineUrl,
   };
 
-  const buffers = await renderStoryBackgroundSet({
-    story,
-    dateLabel: String(dateLocal).replace(/-/g, "."),
-  });
-
   const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
-  const upload = await uploadStoryImages({
-    storage,
-    bucketName,
-    dateLocal,
-    buffers,
-    expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS || 3,
-  });
+  let upload = { ok: true, urls: {}, paths: {}, bucket: bucketName };
+  if (!textOnly) {
+    const buffers = await renderStoryBackgroundSet({
+      story,
+      dateLabel: String(dateLocal).replace(/-/g, "."),
+    });
+    upload = await uploadStoryImages({
+      storage: storageClient,
+      bucketName,
+      dateLocal,
+      buffers,
+      expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS || 3,
+    });
+  }
 
   const payload = formatIgStoryLinePayload({
     dateLocal,
@@ -140,29 +183,33 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     lineUrl,
   });
 
-  const toLineUserId = env2.IG_STORY_DELIVERY_LINE_USER_ID || env2.OWNER_LINE_USER_ID;
-  if (!toLineUserId) {
-    return {
-      ok: false,
-      error: "IG_STORY_DELIVERY_LINE_USER_ID missing",
-      date_local: dateLocal,
-      story_texts: storyTextsResult.story_texts,
-      images: upload.urls,
-      dry_run: dryRun,
-    };
+  let sendResult = { ok: true, sent: 0, dry_run: true, skipped: true };
+  let toLineUserId = null;
+  if (!textOnly) {
+    toLineUserId = env2.IG_STORY_DELIVERY_LINE_USER_ID || env2.OWNER_LINE_USER_ID;
+    if (!toLineUserId) {
+      return {
+        ok: false,
+        error: "IG_STORY_DELIVERY_LINE_USER_ID missing",
+        date_local: dateLocal,
+        story_texts: storyTextsResult.story_texts,
+        images: upload.urls,
+        dry_run: dryRun,
+      };
+    }
+    sendResult = await sendIgStoryToLine({
+      env: env2,
+      lineUserId: toLineUserId,
+      payload,
+      dryRun,
+    });
   }
-
-  const sendResult = await sendIgStoryToLine({
-    env: env2,
-    lineUserId: toLineUserId,
-    payload,
-    dryRun,
-  });
 
   return {
     ok: true,
     date_local: dateLocal,
     dry_run: dryRun,
+    text_only: textOnly,
     story_texts: storyTextsResult.story_texts,
     blog_url: blogUrl,
     line_url: lineUrl,
@@ -172,6 +219,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
       to: toLineUserId,
       sent: sendResult.sent,
       dry_run: sendResult.dry_run,
+      skipped: sendResult.skipped,
     },
   };
 }
