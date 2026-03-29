@@ -53,15 +53,15 @@ function buildTransitSigns({ story, dict }) {
 }
 
 
-function tomorrowMidnightJstIso(asOfISO) {
+function tomorrowNoonJstIso(asOfISO) {
   const base = new Date(asOfISO || Date.now());
   if (Number.isNaN(base.getTime())) return null;
   const dateLocal = toDateLocalJST(base);
   if (!dateLocal) return null;
   const baseMidnight = new Date(`${dateLocal}T00:00:00+09:00`);
   if (Number.isNaN(baseMidnight.getTime())) return null;
-  const tomorrow = new Date(baseMidnight.getTime() + 24 * 3600000);
-  return tomorrow.toISOString();
+  const tomorrowNoon = new Date(baseMidnight.getTime() + 36 * 3600000);
+  return tomorrowNoon.toISOString();
 }
 
 function buildPhaseLabel({ kind, signLabel }) {
@@ -100,7 +100,7 @@ function buildNextMoonPhaseHint({ dict, asOfISO, maxHours = 24, imminentHours = 
 
 function buildNextTransitHints(story, dict) {
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const change = buildMoonSignChangeState({ dict, asOfISO });
+  const change = buildMoonSignChangeState({ dict, asOfISO, maxHours: 96 });
   const current = change?.sign || null;
   const next = change?.next || null;
   const phase = buildNextMoonPhaseHint({ dict, asOfISO });
@@ -136,11 +136,11 @@ function buildXNightPrompt({ story, dict }) {
   const moon = transitSigns.moon || "";
   const nextHints = buildNextTransitHints(story, dict);
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const change = buildMoonSignChangeState({ dict, asOfISO });
+  const change = buildMoonSignChangeState({ dict, asOfISO, maxHours: 96 });
   const lastChange = change?.prev || null;
   const nextChange = change?.next || null;
-  const tomorrowIso = tomorrowMidnightJstIso(asOfISO);
-  const tomorrowSign = tomorrowIso ? moonSignAtIso({ dict, iso: tomorrowIso }) : null;
+  const tomorrowNoonIso = tomorrowNoonJstIso(asOfISO);
+  const tomorrowSign = tomorrowNoonIso ? moonSignAtIso({ dict, iso: tomorrowNoonIso }) : null;
 
   const lastChangeText = lastChange?.date
     ? `${formatDateYmdHm(lastChange.date)}（${lastChange.to?.label || ""}入り）`
@@ -149,6 +149,10 @@ function buildXNightPrompt({ story, dict }) {
     ? `${formatDateYmdHm(nextChange.date)}（${nextChange.to?.label || ""}へ）`
     : "";
   const tomorrowText = tomorrowSign?.label || "";
+  const nextChangeHours = Number.isFinite(Number(nextChange?.hoursAhead))
+    ? Number(nextChange.hoursAhead).toFixed(1)
+    : "";
+  const nextChangeIso = nextChange?.date instanceof Date ? nextChange.date.toISOString() : "";
   const moonChangeHint = change?.changeType === "just_ingressed"
     ? `${change?.sign?.label || ""}に入ったばかり`
     : (change?.changeType === "imminent" && change?.next?.to?.label)
@@ -169,7 +173,10 @@ function buildXNightPrompt({ story, dict }) {
     `NEXT_TRANSIT_HINTS: ${safeText(nextHints)}`,
     `LAST_MOON_SIGN_CHANGE: ${safeText(lastChangeText)}`,
     `NEXT_MOON_SIGN_CHANGE: ${safeText(nextChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE_ISO: ${safeText(nextChangeIso)}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeText(nextChangeHours)}`,
     `TOMORROW_MOON_SIGN: ${safeText(tomorrowText)}`,
+    `TOMORROW_MOON_SIGN_BASIS: JST 12:00`,
     `MOON_CHANGE_HINT: ${safeText(moonChangeHint)}`,
     `MOON_SIGN_DEG: ${safeText(moonDegInSign)}`,
     `MOON_SIGN_PHASE: ${safeText(moonPhaseStage)}`,
