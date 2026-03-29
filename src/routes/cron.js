@@ -74,6 +74,18 @@ function createCronRouter(deps = {}) {
     return { ok: true };
   }
 
+  function logCronError(path, err, req) {
+    const message = err?.message || String(err);
+    const meta = {
+      path,
+      method: req?.method,
+      url: req?.originalUrl,
+      query: req?.query,
+    };
+    console.error(`[cron] error ${path}`, { message, ...meta });
+    if (err?.stack) console.error(err.stack);
+  }
+
   router.get("/health", (_req, res) => {
     return res.json({
       ok: true,
@@ -105,6 +117,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/daily8", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/daily8" });
     }
   });
@@ -122,6 +135,7 @@ function createCronRouter(deps = {}) {
       const result = await rebuildDaily8({ db, admin, env, storyService, renderers, storage }, { dateLocal, mode, target });
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/rebuild8", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e) });
     }
   });
@@ -141,6 +155,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/send8", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/send8" });
     }
   });
@@ -163,6 +178,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/ig/story/daily", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/story/daily" });
     }
   });
@@ -194,6 +210,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/x/morning", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/morning" });
     }
   });
@@ -219,6 +236,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/x/night", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/night" });
     }
   });
@@ -248,6 +266,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/x/moon_event", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/moon_event" });
     }
   });
@@ -271,6 +290,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/x/next_30_days", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/x/next_30_days" });
     }
   });
@@ -296,6 +316,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/ig/post", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/post" });
     }
   });
@@ -329,6 +350,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
+      logCronError("/cron/ig/moon_event", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/ig/moon_event" });
     }
   });
@@ -353,8 +375,7 @@ function createCronRouter(deps = {}) {
 
       return res.json(result);
     } catch (e) {
-      console.error("[cron/blog/daily] error:", e?.message || String(e));
-      if (e?.stack) console.error(e.stack);
+      logCronError("/cron/blog/daily", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/blog/daily" });
     }
   });
@@ -373,6 +394,7 @@ function createCronRouter(deps = {}) {
       if (!swisseph) return bad(res, 500, "deps.swisseph missing");
       return await handleJobsWorker(req, res, { db, admin, env, ok, bad, swisseph });
     } catch (e) {
+      logCronError("/cron/worker", e, req);
       return res.status(500).json({ ok: false, error: e?.message || String(e), path: "/cron/worker" });
     }
   });
