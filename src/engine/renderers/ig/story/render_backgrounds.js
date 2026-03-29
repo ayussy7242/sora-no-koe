@@ -33,19 +33,59 @@ function baseSvg({ inner, space }) {
   ].join("");
 }
 
+function normalizeTitleInput(title) {
+  if (title && typeof title === "object") {
+    const ja = title.ja || title.jp || title.title || "";
+    const en = title.en || title.enTitle || "";
+    return { ja, en };
+  }
+  const raw = String(title || "").trim();
+  if (!raw) return { ja: "", en: "" };
+  if (raw.includes("\n")) {
+    const [ja, en] = raw.split("\n");
+    return { ja: (ja || "").trim(), en: (en || "").trim() };
+  }
+  if (raw.includes(" / ")) {
+    const [ja, en] = raw.split(" / ");
+    return { ja: (ja || "").trim(), en: (en || "").trim() };
+  }
+  return { ja: raw, en: "" };
+}
+
 function buildTitleLayer({ title, colors }) {
   const resolved = colors || resolveColors();
+  const { ja, en } = normalizeTitleInput(title);
   const x = CANVAS.width / 2;
-  const y = 220;
-  const size = 52;
-  const tracking = 0.12;
-  const opacity = Number.isFinite(resolved?.textTheme?.subtitle?.opacity) ? resolved.textTheme.subtitle.opacity : 0.82;
+  const hasEn = Boolean(en);
+  const jaSize = hasEn ? 56 : 52;
+  const enSize = 26;
+  const jaTracking = 0.12;
+  const enTracking = 0.16;
+  const jaOpacity = Number.isFinite(resolved?.textTheme?.subtitle?.opacity) ? resolved.textTheme.subtitle.opacity : 0.82;
+  const enOpacity = Math.min(jaOpacity, 0.7);
+  const yJa = hasEn ? 210 : 220;
+  const yEn = yJa + 42;
+
+  if (!hasEn) {
+    return `
+      <text x="${x}" y="${yJa}" text-anchor="middle"
+        fill="${resolved.textSub}" opacity="${jaOpacity}"
+        font-size="${jaSize}" font-family="SoraTitle" letter-spacing="${jaTracking}em">
+        ${escapeXml(ja)}
+      </text>
+    `.trim();
+  }
 
   return `
-    <text x="${x}" y="${y}" text-anchor="middle"
-      fill="${resolved.textSub}" opacity="${opacity}"
-      font-size="${size}" font-family="SoraTitle" letter-spacing="${tracking}em">
-      ${escapeXml(title)}
+    <text x="${x}" y="${yJa}" text-anchor="middle"
+      fill="${resolved.textSub}" opacity="${jaOpacity}"
+      font-size="${jaSize}" font-family="SoraTitle" letter-spacing="${jaTracking}em">
+      ${escapeXml(ja)}
+    </text>
+    <text x="${x}" y="${yEn}" text-anchor="middle"
+      fill="${resolved.textSub}" opacity="${enOpacity}"
+      font-size="${enSize}" font-family="SoraBody" letter-spacing="${enTracking}em">
+      ${escapeXml(en)}
     </text>
   `.trim();
 }
@@ -78,7 +118,11 @@ async function renderStoryBackground({ title, space }) {
 async function renderStoryBackgroundSet({
   story,
   dateLabel,
-  titles = ["今日の空", "今日の共鳴", "明日の空"],
+  titles = [
+    { ja: "今日の空", en: "Today's Sky" },
+    { ja: "今日の共鳴", en: "Today's Resonance" },
+    { ja: "明日の空", en: "Tomorrow's Sky" },
+  ],
   variants = ["story_today", "story_resonance", "story_tomorrow"],
 } = {}) {
   const width = CANVAS.width;
