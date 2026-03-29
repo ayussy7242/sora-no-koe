@@ -420,7 +420,8 @@ function renderXMorningLog(story, deps = {}) {
     skipGlyphFor: ["lilith", "chiron"],
   });
 
-  const baseLines = ["🌌 星の配置", "", joinLines(logLines)];
+  const tags = "#星の配置 #天体観測 #占星術";
+  const baseLines = ["🌌 星の配置", "", joinLines(logLines), "", tags];
   return joinLines(baseLines);
 }
 

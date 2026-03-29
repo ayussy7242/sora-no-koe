@@ -1,41 +1,12 @@
 "use strict";
 
 const { signJa } = require("../../../presenters/format/format/common");
-
-function countChars(text) {
-  return Array.from(String(text || "")).length;
-}
+const { countChars, splitTrailingHashtags, joinBodyAndTags } = require("../../../utils/hashtag_utils");
 
 function hasForbidden(text) {
   const t = String(text || "");
   const forbidden = /(すべき|した方がいい|するといい|してください|必ず|確実|運命|使命|アドバイス|促されるでしょう)/;
   return forbidden.test(t);
-}
-
-function splitTrailingHashtags(text) {
-  const trimmed = String(text || "").trim();
-  if (!trimmed) return { body: "", tags: [] };
-  const parts = trimmed.split(/\s+/);
-  const tags = [];
-  while (parts.length) {
-    const last = parts[parts.length - 1];
-    if (/^#[^\s#]+$/.test(last)) {
-      tags.unshift(last);
-      parts.pop();
-      continue;
-    }
-    break;
-  }
-  return { body: parts.join(" ").trim(), tags };
-}
-
-function joinBodyAndTags(body, tags) {
-  const cleanBody = String(body || "").trim();
-  const cleanTags = Array.isArray(tags) ? tags.filter(Boolean) : [];
-  if (!cleanBody && !cleanTags.length) return "";
-  if (!cleanBody) return cleanTags.join(" ").trim();
-  if (!cleanTags.length) return cleanBody;
-  return `${cleanBody} ${cleanTags.join(" ")}`.trim();
 }
 
 function findSplitIndex(chars, maxChars, marks, maxOverflow = 2, minSplitChars = 6) {

@@ -1,6 +1,7 @@
 "use strict";
 
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { countChars, trimTrailingHashtagsToMaxChars } = require("../../utils/hashtag_utils");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
 const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
@@ -39,11 +40,15 @@ function addDaysToDateLocalJST(dateLocal, offsetDays) {
 }
 
 function truncateForX(text, maxChars) {
-  const chars = Array.from(String(text || ""));
+  const raw = String(text || "");
   if (!Number.isFinite(Number(maxChars)) || maxChars <= 0) {
-    return { text: String(text || ""), truncated: false };
+    return { text: raw, truncated: false };
   }
-  if (chars.length <= maxChars) return { text: chars.join(""), truncated: false };
+  const withTrimmedTags = trimTrailingHashtagsToMaxChars(raw, maxChars);
+  if (countChars(withTrimmedTags) <= maxChars) {
+    return { text: withTrimmedTags, truncated: withTrimmedTags !== raw };
+  }
+  const chars = Array.from(withTrimmedTags);
   const trimmed = chars.slice(0, Math.max(0, maxChars - 3)).join("") + "...";
   return { text: trimmed, truncated: true };
 }
