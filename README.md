@@ -20,8 +20,8 @@ Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Fra
 稼働中
 - LINE Webhook（raw body 署名検証）
 - 登録フロー（生年月日 → 出生時刻 → 出生地 → 同意 → ready）
-- Firestore 保存（multi DB 対応）
-- story.json 中心設計（唯一の真実）
+ - Firestore 保存（multi DB 対応）
+ - story は「生成時刻の空」がSSOT（リアルタイム）
 - BLOG 日次下書き生成（WordPress）
 - IG / X / Threads / LINE 向け出力
 - Blueprint（PDF）生成とGCS保存
@@ -38,6 +38,22 @@ Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Fra
 - `src/routes`：HTTP 入口（薄いルーティング層）
 
 `engine/renderers` で描画責務を統一。
+
+---
+
+## 1.5 SSOT（実運用）
+
+**SSOT は「各実行時刻の `storyService.buildStoryForUser()` の結果」**。
+
+原則:
+- LINE / X / IG / BLOG は **実行時刻の空**から story を生成する
+- `stories` は **snapshot / cache / delivery record**（保存する場合のみ）
+- snapshot 保存失敗は **warning 扱い**（本体フローは止めない）
+- 朝投稿と夜投稿は **異なる truth** を取り得る
+
+保存する場合の例:
+- `stories/public-YYYY-MM-DDT07-30`
+- `stories/public-YYYY-MM-DDT21-40`
 
 ---
 
@@ -310,4 +326,3 @@ README は入口として残し、詳細な設計メモは `docs/` にまとめ�
 - `docs/blueprint.md`
 - `docs/channels.md`
 - `docs/operations.md`
-

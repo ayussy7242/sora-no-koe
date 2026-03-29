@@ -14,6 +14,7 @@
 const { LINE_COPY } = require("../../content/copy");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const { ymdInTimeZone } = require("../../utils/time_utils");
+const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -67,7 +68,14 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   async function buildStory({ appUserId, mode, renderer }) {
-    const { story } = await buildStoryBase({ appUserId, mode });
+    let story = null;
+    if (mode === "public" && appUserId === "public") {
+      const { dateLocal, asOfISO } = computeDateLocalAndAsOfISO();
+      story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+    } else {
+      const built = await buildStoryBase({ appUserId, mode });
+      story = built.story;
+    }
     const text = await renderStoryText(story, renderer);
     return { story, text };
   }

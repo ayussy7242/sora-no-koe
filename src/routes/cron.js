@@ -187,7 +187,7 @@ function createCronRouter(deps = {}) {
       });
 
       const result = await runXMorningPost(
-        { env, storyService, renderers, dict },
+        { env, storyService, renderers, dict, db },
         { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, resonanceOrbMax }
       );
 
@@ -212,7 +212,7 @@ function createCronRouter(deps = {}) {
       const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
 
       const result = await runXNightPost(
-        { env, storyService, renderers, dict },
+        { env, storyService, renderers, dict, db },
         { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg }
       );
 
@@ -241,7 +241,7 @@ function createCronRouter(deps = {}) {
       });
 
       const result = await runXMoonEventPost(
-        { env, storyService, renderers, dict },
+        { env, storyService, renderers, dict, db },
         { dateLocal, asOfISO, dryRun, useAi, dateOffsetDays }
       );
 
@@ -264,7 +264,7 @@ function createCronRouter(deps = {}) {
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
 
       const result = await runXNext30DaysPost(
-        { env, storyService, renderers, dict },
+        { env, storyService, renderers, dict, db },
         { dateLocal, asOfISO, dryRun, useAi }
       );
 
@@ -322,7 +322,7 @@ function createCronRouter(deps = {}) {
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
       const result = await runIgMoonEventPost(
-        { env, storyService, storage, dict },
+        { env, storyService, storage, dict, db },
         { dateLocal, asOfISO, dryRun, withCta, dateOffsetDays, useAi, forceAi, local, localOutDir }
       );
 

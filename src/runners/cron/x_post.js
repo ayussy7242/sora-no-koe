@@ -1,7 +1,6 @@
 "use strict";
 
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
-const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/generate_x_sora_ai");
 const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_night_ai");
@@ -10,6 +9,7 @@ const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/ch
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
+const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 
 function toBool(v, fallback = false) {
   if (v === true) return true;
@@ -146,23 +146,11 @@ async function runXMorningPost(deps, opts = {}) {
     ? String(opts.dateLocal)
     : toDateLocalJST(new Date(asOfISO));
 
-  const orbMaxDeg = Number.isFinite(Number(opts.orbMaxDeg)) ? Number(opts.orbMaxDeg) : 6;
-  const precisionDeg = Number.isFinite(Number(opts.precisionDeg)) ? Number(opts.precisionDeg) : 0.01;
-
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
-  const story = await storyService.buildStoryForUser(
-    normalizeStoryArgs({
-      appUserId: "public",
-      mode: "public",
-      dateLocal,
-      asOfISO,
-      orbMaxDeg,
-      precisionDeg,
-    })
-  );
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const openai = {
     apiKey: env2.OPENAI_API_KEY,
@@ -301,23 +289,11 @@ async function runXNightPost(deps, opts = {}) {
     ? String(opts.dateLocal)
     : toDateLocalJST(new Date(asOfISO));
 
-  const orbMaxDeg = Number.isFinite(Number(opts.orbMaxDeg)) ? Number(opts.orbMaxDeg) : 6;
-  const precisionDeg = Number.isFinite(Number(opts.precisionDeg)) ? Number(opts.precisionDeg) : 0.01;
-
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
-  const story = await storyService.buildStoryForUser(
-    normalizeStoryArgs({
-      appUserId: "public",
-      mode: "public",
-      dateLocal,
-      asOfISO,
-      orbMaxDeg,
-      precisionDeg,
-    })
-  );
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const openai = {
     apiKey: env2.OPENAI_API_KEY,
@@ -441,14 +417,7 @@ async function runXMoonEventPost(deps, opts = {}) {
 
   const dateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
 
-  const story = await storyService.buildStoryForUser(
-    normalizeStoryArgs({
-      appUserId: "public",
-      mode: "public",
-      dateLocal,
-      asOfISO,
-    })
-  );
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const event = detectMoonEvent({ story, dict, asOfISO });
   if (!event) {
@@ -553,14 +522,7 @@ async function runXNext30DaysPost(deps, opts = {}) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
-  const story = await storyService.buildStoryForUser(
-    normalizeStoryArgs({
-      appUserId: "public",
-      mode: "public",
-      dateLocal,
-      asOfISO,
-    })
-  );
+  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   if (useAi) {
     const res = await generateXNext30DaysAiText({
