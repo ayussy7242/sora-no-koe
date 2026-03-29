@@ -9,6 +9,7 @@ function createSkyService({
   toFixedPrecision,
 }) {
   const { normalizeBodyKey, canonicalizeTouchPoint } = require("../../domain/canonical");
+  const { norm360 } = require("../../domain/astro/angles");
   function attachSignsToSkyList(list, transitSigns) {
     const ts = transitSigns || {};
     const arr = Array.isArray(list) ? list : [];
@@ -177,7 +178,6 @@ function createSkyService({
       const s = String(k || "").toLowerCase();
       return s === "chiron" || s === "lilith";
     };
-    const norm360 = (x) => ((Number(x) % 360) + 360) % 360;
     const signIndexFromLon = (lon) => Math.floor(norm360(lon) / 30);
     const ascLon = natalBodies?.asc;
     const ascIndex = Number.isFinite(Number(ascLon)) ? signIndexFromLon(ascLon) : null;

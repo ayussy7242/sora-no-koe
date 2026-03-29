@@ -11,10 +11,10 @@ const { norm360 } = require("/Applications/MAMP/htdocs/sora-no-koe/src/domain/as
 const {
   buildBlueprintLightRows,
   buildAiInput,
-} = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/blueprint_light/index");
-const { generateBlueprintLightTextV2 } = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/blueprint_light/generate_text");
+} = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/pdf/blueprint/index");
+const { generateBlueprintLightTextV2 } = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/pdf/blueprint/generate_text");
 const { renderPdfBuffer } = require("/Applications/MAMP/htdocs/sora-no-koe/src/engine/pdf/blueprint_light/render");
-const { getBlueprintLightManifest } = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/blueprint_light/manifest");
+const { getBlueprintLightManifest } = require("/Applications/MAMP/htdocs/sora-no-koe/src/usecases/pdf/blueprint/manifest");
 const { buildBlueprintV25WireframeHtml } = require("/Applications/MAMP/htdocs/sora-no-koe/src/engine/pdf/blueprint_v25/wireframe");
 const {
   buildBlueprintV25BgImages,

@@ -24,6 +24,8 @@ const crypto = require("crypto");
 const { createRenderers } = require("../../presenters/shared/text");
 const dict = require("../../content/dict");
 const { enqueueBlueprintGenerate } = require("../../integrations/cloudtasks/tasks_queue");
+const { setLineUserState } = require("../../integrations/line/state");
+const { norm360 } = require("../../domain/astro/angles");
 const { renderNatalListFromcache } = createRenderers({ dict });
 
 // --------------------
@@ -40,29 +42,11 @@ function randomId(len = 8) {
   return s;
 }
 
-async function setLineUserState({ db, admin, lineUserId, state, eventType = "state_update" }) {
-  if (!db || !admin || !lineUserId || !state) return;
-  await db.collection("line_users").doc(lineUserId).set(
-    {
-      state,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      meta: { last_event_type: eventType, last_seen_at: admin.firestore.FieldValue.serverTimestamp() },
-    },
-    { merge: true }
-  );
-}
-
 async function getFetch() {
   if (typeof fetch === "function") return fetch;
   // Node18未満などの保険（入ってなければエラーになるが、その場合は push だけスキップされる）
   const mod = await import("node-fetch");
   return mod.default;
-}
-
-function norm360(deg) {
-  let x = deg % 360;
-  if (x < 0) x += 360;
-  return x;
 }
 
 function toFixedPrecision(n, precisionDeg = 0.01) {

@@ -12,7 +12,7 @@ const {
   markdownToHtml,
   escapeHtml,
 } = require("../../usecases/channels/blog/blog_daily");
-const { renderBlogEyecatchJpeg } = require("../../engine/channels/blog/blog_eyecatch");
+const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eyecatch");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);

@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const env = require("../../src/config/env");
-const { renderBlogEyecatchJpeg } = require("../../src/engine/channels/blog/blog_eyecatch");
+const { renderBlogEyecatchJpeg } = require("../../src/engine/renderers/blog/blog_eyecatch");
 const { buildDailyEyecatchLines } = require("../../src/usecases/channels/blog/blog_daily");
 
 function parseArgs(argv) {

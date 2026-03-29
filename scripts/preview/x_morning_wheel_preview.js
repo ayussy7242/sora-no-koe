@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { renderXMorningWheelPng, DEFAULT_X_CANVAS } = require("../../src/engine/channels/x/renderers/morning_wheel");
+const { renderXMorningWheelPng, DEFAULT_X_CANVAS } = require("../../src/engine/renderers/x/morning_wheel");
 
 function parseArgs(argv) {
   const out = {};

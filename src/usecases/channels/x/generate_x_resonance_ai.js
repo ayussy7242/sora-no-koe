@@ -5,7 +5,7 @@ const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/
 const { X_RESONANCE_USER_GUIDE } = require("../../../content/prompts/sns/x/x_resonance_prompts");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { listWithOrb } = require("../../../domain/aspect_selection");
-const { aspectInfo, signJa } = require("../../../presenters/format/format/line_common");
+const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
 const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
 
 function bodyLabelJa(dict, key) {
@@ -18,17 +18,29 @@ function bodyLabelJa(dict, key) {
   );
 }
 
-function pickPrimaryResonanceAspect({ story, dict, maxOrbDeg }) {
+function pickPrimaryResonanceAspect({ story, dict, maxOrbDeg, resonanceMode }) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const allowed = new Set([
+  const coreBodies = new Set([
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
   ]);
-  const picked = listWithOrb(skyAll)
-    .filter((row) => {
-      const aKey = normalizeBodyKey(row?.a || "");
-      const bKey = normalizeBodyKey(row?.b || "");
-      return allowed.has(aKey) && allowed.has(bKey);
-    })
+  const deepBodies = new Set(["lilith", "chiron"]);
+  const mode = resonanceMode || story?.meta?.resonance_mode || "core";
+  const all = listWithOrb(skyAll);
+  const corePool = all.filter((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    return coreBodies.has(aKey) && coreBodies.has(bKey);
+  });
+  const deepPool = all.filter((row) => {
+    const aKey = normalizeBodyKey(row?.a || "");
+    const bKey = normalizeBodyKey(row?.b || "");
+    return deepBodies.has(aKey) || deepBodies.has(bKey);
+  });
+  const useDeep = mode === "deep";
+  const pool = useDeep
+    ? (deepPool.length ? deepPool : corePool)
+    : (corePool.length ? corePool : deepPool);
+  const picked = pool
     .filter((row) => {
       if (!Number.isFinite(Number(maxOrbDeg))) return true;
       const orb = Number(row?.orb_deg);
@@ -87,8 +99,8 @@ function buildXResonancePrompt({ story, dict, aspect }) {
   ].join("\n");
 }
 
-async function generateXResonanceAiText({ story, dict, openai, maxRetries, aspect }) {
-  const picked = aspect || pickPrimaryResonanceAspect({ story, dict });
+async function generateXResonanceAiText({ story, dict, openai, maxRetries, aspect, resonanceMode }) {
+  const picked = aspect || pickPrimaryResonanceAspect({ story, dict, resonanceMode });
   if (!picked) return { ok: false, error: "resonance_aspect_missing" };
 
   return generateXAiWithRetry({

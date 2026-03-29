@@ -1,41 +1,32 @@
 "use strict";
 
+const fs = require("fs");
 const path = require("path");
-const { renderInstagramCarousel, formatDateLabel } = require("../../engine/channels/ig/ig_carousel");
+const { renderInstagramCarousel, formatDateLabel } = require("../../engine/renderers/ig/ig_carousel");
 const { pickObservationLine, renderIGCaption } = require("../../presenters/format/ig_caption");
-const { aspectInfo } = require("../../presenters/format/format/line_common");
-const { buildMoonStatus, formatMoonEventDisplay } = require("../../domain/moon_info");
+const { aspectInfo } = require("../../presenters/format/format/common");
+const { buildMoonStatus, formatMoonEventDisplay, moonSignAtIso, buildNextMoonEvents } = require("../../domain/moon_info");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
 const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
-const { toDateLocalJST } = require("../../utils/time_utils");
+const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
 const { generateIgObservationText } = require("../../usecases/channels/ig/ig_observation_ai");
 const { generateIgResonanceText } = require("../../usecases/channels/ig/ig_resonance_ai");
 const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/ig_tsukiji_structure_ai");
 const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/ig_sky_overview_ai");
 const { generateIgMoonText } = require("../../usecases/channels/ig/ig_moon_ai");
+const { generateIgMoonEventSummaryText } = require("../../usecases/channels/ig/ig_moon_event_ai");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
 } = require("../../usecases/channels/ig/ig_carousel_caption_ai");
+const { ensureIgOutputs } = require("../../usecases/story/output_helpers");
 const {
   createImageContainer,
   createCarouselContainer,
   publishMedia,
   waitForContainer,
 } = require("../../integrations/ig/ig_graph");
-
-function ensureIgOutputs(story) {
-  story.outputs = story.outputs && typeof story.outputs === "object" ? story.outputs : {};
-  story.outputs.ig = story.outputs.ig && typeof story.outputs.ig === "object" ? story.outputs.ig : {};
-  story.outputs.ig.source = story.outputs.ig.source && typeof story.outputs.ig.source === "object" ? story.outputs.ig.source : {};
-  story.outputs.ig.parts = story.outputs.ig.parts && typeof story.outputs.ig.parts === "object" ? story.outputs.ig.parts : {};
-  story.outputs.ig.rendered = story.outputs.ig.rendered && typeof story.outputs.ig.rendered === "object" ? story.outputs.ig.rendered : {};
-  story.outputs.ig.rendered.carousel = story.outputs.ig.rendered.carousel && typeof story.outputs.ig.rendered.carousel === "object"
-    ? story.outputs.ig.rendered.carousel
-    : {};
-  return story.outputs.ig;
-}
 
 function buildAspectKey(aspect, { includeOrb = false } = {}) {
   if (!aspect) return "";
@@ -163,6 +154,212 @@ function plainMoonSymbol(kind) {
   if (kind === "full") return "○";
   return "◑";
 }
+
+function addDaysToDateLocalJST(dateLocal, offsetDays) {
+  if (!isYYYYMMDD(dateLocal)) return dateLocal;
+  const base = new Date(`${dateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(base.getTime())) return dateLocal;
+  const shiftMs = Number(offsetDays) * 86400000;
+  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
+  const shifted = new Date(base.getTime() + shiftMs);
+  return toDateLocalJST(shifted);
+}
+
+function safeCount(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toBool(v, fallback = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v !== "string") return fallback;
+  const t = v.trim().toLowerCase();
+  if (!t) return fallback;
+  return ["1", "true", "yes", "on"].includes(t);
+}
+
+function ensureDir(dir) {
+  if (!dir) return;
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
+  if (!Array.isArray(buffers) || !buffers.length) return [];
+  ensureDir(outDir);
+  const paths = [];
+  for (let i = 0; i < buffers.length; i++) {
+    const filename = `${prefix}-${i + 1}.png`;
+    const full = path.join(outDir, filename);
+    fs.writeFileSync(full, buffers[i]);
+    paths.push(full);
+  }
+  return paths;
+}
+
+function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
+  if (!dateLocal) return null;
+  const events = buildNextMoonEvents(asOfISO, dict);
+  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
+  for (const ev of candidates) {
+    const evDateLocal = toDateLocalJST(ev.date);
+    if (evDateLocal === dateLocal) {
+      return formatMoonEventDisplay(ev);
+    }
+  }
+  return null;
+}
+
+function formatElementCounts(elementCount = {}) {
+  const fire = safeCount(elementCount.fire);
+  const earth = safeCount(elementCount.earth);
+  const air = safeCount(elementCount.air);
+  const water = safeCount(elementCount.water);
+  return `火${fire} 地${earth} 風${air} 水${water}`;
+}
+
+function formatModeCounts(modeCount = {}) {
+  const cardinal = safeCount(modeCount.cardinal);
+  const fixed = safeCount(modeCount.fixed);
+  const mutable = safeCount(modeCount.mutable);
+  return `活動${cardinal} 不動${fixed} 柔軟${mutable}`;
+}
+
+function pickAirFeel(elementCount = {}, modeCount = {}) {
+  const fire = safeCount(elementCount.fire);
+  const earth = safeCount(elementCount.earth);
+  const air = safeCount(elementCount.air);
+  const water = safeCount(elementCount.water);
+  const light = fire + air;
+  const heavy = earth + water;
+  let temp = "";
+  if (light - heavy >= 2) temp = "軽い";
+  if (heavy - light >= 2) temp = "重い";
+
+  const cardinal = safeCount(modeCount.cardinal);
+  const fixed = safeCount(modeCount.fixed);
+  const mutable = safeCount(modeCount.mutable);
+  let motion = "流れる";
+  if (cardinal >= fixed && cardinal >= mutable) motion = "動く";
+  if (fixed >= cardinal && fixed >= mutable) motion = "留まる";
+
+  if (!temp) return motion;
+  return `${temp}・${motion}`;
+}
+
+function buildMoonAirSummary(elementCount = {}, modeCount = {}) {
+  const elementMap = {
+    fire: { label: "火", feel: "熱" },
+    earth: { label: "地", feel: "重さ" },
+    air: { label: "風", feel: "軽さ" },
+    water: { label: "水", feel: "湿り" },
+  };
+  const elements = Object.entries(elementCount)
+    .map(([key, value]) => ({ key, value: safeCount(value) }))
+    .sort((a, b) => b.value - a.value);
+  const top = elements[0]?.key || "";
+  const elementLabel = elementMap[top]?.label || "";
+  const elementFeel = elementMap[top]?.feel || "";
+
+  const cardinal = safeCount(modeCount.cardinal);
+  const fixed = safeCount(modeCount.fixed);
+  const mutable = safeCount(modeCount.mutable);
+  let motion = "流れる";
+  if (cardinal >= fixed && cardinal >= mutable) motion = "動く";
+  if (fixed >= cardinal && fixed >= mutable) motion = "留まる";
+
+  if (elementLabel && elementFeel) {
+    return `${elementLabel}が多く、${elementFeel}が${motion}温度感。`;
+  }
+  return `${motion}温度感。`;
+}
+
+function houseCoreLabel(dict, houseNo) {
+  const n = Number(houseNo);
+  if (!Number.isFinite(n)) return "";
+  const house = dict?.HOUSES_V1?.houses?.[n];
+  return house?.core || house?.sora_short || "";
+}
+
+function buildMoonPlacementObservation({ houseNo, dict }) {
+  if (!Number.isFinite(Number(houseNo))) {
+    return "月の配置から、領域が立ち上がりやすい空。";
+  }
+  const core = houseCoreLabel(dict, houseNo);
+  if (core) {
+    return `第${houseNo}ハウスに月があり、${core}の領域が立ち上がりやすい配置。`;
+  }
+  return `第${houseNo}ハウスに月があり、その領域が立ち上がりやすい配置。`;
+}
+
+function normalizeAspectType(raw) {
+  const key = String(raw || "").toLowerCase().trim();
+  if (!key) return "";
+  return key.replace(/_\d+$/, "");
+}
+
+function pickMoonAspect(story) {
+  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const pool = [...skyTop, ...skyAll];
+  if (!pool.length) return null;
+
+  const moonHits = pool.filter((row) => {
+    const aKey = String(row?.a || "").toLowerCase();
+    const bKey = String(row?.b || "").toLowerCase();
+    return aKey === "moon" || bKey === "moon";
+  });
+  if (!moonHits.length) return null;
+
+  const majors = new Set(["conjunction", "sextile", "square", "trine", "opposition"]);
+  const majorHits = moonHits.filter((row) => majors.has(normalizeAspectType(row?.type || row?.aspect)));
+  const target = majorHits.length ? majorHits : moonHits;
+  return target
+    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
+    .filter((item) => Number.isFinite(item.orb))
+    .sort((a, b) => a.orb - b.orb)[0]?.row || target[0] || null;
+}
+
+const ASPECT_CIRCUITS = {
+  conjunction: "重なりの回路",
+  opposition: "向かい合う回路",
+  square: "摩擦と調整の回路",
+  trine: "流れの回路",
+  sextile: "接点の回路",
+  quincunx: "噛み合わせの回路",
+  inconjunct: "噛み合わせの回路",
+  semisextile: "かすかな接点の回路",
+  semi_sextile: "かすかな接点の回路",
+  semisquare: "小さな引っかかりの回路",
+  semi_square: "小さな引っかかりの回路",
+  sesquisquare: "蓄積の摩擦の回路",
+  quintile: "創造の回路",
+  biquintile: "創造の回路",
+  novile: "内側の熟成の回路",
+  septile: "揺らぎの回路",
+};
+
+function aspectCircuitLabel(type) {
+  const key = normalizeAspectType(type);
+  return ASPECT_CIRCUITS[key] || "接続の回路";
+}
+
+const PLANET_META = {
+  sun: { name: "太陽", glyph: "☉" },
+  moon: { name: "月", glyph: "☽" },
+  mercury: { name: "水星", glyph: "☿" },
+  venus: { name: "金星", glyph: "♀" },
+  mars: { name: "火星", glyph: "♂" },
+  jupiter: { name: "木星", glyph: "♃" },
+  saturn: { name: "土星", glyph: "♄" },
+  uranus: { name: "天王星", glyph: "♅" },
+  neptune: { name: "海王星", glyph: "♆" },
+  pluto: { name: "冥王星", glyph: "♇" },
+  lilith: { name: "リリス", glyph: "⚸" },
+  chiron: { name: "キロン", glyph: "⚷" },
+  north_node: { name: "ドラゴンヘッド", glyph: "☊" },
+  south_node: { name: "ドラゴンテイル", glyph: "☋" },
+};
 
 function pickPreferredResonanceAspect(story, opts = {}) {
   const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
@@ -427,6 +624,197 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   };
 }
 
+function buildMoonEventCaption(event) {
+  if (!event) return "";
+  const line1 = event.line1 || event.label || event.phaseName || "";
+  const line2 = event.dateLabel || event.line2 || "";
+  return [line1, line2].filter(Boolean).join("\n").trim();
+}
+
+function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, summaryText }) {
+  const dateLabel = formatDateLabel(dateLocal);
+  const transit = story?.public?.transit_signs || {};
+  const skyStrata = story?.public?.sky_strata || {};
+  const elementCount = skyStrata.element_count || {};
+  const modeCount = skyStrata.mode_count || skyStrata.modality_count || {};
+
+  const sunSign = transit?.sun?.sign_ja || "—";
+  const moonSign = transit?.moon?.sign_ja || event?.signJa || "—";
+
+  const coverObservation =
+    pickObservationLine({
+      transitSigns: transit,
+      skyStrata,
+      houseFocus: story?.public?.house_focus || {},
+    }) || buildMoonAirSummary(elementCount, modeCount);
+
+  const slide1 = {
+    dateLabel,
+    brand: "ソラのこえ",
+    tagline: event?.phaseName || (event?.kind === "full" ? "満月" : "新月"),
+    subLabel: event?.dateLabel || "",
+    sunLine: `☉ ${sunSign}`,
+    moonLine: `☽ ${moonSign}`,
+    observation: coverObservation,
+    swipeLabel: "Swipe →",
+  };
+
+  const slide2 = {
+    dateLabel,
+    header: "全体圧",
+    subLabel: "overall pressure",
+    lines: [
+      { label: "元素バランス", sign: formatElementCounts(elementCount) },
+      { label: "三区分", sign: formatModeCounts(modeCount) },
+      { label: "空気感", sign: pickAirFeel(elementCount, modeCount) },
+    ],
+    brand: "sora-no-koe",
+  };
+
+  const eventIso = event?.date instanceof Date ? event.date.toISOString() : story?.meta?.as_of || "";
+  const moonPos = eventIso ? moonSignAtIso({ dict, iso: eventIso }) : null;
+  const moonDeg = Number.isFinite(Number(moonPos?.degInSign)) ? Number(moonPos.degInSign) : null;
+  const moonDegLabel = Number.isFinite(moonDeg) ? `${moonDeg.toFixed(1)}°` : "";
+  const moonKey = moonPos?.key || transit?.moon?.sign_key || "";
+  const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+  const ascIndex = signIndexFromKey(dict, ascKey);
+  const moonIndex = signIndexFromKey(dict, moonKey);
+  const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
+    ? houseNumberForSignIndex(moonIndex, ascIndex)
+    : null;
+  const houseLabel = Number.isFinite(Number(houseNo)) ? `${houseNo}H` : "";
+
+  const moonStatus = buildMoonStatus({ asOfISO: eventIso || story?.meta?.as_of, story, dict });
+  const moonIllumination = Number.isFinite(Number(moonStatus?.illumination))
+    ? Number(moonStatus.illumination)
+    : (event?.kind === "full" ? 1 : 0.03);
+  const moonWaxing = typeof moonStatus?.waxing === "boolean"
+    ? moonStatus.waxing
+    : event?.kind !== "full";
+
+  const slide3 = {
+    dateLabel,
+    header: "月の配置",
+    subLabel: "moon placement",
+    phaseSymbol: event?.phaseSymbol || moonStatus?.phaseSymbol || "🌙",
+    phaseLabel: [moonSign, moonDegLabel].filter(Boolean).join(" "),
+    moonSign: houseLabel,
+    observation: buildMoonPlacementObservation({ houseNo, dict }),
+    nextLabel: "",
+    nextSymbol: "",
+    nextPhaseLabel: "",
+    nextMoonName: "",
+    nextDate: "",
+    moonIllumination,
+    moonWaxing,
+    moonSize: 160,
+  };
+
+  const relationLabel = event?.kind === "full" ? "オポジション" : "コンジャンクション";
+  const relationDeg = event?.kind === "full" ? 180 : 0;
+  const relationLine = `${relationLabel} ${relationDeg}°`;
+  const relationStructure = event?.kind === "full"
+    ? "太陽と月が向かい合い、配置が二極で立ち上がる。"
+    : "太陽と月が重なり、配置の核が一点に集まる。";
+  const slide4 = {
+    dateLabel,
+    header: "月と太陽の関係",
+    subLabel: "sun & moon",
+    lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
+    lineB: planetLine({ glyph: PLANET_META.sun.glyph, name: PLANET_META.sun.name, sign: sunSign }),
+    aspectLine: relationLine,
+    deepLine: "",
+    structure: relationStructure,
+    bodyAKey: "moon",
+    bodyBKey: "sun",
+  };
+
+  const moonAspect = pickMoonAspect(story);
+  const slide5 = (() => {
+    if (!moonAspect) {
+      return {
+        dateLabel,
+        header: "月との強い角度",
+        subLabel: "moon aspect",
+        lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
+        lineB: "—",
+        aspectLine: "該当なし",
+        deepLine: "",
+        structure: "月との強い角度は今回はなし。",
+        bodyAKey: "moon",
+        bodyBKey: "",
+      };
+    }
+
+    const aKey = String(moonAspect?.a || "").toLowerCase();
+    const bKey = String(moonAspect?.b || "").toLowerCase();
+    const aMeta = PLANET_META[aKey] || { name: aKey, glyph: "" };
+    const bMeta = PLANET_META[bKey] || { name: bKey, glyph: "" };
+    const aSign = transit?.[aKey]?.sign_ja || "—";
+    const bSign = transit?.[bKey]?.sign_ja || "—";
+
+    const info = aspectInfo(dict, moonAspect?.type || moonAspect?.aspect, moonAspect?.aspect_deg);
+    const label = info?.label_ja || aspectLabelJa(moonAspect?.type, moonAspect?.aspect_deg);
+    const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(moonAspect?.aspect_deg);
+    const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
+    const orb = Number(moonAspect?.orb_deg);
+    const orbLabel = Number.isFinite(orb) ? `orb ${orb.toFixed(2)}°` : "";
+    const aspectLine = [label, degLabel].filter(Boolean).join(" ").trim();
+    const aspectLineFull = [aspectLine, orbLabel].filter(Boolean).join("　").trim();
+
+    const otherKey = aKey === "moon" ? bKey : aKey;
+    const otherMeta = PLANET_META[otherKey] || { name: otherKey, glyph: "" };
+    const circuit = aspectCircuitLabel(moonAspect?.type || moonAspect?.aspect);
+    const structure = `月と${otherMeta.name}が${label}でつながり、${circuit}が動く。`;
+
+    return {
+      dateLabel,
+      header: "月との強い角度",
+      subLabel: "moon aspect",
+      lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
+      lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
+      aspectLine: aspectLineFull || aspectLine || label,
+      deepLine: "",
+      structure,
+      bodyAKey: aKey,
+      bodyBKey: bKey,
+    };
+  })();
+
+  const slide6 = {
+    dateLabel,
+    header: "月の空気のまとめ",
+    subLabel: "moon climate",
+    lines: [
+      { label: summaryText || buildMoonAirSummary(elementCount, modeCount) },
+    ],
+    brand: "sora-no-koe",
+  };
+
+  const slide7 = {
+    ornament: "☉     ☽",
+    timeText: "前日投稿",
+    title: event?.phaseName ? `${event.phaseName}の空` : "月相の空",
+    subtitle: "満月 / 新月の配置",
+    cta: "保存しておく",
+    link: "link in bio",
+    brand: "sora-no-koe",
+    dateLabel,
+  };
+
+  return {
+    slides: [
+      { kind: "cover", data: slide1 },
+      { kind: "placements", data: slide2 },
+      { kind: "moon", data: slide3 },
+      { kind: "resonance", data: slide4 },
+      { kind: "resonance", data: slide5 },
+      { kind: "placements", data: slide6 },
+      ...(withCta ? [{ kind: "cta", data: slide7 }] : []),
+    ],
+  };
+}
+
 async function uploadCarouselSlides({
   storage,
   bucketName,
@@ -590,4 +978,204 @@ async function runIgPost(deps, opts = {}) {
   };
 }
 
-module.exports = { runIgPost };
+async function runIgMoonEventPost(deps, opts = {}) {
+  const env = deps?.env || {};
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const storyService = deps?.storyService;
+  const dict = deps?.dict || require("../../content/dict");
+
+  if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
+
+  const now = opts.asOfISO ? new Date(opts.asOfISO) : new Date();
+  if (Number.isNaN(now.getTime())) throw new Error("invalid as_of");
+  const asOfISO = opts.asOfISO || now.toISOString();
+
+  const baseDateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST(now);
+  const offsetRaw = opts.dateOffsetDays ?? opts.date_offset_days ?? opts.dateOffset ?? opts.date_offset;
+  const offsetDays = Number.isFinite(Number(offsetRaw))
+    ? Number(offsetRaw)
+    : Number.isFinite(Number(env2.IG_MOON_EVENT_DATE_OFFSET_DAYS))
+      ? Number(env2.IG_MOON_EVENT_DATE_OFFSET_DAYS)
+      : 1;
+  const targetDateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
+  const withCta = opts.withCta !== false;
+  const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
+  const useAi = opts.useAi !== false;
+  const forceAi = opts.forceAi === true;
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_MOON_EVENT_LOCAL_ONLY,
+    false
+  );
+
+  const event = detectMoonEventLocal({
+    dateLocal: targetDateLocal,
+    asOfISO,
+    dict,
+  });
+
+  if (!event) {
+    return {
+      ok: true,
+      dry_run: dryRun,
+      date_local: targetDateLocal,
+      as_of: asOfISO,
+      skipped: true,
+      reason: "moon_event_missing",
+      date_offset_days: offsetDays,
+    };
+  }
+
+  const eventDateLocal = toDateLocalJST(event.date);
+  const eventAsOfISO = event?.date instanceof Date ? event.date.toISOString() : asOfISO;
+
+  const story = await storyService.buildStoryForUser({
+    appUserId: "public",
+    dateLocal: eventDateLocal,
+    asOfISO: eventAsOfISO,
+    mode: "public",
+  });
+
+  let summaryText = "";
+  if (useAi) {
+    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+    if (apiKey) {
+      try {
+        const res = await generateIgMoonEventSummaryText({
+          story,
+          dict,
+          event,
+          openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+          forceAi,
+        });
+        if (res?.ok && res.text) summaryText = res.text;
+      } catch (_err) {
+        summaryText = "";
+      }
+    }
+  }
+
+  const carousel = buildMoonEventCarouselSlides({
+    story,
+    event,
+    dateLocal: eventDateLocal,
+    withCta,
+    dict,
+    summaryText,
+  });
+  const buffers = await renderInstagramCarousel(carousel);
+
+  if (localOnly) {
+    const localOutDir = String(
+      opts.localOutDir ||
+      opts.local_out_dir ||
+      env2.IG_MOON_EVENT_LOCAL_OUT_DIR ||
+      path.join(process.cwd(), "tmp", "ig-moon-event", eventDateLocal)
+    );
+    const localPaths = writeLocalCarousel({ buffers, outDir: localOutDir, prefix: "slide" });
+    return {
+      ok: true,
+      dry_run: true,
+      local_only: true,
+      date_local: eventDateLocal,
+      as_of: asOfISO,
+      event: {
+        kind: event.kind,
+        label: event.label,
+        date_label: event.dateLabel,
+      },
+      caption: buildMoonEventCaption(event),
+      local_dir: localOutDir,
+      local_paths: localPaths,
+    };
+  }
+
+  const storage = deps?.storage;
+  const accessToken = env2.IG_ACCESS_TOKEN;
+  const igUserId = env2.IG_USER_ID;
+  const graphVersion = env2.IG_GRAPH_VERSION || "v19.0";
+  if (!storage) throw new Error("storage missing");
+  if (!accessToken) throw new Error("IG_ACCESS_TOKEN missing");
+  if (!igUserId) throw new Error("IG_USER_ID missing");
+
+  const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
+  const upload = await uploadCarouselSlides({
+    storage,
+    bucketName,
+    dateLocal: eventDateLocal,
+    buffers,
+    expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
+  });
+
+  const caption = buildMoonEventCaption(event);
+
+  if (dryRun) {
+    return {
+      ok: true,
+      dry_run: true,
+      date_local: eventDateLocal,
+      as_of: asOfISO,
+      event: {
+        kind: event.kind,
+        label: event.label,
+        date_label: event.dateLabel,
+      },
+      caption,
+      image_urls: upload.urls,
+      gcs_paths: upload.paths,
+    };
+  }
+
+  const childIds = [];
+  for (const imageUrl of upload.urls) {
+    const created = await createImageContainer({
+      igUserId,
+      imageUrl,
+      accessToken,
+      version: graphVersion,
+    });
+    const childId = created?.id;
+    if (!childId) throw new Error("child container id missing");
+    const wait = await waitForContainer({ creationId: childId, accessToken, version: graphVersion });
+    if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
+    childIds.push(childId);
+  }
+
+  const carouselContainer = await createCarouselContainer({
+    igUserId,
+    children: childIds,
+    caption,
+    accessToken,
+    version: graphVersion,
+  });
+  const creationId = carouselContainer?.id;
+  if (!creationId) throw new Error("carousel container id missing");
+
+  const waitCarousel = await waitForContainer({ creationId, accessToken, version: graphVersion });
+  if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
+
+  const published = await publishMedia({
+    igUserId,
+    creationId,
+    accessToken,
+    version: graphVersion,
+  });
+
+  return {
+    ok: true,
+    date_local: eventDateLocal,
+    as_of: asOfISO,
+    event: {
+      kind: event.kind,
+      label: event.label,
+      date_label: event.dateLabel,
+    },
+    caption,
+    image_urls: upload.urls,
+    gcs_paths: upload.paths,
+    carousel_container_id: creationId,
+    media_id: published?.id || null,
+    child_container_ids: childIds,
+  };
+}
+
+module.exports = { runIgPost, runIgMoonEventPost };

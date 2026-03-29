@@ -18,6 +18,10 @@
  */
 
 const crypto = require("crypto");
+const {
+  getLineUserState: getLineUserStateShared,
+  setLineUserState: setLineUserStateShared,
+} = require("./state");
 
 function createLineUser({ db, admin, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -193,18 +197,11 @@ function createLineUser({ db, admin, config = {} }) {
   }
 
   async function getLineUserState(lineUserId) {
-    if (!lineUserId) return null;
-    const snap = await db.collection("line_users").doc(lineUserId).get();
-    if (!snap.exists) return null;
-    return snap.data()?.state || null;
+    return getLineUserStateShared({ db, lineUserId });
   }
 
   async function setLineUserState(lineUserId, state) {
-    if (!lineUserId || !state) return;
-    await db.collection("line_users").doc(lineUserId).set(
-      { state, updated_at: serverNow(), meta: { last_event_type: "state_update", last_seen_at: serverNow() } },
-      { merge: true }
-    );
+    return setLineUserStateShared({ db, admin, lineUserId, state, eventType: "state_update" });
   }
 
   async function reactivateLineUser(lineUserId, appUserId = null) {

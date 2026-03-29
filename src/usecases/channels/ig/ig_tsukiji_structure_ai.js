@@ -7,7 +7,7 @@ const {
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { normalizeBodyKey, normalizeAspectKey } = require("../../../domain/canonical");
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../domain/tsukiji_public");
-const { signJa, aspectInfo } = require("../../../presenters/format/format/line_common");
+const { signJa, aspectInfo } = require("../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
 
 function safeText(x) {

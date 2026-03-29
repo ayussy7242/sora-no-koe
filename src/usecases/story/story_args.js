@@ -3,14 +3,7 @@
 // story_args.js
 // - buildStoryForUser の入力を共通整形する薄いヘルパー
 
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
-
-function toNumberSafe(v, fallback) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
+const { clamp, toNumberSafe } = require("../../utils/parse");
 
 /**
  * buildStoryForUser の args を共通化

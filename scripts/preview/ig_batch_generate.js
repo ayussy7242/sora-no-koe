@@ -6,7 +6,7 @@ const path = require("path");
 const {
   renderInstagramCarousel,
   formatDateLabel,
-} = require("../../src/engine/channels/ig/ig_carousel");
+} = require("../../src/engine/renderers/ig/ig_carousel");
 const dict = require("../../src/content/dict");
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic, buildTsukijiThemeLine } = require("../../src/domain/tsukiji_public");
 const {

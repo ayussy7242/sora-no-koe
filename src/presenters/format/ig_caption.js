@@ -1,7 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../../domain/canonical");
-const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/line_common");
+const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
 
 function safeNumber(x) {
   const n = Number(x);

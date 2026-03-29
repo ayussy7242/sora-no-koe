@@ -25,70 +25,17 @@ const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost, runIgMoonEventPost } = require("../runners/cron/ig_post");
 const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x_post");
-const { runDailyIgStoryDelivery } = require("../usecases/ig_story/run_daily_story_delivery");
-
-// -------------------- helpers --------------------
-function isYYYYMMDD(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-
-function toDateLocalJST(date = new Date()) {
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
-}
-
-function asOfIsoFromDateLocalJST(dateLocal) {
-  return `${dateLocal}T03:00:00.000Z`;
-}
-
-function toNumberSafe(v, fallback) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
-}
-
-function isValidISO(s) {
-  if (typeof s !== "string" || !s) return false;
-  const d = new Date(s);
-  return !Number.isNaN(d.getTime());
-}
-
-function normalizeDateTimeLocalJST(datetimeLocalRaw) {
-  const s0 = String(datetimeLocalRaw || "").trim();
-  if (!s0) return null;
-  const s = s0.includes(" ") && !s0.includes("T") ? s0.replace(" ", "T") : s0;
-  if (/[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
-    return isValidISO(s) ? s : null;
-  }
-  const withOffset = `${s}+09:00`;
-  return isValidISO(withOffset) ? withOffset : null;
-}
-
-function boolish(v) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (typeof v !== "string") return false;
-  return ["1", "true", "yes", "on"].includes(v.toLowerCase());
-}
-
-function normLower(x, fallback = "") {
-  const s = x == null ? "" : String(x);
-  const t = s.trim().toLowerCase();
-  return t || fallback;
-}
-
-function pickMode(x) {
-  const m = normLower(x, "today");
-  return m === "sky" ? "sky" : "today";
-}
-
-function pickTarget(x) {
-  const t = normLower(x, "all");
-  return t === "owner" ? "owner" : "all";
-}
+const { runDailyIgStoryDelivery } = require("../usecases/channels/ig/story/run_daily_delivery");
+const {
+  getRequestParts,
+  pickMode,
+  pickTarget,
+  pickDateLocal,
+  pickAsOfISO,
+  pickDryRun,
+  pickBoolFlag,
+  pickNumberFlag,
+} = require("../usecases/cron/utils");
 
 
 // -------------------- router factory --------------------
@@ -145,15 +92,11 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/daily8" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-
-      const mode = pickMode(b.mode ?? q.mode);
-      const target = pickTarget(b.target ?? q.target);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const dryRun = pickDryRun({ q, b });
+      const mode = pickMode({ q, b });
+      const target = pickTarget({ q, b });
 
       const result = await runDaily8(
         { db, admin, env, storyService, renderers, storage },
@@ -171,11 +114,10 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-      const dateLocal = isYYYYMMDD(b.date_local || q.date_local) ? String(b.date_local || q.date_local) : toDateLocalJST();
-      const mode = pickMode(b.mode ?? q.mode);
-      const target = pickTarget(b.target ?? q.target);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const mode = pickMode({ q, b });
+      const target = pickTarget({ q, b });
 
       const result = await rebuildDaily8({ db, admin, env, storyService, renderers, storage }, { dateLocal, mode, target });
       return res.json(result);
@@ -189,16 +131,10 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-
-      const target = pickTarget(b.target ?? q.target);
-
-      // ✅ 追加：dry_run を拾う（クエリ/ボディ両対応）
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const target = pickTarget({ q, b });
+      const dryRun = pickDryRun({ q, b });
 
       // ✅ 追加：dryRun を sendDaily8 に渡す
       const result = await sendDaily8({ db, admin, env }, { dateLocal, target, dryRun });
@@ -215,12 +151,9 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/story/daily" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const dryRun = pickDryRun({ q, b });
 
       const result = await runDailyIgStoryDelivery(
         { env, storyService, storage, dict, db },
@@ -239,25 +172,19 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/morning" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const useAiRaw = b.ai ?? q.ai;
-      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
-      const orbMaxDeg = toNumberSafe(b.orb_max_deg ?? q.orb_max_deg ?? b.orbMaxDeg ?? q.orbMaxDeg, undefined);
-      const precisionDeg = toNumberSafe(b.precision_deg ?? q.precision_deg ?? b.precisionDeg ?? q.precisionDeg, undefined);
-      const resonanceOrbMax = toNumberSafe(b.resonance_orb_max ?? q.resonance_orb_max ?? b.resonanceOrbMax ?? q.resonanceOrbMax, undefined);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
+      const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
+      const resonanceOrbMax = pickNumberFlag({
+        q,
+        b,
+        keys: ["resonance_orb_max", "resonanceOrbMax"],
+        defaultValue: undefined,
+      });
 
       const result = await runXMorningPost(
         { env, storyService, renderers, dict },
@@ -276,24 +203,13 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/night" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const useAiRaw = b.ai ?? q.ai;
-      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
-      const orbMaxDeg = toNumberSafe(b.orb_max_deg ?? q.orb_max_deg ?? b.orbMaxDeg ?? q.orbMaxDeg, undefined);
-      const precisionDeg = toNumberSafe(b.precision_deg ?? q.precision_deg ?? b.precisionDeg ?? q.precisionDeg, undefined);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
+      const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
 
       const result = await runXNightPost(
         { env, storyService, renderers, dict },
@@ -312,26 +228,17 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/moon_event" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const useAiRaw = b.ai ?? q.ai;
-      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
-      const dateOffsetDays = toNumberSafe(
-        b.date_offset_days ?? q.date_offset_days ?? b.dateOffsetDays ?? q.dateOffsetDays ?? b.date_offset ?? q.date_offset,
-        undefined
-      );
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const dateOffsetDays = pickNumberFlag({
+        q,
+        b,
+        keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"],
+        defaultValue: undefined,
+      });
 
       const result = await runXMoonEventPost(
         { env, storyService, renderers, dict },
@@ -350,22 +257,11 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/next_30_days" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const useAiRaw = b.ai ?? q.ai;
-      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
 
       const result = await runXNext30DaysPost(
         { env, storyService, renderers, dict },
@@ -384,26 +280,13 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/post" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const withCtaRaw = b.with_cta ?? q.with_cta ?? b.withCta ?? q.withCta;
-      const withCta = withCtaRaw === undefined ? true : boolish(withCtaRaw);
-      const useAiRaw = b.ai ?? q.ai;
-      const useAi = useAiRaw === undefined ? true : boolish(useAiRaw);
-      const forceAiRaw = b.force_ai ?? q.force_ai ?? b.forceAi ?? q.forceAi;
-      const forceAi = forceAiRaw === undefined ? false : boolish(forceAiRaw);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const withCta = pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
 
       const result = await runIgPost(
         { db, admin, env, storyService, renderers, storage, dict },
@@ -422,28 +305,25 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/moon_event" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : null;
-
-      const asOfRaw = b.as_of || q.as_of;
-      const dtLocalRaw = b.datetime_local || q.datetime_local;
-      const asOfISO =
-        (isValidISO(asOfRaw) ? String(asOfRaw) : null) ||
-        normalizeDateTimeLocalJST(dtLocalRaw) ||
-        null;
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const withCtaRaw = b.with_cta ?? q.with_cta ?? b.withCta ?? q.withCta;
-      const withCta = withCtaRaw === undefined ? true : boolish(withCtaRaw);
-      const offsetRaw = b.date_offset_days ?? q.date_offset_days ?? b.dateOffsetDays ?? q.dateOffsetDays ?? b.dateOffset ?? q.dateOffset;
-      const dateOffsetDays = Number.isFinite(Number(offsetRaw)) ? Number(offsetRaw) : undefined;
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const withCta = pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true });
+      const dateOffsetDays = pickNumberFlag({
+        q,
+        b,
+        keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"],
+        defaultValue: undefined,
+      });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
       const result = await runIgMoonEventPost(
         { env, storyService, storage, dict },
-        { dateLocal, asOfISO, dryRun, withCta, dateOffsetDays }
+        { dateLocal, asOfISO, dryRun, withCta, dateOffsetDays, useAi, forceAi, local, localOutDir }
       );
 
       return res.json(result);
@@ -458,19 +338,12 @@ function createCronRouter(deps = {}) {
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/blog/daily" });
 
     try {
-      const q = req.query || {};
-      const b = req.body || {};
-
-      const dateLocalRaw = b.date_local || q.date_local;
-      const dateLocal = isYYYYMMDD(dateLocalRaw) ? String(dateLocalRaw) : toDateLocalJST();
-
-      const asOfRaw = b.as_of || q.as_of;
-      const asOfISO = isValidISO(asOfRaw) ? String(asOfRaw) : asOfIsoFromDateLocalJST(dateLocal);
-
-      const dryRun = boolish(b.dryRun ?? q.dryRun ?? b.dry_run ?? q.dry_run);
-      const force = boolish(b.force ?? q.force);
-      const publishRaw = b.publish ?? q.publish ?? b.is_publish ?? q.is_publish;
-      const publish = publishRaw === undefined ? true : boolish(publishRaw);
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: true });
+      const dryRun = pickDryRun({ q, b });
+      const force = pickBoolFlag({ q, b, keys: ["force"], defaultValue: false });
+      const publish = pickBoolFlag({ q, b, keys: ["publish", "is_publish"], defaultValue: true });
 
       const result = await runDailyBlog(
         { env: env2, storyService, db },

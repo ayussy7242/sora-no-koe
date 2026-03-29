@@ -19,13 +19,9 @@
 
 "use strict";
 
-function isYYYYMMDD(s) {
-  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-function toDateLocalJST(date = new Date()) {
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
-}
+const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time_utils");
+const { normLower } = require("../../utils/parse");
+
 function toSafeText(x, maxLen = 4800) {
   const s = x == null ? "" : String(x);
   return s.length > maxLen ? s.slice(0, maxLen) : s;
@@ -33,11 +29,6 @@ function toSafeText(x, maxLen = 4800) {
 function isNonEmptyText(x) {
   const s = x == null ? "" : String(x);
   return s.trim().length > 0;
-}
-function normLower(x, fallback = "") {
-  const s = x == null ? "" : String(x);
-  const t = s.trim().toLowerCase();
-  return t || fallback;
 }
 function pickTarget(x) {
   const t = normLower(x, "all");

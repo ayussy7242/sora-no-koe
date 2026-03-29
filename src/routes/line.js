@@ -28,7 +28,8 @@ const userMod = require("../integrations/line/user");
 const natalMod = require("../integrations/line/natal");
 const storyMod = require("../integrations/line/story");
 const relationMod = require("../integrations/line/relation");
-const { createLineApi } = require("../integrations/line/line_api");
+const { createLineApi } = require("../integrations/line/api");
+const { replyLineMessage } = require("../integrations/line/messaging");
 const { processCommand } = require("../integrations/line/pipeline");
 const {
   isNonEmptyText,
@@ -297,25 +298,20 @@ function createLineRouter(deps = {}) {
       const replied = new Set();
       const safeReply = async (replyToken, payload, meta = {}) => {
         if (!replyToken) return;
-        const isMessageObject = payload && typeof payload === "object";
         if (replied.has(replyToken)) return;
         replied.add(replyToken);
 
-        try {
-          if (isMessageObject && (payload.type || Array.isArray(payload))) {
-            await lineApiClient.replyMessages(replyToken, payload, { toSafeText });
-          } else {
-            const safe = toSafeText(payload, MAX_LINE_TEXT);
-            if (!isNonEmptyText(safe)) {
-              console.log("[line:reply] skipped(empty)", { request_id: requestId, ...meta });
-              return;
-            }
-            await lineApiClient.replyText(replyToken, safe, { toSafeText, isNonEmptyText });
-          }
-          if (DEBUG_LOG_EVENTS) console.log("[line:reply] sent", { request_id: requestId, ...meta });
-        } catch (e) {
-          console.log("[line:reply] failed:", e?.message || String(e), { request_id: requestId, ...meta });
-        }
+        await replyLineMessage({
+          lineApiClient,
+          replyToken,
+          payload,
+          maxText: MAX_LINE_TEXT,
+          toSafeText,
+          isNonEmptyText,
+          meta: { request_id: requestId, ...meta },
+          debug: DEBUG_LOG_EVENTS,
+          logger: console.log,
+        });
       };
 
       async function buildProfileAndAppUser({ lineUserId, eventType }) {

@@ -5,7 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { signJa } = require("../../../presenters/format/format/line_common");
+const { signJa } = require("../../../presenters/format/format/common");
 
 function safeText(x) {
   return String(x || "").trim();

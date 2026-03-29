@@ -37,13 +37,25 @@ const {
   getLineUserIdFromUserDoc,
 } = require("./cron_utils");
 const dict = require("../../content/dict");
-const { buildDailyLineMessage } = require("../../usecases/channels/line/line_daily_message");
+const { buildDailyLineMessage } = require("../../usecases/channels/line/daily_message");
 const { getLineSubscription, isPaidLine500 } = require("../../integrations/firebase/subscription");
 const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
 
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
   return `rebuild8:${dateLocal}:${r}`;
+}
+
+async function getLineUserDeepMode(db, lineUserId) {
+  if (!db || !lineUserId) return false;
+  try {
+    const snap = await db.collection("line_users").doc(lineUserId).get();
+    if (!snap.exists) return false;
+    const d = snap.data() || {};
+    return d?.membership?.deep_mode === true;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function rebuildDaily8(deps, opts = {}) {
@@ -103,7 +115,8 @@ async function rebuildDaily8(deps, opts = {}) {
     const allow = isPaidAllowed({ appUserId, lineUserId });
     const isPaid500 = paid || allow;
 
-    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500 }));
+    const deepMode = await getLineUserDeepMode(db, lineUserId);
+    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500, deepMode }));
 
     let imageUrl = null;
     let imagePath = null;

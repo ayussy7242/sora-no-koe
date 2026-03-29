@@ -4,134 +4,25 @@ const intent = require("./intent");
 const env = require("../../config/env");
 const { LINE_COPY } = require("../../content/copy");
 const dict = require("../../content/dict");
-const Stripe = require("stripe");
-const { createBlueprintLightService } = require("../../usecases/blueprint_light");
-const { getLineSubscription, isPaidLine500 } = require("../firebase/subscription");
-const { enqueueBlueprintGenerate } = require("../cloudtasks/tasks_queue");
+const { getLineSubscription } = require("../firebase/subscription");
+const {
+  PAID_INTENTS,
+  isPaidAllowed,
+  paidOnlyMessage,
+  getPaidStatus,
+  createCheckoutUrlForLine500,
+  formatEpochDate,
+  createPortalUrl,
+} = require("./payment");
+const { handleBlueprintLight } = require("./blueprint");
 const {
   buildBunpuTop5,
   buildHouseBlock,
   buildTsukijiBlock,
   buildElementModalityBlock,
   buildKinjitsuBlock,
-} = require("../../usecases/channels/line/line_paid_500");
+} = require("../../usecases/channels/line/paid_500");
 const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
-
-const PAID_INTENTS = new Set(env.PAID_INTENTS || []);
-
-async function isPaidAllowed({ appUserId, lineUserId, modules }) {
-  if (!env.PAID_MODE_ENABLED) return true;
-
-  if (env.PAID_ALLOW_OWNER) {
-    if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
-    if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
-  }
-
-  if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
-  if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
-
-  if (lineUserId && modules?.user?.getLineUserDeepMode) {
-    const deep = await modules.user.getLineUserDeepMode(lineUserId);
-    if (deep === true) return true;
-  }
-
-  return false;
-}
-
-function paidOnlyMessage(mode) {
-  const map = LINE_COPY.PAID_ONLY_MESSAGES || {};
-  return map?.[mode] || LINE_COPY.PAID_ONLY || "このコマンドは深層モードで配信中だよ。";
-}
-
-async function getPaidStatus({ db, appUserId, lineUserId }) {
-  let paid = false;
-  try {
-    const sub = await getLineSubscription(db, lineUserId);
-    paid = isPaidLine500(sub);
-  } catch (_) {
-    paid = false;
-  }
-  return { paid };
-}
-
-function pickUrl(envObj, key, fallback) {
-  const v = envObj?.[key];
-  return v && String(v).trim() ? String(v).trim() : fallback;
-}
-
-async function createCheckoutUrlForLine500({ lineUserId }) {
-  const priceId = env.STRIPE_PRICE_ID_LINE_500 || null;
-  if (!env.STRIPE_SECRET_KEY || !priceId) {
-    return { ok: false, error: "stripe_config_missing" };
-  }
-
-  const successUrl =
-    pickUrl(env, "STRIPE_SUCCESS_URL", null) ||
-    pickUrl(env, "PUBLIC_BASE_URL", null) ||
-    "https://example.com";
-  const cancelUrl =
-    pickUrl(env, "STRIPE_CANCEL_URL", null) ||
-    pickUrl(env, "PUBLIC_BASE_URL", null) ||
-    "https://example.com";
-
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: {
-      product: "line_500",
-      plan: "line_500",
-      line_user_id: lineUserId || "",
-    },
-  });
-
-  return { ok: true, url: session.url, mode: "checkout_session" };
-}
-
-function formatEpochDate(epochSec) {
-  const n = Number(epochSec);
-  if (!Number.isFinite(n)) return null;
-  const d = new Date(n * 1000);
-  if (Number.isNaN(d.getTime())) return null;
-  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  const y = jst.getUTCFullYear();
-  const m = String(jst.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(jst.getUTCDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
-}
-
-async function setLineUserState({ db, admin, lineUserId, state, eventType = "state_update" }) {
-  if (!db || !admin || !lineUserId || !state) return;
-  await db.collection("line_users").doc(lineUserId).set(
-    {
-      state,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      meta: { last_event_type: eventType, last_seen_at: admin.firestore.FieldValue.serverTimestamp() },
-    },
-    { merge: true }
-  );
-}
-
-async function createPortalUrl({ lineUserId, db }) {
-  if (!env.STRIPE_SECRET_KEY) return { ok: false, error: "stripe_config_missing" };
-  const sub = await getLineSubscription(db, lineUserId);
-  const customerId = sub?.stripe_customer_id || null;
-  if (!customerId) return { ok: false, error: "customer_missing" };
-
-  const returnUrl =
-    pickUrl(env, "STRIPE_CANCEL_URL", null) ||
-    pickUrl(env, "PUBLIC_BASE_URL", null) ||
-    "https://example.com";
-
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2024-04-10" });
-  const session = await stripe.billingPortal.sessions.create({
-    customer: customerId,
-    return_url: returnUrl,
-  });
-  return { ok: true, url: session.url };
-}
 
 async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, renderers, db, admin, storage }) {
   const { natal, story, relation } = modules;
@@ -430,80 +321,17 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.BLUEPRINT_LIGHT) {
-    console.log("[blueprint] start", { line_user_id: lineUserId || null, app_user_id: appUserId || null });
-    if (!lineUserId) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "blueprint_light" };
-    }
-    const hasPersonal = await natal.hasNatal(appUserId);
-    if (!hasPersonal) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_NATAL || "先に「はじめる」で登録してね。", stage: "blueprint_light" };
-    }
-
-    if (!db || !admin || !storage) {
-      return { text: LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE || "いま設計図の準備中だよ。", stage: "blueprint_light" };
-    }
-
-    let blueprint = null;
-    try {
-      blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
-    } catch (_) {
-      blueprint = null;
-    }
-
-    let resultMobile = null;
-    try {
-      resultMobile = await blueprint?.getOrCreateSignedUrl({ lineUserId, appUserId, variant: "mobile" });
-    } catch (e) {
-      console.log("[blueprint] error", { message: e?.message || String(e) });
-      resultMobile = null;
-    }
-    console.log("[blueprint] result", {
-      ok: !!resultMobile?.ok,
-      code: resultMobile?.code || null,
-      has_url: !!resultMobile?.url,
+    return handleBlueprintLight({
+      appUserId,
+      lineUserId,
+      natal,
+      db,
+      admin,
+      storage,
+      env,
+      dict,
+      logger: console.log,
     });
-    if (!resultMobile || !resultMobile.ok) {
-      const code = resultMobile?.code || "";
-      if (code === "not_ready") {
-        await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" }).catch(() => {});
-        await setLineUserState({
-          db,
-          admin,
-          lineUserId,
-          state: "queued_blueprint",
-          eventType: "blueprint_queued",
-        });
-      }
-      const msg =
-        code === "natal_not_ready" || code === "not_ready"
-          ? LINE_COPY.BLUEPRINT_NOT_READY
-          : LINE_COPY.BLUEPRINT_PURCHASE_UNAVAILABLE;
-      return { text: msg || "設計図の準備中だよ。", stage: "blueprint_light" };
-    }
-
-    const actions = [];
-    if (resultMobile?.ok && resultMobile?.url) {
-      actions.push({ type: "uri", label: "📱 モバイル版", uri: resultMobile.url });
-    }
-    const templateMessage = {
-      type: "template",
-      altText: "星の設計図（Blueprint v25）",
-      template: {
-        type: "buttons",
-        title: "星の設計図（Blueprint v25）",
-        text: "設計図を開く",
-        actions: actions.length
-          ? actions
-          : [
-              {
-                type: "uri",
-                label: "設計図を開く",
-                uri: resultMobile?.url || "",
-              },
-            ],
-      },
-    };
-    return { message: templateMessage, stage: "blueprint_light" };
   }
 
   return { text: story.renderFallback() || "コマンドがわからなかった🌌", stage: "fallback" };

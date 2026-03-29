@@ -1,0 +1,559 @@
+"use strict";
+
+const { createBlueprintLightService } = require("..");
+const { createLineApi } = require("../../../../integrations/line/api");
+const { setLineUserState } = require("../../../../integrations/line/state");
+const { LINE_COPY } = require("../../../../content/copy");
+const dict = require("../../../../content/dict");
+const { resolveDisplayNameFromLineUserDoc } = require("../../../../utils/resolve_display_name");
+const { enqueueBlueprintJob, enqueueBlueprintPdfJob } = require("./queue");
+const {
+  getJobRef,
+  markFailed,
+  getNowMillis,
+  isLeaseActive,
+  nextLeaseMs,
+} = require("./state");
+
+function requireTasksCaller({ env, req }) {
+  const tokenExpected = env?.INTERNAL_TASKS_TOKEN || null;
+  if (!tokenExpected) return { ok: false, status: 500, error: "INTERNAL_TASKS_TOKEN not set" };
+  const token = String(req.header("x-internal-tasks-token") || "").trim();
+  if (!token || token !== tokenExpected) {
+    return { ok: false, status: 403, error: "invalid token" };
+  }
+  return { ok: true };
+}
+
+function toBool(v) {
+  return v === true || v === "true" || v === 1 || v === "1";
+}
+
+async function resolveLineDisplayName(db, lineUserId) {
+  if (!db || !lineUserId) return null;
+  const snap = await db.collection("line_users").doc(lineUserId).get();
+  if (!snap.exists) return null;
+  const data = snap.data() || {};
+  return resolveDisplayNameFromLineUserDoc(data);
+}
+
+function formatBlueprintDoneText(text, displayName) {
+  if (!text) return text;
+  if (!String(text).includes("〇〇さんの")) return text;
+  const raw = displayName ? String(displayName).trim() : "";
+  if (!raw) return String(text).replace("〇〇さんの", "あなたの");
+  const withSan = /さん$/.test(raw) ? raw : `${raw}さん`;
+  return String(text).replace("〇〇さんの", `${withSan}の`);
+}
+
+async function handleGenerate(req, res, deps) {
+  const { env, db, admin, storage } = deps;
+  const auth = requireTasksCaller({ env, req });
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+
+  const lineUserId = String(req.body?.line_user_id || "").trim();
+  if (!lineUserId) return res.status(400).json({ ok: false, error: "line_user_id required" });
+
+  const userSnap = await db.collection("line_users").doc(lineUserId).get();
+  if (!userSnap.exists) {
+    return res.status(202).json({ ok: true, code: "skipped_user_not_found" });
+  }
+
+  const jobRef = getJobRef(db, lineUserId);
+  const nowMs = getNowMillis();
+  const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
+
+  const forceRegen = toBool(req.body?.forceRegen || req.body?.force);
+  let shouldEnqueue = true;
+  let currentStatus = "queued";
+  let currentSignedUrl = null;
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(jobRef);
+    const job = snap.exists ? snap.data() : null;
+    if (job?.status === "done" && !forceRegen) {
+      currentStatus = "done";
+      shouldEnqueue = false;
+      return;
+    }
+    if (job?.status === "running" && isLeaseActive(job, nowMs)) {
+      currentStatus = "running";
+      shouldEnqueue = false;
+      return;
+    }
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    tx.set(
+      jobRef,
+      {
+        status: "queued",
+        line_user_id: lineUserId,
+        product: "blueprint_light_v1",
+        error: null,
+        updated_at: now,
+        created_at: job?.created_at || now,
+        lease_until: null,
+      },
+      { merge: true }
+    );
+    currentStatus = "queued";
+    shouldEnqueue = true;
+  });
+
+  if (currentStatus === "done") {
+    const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+    if (signed?.ok && signed?.url) currentSignedUrl = signed.url;
+    return res.status(200).json({ ok: true, status: "done", signed_url: currentSignedUrl });
+  }
+  if (!shouldEnqueue) {
+    return res.status(202).json({ ok: true, status: currentStatus });
+  }
+  try {
+    await enqueueBlueprintJob({ env, lineUserId, forceRegen });
+    return res.status(202).json({ ok: true, status: "queued", job_id: lineUserId });
+  } catch (e) {
+    console.log("[blueprint] enqueue failed:", e?.message || String(e));
+    await jobRef.set(
+      {
+        status: "failed",
+        error: e?.message || String(e),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+}
+
+async function handleStatus(req, res, deps) {
+  const { env, db, admin, storage } = deps;
+  const auth = requireTasksCaller({ env, req });
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+
+  const lineUserId = String(req.query?.line_user_id || "").trim();
+  if (!lineUserId) return res.status(400).json({ ok: false, error: "line_user_id required" });
+
+  const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
+  const jobRef = getJobRef(db, lineUserId);
+  const snap = await jobRef.get();
+  if (!snap.exists) {
+    return res.status(200).json({ ok: true, status: "not_ready" });
+  }
+  const job = snap.data() || {};
+  const nowMs = getNowMillis();
+  if (job.status === "running" && !isLeaseActive(job, nowMs)) {
+    const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
+    if (exists?.ok && exists.exists) {
+      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+      const updates = {
+        status: "done",
+        error: signed?.ok ? null : signed?.error || job.error || null,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        finished_at: admin.firestore.FieldValue.serverTimestamp(),
+        lease_until: null,
+      };
+      if (signed?.ok && signed?.url) updates.signed_url = signed.url;
+      await jobRef.set(updates, { merge: true });
+      return res.status(200).json({
+        ok: true,
+        status: "done",
+        signed_url: signed?.ok ? signed.url : (job.signed_url || null),
+        error: signed?.ok ? null : (signed?.error || "signing_failed"),
+      });
+    }
+    await jobRef.set(
+      {
+        status: "failed",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        finished_at: admin.firestore.FieldValue.serverTimestamp(),
+        lease_until: null,
+        error: job.error || "stale_running",
+      },
+      { merge: true }
+    );
+    job.status = "failed";
+  }
+  if (job.status !== "done") {
+    const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
+    if (exists?.ok && exists.exists) {
+      const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+      await jobRef.set(
+        {
+          status: "done",
+          error: signed?.ok ? null : (signed?.error || null),
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          finished_at: admin.firestore.FieldValue.serverTimestamp(),
+          lease_until: null,
+          signed_url_mobile: signed?.ok ? signed.url : (job.signed_url_mobile || null),
+        },
+        { merge: true }
+      );
+      return res.status(200).json({ ok: true, status: "done", signed_url: signed?.ok ? signed.url : null });
+    }
+  }
+  if (job.status === "done") {
+    const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+    if (signed?.ok && signed?.url) {
+      await jobRef.set(
+        { signed_url: signed.url, updated_at: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      return res.status(200).json({ ok: true, status: "done", signed_url: signed.url });
+    }
+    if (signed?.code === "signing_failed") {
+      return res.status(200).json({
+        ok: true,
+        status: "done",
+        signed_url: job.signed_url || null,
+        error: signed?.error || "signing_failed",
+      });
+    }
+    await jobRef.set(
+      {
+        status: "queued",
+        error: "file_not_ready",
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return res.status(200).json({ ok: true, status: "not_ready" });
+  }
+  return res.status(200).json({
+    ok: true,
+    status: job.status || "queued",
+    signed_url: job.signed_url || null,
+    error: job.status === "failed" ? job.error || null : null,
+  });
+}
+
+function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
+  return async (req, res, deps) => {
+    const { env, db, admin, storage } = deps;
+    const auth = requireTasksCaller({ env, req });
+    if (!auth.ok) {
+      const maybeLineUserId = String(req.body?.line_user_id || req.body?.lineUserId || "").trim();
+      await markFailed({
+        db,
+        admin,
+        lineUserId: maybeLineUserId,
+        stage: "auth",
+        error: auth.error || "invalid_auth",
+      }).catch(() => {});
+      return res.status(200).json({ ok: false, nonRetry: true, error: auth.error });
+    }
+
+    let body = req.body;
+    const rawBodyText = Buffer.isBuffer(body)
+      ? body.toString("utf8")
+      : typeof body === "string"
+        ? body
+        : "";
+    if (Buffer.isBuffer(body)) {
+      try {
+        body = JSON.parse(rawBodyText);
+      } catch (_e) {
+        body = { raw: rawBodyText };
+      }
+    } else if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch (_e) {
+        body = { raw: body };
+      }
+    }
+    const forceHint =
+      typeof rawBodyText === "string" &&
+      (/"forceRegen"\s*:\s*true/i.test(rawBodyText) || /"force"\s*:\s*true/i.test(rawBodyText));
+    const lineUserId = String(body?.line_user_id || body?.lineUserId || "").trim();
+    const forceRun = forceHint || toBool(body?.force || body?.forceRegen || body?.forcePush);
+    const forceRegen = forceHint || toBool(body?.forceRegen || body?.force) || forceRun;
+    const pdfOnly = pdfOnlyRequired ? true : toBool(body?.pdf_only || body?.pdfOnly);
+    const pdfAttempt = Number(body?.pdf_attempt || 0);
+    console.log("[blueprint] worker request", {
+      line_user_id: lineUserId || null,
+      pdf_only: !!pdfOnly,
+      pdf_attempt: pdfAttempt || 0,
+      force_regen: !!forceRegen,
+    });
+    if (!lineUserId) {
+      await markFailed({
+        db,
+        admin,
+        lineUserId: null,
+        stage: "validate_input",
+        error: "missing_line_user_id",
+        extra: { bodyKeys: Object.keys(req.body || {}) },
+      }).catch(() => {});
+      return res.status(200).json({ ok: false, nonRetry: true, error: "missing_line_user_id" });
+    }
+
+    const jobRef = getJobRef(db, lineUserId);
+    const nowMs = getNowMillis();
+    let shouldRun = true;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(jobRef);
+      const job = snap.exists ? snap.data() : null;
+      if (job?.status === "done" && !forceRun) {
+        shouldRun = false;
+        return;
+      }
+      if (job?.status === "running" && isLeaseActive(job, nowMs)) {
+        shouldRun = false;
+        return;
+      }
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      tx.set(
+        jobRef,
+        {
+          status: "running",
+          error: null,
+          updated_at: now,
+          lease_until: nextLeaseMs(nowMs),
+        },
+        { merge: true }
+      );
+    });
+    if (!shouldRun) {
+      return res.status(200).json({ ok: true, code: "skipped" });
+    }
+    await setLineUserState({
+      db,
+      admin,
+      lineUserId,
+      state: "running_blueprint",
+      eventType: "blueprint_running",
+    });
+
+    const blueprint = createBlueprintLightService({ db, admin, storage, env, dict });
+    try {
+      if (pdfOnly) {
+        const genPdf = await blueprint.renderPdfFromStoredJson({ lineUserId, variant: "mobile", forceRegen });
+        const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+        const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
+        if ((!signedMobile?.ok || !signedMobile?.url) && !allowUnsigned) {
+          throw new Error("signed url missing after generate");
+        }
+        if (signedMobile?.ok && signedMobile?.url) {
+          const lineApiClient = createLineApi({
+            accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+            maxText: Number(env.MAX_LINE_TEXT || 4800),
+          });
+          const displayName = await resolveLineDisplayName(db, lineUserId);
+          const doneText = formatBlueprintDoneText(
+            LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
+            displayName
+          );
+          const templateMessage = {
+            type: "template",
+            altText: "星の設計図（Blueprint v25）",
+            template: {
+              type: "buttons",
+              title: "星の設計図（Blueprint v25）",
+              text: "設計図を開く",
+              actions: [
+                {
+                  type: "uri",
+                  label: "設計図を開く",
+                  uri: signedMobile.url,
+                },
+              ],
+            },
+          };
+          await lineApiClient.pushMessages(lineUserId, [
+            { type: "text", text: doneText },
+            templateMessage,
+          ]);
+        }
+        await jobRef.set(
+          {
+            status: "done",
+            file_path_mobile: genPdf?.filePath || null,
+            signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            finished_at: admin.firestore.FieldValue.serverTimestamp(),
+            lease_until: null,
+          },
+          { merge: true }
+        );
+        await setLineUserState({
+          db,
+          admin,
+          lineUserId,
+          state: "blueprint_done",
+          eventType: "blueprint_done",
+        });
+        return res.json({ ok: true, code: "pdf_generated" });
+      }
+
+      const pdfAsync = toBool(env?.BLUEPRINT_PDF_ASYNC || process.env.BLUEPRINT_PDF_ASYNC || "");
+      const genMobile = await blueprint.generateAndStore({
+        lineUserId,
+        forceRegen,
+        variant: "mobile",
+        skipPdf: pdfAsync,
+      });
+
+      if (pdfAsync) {
+        await enqueueBlueprintPdfJob({
+          env,
+          lineUserId,
+          forceRegen,
+          extraPayload: { pdf_only: true, pdf_attempt: 0 },
+        });
+        await jobRef.set(
+          {
+            status: "queued_pdf",
+            file_path_mobile: genMobile?.filePath || null,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            lease_until: null,
+          },
+          { merge: true }
+        );
+        return res.json({ ok: true, code: "queued_pdf" });
+      }
+
+      const signedMobile = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
+      const allowUnsigned = (env.NODE_ENV || process.env.NODE_ENV || "development") !== "production";
+      if ((!signedMobile?.ok || !signedMobile?.url) && !allowUnsigned) {
+        throw new Error("signed url missing after generate");
+      }
+      if (signedMobile?.ok && signedMobile?.url) {
+        const lineApiClient = createLineApi({
+          accessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+          maxText: Number(env.MAX_LINE_TEXT || 4800),
+        });
+        const displayName = await resolveLineDisplayName(db, lineUserId);
+        const doneText = formatBlueprintDoneText(
+          LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
+          displayName
+        );
+        const templateMessage = {
+          type: "template",
+          altText: "星の設計図（Blueprint v25）",
+          template: {
+            type: "buttons",
+            title: "星の設計図（Blueprint v25）",
+            text: "設計図を開く",
+            actions: [
+              {
+                type: "uri",
+                label: "設計図を開く",
+                uri: signedMobile.url,
+              },
+            ],
+          },
+        };
+        await lineApiClient.pushMessages(lineUserId, [
+          { type: "text", text: doneText },
+          templateMessage,
+        ]);
+      }
+      await jobRef.set(
+        {
+          status: "done",
+          file_path_mobile: genMobile?.filePath || null,
+          signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          finished_at: admin.firestore.FieldValue.serverTimestamp(),
+          lease_until: null,
+        },
+        { merge: true }
+      );
+      await setLineUserState({
+        db,
+        admin,
+        lineUserId,
+        state: "blueprint_done",
+        eventType: "blueprint_done",
+      });
+      return res.json({ ok: true, code: genMobile?.skipped ? "already_exists" : "generated" });
+    } catch (e) {
+      const message = String(e?.message || e || "");
+      const code = String(e?.code || "");
+      const nonRetry =
+        message.includes("ai_failed:") ||
+        message.includes("validation_failed:") ||
+        message.includes("json_parse_failed:") ||
+        message.includes("line user not found") ||
+        message.includes("missing_") ||
+        message.includes("token") ||
+        code === "UNAUTHENTICATED" ||
+        code === "PERMISSION_DENIED";
+
+      console.log("[blueprint] worker failed:", message);
+
+      if (pdfOnly) {
+        const maxRetry = Number(env?.BLUEPRINT_PDF_RETRY_MAX || process.env.BLUEPRINT_PDF_RETRY_MAX || 3);
+        if (pdfAttempt < maxRetry) {
+          await enqueueBlueprintPdfJob({
+            env,
+            lineUserId,
+            forceRegen,
+            extraPayload: { pdf_only: true, pdf_attempt: pdfAttempt + 1 },
+          });
+          await jobRef.set(
+            {
+              status: "queued_pdf",
+              error: message,
+              updated_at: admin.firestore.FieldValue.serverTimestamp(),
+              lease_until: nextLeaseMs(nowMs),
+            },
+            { merge: true }
+          );
+          await setLineUserState({
+            db,
+            admin,
+            lineUserId,
+            state: "queued_blueprint",
+            eventType: "blueprint_retry_queued",
+          });
+          return res.status(200).json({ ok: true, code: "queued_pdf_retry" });
+        }
+      }
+
+      if (nonRetry) {
+        await markFailed({ db, admin, lineUserId, stage: "worker", error: message }).catch(() => {});
+        await jobRef.set(
+          { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
+          { merge: true }
+        );
+        await setLineUserState({
+          db,
+          admin,
+          lineUserId,
+          state: "blueprint_failed",
+          eventType: "blueprint_failed",
+        });
+        return res.status(200).json({ ok: false, nonRetry: true, error: message });
+      }
+
+      await markFailed({ db, admin, lineUserId, stage: "worker_unhandled", error: message }).catch(() => {});
+      await jobRef.set(
+        { finished_at: admin.firestore.FieldValue.serverTimestamp(), lease_until: null },
+        { merge: true }
+      );
+      await setLineUserState({
+        db,
+        admin,
+        lineUserId,
+        state: "queued_blueprint",
+        eventType: "blueprint_retry_queued",
+      });
+      return res.status(500).json({ ok: false, error: "internal_error" });
+    }
+  };
+}
+
+function createBlueprintHandlers(deps) {
+  const worker = createWorkerHandler({ pdfOnlyRequired: false });
+  const pdfWorker = createWorkerHandler({ pdfOnlyRequired: true });
+  return {
+    handleGenerate: (req, res) => handleGenerate(req, res, deps),
+    handleStatus: (req, res) => handleStatus(req, res, deps),
+    handleWorker: (req, res) => worker(req, res, deps),
+    handlePdfWorker: (req, res) => pdfWorker(req, res, deps),
+  };
+}
+
+module.exports = {
+  createBlueprintHandlers,
+};
