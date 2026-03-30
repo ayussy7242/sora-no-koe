@@ -42,7 +42,12 @@ function createWpClient({ baseUrl, user, appPassword }) {
     }
     if (!res.ok) {
       const msg = json?.message || text || `HTTP ${res.status}`;
-      throw new Error(`WP request failed (${res.status}): ${msg}`);
+      const err = new Error(`WP request failed (${res.status}): ${msg}`);
+      err.status = res.status;
+      err.response = json;
+      err.body = text;
+      err.url = url;
+      throw err;
     }
     return json;
   }
@@ -86,7 +91,12 @@ function createWpClient({ baseUrl, user, appPassword }) {
     }
     if (!res.ok) {
       const msg = json?.message || text || `HTTP ${res.status}`;
-      throw new Error(`WP media upload failed (${res.status}): ${msg}`);
+      const err = new Error(`WP media upload failed (${res.status}): ${msg}`);
+      err.status = res.status;
+      err.response = json;
+      err.body = text;
+      err.url = url;
+      throw err;
     }
     return json;
   }
