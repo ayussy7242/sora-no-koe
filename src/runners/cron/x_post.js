@@ -53,6 +53,31 @@ function truncateForX(text, maxChars) {
   return { text: trimmed, truncated: true };
 }
 
+const X_HARD_MAX_CHARS = 180;
+
+function resolveXMaxChars(value, fallback = X_HARD_MAX_CHARS) {
+  const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
+  return Math.min(resolved, X_HARD_MAX_CHARS);
+}
+
+function safePreview(text, maxLen = 80) {
+  const raw = String(text || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  const chars = Array.from(raw);
+  if (chars.length <= maxLen) return raw;
+  return chars.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
+}
+
+function normalizeXError(err) {
+  return {
+    message: err?.message || String(err),
+    status: err?.status || null,
+    code: err?.code || null,
+    body: err?.body || null,
+    name: err?.name || null,
+  };
+}
+
 function ensureXMeta(story) {
   story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
   story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
@@ -122,20 +147,118 @@ async function buildNightPosts({ story, dict, renderers, openai, useAi }) {
 
 async function postThreadToX({ posts, env }) {
   const ids = [];
+  const results = [];
   let replyTo = null;
-  for (const item of posts) {
+  for (let idx = 0; idx < posts.length; idx += 1) {
+    const item = posts[idx];
     const text = typeof item === "string" ? item : item?.text;
     const mediaIds = typeof item === "string" ? null : item?.mediaIds;
-    const res = await postTweet({ text, replyToId: replyTo, mediaIds, env });
-    const id = res?.id || "";
-    ids.push(id);
-    replyTo = id || replyTo;
+    const slot = typeof item === "string" ? `post_${idx + 1}` : (item?.slot || `post_${idx + 1}`);
+    const textLen = countChars(text);
+
+    try {
+      const res = await postTweet({ text, replyToId: replyTo, mediaIds, env });
+      const id = res?.id || "";
+      if (!id) {
+        const err = new Error("X post missing id");
+        err.code = "X_POST_ID_MISSING";
+        throw err;
+      }
+      ids.push(id);
+      results.push({
+        ok: true,
+        slot,
+        id,
+        reply_to: replyTo,
+        text_len: textLen,
+      });
+      replyTo = id;
+    } catch (err) {
+      const info = normalizeXError(err);
+      results.push({
+        ok: false,
+        slot,
+        error: info,
+        reply_to: replyTo,
+        text_len: textLen,
+        text_preview: safePreview(text),
+      });
+      console.error("[x:post] failed", {
+        slot,
+        reply_to: replyTo,
+        text_len: textLen,
+        text_preview: safePreview(text),
+        ...info,
+      });
+      // continue: keep replyTo as last successful
+    }
   }
-  return ids;
+  return {
+    ids,
+    results,
+    errors: results.filter((r) => !r.ok),
+  };
+}
+
+async function saveXPostFailure({ db, dateLocal, asOfISO, kind, posts, results, errors, image, meta } = {}) {
+  if (!db) return { ok: false, skipped: true, reason: "db_missing" };
+  const outboxRoot = db.collection("posts_x_outbox").doc(dateLocal).collection("items");
+  const ref = outboxRoot.doc();
+  const payload = {
+    kind: kind || "x",
+    date_local: dateLocal,
+    as_of: asOfISO,
+    created_at: new Date().toISOString(),
+    posts: Array.isArray(posts) ? posts : [],
+    results: Array.isArray(results) ? results : [],
+    errors: Array.isArray(errors) ? errors : [],
+    image: image || null,
+    meta: meta || null,
+  };
+  await ref.set(payload, { merge: true });
+  return { ok: true, id: ref.id };
+}
+
+async function notifyXPostFailure({ env, dateLocal, kind, errors, results } = {}) {
+  try {
+    const env2 = { ...(env || {}), ...(process.env || {}) };
+    const lineEnabled = toBool(env2.LINE_ENABLED, false);
+    const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
+    const ownerLineUserId = env2.OWNER_LINE_USER_ID;
+    if (!lineEnabled || !accessToken || !ownerLineUserId) {
+      return { ok: false, skipped: true, reason: "line_disabled_or_missing" };
+    }
+
+    const { createLineApi } = require("../../integrations/line/api");
+    const { pushLineMessage } = require("../../integrations/line/messaging");
+
+    const lineApiClient = createLineApi({ accessToken });
+    const failedSlots = (Array.isArray(errors) ? errors : [])
+      .map((e) => e?.slot)
+      .filter(Boolean)
+      .join(", ") || "unknown";
+    const message = [
+      "【X投稿エラー】",
+      `種別: ${kind || "x"}`,
+      `日付: ${dateLocal || "-"}`,
+      `失敗: ${failedSlots}`,
+      `件数: 成功${(Array.isArray(results) ? results.filter((r) => r.ok).length : 0)} / 失敗${Array.isArray(errors) ? errors.length : 0}`,
+    ].join("\n");
+
+    return await pushLineMessage({
+      lineApiClient,
+      to: ownerLineUserId,
+      payload: message,
+      meta: { kind, dateLocal },
+    });
+  } catch (err) {
+    console.error("[x:notify] failed", err?.message || String(err));
+    return { ok: false, error: err };
+  }
 }
 
 async function runXMorningPost(deps, opts = {}) {
-  const { env, storyService, renderers, dict } = deps || {};
+  const { env, storyService, renderers, dict, db } = deps || {};
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXMorningMain || !renderers?.renderXMorningLog || !renderers?.renderXResonance) {
@@ -169,7 +292,7 @@ async function runXMorningPost(deps, opts = {}) {
       ? Number(env2.X_RESONANCE_ORB_MAX)
       : Number(SPEC?.orb?.free ?? 1.5);
 
-  const { posts, hasResonance, errors } = await buildMorningPosts({
+  const { posts, hasResonance, errors: buildErrors } = await buildMorningPosts({
     story,
     dict,
     renderers,
@@ -179,25 +302,40 @@ async function runXMorningPost(deps, opts = {}) {
   });
 
   if (Array.isArray(posts) && posts.length === 0 && useAi) {
+    console.error("[x:post] ai_generation_failed", {
+      date_local: dateLocal,
+      as_of: asOfISO,
+      errors: buildErrors,
+    });
+    await saveXPostFailure({
+      db,
+      dateLocal,
+      asOfISO,
+      kind: "morning",
+      posts: [],
+      results: [],
+      errors: buildErrors,
+      meta: { reason: "ai_generation_failed", has_resonance: hasResonance },
+    }).catch((err) => console.error("[x:outbox] save failed", err?.message || String(err)));
+    await notifyXPostFailure({ env: env2, dateLocal, kind: "morning", errors: buildErrors });
+
     return {
       ok: false,
       dry_run: dryRun,
       date_local: dateLocal,
       as_of: asOfISO,
       error: "ai_generation_failed",
-      details: Array.isArray(errors) ? errors : [],
+      details: Array.isArray(buildErrors) ? buildErrors : [],
     };
   }
 
-  const maxMainChars = Number.isFinite(Number(env2.X_POST_MAIN_MAX_CHARS))
-    ? Number(env2.X_POST_MAIN_MAX_CHARS)
-    : 180;
-  const maxLogChars = Number.isFinite(Number(env2.X_POST_LOG_MAX_CHARS))
-    ? Number(env2.X_POST_LOG_MAX_CHARS)
-    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
-  const maxResonanceChars = Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS))
-    ? Number(env2.X_POST_RESONANCE_MAX_CHARS)
-    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const maxMainChars = resolveXMaxChars(env2.X_POST_MAIN_MAX_CHARS);
+  const maxLogChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_LOG_MAX_CHARS)) ? Number(env2.X_POST_LOG_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
+  const maxResonanceChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS)) ? Number(env2.X_POST_RESONANCE_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
 
   const trimmed = posts.map((post) => {
     const limit = post.slot === "main"
@@ -206,7 +344,12 @@ async function runXMorningPost(deps, opts = {}) {
         ? maxResonanceChars
         : maxLogChars;
     const res = truncateForX(post.text, limit);
-    return { text: res.text, truncated: res.truncated };
+    return {
+      ...post,
+      text: res.text,
+      truncated: res.truncated,
+      text_len: countChars(res.text),
+    };
   });
 
   const imageEnabled = opts.image === undefined
@@ -262,20 +405,54 @@ async function runXMorningPost(deps, opts = {}) {
   const payloads = trimmed
     .map((p, idx) => ({
       text: p.text,
+      slot: p.slot,
       mediaIds: idx === 0 && mediaId ? [mediaId] : null,
+      truncated: p.truncated,
+      text_len: p.text_len,
     }))
     .filter((p) => String(p.text || "").trim());
-  const tweetIds = await postThreadToX({ posts: payloads, env: env2 });
+
+  const postRes = await postThreadToX({ posts: payloads, env: env2 });
+  const postErrors = postRes.errors || [];
+  const okCount = (postRes.results || []).filter((r) => r.ok).length;
+
+  if (postErrors.length) {
+    await saveXPostFailure({
+      db,
+      dateLocal,
+      asOfISO,
+      kind: "morning",
+      posts: payloads,
+      results: postRes.results,
+      errors: postErrors,
+      image: imageInfo,
+      meta: {
+        has_resonance: hasResonance,
+        max_chars: { main: maxMainChars, log: maxLogChars, resonance: maxResonanceChars },
+      },
+    }).catch((err) => console.error("[x:outbox] save failed", err?.message || String(err)));
+
+    await notifyXPostFailure({
+      env: env2,
+      dateLocal,
+      kind: "morning",
+      errors: postErrors,
+      results: postRes.results,
+    });
+  }
 
   return {
-    ok: true,
+    ok: okCount > 0,
+    partial: postErrors.length > 0,
     dry_run: false,
     date_local: dateLocal,
     as_of: asOfISO,
     posts: trimmed,
-    tweet_ids: tweetIds,
+    tweet_ids: postRes.ids || [],
+    post_results: postRes.results || [],
     has_resonance: hasResonance,
     image: imageInfo,
+    errors: postErrors,
   };
 }
 
@@ -325,9 +502,7 @@ async function runXNightPost(deps, opts = {}) {
 
   const { posts } = await buildNightPosts({ story, dict, renderers, openai, useAi: false });
 
-  const maxChars = Number.isFinite(Number(env2.X_POST_MAX_CHARS))
-    ? Number(env2.X_POST_MAX_CHARS)
-    : 270;
+  const maxChars = resolveXMaxChars(env2.X_POST_MAX_CHARS);
 
   const trimmed = posts.map((post) => {
     const res = truncateForX(post, maxChars);
@@ -477,9 +652,9 @@ async function runXMoonEventPost(deps, opts = {}) {
     };
   }
 
-  const maxChars = Number.isFinite(Number(env2.X_POST_MOON_EVENT_MAX_CHARS))
-    ? Number(env2.X_POST_MOON_EVENT_MAX_CHARS)
-    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const maxChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_MOON_EVENT_MAX_CHARS)) ? Number(env2.X_POST_MOON_EVENT_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
   const trimmed = truncateForX(textTrimmed, maxChars);
 
   if (dryRun) {
@@ -560,9 +735,9 @@ async function runXNext30DaysPost(deps, opts = {}) {
     };
   }
 
-  const maxChars = Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS))
-    ? Number(env2.X_POST_MONTHLY_MAX_CHARS)
-    : (Number.isFinite(Number(env2.X_POST_MAX_CHARS)) ? Number(env2.X_POST_MAX_CHARS) : 270);
+  const maxChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS)) ? Number(env2.X_POST_MONTHLY_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
   const mainTrim = truncateForX(mainTrimmed, maxChars);
 
   const flowRaw = await renderers.renderXNext30DaysFlow(story);
