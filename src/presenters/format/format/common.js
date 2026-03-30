@@ -132,8 +132,8 @@ function formatElementModalityLines(summary) {
   if (!hasElement && !hasModality) return [];
 
   return [
-    `🔥 火${Number(element.fire || 0)} 🪨 地${Number(element.earth || 0)} 💨 風${Number(element.air || 0)} 💧 水${Number(element.water || 0)}`,
-    `🏃 活動${Number(modality.cardinal || 0)} 🧱 不動${Number(modality.fixed || 0)} 🌿 柔軟${Number(modality.mutable || 0)}`,
+    `🔥火${Number(element.fire || 0)} 🪨地${Number(element.earth || 0)} 💨風${Number(element.air || 0)} 💧水${Number(element.water || 0)}`,
+    `🏃活動${Number(modality.cardinal || 0)} 🧱不動${Number(modality.fixed || 0)} 🌿柔軟${Number(modality.mutable || 0)}`,
   ];
 }
 
