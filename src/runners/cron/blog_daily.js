@@ -276,13 +276,40 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
       return { ok: true, updated: true, id: updated.id, link: updated.link };
     }
 
-    mark("wp_create_post_before");
-    const created = await wp.createPost(payload);
-    mark("wp_create_post_after", { id: created?.id });
-    mark("wp_after", { created: true, id: created?.id });
-    if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: created?.id });
-    mark("end", { ok: true, created: true, id: created?.id });
-    return { ok: true, created: true, id: created.id, link: created.link };
+    try {
+      mark("wp_create_post_before");
+      const created = await wp.createPost(payload);
+      mark("wp_create_post_after", { id: created?.id });
+      mark("wp_after", { created: true, id: created?.id });
+      if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: created?.id });
+      mark("end", { ok: true, created: true, id: created?.id });
+      return { ok: true, created: true, id: created.id, link: created.link };
+    } catch (e) {
+      mark("wp_create_post_error", {
+        message: e?.message || String(e),
+        status: e?.status,
+        wpCode: e?.response?.code,
+      });
+      // Fallback: WP sometimes returns 500 even though the post was created.
+      try {
+        mark("wp_create_post_fallback_get_before");
+        const existingAfter = await wp.getPostBySlug(slug);
+        mark("wp_create_post_fallback_get_after", { found: !!existingAfter?.id });
+        if (existingAfter?.id) {
+          mark("wp_update_post_before", { id: existingAfter.id, fallback: true });
+          const updated = await wp.updatePost(existingAfter.id, payload);
+          mark("wp_update_post_after", { id: updated?.id, fallback: true });
+          mark("wp_after", { updated: true, id: updated?.id, fallback: true });
+          if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: updated?.id });
+          mark("end", { ok: true, updated: true, id: updated?.id, fallback: true });
+          return { ok: true, updated: true, id: updated.id, link: updated.link, fallback: true };
+        }
+      } catch (fallbackErr) {
+        console.error("[cron/blog/daily] wp_create_fallback_failed:", fallbackErr?.message || String(fallbackErr));
+        if (fallbackErr?.stack) console.error(fallbackErr.stack);
+      }
+      throw e;
+    }
   } catch (e) {
     console.error("[cron/blog/daily] failed:", e?.message || String(e));
     if (e?.stack) console.error(e.stack);
