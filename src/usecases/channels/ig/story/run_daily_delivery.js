@@ -144,6 +144,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
+  const asOfNowISO = opts.asOfNowISO || new Date().toISOString();
   const tomorrowLocal = addDays(dateLocal, 1);
   const asOfTomorrowISO = opts.asOfTomorrowISO || (tomorrowLocal ? asOfIsoFromDateLocalJST(tomorrowLocal) : asOfISO);
   const dryRun = opts.dryRun === true || opts.dry_run === true;
@@ -181,6 +182,12 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
 
   try {
     const { story } = await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false });
+    const { story: nowStory } = await buildPublicStorySnapshot({
+      storyService,
+      dateLocal,
+      asOfISO: asOfNowISO,
+      save: false,
+    });
     const tomorrowStory = tomorrowLocal
       ? (await buildPublicStorySnapshot({ storyService, dateLocal: tomorrowLocal, asOfISO: asOfTomorrowISO, save: false })).story
       : story;
@@ -205,6 +212,8 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
       maxRetries: 1,
       asOfISO,
       asOfTomorrowISO,
+      asOfNowISO,
+      nowStory,
       resonanceMode: opts.resonanceMode,
     });
 

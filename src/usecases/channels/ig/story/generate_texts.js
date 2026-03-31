@@ -28,7 +28,8 @@ function normalizeText(text) {
 }
 
 function pickPreferredResonanceAspect(story, opts = {}) {
-  const igResonance = story?.outputs?.ig?.source?.resonance_aspect;
+  const preferOutput = opts.preferOutput !== false;
+  const igResonance = preferOutput ? story?.outputs?.ig?.source?.resonance_aspect : null;
   if (igResonance) return igResonance;
   const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
@@ -112,8 +113,9 @@ function buildTodayPrompt({ moonSign, phaseLabel, sunSign }) {
   ].join("\n");
 }
 
-function buildResonancePrompt({ aspectInput }) {
+function buildResonancePrompt({ aspectInput, nowAspectInput, nowMoonSign, nowPhaseLabel }) {
   const a = aspectInput || {};
+  const n = nowAspectInput || {};
   return [
     SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
     "",
@@ -126,6 +128,18 @@ function buildResonancePrompt({ aspectInput }) {
     `A_HOUSE: `,
     `B_HOUSE: `,
     `ORB: ${Number.isFinite(Number(a.orb)) ? Number(a.orb).toFixed(2) : ""}`,
+    "",
+    "NOW_INPUT:",
+    `NOW_MOON_SIGN: ${safeText(nowMoonSign)}`,
+    `NOW_PHASE_LABEL: ${safeText(nowPhaseLabel)}`,
+    `NOW_ASPECT: ${safeText(n.aspectLabel)}`,
+    `NOW_A_BODY: ${safeText(n.aLabel)}`,
+    `NOW_B_BODY: ${safeText(n.bLabel)}`,
+    `NOW_A_SIGN: ${safeText(n.aSign)}`,
+    `NOW_B_SIGN: ${safeText(n.bSign)}`,
+    `NOW_A_HOUSE: `,
+    `NOW_B_HOUSE: `,
+    `NOW_ORB: ${Number.isFinite(Number(n.orb)) ? Number(n.orb).toFixed(2) : ""}`,
   ].join("\n");
 }
 
@@ -183,9 +197,13 @@ function buildTodayDataLines({ moonSign, phaseLabel, moonAge, illumination, next
   return lines;
 }
 
-function buildResonanceDataLines({ aspectInput } = {}) {
+function buildResonanceDataLines({ aspectInput, nowAspectInput } = {}) {
+  const lines = [];
   const aspectLine = buildResonanceAspectLine({ aspectInput });
-  return aspectLine ? [aspectLine] : [];
+  if (aspectLine) lines.push(aspectLine);
+  const nowLine = buildResonanceAspectLine({ aspectInput: nowAspectInput });
+  if (nowLine) lines.push(`今: ${nowLine}`);
+  return lines;
 }
 
 function buildResonanceSignature({ aspectInput } = {}) {
@@ -300,13 +318,20 @@ function fallbackToday({ moonSign, phaseLabel } = {}) {
   return `今日の空、どうでしたか？\n${sign}の月と${phase}の輪郭が残ります。\n静かな余韻が空に置かれます。`;
 }
 
-function fallbackResonance({ aspectInput } = {}) {
+function fallbackResonance({ aspectInput, nowAspectInput, nowMoonSign, nowPhaseLabel } = {}) {
   const a = aspectInput?.aLabel || "天体";
   const b = aspectInput?.bLabel || "天体";
   const label = aspectInput?.aspectLabel || "接続";
   const deg = Number.isFinite(Number(aspectInput?.aspectDeg)) ? `${Math.round(Number(aspectInput.aspectDeg))}°` : "";
   const orb = Number.isFinite(Number(aspectInput?.orb)) ? `${Number(aspectInput.orb).toFixed(2)}°` : "";
-  return `${a}×${b}の接続が${label}${deg}で近づきます。\n空の質感が静かに濃くなる配置です。\n何か感じた人いる？`;
+  const nowA = nowAspectInput?.aLabel || "天体";
+  const nowB = nowAspectInput?.bLabel || "天体";
+  const nowLabel = nowAspectInput?.aspectLabel || "接続";
+  const nowDeg = Number.isFinite(Number(nowAspectInput?.aspectDeg)) ? `${Math.round(Number(nowAspectInput.aspectDeg))}°` : "";
+  const nowSign = safeText(nowMoonSign) || "—";
+  const nowPhase = safeText(nowPhaseLabel) || "";
+  const nowMoonText = nowPhase ? `${nowSign}の月、${nowPhase}` : `${nowSign}の月`;
+  return `${a}×${b}の接続が${label}${deg}で近づきます。\n空の質感が静かに濃くなる配置です。\n今は${nowMoonText}、${nowA}×${nowB}の${nowLabel}${nowDeg}。\n何か感じた人いる？`;
 }
 
 function fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput } = {}) {
@@ -322,11 +347,13 @@ async function generateIgStoryTexts({
   dateLocal,
   story,
   tomorrowStory,
+  nowStory,
   dict,
   openai,
   maxRetries = 1,
   asOfISO,
   asOfTomorrowISO,
+  asOfNowISO,
   resonanceMode,
 } = {}) {
   if (!story) throw new Error("story missing");
@@ -349,14 +376,25 @@ async function generateIgStoryTexts({
 
   const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
   const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
-  const resonancePrompt = buildResonancePrompt({ aspectInput: resonanceInput });
+  const nowBaseStory = nowStory || story;
+  const nowInfo = buildTodayMoonInfo({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
+  const nowMoonSign = safeText(nowInfo?.moonSign);
+  const nowPhaseLabel = safeText(nowInfo?.phase?.name);
+  const nowAspect = pickPreferredResonanceAspect(nowBaseStory, { resonanceMode, preferOutput: false });
+  const nowAspectInput = buildAspectInput({ dict: useDict, aspect: nowAspect });
+  const resonancePrompt = buildResonancePrompt({
+    aspectInput: resonanceInput,
+    nowAspectInput,
+    nowMoonSign,
+    nowPhaseLabel,
+  });
   const resonanceText = await generateTextWithRetry({
     userPrompt: resonancePrompt,
     openai,
     validate: (text) => runAiTextPipeline({ rawText: text, preset: PRESETS.ig.story_resonance }),
     maxRetries,
     temperature: 0.5,
-    maxTokens: 190,
+    maxTokens: 220,
   });
 
   const nextStory = tomorrowStory || story;
@@ -387,7 +425,10 @@ async function generateIgStoryTexts({
     illumination: info?.illumination,
     nextMove: nextMoonMove,
   });
-  const resonanceFixedLines = buildResonanceDataLines({ aspectInput: resonanceInput });
+  const resonanceFixedLines = buildResonanceDataLines({
+    aspectInput: resonanceInput,
+    nowAspectInput,
+  });
   const tomorrowFixedLines = buildTomorrowDataLines({
     nextStory,
     nextAspectInput,
@@ -400,7 +441,14 @@ async function generateIgStoryTexts({
   );
   const resonanceBody = appendFixedLines(
     injectResonanceSignature(
-      resonanceText.ok ? resonanceText.text : fallbackResonance({ aspectInput: resonanceInput }),
+      resonanceText.ok
+        ? resonanceText.text
+        : fallbackResonance({
+            aspectInput: resonanceInput,
+            nowAspectInput,
+            nowMoonSign,
+            nowPhaseLabel,
+          }),
       { aspectInput: resonanceInput }
     ),
     resonanceFixedLines
@@ -440,6 +488,7 @@ async function generateIgStoryTexts({
     source: {
       resonance_aspect: resonanceAspect || null,
       tomorrow_aspect: nextAspect || null,
+      now_resonance_aspect: nowAspect || null,
     },
   };
 }

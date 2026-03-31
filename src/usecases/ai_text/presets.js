@@ -113,7 +113,7 @@ const PRESETS = {
     story_resonance: {
       outputType: "plain_text",
       minChars: 60,
-      maxChars: 130,
+      maxChars: 180,
       charCountMode: "no_newlines",
       questionCount: { max: 1, reason: "too_many_questions" },
       forbiddenTerms: ["あなた"],
