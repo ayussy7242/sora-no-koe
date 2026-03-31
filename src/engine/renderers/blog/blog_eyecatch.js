@@ -4,9 +4,9 @@ const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
-const dict = require("../../content/dict");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
-const { toDateLocalJST } = require("../../utils/time_utils");
+const dict = require("../../../content/dict");
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
+const { toDateLocalJST } = require("../../../utils/time_utils");
 const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
