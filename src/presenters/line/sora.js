@@ -2,6 +2,7 @@
 
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
+const { resolveChannelConfig } = require("../../config/aspect_channel_config");
 const { scoreForAspect } = require("../../domain/touch_point_scoring");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const {
@@ -26,7 +27,10 @@ async function renderSoraLine(story, deps = {}) {
   const includeAspect = deps?.includeAspect !== false;
   const includeHouse = deps?.includeHouse === true;
   const isPaid = deps?.paid === true;
-  const resonanceMode = deps?.resonanceMode || (deps?.deepMode ? "deep" : "core");
+  const LINE_SORA_CFG = resolveChannelConfig("line_sora");
+  const fallbackMode = deps?.deepMode ? "deep" : "core";
+  const cfgMode = isPaid ? (LINE_SORA_CFG.useDeepPaid ? "deep" : "core") : (LINE_SORA_CFG.useDeepFree ? "deep" : "core");
+  const resonanceMode = deps?.resonanceMode || cfgMode || fallbackMode;
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
 
@@ -35,7 +39,9 @@ async function renderSoraLine(story, deps = {}) {
 
   const pub = story?.public || {};
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
-  const orbLimit = isPaid ? SPEC.orb.paid : SPEC.orb.free;
+  const orbLimit = isPaid
+    ? (LINE_SORA_CFG.orbLimitPaid ?? SPEC.orb.paid)
+    : (LINE_SORA_CFG.orbLimitFree ?? SPEC.orb.free);
 
   const bodyOrder = [
     "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
@@ -102,6 +108,9 @@ async function renderSoraLine(story, deps = {}) {
   let listTitleAspect = "";
 
   if (isPaid) {
+    const maxItems = Number.isFinite(Number(LINE_SORA_CFG.maxItemsPaid))
+      ? Number(LINE_SORA_CFG.maxItemsPaid)
+      : null;
     picked = within
       .map((r) => {
         const aKey = normalizeBodyKey(r?.a || "");
@@ -110,10 +119,16 @@ async function renderSoraLine(story, deps = {}) {
       })
       .sort((a, b) => Number(b.score) - Number(a.score))
       .map((x) => x.item);
+    if (Number.isFinite(maxItems)) {
+      picked = picked.slice(0, maxItems);
+    }
     listTitleAspect = SPEC.labels.sora.closestPaid(orbLimit);
   } else {
     if (within.length) {
-      picked = sortByOrb(within).slice(0, 1);
+      const maxItems = Number.isFinite(Number(LINE_SORA_CFG.maxItemsFree))
+        ? Number(LINE_SORA_CFG.maxItemsFree)
+        : 1;
+      picked = sortByOrb(within).slice(0, maxItems);
       listTitleAspect = SPEC.labels.sora.closest;
     } else if (minItem) {
       picked = [minItem];

@@ -3,6 +3,7 @@
 const { isRetrograde, buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon_info");
 const { SPEC } = require("../../../config/sora_spec");
+const { resolveChannelConfig, resolveProximityConfig } = require("../../../config/aspect_channel_config");
 const { weightForBody, scoreForAspect } = require("../../../domain/touch_point_scoring");
 const { computeOrbStats } = require("../../../domain/aspect_stats");
 const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point_selection");
@@ -11,14 +12,13 @@ const {
   signIndexFromKey,
   houseNumberForSignIndex,
   formatDateYmd,
-  calcTransitLon,
   findAspectWindow,
   findTransitTransitWindow,
   findRetrogradeWindow,
   formatDateYmdHm,
   pickApplyingUpcomingAspects,
-  absAngularDistance,
 } = require("../../../domain/astro_compute");
+const { refinePeakTime } = require("../../../domain/aspect_proximity");
 const { normalizeAspectKey } = require("../../../domain/canonical");
 const {
   glyphForBody,
@@ -33,9 +33,11 @@ const { formatElements } = require("../../../presenters/line/paid/elements");
 const { formatUra } = require("../../../presenters/line/paid/ura");
 
 const SLOW_TRANSITS = new Set(["saturn", "uranus", "neptune", "pluto"]);
-const TSUKIJI_MIN_DAYS = SPEC.tsukiji.minDays;
-const TSUKIJI_ORB_LIMIT = SPEC.orb.paid;
-const TSUKIJI_MAX_ITEMS = SPEC.tsukiji.maxItems;
+const LINE_PAID_CFG = resolveChannelConfig("line_paid");
+const LINE_PAID_PROXIMITY = resolveProximityConfig("line_paid");
+const TSUKIJI_MIN_DAYS = LINE_PAID_CFG.tsukijiMinDays ?? SPEC.tsukiji.minDays;
+const TSUKIJI_ORB_LIMIT = LINE_PAID_CFG.tsukijiOrbLimit ?? SPEC.orb.paid;
+const TSUKIJI_MAX_ITEMS = LINE_PAID_CFG.tsukijiMaxItems ?? SPEC.tsukiji.maxItems;
 const TSUKIJI_RETRO_KEYS = ["mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
 
 function buildBunpuTop5(story, dict) {
@@ -47,13 +49,13 @@ function buildBunpuTop5(story, dict) {
   const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".") || null;
 
   const scored = sortScoredTouchPoints(
-    scoreTouchPoints(tps, { orbLimit: SPEC.orb.paid, scoreForAspect }),
+    scoreTouchPoints(tps, { orbLimit: LINE_PAID_CFG.orbLimitPaid ?? SPEC.orb.paid, scoreForAspect }),
     { isPaid: true }
   );
 
   const todayPicked = dedupeTouchPoints(
     sortScoredTouchPoints(
-      scoreTouchPoints(tps, { orbLimit: SPEC.orb.free, scoreForAspect }),
+      scoreTouchPoints(tps, { orbLimit: LINE_PAID_CFG.orbLimitFree ?? SPEC.orb.free, scoreForAspect }),
       { isPaid: false }
     ),
     { max: 3 }
@@ -387,38 +389,17 @@ function buildKinjitsuBlock(story, dict, asOfISO) {
     Array.from(new Set(items.flatMap((it) => [it.aKey, it.bKey]).filter(Boolean)))
   );
 
-  const computeOrbAt = (aKey, bKey, aspectDeg, iso) => {
-    const lonA = calcTransitLon(aKey, iso);
-    const lonB = calcTransitLon(bKey, iso);
-    if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
-    const dist = absAngularDistance(lonA, lonB);
-    return Number.isFinite(Number(dist)) ? Math.abs(dist - Number(aspectDeg)) : null;
-  };
-
-  const refinePeakTime = (aKey, bKey, aspectDeg, seed, fallbackISO) => {
-    const base = seed instanceof Date ? seed : (seed ? new Date(seed) : null);
-    const fallback = fallbackISO ? new Date(fallbackISO) : null;
-    const center =
-      base && !Number.isNaN(base.getTime()) ? base :
-      fallback && !Number.isNaN(fallback.getTime()) ? fallback :
-      null;
-    if (!center) return seed;
-    const windowMs = 18 * 3600 * 1000;
-    const stepMs = 5 * 60 * 1000;
-    let best = { orb: Infinity, time: center };
-    const start = new Date(center.getTime() - windowMs);
-    const end = new Date(center.getTime() + windowMs);
-    for (let t = start.getTime(); t <= end.getTime(); t += stepMs) {
-      const iso = new Date(t).toISOString();
-      const orb = computeOrbAt(aKey, bKey, aspectDeg, iso);
-      if (!Number.isFinite(Number(orb))) continue;
-      if (orb < best.orb) best = { orb, time: new Date(t) };
-    }
-    return best.time;
-  };
-
   const itemsData = items.map((it) => {
-    const peak = refinePeakTime(it.aKey, it.bKey, it.aspectDeg, it.peak, baseISO);
+    const peak = refinePeakTime({
+      kind: LINE_PAID_PROXIMITY.kind,
+      aKey: it.aKey,
+      bKey: it.bKey,
+      aspectDeg: it.aspectDeg,
+      seedISO: it.peak,
+      fallbackISO: baseISO,
+      windowMs: LINE_PAID_PROXIMITY.peakWindowMs,
+      stepMs: LINE_PAID_PROXIMITY.peakStepMs,
+    });
     return {
       aKey: it.aKey,
       bKey: it.bKey,

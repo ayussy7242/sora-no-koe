@@ -8,6 +8,7 @@
 
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
+const { resolveProximityConfig } = require("../../config/aspect_channel_config");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const {
   formatDateLabel,
@@ -17,11 +18,8 @@ const {
   formatElementModalityLines,
 } = require("../format/format/common");
 const { listWithOrb, sortByOrb } = require("../../domain/aspect_selection");
-const {
-  absAngularDistance,
-  calcTransitLon,
-  pickApplyingUpcomingAspects,
-} = require("../../domain/astro_compute");
+const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
+const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
 const { toDateLocalJST } = require("../../utils/time_utils");
 
@@ -106,59 +104,11 @@ function elementLabelFromSign(dict, signKey) {
   return "？";
 }
 
-function computeOrbAt(aKey, bKey, aspectDeg, iso) {
-  if (!aKey || !bKey || !Number.isFinite(Number(aspectDeg))) return null;
-  const lonA = calcTransitLon(aKey, iso);
-  const lonB = calcTransitLon(bKey, iso);
-  if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
-  const dist = absAngularDistance(lonA, lonB);
-  return Number.isFinite(Number(dist)) ? Math.abs(dist - Number(aspectDeg)) : null;
-}
-
-function refinePeakTime(aKey, bKey, aspectDeg, seed, fallbackISO) {
-  const base = seed instanceof Date ? seed : (seed ? new Date(seed) : null);
-  const fallback = fallbackISO ? new Date(fallbackISO) : null;
-  const center =
-    base && !Number.isNaN(base.getTime()) ? base :
-    fallback && !Number.isNaN(fallback.getTime()) ? fallback :
-    null;
-  if (!center) return seed instanceof Date ? seed : null;
-
-  const windowMs = 18 * 3600 * 1000;
-  const stepMs = 5 * 60 * 1000;
-  let best = { orb: Infinity, time: center };
-  const start = new Date(center.getTime() - windowMs);
-  const end = new Date(center.getTime() + windowMs);
-  for (let t = start.getTime(); t <= end.getTime(); t += stepMs) {
-    const iso = new Date(t).toISOString();
-    const orb = computeOrbAt(aKey, bKey, aspectDeg, iso);
-    if (!Number.isFinite(Number(orb))) continue;
-    if (orb < best.orb) best = { orb, time: new Date(t) };
-  }
-  return best.time;
-}
-
-function computeApplyingFlag(row, asOfISO) {
-  const nowOrb = Number(row?.orb_deg ?? row?.now_orb);
-  const aspectDeg = Number(row?.aspect_deg);
-  if (!Number.isFinite(nowOrb) || !Number.isFinite(aspectDeg)) return null;
-  const base = new Date(asOfISO || Date.now());
-  if (!isValidDate(base)) return null;
-
-  const aKey = normalizeBodyKey(row?.a || "");
-  const bKey = normalizeBodyKey(row?.b || "");
-  if (!aKey || !bKey) return null;
-
-  const tPlus = new Date(base.getTime() + 24 * 3600 * 1000);
-  const orbTomorrow = computeOrbAt(aKey, bKey, aspectDeg, tPlus.toISOString());
-  if (!Number.isFinite(Number(orbTomorrow))) return null;
-  return orbTomorrow < nowOrb;
-}
-
 function renderXThread(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const PROXIMITY_CFG = resolveProximityConfig("x_thread", dict);
 
   const pub = story?.public || {};
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
@@ -335,7 +285,8 @@ function renderXThread(story, deps = {}) {
     return s === "chiron" || s === "lilith";
   };
 
-  const upcomingItems = (kinjitsuRaw || [])
+  const applyingOnly = PROXIMITY_CFG.preferApplying === true;
+  const baseUpcomingItems = (kinjitsuRaw || [])
     .map((row) => {
       const aKey = normalizeBodyKey(row?.a || "");
       const bKey = normalizeBodyKey(row?.b || "");
@@ -346,8 +297,34 @@ function renderXThread(story, deps = {}) {
       return { aKey, bKey, aspectDeg, nowOrb, peakAt, raw: row };
     })
     .filter(Boolean)
-    .filter((row) => !isChironLilith(row.aKey) && !isChironLilith(row.bKey))
-    .filter((row) => computeApplyingFlag(row.raw || row, asOfISO) === true);
+    .filter((row) => !isChironLilith(row.aKey) && !isChironLilith(row.bKey));
+
+  const isApplyingRow = (row) => {
+    const base = row.raw || row;
+    const aKey = normalizeBodyKey(base?.a || "");
+    const bKey = normalizeBodyKey(base?.b || "");
+    const aspectDeg = Number(base?.aspect_deg ?? row.aspectDeg);
+    if (!aKey || !bKey || !Number.isFinite(aspectDeg)) return false;
+    return isApplying({
+      kind: PROXIMITY_CFG.kind,
+      aKey,
+      bKey,
+      aspectDeg,
+      asOfISO,
+      horizonHours: PROXIMITY_CFG.horizonHours,
+      nowOrb: base?.orb_deg ?? base?.now_orb ?? row.nowOrb,
+    }) === true;
+  };
+
+  let upcomingItems = baseUpcomingItems;
+  if (applyingOnly) {
+    const applyingItems = baseUpcomingItems.filter(isApplyingRow);
+    if (applyingItems.length) {
+      upcomingItems = applyingItems;
+    } else if (PROXIMITY_CFG.fallbackOutsideOrb === false) {
+      upcomingItems = [];
+    }
+  }
 
   const seenUpcoming = new Set();
   const filteredUpcoming = upcomingItems
@@ -360,7 +337,7 @@ function renderXThread(story, deps = {}) {
       return true;
     })
     .sort((a, b) => a.nowOrb - b.nowOrb)
-    .slice(0, 2);
+    .slice(0, Number.isFinite(Number(PROXIMITY_CFG.maxItems)) ? Number(PROXIMITY_CFG.maxItems) : 2);
 
   const upcomingLines = filteredUpcoming.length
     ? filteredUpcoming.flatMap((row, idx) => {
@@ -379,7 +356,16 @@ function renderXThread(story, deps = {}) {
       });
       const degText = aspect.degText || "";
       const nowOrbText = Number.isFinite(Number(row.nowOrb)) ? row.nowOrb.toFixed(2) : "-";
-      const refinedPeak = refinePeakTime(row.aKey, row.bKey, row.aspectDeg, row.peakAt, asOfISO);
+      const refinedPeak = refinePeakTime({
+        kind: PROXIMITY_CFG.kind,
+        aKey: row.aKey,
+        bKey: row.bKey,
+        aspectDeg: row.aspectDeg,
+        seedISO: row.peakAt,
+        fallbackISO: asOfISO,
+        windowMs: PROXIMITY_CFG.peakWindowMs,
+        stepMs: PROXIMITY_CFG.peakStepMs,
+      });
       const peakText = refinedPeak && isValidDate(refinedPeak) ? formatMonthDayHm(refinedPeak) : "-";
 
       const lines = [

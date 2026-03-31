@@ -1,8 +1,8 @@
 "use strict";
 
 const dict = require("../content/dict");
-const { SPEC } = require("../config/sora_spec");
-const { absAngularDistance, calcTransitLon, toIsoAtJstNoon } = require("./astro_compute");
+const { resolveProximityConfig } = require("../config/aspect_channel_config");
+const { findTransitWindowAroundNow, isApplying } = require("./aspect_proximity");
 const { normalizeBodyKey, normalizeAspectKey } = require("./canonical");
 let bodyLabelJa = () => "";
 try {
@@ -15,8 +15,8 @@ try {
 }
 
 const TSUKIJI_MIN_DAYS = 30;
-const TSUKIJI_ORB = SPEC?.orb?.paid ?? 3.0;
 const TSUKIJI_MAX = 3;
+const TSUKIJI_PROXIMITY_CFG = resolveProximityConfig("tsukiji_public", dict);
 
 const TSUKIJI_BODY_THEME = {
   sun: "意志",
@@ -43,88 +43,6 @@ function buildTsukijiThemeLine(aKey, bKey) {
   const b = tsukijiThemeForBody(bKey);
   if (!a || !b) return "";
   return `構造：${a} × ${b}`;
-}
-
-function signKeyFromLon(lon) {
-  if (!Number.isFinite(Number(lon))) return null;
-  const order = dict?.SIGNS_V2?.order || dict?.SIGNS?.order || [
-    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
-  ];
-  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
-  return order[idx] || null;
-}
-
-function findTransitWindowAroundNow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 400, orbLimit = 3 }) {
-  const now = new Date(asOfISO);
-  if (Number.isNaN(now.getTime())) return null;
-  if (!Number.isFinite(Number(aspectDeg))) return null;
-
-  const calcOrb = (iso) => {
-    const lonA = calcTransitLon(aKey, iso);
-    const lonB = calcTransitLon(bKey, iso);
-    if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
-    const dist = absAngularDistance(lonA, lonB);
-    return Math.abs(dist - aspectDeg);
-  };
-
-  const nowIso = toIsoAtJstNoon(now);
-  const nowLonA = nowIso ? calcTransitLon(aKey, nowIso) : null;
-  const nowLonB = nowIso ? calcTransitLon(bKey, nowIso) : null;
-  const nowOrb = nowIso ? calcOrb(nowIso) : null;
-  const baseSignA = Number.isFinite(Number(nowLonA)) ? signKeyFromLon(nowLonA) : null;
-  const baseSignB = Number.isFinite(Number(nowLonB)) ? signKeyFromLon(nowLonB) : null;
-  if (!baseSignA || !baseSignB) return null;
-  if (!Number.isFinite(Number(nowOrb)) || Number(nowOrb) > orbLimit) return null;
-
-  let start = new Date(now.getTime());
-  let end = new Date(now.getTime());
-
-  for (let i = 1; i <= maxDays; i++) {
-    const d = new Date(now.getTime() - i * 86400000);
-    const iso = toIsoAtJstNoon(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(lonA) === baseSignA
-      && signKeyFromLon(lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) break;
-    start = d;
-  }
-
-  for (let i = 1; i <= maxDays; i++) {
-    const d = new Date(now.getTime() + i * 86400000);
-    const iso = toIsoAtJstNoon(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(lonA) === baseSignA
-      && signKeyFromLon(lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) break;
-    end = d;
-  }
-
-  let peak = null;
-  let bestOrb = Infinity;
-  const totalDays = Math.min(maxDays, Math.ceil((end.getTime() - start.getTime()) / 86400000));
-  for (let i = 0; i <= totalDays; i++) {
-    const d = new Date(start.getTime() + i * 86400000);
-    const iso = toIsoAtJstNoon(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(lonA) === baseSignA
-      && signKeyFromLon(lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb))) continue;
-    if (orb < bestOrb) {
-      bestOrb = orb;
-      peak = d;
-    }
-  }
-
-  return { start, end, peak, bestOrb };
 }
 
 function buildTsukijiRowsPublic(story, asOfISO) {
@@ -178,12 +96,15 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const aspectDeg = Number(row?.aspect_deg);
     if (!Number.isFinite(aspectDeg)) return;
     const window = findTransitWindowAroundNow({
+      kind: TSUKIJI_PROXIMITY_CFG.kind,
       aKey,
       bKey,
       aspectDeg,
       asOfISO: asOfISO || new Date().toISOString(),
-      maxDays: 400,
-      orbLimit: TSUKIJI_ORB,
+      maxDays: TSUKIJI_PROXIMITY_CFG.windowDays,
+      orbLimit: TSUKIJI_PROXIMITY_CFG.orbLimit,
+      requireSign: TSUKIJI_PROXIMITY_CFG.requireSign,
+      signOrder: TSUKIJI_PROXIMITY_CFG.signOrder,
     });
     if (!window?.start || !window?.end) return;
     const durationDays = Math.ceil((window.end.getTime() - window.start.getTime()) / 86400000);
@@ -213,7 +134,31 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     return ao - bo;
   });
 
-  return rows.slice(0, TSUKIJI_MAX);
+  let filtered = rows;
+  if (TSUKIJI_PROXIMITY_CFG.preferApplying === true) {
+    const applyingRows = rows.filter((row) => {
+      if (!row?.aKey || !row?.bKey || !Number.isFinite(Number(row?.aspectDeg))) return false;
+      return isApplying({
+        kind: TSUKIJI_PROXIMITY_CFG.kind,
+        aKey: row.aKey,
+        bKey: row.bKey,
+        aspectDeg: row.aspectDeg,
+        asOfISO,
+        horizonHours: TSUKIJI_PROXIMITY_CFG.horizonHours,
+        nowOrb: row.orb,
+      }) === true;
+    });
+    if (applyingRows.length) {
+      filtered = applyingRows;
+    } else if (TSUKIJI_PROXIMITY_CFG.fallbackOutsideOrb === false) {
+      filtered = [];
+    }
+  }
+
+  const maxItems = Number.isFinite(Number(TSUKIJI_PROXIMITY_CFG.maxItems))
+    ? Number(TSUKIJI_PROXIMITY_CFG.maxItems)
+    : TSUKIJI_MAX;
+  return filtered.slice(0, maxItems);
 }
 
 function buildKinjitsuRowsPublic(story) {

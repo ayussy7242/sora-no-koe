@@ -97,6 +97,43 @@ There is a separate Tokyo ASC calculation using Whole Sign (`"W"`) in
 - All calculations use **UTC** with `swe_julday(...)`.
 - Input local time is converted to UTC before calling Swiss Ephemeris.
 
+## Aspect Proximity SSOT (Applying/Separating/Windows)
+### Purpose
+Keep all channels consistent by centralizing aspect proximity logic in domain
+code and limiting channels to condition-only configuration.
+
+### Roles
+- Logic SSOT: `src/domain/aspect_proximity.js`
+  - orb calculation
+  - applying/separating判定
+  - peak補正
+  - window探索
+- Condition SSOT: `src/config/aspect_channel_config.js`
+  - orbLimit
+  - maxItems
+  - preferApplying
+  - fallbackOutsideOrb
+  - requireSign / signOrder
+  - horizonHours / windowDays / peakWindowMs / peakStepMs
+  - deep含有や無料/有料差分などのproduct rule
+
+### Prohibited (Do Not Reintroduce)
+- チャンネル側で orb計算を実装しない
+- チャンネル側で applying/separating 判定を実装しない
+- product rule をロジック分岐で持たない
+
+### Extension Rules
+- 新チャンネル追加時は **まず config を作る**
+- 条件追加は **config 優先**。必要なら最後に `aspect_proximity.js` を拡張
+
+### Current Adoption (as of this doc)
+- `src/presenters/line/sora.js`
+- `src/presenters/line/today.js`
+- `src/usecases/channels/line/paid_blocks.js`
+- `src/presenters/x/thread.js`
+- `src/usecases/channels/blog/blog_daily.js`
+- `src/domain/tsukiji_public.js`
+
 ## Known Risk: Boundary Rounding
 Current sign determination is based on **rounded** longitude. Near sign
 boundaries (e.g., 29.995°), rounding can change the sign.

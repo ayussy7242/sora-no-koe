@@ -26,18 +26,18 @@ const {
 } = require("../../../content/prompts/blog/blog_blocks");
 const { BLOG_MOON_EVENT_GUIDE } = require("../../../content/prompts/blog/blog_moon_event");
 const { SPEC } = require("../../../config/sora_spec");
+const { resolveProximityConfig } = require("../../../config/aspect_channel_config");
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../domain/touch_point_scoring");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
   houseNumberForSignIndex,
-  absAngularDistance,
   formatDateYmd,
   formatDateYmdHm,
   findNextMoonPhase,
-  calcTransitLon,
 } = require("../../../domain/astro_compute");
+const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../domain/aspect_proximity");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../domain/canonical");
@@ -302,15 +302,6 @@ function signLabelFromLon(dictObj, lon) {
   const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
   const key = order[idx];
   return key ? signLabelJa(dict, key) : "—";
-}
-
-function signKeyFromLon(dictObj, lon) {
-  if (!Number.isFinite(Number(lon))) return null;
-  const order = dictObj?.SIGNS_V2?.order || dictObj?.SIGNS?.order || [
-    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
-  ];
-  const idx = Math.floor((((Number(lon) % 360) + 360) % 360) / 30);
-  return order[idx] || null;
 }
 
 const TSUKIJI_BODY_THEME = {
@@ -1353,93 +1344,8 @@ const BLOG_STRUCT_SIGN_ORDER =
   ];
 
 const BLOG_STRUCT_TSUKIJI_MIN_DAYS = 30;
-const BLOG_STRUCT_TSUKIJI_ORB = SPEC?.orb?.paid ?? 3.0;
 const BLOG_STRUCT_TSUKIJI_MAX = 3;
-
-function toIsoAtJstNoonLocal(date) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}T03:00:00.000Z`;
-}
-
-function findTransitWindowAroundNow({ aKey, bKey, aspectDeg, asOfISO, maxDays = 400, orbLimit = 3 }) {
-  const now = new Date(asOfISO);
-  if (Number.isNaN(now.getTime())) return null;
-  if (!Number.isFinite(Number(aspectDeg))) return null;
-
-  const calcOrb = (iso) => {
-    const lonA = calcTransitLon(aKey, iso);
-    const lonB = calcTransitLon(bKey, iso);
-    if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
-    const dist = absAngularDistance(lonA, lonB);
-    return Math.abs(dist - aspectDeg);
-  };
-
-  const nowIso = toIsoAtJstNoonLocal(now);
-  const nowLonA = nowIso ? calcTransitLon(aKey, nowIso) : null;
-  const nowLonB = nowIso ? calcTransitLon(bKey, nowIso) : null;
-  const nowOrb = nowIso ? calcOrb(nowIso) : null;
-  const baseSignA = Number.isFinite(Number(nowLonA)) ? signKeyFromLon(dict, nowLonA) : null;
-  const baseSignB = Number.isFinite(Number(nowLonB)) ? signKeyFromLon(dict, nowLonB) : null;
-  if (!baseSignA || !baseSignB) return null;
-  if (!Number.isFinite(Number(nowOrb)) || Number(nowOrb) > orbLimit) return null;
-
-  let start = new Date(now.getTime());
-  let end = new Date(now.getTime());
-
-  for (let i = 1; i <= maxDays; i++) {
-    const d = new Date(now.getTime() - i * 86400000);
-    const iso = toIsoAtJstNoonLocal(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(dict, lonA) === baseSignA
-      && signKeyFromLon(dict, lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) {
-      break;
-    }
-    start = d;
-  }
-
-  for (let i = 1; i <= maxDays; i++) {
-    const d = new Date(now.getTime() + i * 86400000);
-    const iso = toIsoAtJstNoonLocal(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(dict, lonA) === baseSignA
-      && signKeyFromLon(dict, lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb)) || Number(orb) > orbLimit) {
-      break;
-    }
-    end = d;
-  }
-
-  let peak = null;
-  let bestOrb = Infinity;
-  const totalDays = Math.min(maxDays, Math.ceil((end.getTime() - start.getTime()) / 86400000));
-  for (let i = 0; i <= totalDays; i++) {
-    const d = new Date(start.getTime() + i * 86400000);
-    const iso = toIsoAtJstNoonLocal(d);
-    const orb = iso ? calcOrb(iso) : null;
-    const lonA = iso ? calcTransitLon(aKey, iso) : null;
-    const lonB = iso ? calcTransitLon(bKey, iso) : null;
-    const signOk = Number.isFinite(Number(lonA)) && Number.isFinite(Number(lonB))
-      && signKeyFromLon(dict, lonA) === baseSignA
-      && signKeyFromLon(dict, lonB) === baseSignB;
-    if (!signOk || !Number.isFinite(Number(orb))) continue;
-    if (orb < bestOrb) {
-      bestOrb = orb;
-      peak = d;
-    }
-  }
-
-  return { start, end, peak, bestOrb };
-}
+const BLOG_PROXIMITY_CFG = resolveProximityConfig("blog_daily", dict);
 
 function buildHouseRowsPublic(story, asOfISO) {
   const transitSigns = story?.public?.transit_signs || {};
@@ -1548,12 +1454,15 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     if (!Number.isFinite(aspectDeg)) return;
 
     const window = findTransitWindowAroundNow({
+      kind: BLOG_PROXIMITY_CFG.kind,
       aKey,
       bKey,
       aspectDeg,
       asOfISO: asOfISO || new Date().toISOString(),
-      maxDays: 400,
-      orbLimit: BLOG_STRUCT_TSUKIJI_ORB,
+      maxDays: BLOG_PROXIMITY_CFG.windowDays,
+      orbLimit: BLOG_PROXIMITY_CFG.orbLimit,
+      requireSign: BLOG_PROXIMITY_CFG.requireSign,
+      signOrder: BLOG_PROXIMITY_CFG.signOrder || BLOG_STRUCT_SIGN_ORDER,
     });
     if (!window?.start || !window?.end) return;
     const durationDays = Math.ceil((window.end.getTime() - window.start.getTime()) / 86400000);
@@ -1582,7 +1491,31 @@ function buildTsukijiRowsPublic(story, asOfISO) {
     const bo = Number.isFinite(Number(b.orb)) ? Number(b.orb) : 999;
     return ao - bo;
   });
-  return rows.slice(0, BLOG_STRUCT_TSUKIJI_MAX);
+  let filtered = rows;
+  if (BLOG_PROXIMITY_CFG.preferApplying === true) {
+    const applyingRows = rows.filter((row) => {
+      if (!row?.aKey || !row?.bKey || !Number.isFinite(Number(row?.aspectDeg))) return false;
+      return isApplying({
+        kind: BLOG_PROXIMITY_CFG.kind,
+        aKey: row.aKey,
+        bKey: row.bKey,
+        aspectDeg: row.aspectDeg,
+        asOfISO,
+        horizonHours: BLOG_PROXIMITY_CFG.horizonHours,
+        nowOrb: row.orb,
+      }) === true;
+    });
+    if (applyingRows.length) {
+      filtered = applyingRows;
+    } else if (BLOG_PROXIMITY_CFG.fallbackOutsideOrb === false) {
+      filtered = [];
+    }
+  }
+
+  const maxItems = Number.isFinite(Number(BLOG_PROXIMITY_CFG.maxItems))
+    ? Number(BLOG_PROXIMITY_CFG.maxItems)
+    : BLOG_STRUCT_TSUKIJI_MAX;
+  return filtered.slice(0, maxItems);
 }
 
 function buildKinjitsuRowsPublic(story) {
@@ -1713,23 +1646,6 @@ function aspectLabelForLong(aspectKey, aspectDeg) {
   return meta?.label || key || String(aspectKey || "");
 }
 
-function calcOrbAt(aKey, bKey, aspectDeg, asOfISO) {
-  const lonA = calcTransitLon(aKey, asOfISO);
-  const lonB = calcTransitLon(bKey, asOfISO);
-  if (!Number.isFinite(Number(lonA)) || !Number.isFinite(Number(lonB))) return null;
-  const dist = Math.abs(((lonA - lonB + 540) % 360) - 180);
-  return Math.abs(dist - aspectDeg);
-}
-
-function aspectTrend(aKey, bKey, aspectDeg, asOfISO) {
-  const nowOrb = calcOrbAt(aKey, bKey, aspectDeg, asOfISO);
-  if (!Number.isFinite(Number(nowOrb))) return "";
-  const later = new Date(new Date(asOfISO).getTime() + 12 * 3600 * 1000).toISOString();
-  const laterOrb = calcOrbAt(aKey, bKey, aspectDeg, later);
-  if (!Number.isFinite(Number(laterOrb))) return "";
-  return laterOrb < nowOrb ? "接近中" : "離脱中";
-}
-
 function splitIntoParagraphs(text) {
   const s = String(text || "").trim();
   if (!s) return [];
@@ -1804,7 +1720,14 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
       const bKey = normalizeBodyKey(row?.b || "");
       const aspectDeg = Number(row?.aspect_deg);
       const orb = Number(row?.orb_deg);
-      const trend = aspectTrend(aKey, bKey, aspectDeg, asOfISO);
+      const trend = trendLabelJa({
+        kind: BLOG_PROXIMITY_CFG.kind,
+        aKey,
+        bKey,
+        aspectDeg,
+        asOfISO,
+        horizonHours: BLOG_PROXIMITY_CFG.horizonHours,
+      });
       const applying = trend === "接近中";
       const exact = Number.isFinite(orb) && orb <= 0.05;
       return { ...row, _orb: orb, _applying: applying, _exact: exact };
@@ -1897,7 +1820,14 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const aspectDeg = Number(row?.aspect_deg);
     const aspLabel = aspectLabelForLong(row?.type, aspectDeg);
     const orb = Number(row?.orb_deg);
-    const trend = aspectTrend(aKey, bKey, aspectDeg, asOfISO);
+    const trend = trendLabelJa({
+      kind: BLOG_PROXIMITY_CFG.kind,
+      aKey,
+      bKey,
+      aspectDeg,
+      asOfISO,
+      horizonHours: BLOG_PROXIMITY_CFG.horizonHours,
+    });
     const title = `(T) ${aLabel}（${aSign}） × (T) ${bLabel}（${bSign}）`;
     const facts = [
       `角度: ${aspLabel} ${Math.round(aspectDeg)}°`,

@@ -3,6 +3,7 @@
 const { planetJa } = require("../format/utils/ai_utils");
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
+const { resolveChannelConfig } = require("../../config/aspect_channel_config");
 const { scoreForAspect } = require("../../domain/touch_point_scoring");
 const { computeOrbStats } = require("../../domain/aspect_stats");
 const { normalizeBodyKey } = require("../../domain/canonical");
@@ -31,6 +32,7 @@ async function renderLine(story, deps = {}) {
   const includeHeader = deps?.includeHeader !== false;
   const includeSummary = deps?.includeSummary === true;
   const isPaid = deps?.paid === true;
+  const LINE_TODAY_CFG = resolveChannelConfig("line_today");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
   const asOfISO = story?.meta?.as_of || null;
   const header = `🌌 ${dateLabel}`;
@@ -47,10 +49,14 @@ async function renderLine(story, deps = {}) {
         return !FREE_EXCLUDED_BODY_KEYS.has(nKey) && !FREE_EXCLUDED_BODY_KEYS.has(tKey);
       });
 
-  const orbLimit = isPaid ? SPEC.orb.paid : SPEC.orb.free;
+  const orbLimit = isPaid
+    ? (LINE_TODAY_CFG.orbLimitPaid ?? SPEC.orb.paid)
+    : (LINE_TODAY_CFG.orbLimitFree ?? SPEC.orb.free);
   const scored = scoreTouchPoints(pool, { orbLimit, scoreForAspect });
   const sorted = sortScoredTouchPoints(scored, { isPaid });
-  const picked = dedupeTouchPoints(sorted, { max: isPaid ? null : 3 });
+  const picked = dedupeTouchPoints(sorted, {
+    max: isPaid ? (LINE_TODAY_CFG.maxItemsPaid ?? null) : (LINE_TODAY_CFG.maxItemsFree ?? 3),
+  });
 
   const lines = [];
   const tKeys = picked.map((it) => String(it?.transit_body || it?.b || "").toLowerCase()).filter(Boolean);
