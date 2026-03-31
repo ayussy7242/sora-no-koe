@@ -19,8 +19,8 @@ const PRESETS = {
     },
     moon: {
       outputType: "plain_text",
-      minChars: 100,
-      maxChars: 220,
+      minChars: 70,
+      maxChars: 110,
       forbiddenTerms: ["あなた"],
       forbiddenTermReasons: { "あなた": "has_you" },
       normalizeRules: ["collapse_spaces"],
