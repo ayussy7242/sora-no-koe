@@ -699,6 +699,7 @@ function buildSpaceBackground({
       ["milkyIntensityScale", spaceConfig.milkyIntensityScale],
       ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
       ["milkyDustScale", spaceConfig.milkyDustScale],
+      ["whiteMix", spaceConfig.whiteMix],
     ]
       .filter(([, v]) => Number.isFinite(Number(v)))
       .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`);

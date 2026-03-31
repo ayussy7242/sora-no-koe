@@ -243,6 +243,7 @@ function resolveMoonEventSpaceConfig(event) {
       milkyIntensityScale: 0.75,
       milkyThicknessScale: 0.9,
       milkyDustScale: 0.75,
+      whiteMix: 0.45,
     };
   }
   if (event.kind === "new") {
@@ -251,6 +252,7 @@ function resolveMoonEventSpaceConfig(event) {
       milkyIntensityScale: 1.35,
       milkyThicknessScale: 1.25,
       milkyDustScale: 1.45,
+      whiteMix: 0.45,
     };
   }
   return null;

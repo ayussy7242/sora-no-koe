@@ -1,6 +1,7 @@
 "use strict";
 
 const { hashString, mulberry32, clamp, lerp } = require("./utils");
+const { mixColor } = require("../../color_utils");
 const { computeSpaceTheme, pickBaseColor, buildStarColorWeights, pickOpacityScale, pickMistColor } = require("./theme");
 const {
   buildVoidMap,
@@ -123,6 +124,7 @@ function normalizeSpaceConfig(spaceConfig) {
     milkyIntensityScale: pick(spaceConfig.milkyIntensityScale, 0.4, 2.5),
     milkyThicknessScale: pick(spaceConfig.milkyThicknessScale, 0.6, 2.4),
     milkyDustScale: pick(spaceConfig.milkyDustScale, 0.4, 2.6),
+    whiteMix: pick(spaceConfig.whiteMix, 0, 0.85),
   };
   return Object.values(out).some((v) => Number.isFinite(v)) ? out : null;
 }
@@ -139,6 +141,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   const milkyIntensityScale = Number(resolvedSpaceConfig?.milkyIntensityScale) || 1;
   const milkyThicknessScale = Number(resolvedSpaceConfig?.milkyThicknessScale) || 1;
   const milkyDustScale = Number(resolvedSpaceConfig?.milkyDustScale) || 1;
+  const whiteMix = Number(resolvedSpaceConfig?.whiteMix) || 0;
   const defs = [];
   const body = [];
 
@@ -313,7 +316,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   const mistColor = pickMistColor(worldTheme.topElement, worldTheme.secondaryElement, rand);
   const haloBias = worldTheme?.palette?.glow || baseColor;
   const mood = worldTheme.mood || {};
-  const todayPalette = worldTheme.todayPalette || {
+  const todayPaletteBase = worldTheme.todayPalette || {
     baseBias: mistColor,
     gasColorA: worldTheme.palette?.primary?.nebula?.[0],
     gasColorB: worldTheme.palette?.secondary?.nebula?.[0] || worldTheme.palette?.primary?.nebula?.[1],
@@ -322,6 +325,39 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     accentStarWarm: worldTheme.palette?.primary?.star,
     accentStarCool: worldTheme.palette?.secondary?.star || worldTheme.palette?.primary?.star,
   };
+  const mixWhite = (color) => (color ? mixColor(color, "#FFFFFF", whiteMix) : color);
+  const todayPalette = whiteMix > 0
+    ? {
+        ...todayPaletteBase,
+        baseBias: mixWhite(todayPaletteBase.baseBias),
+        gasColorA: mixWhite(todayPaletteBase.gasColorA),
+        gasColorB: mixWhite(todayPaletteBase.gasColorB),
+        dustTint: mixWhite(todayPaletteBase.dustTint),
+        glowColor: mixWhite(todayPaletteBase.glowColor),
+        accentStarWarm: mixWhite(todayPaletteBase.accentStarWarm),
+        accentStarCool: mixWhite(todayPaletteBase.accentStarCool),
+      }
+    : todayPaletteBase;
+  if (whiteMix > 0 && worldTheme.palette) {
+    const mapNebula = (list) => (Array.isArray(list) ? list.map((c) => mixWhite(c)) : list);
+    worldTheme.palette = {
+      ...worldTheme.palette,
+      primary: {
+        ...worldTheme.palette.primary,
+        nebula: mapNebula(worldTheme.palette.primary?.nebula),
+        glow: mixWhite(worldTheme.palette.primary?.glow),
+        star: mixWhite(worldTheme.palette.primary?.star),
+      },
+      secondary: {
+        ...worldTheme.palette.secondary,
+        nebula: mapNebula(worldTheme.palette.secondary?.nebula),
+        glow: mixWhite(worldTheme.palette.secondary?.glow),
+        star: mixWhite(worldTheme.palette.secondary?.star),
+      },
+      glow: mixWhite(worldTheme.palette.glow),
+      star: mixWhite(worldTheme.palette.star),
+    };
+  }
   const populationTheme = buildStarPopulationTheme({ theme: worldTheme, mood });
   const layerProfile = todayPalette.layers || {};
   const colorPresence = clamp(Number(todayPalette.colorPresence ?? 1), 1, 2.6);
