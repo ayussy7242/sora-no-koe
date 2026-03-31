@@ -6,28 +6,14 @@ const {
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { signJa } = require("../../../presenters/format/format/common");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
 }
 
-function countChars(text) {
-  return Array.from(String(text || "")).length;
-}
-
-function countSentences(text) {
-  return String(text || "")
-    .split(/[。！？]/)
-    .map((s) => s.trim())
-    .filter(Boolean).length;
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function buildSignCountsLine({ story, dict }) {
   const transit = story?.public?.transit_signs || {};
@@ -79,27 +65,19 @@ function buildIgSkyOverviewPrompt({ story, dict }) {
   ].join("\n");
 }
 
-function validateSkyOverview(text) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const len = countChars(t);
-  if (len < 80) return { ok: false, reason: `too_short:${len}` };
-  return { ok: true, text: t, len };
-}
-
 async function generateIgSkyOverviewText({ story, dict, openai, maxRetries = 2 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgSkyOverviewPrompt({ story, dict }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -116,7 +94,10 @@ async function generateIgSkyOverviewText({ story, dict, openai, maxRetries = 2 }
       maxTokens: 320,
     });
 
-    const verdict = validateSkyOverview(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.sky_overview,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";

@@ -1,5 +1,8 @@
 "use strict";
 
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
 const { countChars, trimTrailingHashtagsToMaxChars } = require("../../utils/hashtag_utils");
 const { SPEC } = require("../../config/sora_spec");
@@ -11,6 +14,72 @@ const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../use
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+
+const X_POST_LOCK_TTL_MS = 35 * 60 * 1000;
+
+function nowIso(ms = Date.now()) {
+  return new Date(ms).toISOString();
+}
+
+function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
+  if (!outDir) return [];
+  fs.mkdirSync(outDir, { recursive: true });
+  const paths = [];
+  posts.forEach((post, idx) => {
+    const slot = post?.slot || `slot${idx + 1}`;
+    const file = path.join(outDir, `${prefix}_${slot}_${idx + 1}.txt`);
+    fs.writeFileSync(file, String(post?.text || ""), "utf8");
+    paths.push(file);
+  });
+  return paths;
+}
+
+async function acquireXPostLock(db, kind, dateLocal, { force = false } = {}) {
+  if (!db) return { ok: true, skipped: true, reason: "db_missing" };
+  const runId = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  const ref = db.collection("cronLocks").doc(`x_post_${kind}_${dateLocal}`);
+  const now = Date.now();
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const data = snap.data() || {};
+      const status = String(data.status || "");
+      const startedAtMs = Number(data.startedAtMs || 0);
+      const isStale = startedAtMs > 0 && (now - startedAtMs) > X_POST_LOCK_TTL_MS;
+      if (status === "done" && !force) {
+        return { ok: false, reason: "done", data };
+      }
+      if (status === "running" && !isStale) {
+        return { ok: false, reason: "running", data };
+      }
+    }
+
+    tx.set(ref, {
+      status: "running",
+      kind,
+      date_local: dateLocal,
+      runId,
+      startedAtMs: now,
+      startedAt: nowIso(now),
+    }, { merge: true });
+
+    return { ok: true, runId };
+  });
+}
+
+async function markXPostLock(db, kind, dateLocal, patch) {
+  if (!db) return;
+  const ref = db.collection("cronLocks").doc(`x_post_${kind}_${dateLocal}`);
+  const now = Date.now();
+  await ref.set({
+    ...patch,
+    finishedAtMs: now,
+    finishedAt: nowIso(now),
+  }, { merge: true });
+}
 
 function toBool(v, fallback = false) {
   if (v === true) return true;
@@ -268,17 +337,42 @@ async function runXMorningPost(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
+    false
+  );
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const dateLocal = isYYYYMMDD(opts.dateLocal)
     ? String(opts.dateLocal)
     : toDateLocalJST(new Date(asOfISO));
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.X_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "x", "morning", dateLocal || "unknown")
+  );
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
-  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+  let lockInfo = null;
+  if (!dryRun && !localOnly) {
+    lockInfo = await acquireXPostLock(db, "morning", dateLocal, { force: !!opts.force });
+    if (!lockInfo.ok) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: lockInfo.reason,
+        date_local: dateLocal,
+        as_of: asOfISO,
+      };
+    }
+  }
+
+  try {
+    const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const openai = {
     apiKey: env2.OPENAI_API_KEY,
@@ -319,7 +413,7 @@ async function runXMorningPost(deps, opts = {}) {
     }).catch((err) => console.error("[x:outbox] save failed", err?.message || String(err)));
     await notifyXPostFailure({ env: env2, dateLocal, kind: "morning", errors: buildErrors });
 
-    return {
+    const result = {
       ok: false,
       dry_run: dryRun,
       date_local: dateLocal,
@@ -327,6 +421,14 @@ async function runXMorningPost(deps, opts = {}) {
       error: "ai_generation_failed",
       details: Array.isArray(buildErrors) ? buildErrors : [],
     };
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "morning", dateLocal, {
+        status: "failed",
+        reason: "ai_generation_failed",
+        runId: lockInfo?.runId || null,
+      }).catch(() => {});
+    }
+    return result;
   }
 
   const maxMainChars = resolveXMaxChars(env2.X_POST_MAIN_MAX_CHARS);
@@ -351,6 +453,42 @@ async function runXMorningPost(deps, opts = {}) {
       text_len: countChars(res.text),
     };
   });
+
+  if (localOnly) {
+    const localPaths = writeLocalPosts({ posts: trimmed, outDir: localOutDir, prefix: "x_morning" });
+    let imagePath = null;
+    if (toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)) {
+      const imageWidth = Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH))
+        ? Number(env2.X_POST_IMAGE_WIDTH)
+        : DEFAULT_X_CANVAS.width;
+      const imageHeight = Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT))
+        ? Number(env2.X_POST_IMAGE_HEIGHT)
+        : DEFAULT_X_CANVAS.height;
+      const imageVariant = String(env2.X_POST_IMAGE_VARIANT || "story_today").trim() || "story_today";
+      const png = await renderXMorningWheelPng({
+        story,
+        dateLabel: dateLocal,
+        width: imageWidth,
+        height: imageHeight,
+        variant: imageVariant,
+      });
+      fs.mkdirSync(localOutDir, { recursive: true });
+      imagePath = path.join(localOutDir, `x_morning_${imageWidth}x${imageHeight}.png`);
+      fs.writeFileSync(imagePath, png);
+    }
+    return {
+      ok: true,
+      dry_run: true,
+      local_only: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts: trimmed,
+      has_resonance: hasResonance,
+      local_dir: localOutDir,
+      local_paths: localPaths,
+      local_image: imagePath,
+    };
+  }
 
   const imageEnabled = opts.image === undefined
     ? toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
@@ -441,23 +579,44 @@ async function runXMorningPost(deps, opts = {}) {
     });
   }
 
-  return {
-    ok: okCount > 0,
-    partial: postErrors.length > 0,
-    dry_run: false,
-    date_local: dateLocal,
+  if (!dryRun && !localOnly) {
+    await markXPostLock(db, "morning", dateLocal, {
+      status: okCount > 0 ? "done" : "failed",
+      runId: lockInfo?.runId || null,
+      tweet_ids: postRes.ids || [],
+      ok_count: okCount,
+      error_count: postErrors.length,
+      partial: postErrors.length > 0,
+    }).catch(() => {});
+  }
+
+    return {
+      ok: okCount > 0,
+      partial: postErrors.length > 0,
+      dry_run: false,
+      date_local: dateLocal,
     as_of: asOfISO,
     posts: trimmed,
     tweet_ids: postRes.ids || [],
     post_results: postRes.results || [],
     has_resonance: hasResonance,
     image: imageInfo,
-    errors: postErrors,
-  };
+      errors: postErrors,
+    };
+  } catch (err) {
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "morning", dateLocal, {
+        status: "failed",
+        reason: err?.message || String(err),
+        runId: lockInfo?.runId || null,
+      }).catch(() => {});
+    }
+    throw err;
+  }
 }
 
 async function runXNightPost(deps, opts = {}) {
-  const { env, storyService, renderers, dict } = deps || {};
+  const { env, storyService, renderers, dict, db } = deps || {};
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXNight) throw new Error("renderers.renderXNight missing");
@@ -465,17 +624,42 @@ async function runXNightPost(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
+    false
+  );
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const dateLocal = isYYYYMMDD(opts.dateLocal)
     ? String(opts.dateLocal)
     : toDateLocalJST(new Date(asOfISO));
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.X_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "x", "night", dateLocal || "unknown")
+  );
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
-  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+  let lockInfo = null;
+  if (!dryRun && !localOnly) {
+    lockInfo = await acquireXPostLock(db, "night", dateLocal, { force: !!opts.force });
+    if (!lockInfo.ok) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: lockInfo.reason,
+        date_local: dateLocal,
+        as_of: asOfISO,
+      };
+    }
+  }
+
+  try {
+    const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   const openai = {
     apiKey: env2.OPENAI_API_KEY,
@@ -489,7 +673,7 @@ async function runXNightPost(deps, opts = {}) {
     if (res?.ok && res.text) {
       meta.x_ai.night = res.text;
     } else {
-      return {
+      const result = {
         ok: false,
         dry_run: dryRun,
         date_local: dateLocal,
@@ -497,6 +681,14 @@ async function runXNightPost(deps, opts = {}) {
         error: "ai_generation_failed",
         details: [{ slot: "night", error: res?.error || "unknown", reason: res?.reason || "" }],
       };
+      if (!dryRun && !localOnly) {
+        await markXPostLock(db, "night", dateLocal, {
+          status: "failed",
+          reason: "ai_generation_failed",
+          runId: lockInfo?.runId || null,
+        }).catch(() => {});
+      }
+      return result;
     }
   }
 
@@ -508,6 +700,49 @@ async function runXNightPost(deps, opts = {}) {
     const res = truncateForX(post, maxChars);
     return { text: res.text, truncated: res.truncated };
   });
+
+  if (localOnly) {
+    const localPaths = writeLocalPosts({
+      posts: trimmed.map((p) => ({ text: p.text, slot: "night" })),
+      outDir: localOutDir,
+      prefix: "x_night",
+    });
+    let imagePath = null;
+    const nightImageEnabled = opts.image === undefined
+      ? toBool(env2.X_NIGHT_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+      : toBool(opts.image, false);
+    if (nightImageEnabled) {
+      const nightImageWidth = Number.isFinite(Number(env2.X_NIGHT_IMAGE_WIDTH))
+        ? Number(env2.X_NIGHT_IMAGE_WIDTH)
+        : (Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH)) ? Number(env2.X_POST_IMAGE_WIDTH) : DEFAULT_X_CANVAS.width);
+      const nightImageHeight = Number.isFinite(Number(env2.X_NIGHT_IMAGE_HEIGHT))
+        ? Number(env2.X_NIGHT_IMAGE_HEIGHT)
+        : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
+      const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
+        || "story_tomorrow";
+      const png = await renderXMorningWheelPng({
+        story,
+        dateLabel: dateLocal,
+        width: nightImageWidth,
+        height: nightImageHeight,
+        variant: nightImageVariant,
+      });
+      fs.mkdirSync(localOutDir, { recursive: true });
+      imagePath = path.join(localOutDir, `x_night_${nightImageWidth}x${nightImageHeight}.png`);
+      fs.writeFileSync(imagePath, png);
+    }
+    return {
+      ok: true,
+      dry_run: true,
+      local_only: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts: trimmed,
+      local_dir: localOutDir,
+      local_paths: localPaths,
+      local_image: imagePath,
+    };
+  }
 
   const nightImageEnabled = opts.image === undefined
     ? toBool(env2.X_NIGHT_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
@@ -560,17 +795,35 @@ async function runXNightPost(deps, opts = {}) {
   }
 
   const text = trimmed[0]?.text || "";
-  const res = await postTweet({ text, mediaIds: nightMediaId ? [nightMediaId] : null, env: env2 });
+    const res = await postTweet({ text, mediaIds: nightMediaId ? [nightMediaId] : null, env: env2 });
 
-  return {
-    ok: true,
-    dry_run: false,
-    date_local: dateLocal,
-    as_of: asOfISO,
-    posts: trimmed,
-    tweet_ids: [res?.id || ""],
-    image: nightImageInfo,
-  };
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "night", dateLocal, {
+        status: "done",
+        runId: lockInfo?.runId || null,
+        tweet_ids: [res?.id || ""],
+      }).catch(() => {});
+    }
+
+    return {
+      ok: true,
+      dry_run: false,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts: trimmed,
+      tweet_ids: [res?.id || ""],
+      image: nightImageInfo,
+    };
+  } catch (err) {
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "night", dateLocal, {
+        status: "failed",
+        reason: err?.message || String(err),
+        runId: lockInfo?.runId || null,
+      }).catch(() => {});
+    }
+    throw err;
+  }
 }
 
 async function runXMoonEventPost(deps, opts = {}) {
@@ -582,6 +835,10 @@ async function runXMoonEventPost(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
+    false
+  );
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const baseDateLocal = isYYYYMMDD(opts.dateLocal)
@@ -596,6 +853,12 @@ async function runXMoonEventPost(deps, opts = {}) {
       : 1;
 
   const dateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.X_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "x", "moon_event", dateLocal || "unknown")
+  );
 
   const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
@@ -657,6 +920,26 @@ async function runXMoonEventPost(deps, opts = {}) {
   );
   const trimmed = truncateForX(textTrimmed, maxChars);
 
+  if (localOnly) {
+    const localPaths = writeLocalPosts({
+      posts: [{ text: trimmed.text, slot: "moon_event" }],
+      outDir: localOutDir,
+      prefix: "x_moon_event",
+    });
+    return {
+      ok: true,
+      dry_run: true,
+      local_only: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      event,
+      post: trimmed,
+      date_offset_days: offsetDays,
+      local_dir: localOutDir,
+      local_paths: localPaths,
+    };
+  }
+
   if (dryRun) {
     return {
       ok: true,
@@ -692,11 +975,21 @@ async function runXNext30DaysPost(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
+    false
+  );
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const dateLocal = isYYYYMMDD(opts.dateLocal)
     ? String(opts.dateLocal)
     : toDateLocalJST(new Date(asOfISO));
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.X_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "x", "next_30_days", dateLocal || "unknown")
+  );
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
@@ -743,6 +1036,25 @@ async function runXNext30DaysPost(deps, opts = {}) {
   const flowRaw = await renderers.renderXNext30DaysFlow(story);
   const flowTrimmed = String(flowRaw || "").trim();
   const flowTrim = flowTrimmed ? truncateForX(flowTrimmed, maxChars) : null;
+
+  if (localOnly) {
+    const posts = flowTrim ? [mainTrim, flowTrim] : [mainTrim];
+    const localPaths = writeLocalPosts({
+      posts: posts.map((p, idx) => ({ text: p.text, slot: `next_30_days_${idx + 1}` })),
+      outDir: localOutDir,
+      prefix: "x_next_30_days",
+    });
+    return {
+      ok: true,
+      dry_run: true,
+      local_only: true,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      posts,
+      local_dir: localOutDir,
+      local_paths: localPaths,
+    };
+  }
 
   if (dryRun) {
     return {

@@ -7,7 +7,7 @@
  */
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
-  SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT,
+  SYSTEM_BLUEPRINT_LIGHT,
   BLUEPRINT_LIGHT_V2_USER_PROMPT_TEMPLATE,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CORE,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_MAP,
@@ -15,7 +15,7 @@ const {
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/pdf/blueprint/light");
 const {
   buildMasterChartFromKernel,
   writeMasterChartTmp,
@@ -108,7 +108,7 @@ async function generateAllBatchV2Segment({
     baseUrl,
     model,
     messages: [
-      { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+      { role: "system", content: SYSTEM_BLUEPRINT_LIGHT },
       { role: "user", content: prompt },
     ],
     temperature: 0.9,

@@ -10,6 +10,9 @@ const { buildTodayMoonInfo } = require("../../../domain/moon_info");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -20,15 +23,6 @@ function normalizeText(text) {
     .replace(/\r\n/g, "\n")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function normalizeObservationText(text) {
-  const raw = String(text || "").replace(/\r\n/g, "\n").trim();
-  const lines = raw
-    .split("\n")
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-  return lines.join("\n");
 }
 
 function bodyLabelJa(dict, key) {
@@ -93,28 +87,6 @@ function buildObservationPrompt({ story, dict }) {
   ].join("\n");
 }
 
-function validateCaptionText(text) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const len = Array.from(t).length;
-  if (len < 100) return { ok: false, reason: `too_short:${len}` };
-  if (len > 220) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
-}
-
-function validateObservationText(text) {
-  const t = normalizeObservationText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const len = Array.from(t).length;
-  if (len < 30) return { ok: false, reason: `too_short:${len}` };
-  if (len > 70) return { ok: false, reason: `too_long:${len}` };
-  const lineCount = t.split("\n").filter(Boolean).length;
-  if (lineCount < 2) return { ok: false, reason: "need_two_lines" };
-  return { ok: true, text: t, len };
-}
-
 function buildCaptionFallback({ story, dict, asOfISO }) {
   const transit = story?.public?.transit_signs || {};
   const sunSign = safeText(transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || ""));
@@ -145,12 +117,13 @@ async function generateIgCarouselCaptionText({ story, dict, openai, maxRetries =
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastText = "";
   let lastReason = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildCaptionPrompt({ story, dict, asOfISO }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -167,7 +140,10 @@ async function generateIgCarouselCaptionText({ story, dict, openai, maxRetries =
       maxTokens: 240,
     });
 
-    const verdict = validateCaptionText(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.carousel_caption,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";
@@ -185,11 +161,12 @@ async function generateIgCarouselObservationText({ story, dict, openai, maxRetri
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildObservationPrompt({ story, dict }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -206,7 +183,10 @@ async function generateIgCarouselObservationText({ story, dict, openai, maxRetri
       maxTokens: 120,
     });
 
-    const verdict = validateObservationText(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.carousel_observation,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastText = String(text || "").trim();

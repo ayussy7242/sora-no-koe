@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const sharp = require("sharp");
 const { createWpClient } = require("../../integrations/wordpress/wp_client");
@@ -17,6 +19,28 @@ const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function toBool(v, defaultValue = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v === undefined || v === null || v === "") return defaultValue;
+  const s = String(v).trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function writeLocalBlogOutput({ outDir, dateLocal, title, content }) {
+  const dir = outDir || path.join(process.cwd(), "tmp", "blog", "daily", dateLocal || "unknown");
+  ensureDir(dir);
+  const htmlPath = path.join(dir, `daily_${dateLocal || "unknown"}.html`);
+  const jsonPath = path.join(dir, `daily_${dateLocal || "unknown"}.json`);
+  fs.writeFileSync(htmlPath, String(content || ""), "utf8");
+  fs.writeFileSync(jsonPath, JSON.stringify({ date_local: dateLocal || null, title: title || "", content: content || "" }, null, 2));
+  return { dir, html_path: htmlPath, json_path: jsonPath };
 }
 
 const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
@@ -71,7 +95,21 @@ async function markBlogLock(ref, patch) {
   }, { merge: true });
 }
 
-async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dryRun = false, publish = undefined, force = false }) {
+async function runDailyBlog(
+  { env, storyService, db },
+  {
+    dateLocal,
+    asOfISO,
+    dryRun = false,
+    publish = undefined,
+    force = false,
+    local = false,
+    local_only = false,
+    localOnly = false,
+    local_out_dir = null,
+    localOutDir: localOutDirOpt = null,
+  }
+) {
   const t0 = Date.now();
   const mark = (label, meta = null) => {
     const ms = Date.now() - t0;
@@ -82,28 +120,40 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     }
   };
 
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const localOnlyFlag = toBool(local ?? local_only ?? localOnly ?? env2.BLOG_DAILY_LOCAL_ONLY, false);
+  const localOutDir = String(
+    localOutDirOpt ||
+    local_out_dir ||
+    env2.BLOG_DAILY_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "blog", "daily", dateLocal || "unknown")
+  );
+  const runDry = !!dryRun || localOnlyFlag;
+
   mark("start", { dateLocal, dryRun: !!dryRun, force: !!force });
   mark("eyecatch_config", {
-    enabled: !!env.BLOG_EYECATCH_ENABLED,
-    mode: env.BLOG_EYECATCH_BG_MODE || "image",
-    preset: env.BLOG_EYECATCH_PRESET || "C",
-    force: !!env.BLOG_EYECATCH_FORCE,
-    bgPath: env.BLOG_EYECATCH_BG_PATH || null,
+    enabled: !!env2.BLOG_EYECATCH_ENABLED,
+    mode: env2.BLOG_EYECATCH_BG_MODE || "image",
+    preset: env2.BLOG_EYECATCH_PRESET || "C",
+    force: !!env2.BLOG_EYECATCH_FORCE,
+    bgPath: env2.BLOG_EYECATCH_BG_PATH || null,
   });
 
-  requiredEnv("OPENAI_API_KEY", env.OPENAI_API_KEY);
-  requiredEnv("WP_BASE_URL", env.WP_BASE_URL);
-  requiredEnv("WP_USER", env.WP_USER);
-  requiredEnv("WP_APP_PASSWORD", env.WP_APP_PASSWORD);
-  requiredEnv("WP_CATEGORY_DAILY", env.WP_CATEGORY_DAILY);
+  requiredEnv("OPENAI_API_KEY", env2.OPENAI_API_KEY);
+  if (!localOnlyFlag) {
+    requiredEnv("WP_BASE_URL", env2.WP_BASE_URL);
+    requiredEnv("WP_USER", env2.WP_USER);
+    requiredEnv("WP_APP_PASSWORD", env2.WP_APP_PASSWORD);
+    requiredEnv("WP_CATEGORY_DAILY", env2.WP_CATEGORY_DAILY);
+  }
 
-  if (!db) throw new Error("db is required for blog daily lock");
+  if (!db && !localOnlyFlag) throw new Error("db is required for blog daily lock");
 
   const slug = String(dateLocal);
 
   let lockRef = null;
   let lockRunId = null;
-  if (!dryRun) {
+  if (!runDry) {
     const lock = await acquireBlogLock(db, slug, { force });
     if (!lock.ok) {
       mark("lock_skip", { reason: lock.reason, slug });
@@ -124,12 +174,12 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     story,
     dateLocal,
     openai: {
-      apiKey: env.OPENAI_API_KEY,
-      baseUrl: env.OPENAI_BASE_URL,
-      model: env.OPENAI_MODEL_BLOG || env.OPENAI_MODEL,
-      modelBlog: env.OPENAI_MODEL_BLOG || env.OPENAI_MODEL,
-      modelBlogParts: env.OPENAI_MODEL_BLOG_PARTS || null,
-      mode: env.BLOG_GEN_MODE || "single",
+      apiKey: env2.OPENAI_API_KEY,
+      baseUrl: env2.OPENAI_BASE_URL,
+      model: env2.OPENAI_MODEL_BLOG || env2.OPENAI_MODEL,
+      modelBlog: env2.OPENAI_MODEL_BLOG || env2.OPENAI_MODEL,
+      modelBlogParts: env2.OPENAI_MODEL_BLOG_PARTS || null,
+      mode: env2.BLOG_GEN_MODE || "single",
     },
   });
   mark("openai_after");
@@ -140,9 +190,9 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     ? content
     : markdownToHtml(content, { h1: "" });
 
-  const wheelMode = String(env.BLOG_WHEEL_MODE || process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
+  const wheelMode = String(env2.BLOG_WHEEL_MODE || process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
   if (wheelMode === "media" && content.includes(WHEEL_MARKER)) {
-    if (dryRun) {
+    if (runDry) {
       content = content.replace(WHEEL_MARKER, "");
     } else {
       try {
@@ -184,8 +234,22 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
     }
   }
 
-  if (dryRun) {
+  if (runDry) {
     mark("end", { ok: true, dryRun: true, slug });
+    if (localOnlyFlag) {
+      const local = writeLocalBlogOutput({ outDir: localOutDir, dateLocal, title, content });
+      return {
+        ok: true,
+        dryRun: true,
+        local_only: true,
+        slug,
+        title,
+        content,
+        local_dir: local.dir,
+        local_html_path: local.html_path,
+        local_json_path: local.json_path,
+      };
+    }
     return {
       ok: true,
       dryRun: true,
@@ -197,20 +261,20 @@ async function runDailyBlog({ env, storyService, db }, { dateLocal, asOfISO, dry
 
   mark("wp_before");
   const wp = createWpClient({
-    baseUrl: env.WP_BASE_URL,
-    user: env.WP_USER,
-    appPassword: env.WP_APP_PASSWORD,
+    baseUrl: env2.WP_BASE_URL,
+    user: env2.WP_USER,
+    appPassword: env2.WP_APP_PASSWORD,
   });
 
   const shouldPublish = publish === undefined
-    ? !!env.BLOG_AUTO_PUBLISH
+    ? !!env2.BLOG_AUTO_PUBLISH
     : !!publish;
   const payload = {
     title,
     slug,
     status: shouldPublish ? "publish" : "draft",
     content,
-    categories: [Number(env.WP_CATEGORY_DAILY)],
+    categories: [Number(env2.WP_CATEGORY_DAILY)],
   };
 
 

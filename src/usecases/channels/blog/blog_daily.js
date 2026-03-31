@@ -24,6 +24,7 @@ const {
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
 } = require("../../../content/prompts/blog/blog_blocks");
+const { BLOG_MOON_EVENT_GUIDE } = require("../../../content/prompts/blog/blog_moon_event");
 const { SPEC } = require("../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../domain/touch_point_scoring");
@@ -674,6 +675,117 @@ function moonPhaseTitleLabel({ dateLocal, asOfISO }) {
   return "";
 }
 
+function isMoonEventPhaseLabel(label) {
+  return label === "新月" || label === "満月";
+}
+
+function getMoonEventPhaseLabel({ dateLocal, asOfISO }) {
+  const label = moonPhaseTitleLabel({ dateLocal, asOfISO });
+  return isMoonEventPhaseLabel(label) ? label : "";
+}
+
+function formatElementCount(count = {}) {
+  return `火${count.fire || 0} 地${count.earth || 0} 風${count.air || 0} 水${count.water || 0}`;
+}
+
+function formatModalityCount(count = {}) {
+  return `活動${count.cardinal || 0} 不動${count.fixed || 0} 柔軟${count.mutable || 0}`;
+}
+
+function formatSignConcentration(counts = {}) {
+  const entries = Object.entries(counts)
+    .map(([k, v]) => [k, Number(v)])
+    .filter(([k, v]) => k && Number.isFinite(v) && v > 0)
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+  if (!entries.length) return "";
+  const top = entries.slice(0, 2).map(([k, v]) => {
+    const label = signLabelJa(dict, k) || k;
+    return `${label}${v}件`;
+  });
+  return top.join(" / ");
+}
+
+function getTransitInfo(story, bodyKey) {
+  const raw = story?.public?.transit_signs?.[bodyKey] || story?.public?.[bodyKey] || {};
+  const signKey = normalizeSignKey(raw?.sign_key || "");
+  const signJa = raw?.sign_ja || signLabelJa(dict, signKey) || "";
+  const lonDeg = Number.isFinite(Number(raw?.lon_deg)) ? Number(raw.lon_deg) : null;
+  return { signKey, signJa, lonDeg };
+}
+
+function buildMoonEventTitle(story, dateLocal) {
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const phaseLabel = getMoonEventPhaseLabel({ dateLocal, asOfISO });
+  if (!phaseLabel) return "";
+
+  const dateDots = formatDateDotsFromLocal(dateLocal)
+    || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");
+  const sunSign = storySignJa(story, "sun");
+  const moonSign = storySignJa(story, "moon");
+  if (!dateDots || !sunSign || !moonSign) return "";
+  return `${dateDots}｜${moonSign}${phaseLabel}｜太陽 ${sunSign} × 月 ${moonSign}`;
+}
+
+function buildMoonEventPrompt({ story, dateLocal, phaseLabel }) {
+  const asOfISO = story?.meta?.as_of || new Date().toISOString();
+  const dateDots = formatDateDotsFromLocal(dateLocal)
+    || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");
+
+  const sun = getTransitInfo(story, "sun");
+  const moon = getTransitInfo(story, "moon");
+  const sunSignDeg = sun.signKey ? formatSignDegree(sun.signKey, sun.lonDeg) : (sun.signJa || "—");
+  const moonSignDeg = moon.signKey ? formatSignDegree(moon.signKey, moon.lonDeg) : (moon.signJa || "—");
+
+  const aspectDeg = phaseLabel === "新月" ? 0 : 180;
+  const aspectKey = phaseLabel === "新月" ? "conjunction" : "opposition";
+  const aspectLabel = aspectLabelForLong(aspectKey, aspectDeg);
+
+  const axisWords = phaseLabel === "新月"
+    ? "重なり / 収束 / 密度"
+    : "向かい合い / 張力 / 対向";
+
+  const strata = story?.public?.sky_strata || {};
+  const elements = formatElementCount(strata.element_count || {});
+  const modalities = formatModalityCount(strata.modality_count || {});
+
+  const signCounts = {};
+  const transit = story?.public?.transit_signs || {};
+  BLOG_STRUCT_BODY_ORDER.forEach((key) => {
+    const signKey = normalizeSignKey(transit?.[key]?.sign_key || "");
+    if (!signKey) return;
+    signCounts[signKey] = (signCounts[signKey] || 0) + 1;
+  });
+  const distribution = formatSignConcentration(signCounts);
+
+  const inputLines = [
+    `DATE_DOTS: ${dateDots}`,
+    `PHASE: ${phaseLabel}`,
+    `SUN_SIGN: ${sun.signJa || "—"}`,
+    `MOON_SIGN: ${moon.signJa || "—"}`,
+    `SUN_SIGN_DEG: ${sunSignDeg}`,
+    `MOON_SIGN_DEG: ${moonSignDeg}`,
+    `ASPECT: ${aspectLabel} ${aspectDeg}°`,
+    `AXIS_WORDS: ${axisWords}`,
+    `ELEMENTS: ${elements}`,
+    `MODALITIES: ${modalities}`,
+    `DISTRIBUTION: ${distribution || "—"}`,
+  ];
+
+  return [
+    BLOG_MOON_EVENT_GUIDE,
+    "",
+    "INPUT:",
+    inputLines.join("\n"),
+  ].join("\n");
+}
+
+async function generateMoonEventDraft({ story, dateLocal, phaseLabel, runWithRetry, model }) {
+  if (!phaseLabel) return "";
+  const prompt = buildMoonEventPrompt({ story, dateLocal, phaseLabel });
+  const text = await runWithRetry({ userContent: prompt, model, maxTokens: 1200 });
+  return stripAiLogs(text);
+}
+
 function buildSeoTitle({ story, dateLocal }) {
   const fallback = `今日のソラ｜${dateLocal}`;
   const dateJa = formatDateJaFromLocal(dateLocal);
@@ -725,7 +837,11 @@ function buildLeadAspectTitle({ story, dateLocal }) {
 }
 
 function buildDailyTitle(story, dateLocal) {
-  return buildLeadAspectTitle({ story, dateLocal }) || buildSeoTitle({ story, dateLocal });
+  return (
+    buildMoonEventTitle(story, dateLocal)
+    || buildLeadAspectTitle({ story, dateLocal })
+    || buildSeoTitle({ story, dateLocal })
+  );
 }
 
 function stripAiLogs(text) {
@@ -1046,6 +1162,25 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
     const merged = [body, log].filter(Boolean).join("\n\n");
     return stripAiLogs(enforceSingleClosing(merged, closing));
   };
+
+  const moonEventPhase = getMoonEventPhaseLabel({ dateLocal, asOfISO: story?.meta?.as_of });
+  const moonEventEnabled = String(
+    openai?.moonEventEnabled ?? process.env.BLOG_MOON_EVENT_ENABLED ?? "1"
+  ) !== "0";
+  const shouldMoonEvent =
+    moonEventEnabled &&
+    moonEventPhase &&
+    (mode === "single" || mode === "auto" || mode === "moon_event");
+  if (shouldMoonEvent) {
+    const html = await generateMoonEventDraft({
+      story,
+      dateLocal,
+      phaseLabel: moonEventPhase,
+      runWithRetry,
+      model: modelMain,
+    });
+    if (html) return html;
+  }
 
   if (mode === "long_v2") {
     const html = await generateLongV2({
@@ -1947,53 +2082,7 @@ function markdownToHtml(text, opts = {}) {
 }
 
 function softenText(text) {
-  const s = String(text || "");
-  const replacements = [
-    [/示唆/g, "置かれている"],
-    [/暗示/g, "残っている"],
-    [/意味/g, "構造"],
-    [/知られている/g, "観測される"],
-    [/興味深い/g, "目に入っている"],
-    [/解かれていない/g, "完全には処理されていない"],
-    [/可能性/g, "余地"],
-    [/と言える/g, "と置ける"],
-    [/〜と言える/g, "〜と置ける"],
-    [/状況/g, "状態"],
-    [/きっかけ/g, "端緒"],
-    [/助け/g, "支え"],
-    [/変化/g, "移ろい"],
-    [/気づき/g, "輪郭"],
-    [/噛み合わなさを感じる/g, "噛み合わなさが残る"],
-    [/噛み合わないまま並ぶ/g, "噛み合わなさが並ぶ"],
-    [/生じている/g, "並んでいる"],
-    [/生まれる/g, "残る"],
-    [/起きる/g, "残る"],
-    [/を生む/g, "が残る"],
-    [/により/g, "その配置のまま"],
-    [/ことによるもの/g, "として置かれている"],
-    [/影響を与えている/g, "並んでいる"],
-    [/必要になる/g, "置かれている"],
-    [/形成している/g, "並んでいる"],
-    [/これは([^。]+?)の感触。/g, "$1の感触が残る。"],
-    [/と感じる/g, "が残る"],
-    [/感じることがある/g, "が残る"],
-  ];
-
-  let out = s;
-  for (const [re, to] of replacements) out = out.replace(re, to);
-
-  // まとめ口調の緩和
-  out = out.replace(/つまり、/g, "");
-  out = out.replace(/要するに、/g, "");
-
-  // 禁止寄りの語尾を軽く削る
-  out = out.replace(/かもしれない/g, "");
-  out = out.replace(/こともある/g, "");
-  out = out.replace(/だろう/g, "");
-  out = out.replace(/ようだ/g, "");
-  out = out.replace(/例えば、?/g, "");
-
-  return out;
+  return String(text || "");
 }
 
 function escapeRegex(input) {

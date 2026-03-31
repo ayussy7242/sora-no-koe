@@ -11,6 +11,9 @@ const { buildTodayMoonInfo, findNextMoonSignChangeDetailed } = require("../../..
 const { formatDateYmdHm } = require("../../../../domain/astro");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { resolveMaxRetries } = require("../ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -22,27 +25,6 @@ function normalizeText(text) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function countQuestions(text) {
-  const t = String(text || "");
-  const m = t.match(/[？?]/g);
-  return m ? m.length : 0;
-}
-
-function countChars(text) {
-  return Array.from(String(text || "").replace(/\n/g, "")).length;
-}
-
-function validateStoryText(text, { min, max, maxQuestions = 1 } = {}) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const len = countChars(t);
-  if (Number.isFinite(min) && len < min) return { ok: false, reason: `too_short:${len}` };
-  if (Number.isFinite(max) && len > max) return { ok: false, reason: `too_long:${len}` };
-  if (countQuestions(t) > maxQuestions) return { ok: false, reason: "too_many_questions" };
-  return { ok: true, text: t, len };
 }
 
 function pickPreferredResonanceAspect(story, opts = {}) {
@@ -277,12 +259,13 @@ async function generateTextWithRetry({
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastText = "";
   let lastReason = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const prompt =
       userPrompt +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
@@ -358,7 +341,7 @@ async function generateIgStoryTexts({
   const todayText = await generateTextWithRetry({
     userPrompt: todayPrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 45, max: 100 }),
+    validate: (text) => runAiTextPipeline({ rawText: text, preset: PRESETS.ig.story_today }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 160,
@@ -370,7 +353,7 @@ async function generateIgStoryTexts({
   const resonanceText = await generateTextWithRetry({
     userPrompt: resonancePrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 60, max: 130 }),
+    validate: (text) => runAiTextPipeline({ rawText: text, preset: PRESETS.ig.story_resonance }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 190,
@@ -390,7 +373,7 @@ async function generateIgStoryTexts({
   const tomorrowText = await generateTextWithRetry({
     userPrompt: tomorrowPrompt,
     openai,
-    validate: (text) => validateStoryText(text, { min: 70, max: 150 }),
+    validate: (text) => runAiTextPipeline({ rawText: text, preset: PRESETS.ig.story_tomorrow }),
     maxRetries,
     temperature: 0.5,
     maxTokens: 180,

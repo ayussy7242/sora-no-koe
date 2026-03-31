@@ -106,8 +106,8 @@ async function generateXResonanceAiText({ story, dict, openai, maxRetries, aspec
   return generateXAiWithRetry({
     channel: "x_resonance",
     prompt: buildXResonancePrompt({ story, dict, aspect: picked }),
-    minChars: 60,
-    maxChars: 80,
+    minChars: 0,
+    maxChars: 180,
     maxTokens: 140,
     temperature: 0.5,
     maxRetries,
@@ -116,7 +116,7 @@ async function generateXResonanceAiText({ story, dict, openai, maxRetries, aspec
     dict,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     createChatCompletion,
-    retryNoteTemplate: "前回は条件外でした（${reason}）。2〜4行で短く整えて再出力。",
+    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜120文字で短く整えて再出力。",
     fallbackFactory,
     fallbackContext: { aspect: picked },
   }).then((res) => ({ ...res, aspect: picked }));

@@ -24,6 +24,8 @@
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const {
   isYYYYMMDD,
@@ -46,6 +48,46 @@ function makeRunId(dateLocal) {
   return `rebuild8:${dateLocal}:${r}`;
 }
 
+function toBool(v, defaultValue = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (v === undefined || v === null || v === "") return defaultValue;
+  const s = String(v).trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function safeFilePart(value, fallback) {
+  const s = String(value || "").trim();
+  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || fallback;
+}
+
+function writeLocalRebuildOutputs({ outDir, dateLocal, mode, target, items, summary }) {
+  const dir = outDir || path.join(process.cwd(), "tmp", "line", "rebuild8", dateLocal || "unknown");
+  ensureDir(dir);
+  const payload = {
+    date_local: dateLocal,
+    mode,
+    target,
+    summary: summary || null,
+    items: Array.isArray(items) ? items : [],
+  };
+  const summaryPath = path.join(dir, "summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
+  const textPaths = [];
+  (Array.isArray(items) ? items : []).forEach((item, idx) => {
+    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
+    const textPath = path.join(dir, `${name}.txt`);
+    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
+    textPaths.push(textPath);
+  });
+  return { dir, summary_path: summaryPath, text_paths: textPaths };
+}
+
 async function getLineUserDeepMode(db, lineUserId) {
   if (!db || !lineUserId) return false;
   try {
@@ -65,9 +107,20 @@ async function rebuildDaily8(deps, opts = {}) {
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
 
+  const env2 = { ...(env || {}), ...(process.env || {}) };
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const mode = pickMode(opts.mode);
   const target = pickTarget(opts.target);
+  const localOnly = toBool(
+    opts.local ?? opts.local_only ?? opts.localOnly ?? env2.REBUILD8_LOCAL_ONLY,
+    false
+  );
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.REBUILD8_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "line", "rebuild8", dateLocal || "unknown")
+  );
   const asOfISO = new Date().toISOString();
   const runId = makeRunId(dateLocal);
 
@@ -75,8 +128,8 @@ async function rebuildDaily8(deps, opts = {}) {
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
   const precisionDeg = clamp(pickNum(opts.precisionDeg, 0.01), 0.001, 1);
 
-  const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
-  const wheelExpireDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
+  const bucketName = env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS || null;
+  const wheelExpireDays = Number(env2.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
   function isPaidAllowed({ appUserId, lineUserId }) {
     if (!env.PAID_MODE_ENABLED) return true;
@@ -91,6 +144,7 @@ async function rebuildDaily8(deps, opts = {}) {
 
   // outbox root
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
+  const localItems = [];
 
   async function buildMessageFor({ appUserId, lineUserId }) {
     // mode=today (fixed: daily combines sky + personal)
@@ -120,7 +174,7 @@ async function rebuildDaily8(deps, opts = {}) {
 
     let imageUrl = null;
     let imagePath = null;
-    if (isPaid500 && storage && bucketName) {
+    if (!localOnly && isPaid500 && storage && bucketName) {
       try {
         const wheel = await buildAndStoreSoraWheel({
           storage,
@@ -180,17 +234,42 @@ async function rebuildDaily8(deps, opts = {}) {
     const text = payload?.text || "";
     if (!isNonEmptyText(text)) throw new Error("text empty");
 
-    await outboxRoot.doc(ownerAppUserId).set(
-      makeOutboxPayload({
-        appUserId: ownerAppUserId,
-        lineUserId: ownerLineUserId,
-        text,
-        isPaid500: payload?.isPaid500,
-        imageUrl: payload?.imageUrl,
-        imagePath: payload?.imagePath,
-      }),
-      { merge: true }
-    );
+    const item = makeOutboxPayload({
+      appUserId: ownerAppUserId,
+      lineUserId: ownerLineUserId,
+      text,
+      isPaid500: payload?.isPaid500,
+      imageUrl: payload?.imageUrl,
+      imagePath: payload?.imagePath,
+    });
+
+    if (localOnly) {
+      localItems.push(item);
+      const summary = { targets: { planned: 1, prepared: 1, skipped: 0, failed: 0 }, last_error: null };
+      const local = writeLocalRebuildOutputs({
+        outDir: localOutDir,
+        dateLocal,
+        mode,
+        target,
+        items: localItems,
+        summary,
+      });
+      return {
+        ok: true,
+        date_local: dateLocal,
+        mode,
+        target,
+        prepared: 1,
+        skipped: 0,
+        run_id: runId,
+        local_only: true,
+        local_dir: local.dir,
+        local_paths: local.text_paths,
+        summary_path: local.summary_path,
+      };
+    }
+
+    await outboxRoot.doc(ownerAppUserId).set(item, { merge: true });
 
     return { ok: true, date_local: dateLocal, mode, target, prepared: 1, skipped: 0, run_id: runId };
   }
@@ -226,17 +305,19 @@ async function rebuildDaily8(deps, opts = {}) {
         continue;
       }
 
-      await outboxRoot.doc(appUserId).set(
-        makeOutboxPayload({
-          appUserId,
-          lineUserId,
-          text,
-          isPaid500: payload?.isPaid500,
-          imageUrl: payload?.imageUrl,
-          imagePath: payload?.imagePath,
-        }),
-        { merge: true }
-      );
+      const item = makeOutboxPayload({
+        appUserId,
+        lineUserId,
+        text,
+        isPaid500: payload?.isPaid500,
+        imageUrl: payload?.imageUrl,
+        imagePath: payload?.imagePath,
+      });
+      if (localOnly) {
+        localItems.push(item);
+      } else {
+        await outboxRoot.doc(appUserId).set(item, { merge: true });
+      }
 
       prepared++;
     } catch (e) {
@@ -245,6 +326,33 @@ async function rebuildDaily8(deps, opts = {}) {
       // 失敗しても全体を止めない（運用向け）
       // 必要ならここで "rebuildログ" コレクションを追加してもOK
     }
+  }
+
+  if (localOnly) {
+    const summary = { targets: { planned: prepared + skipped + failed, prepared, skipped, failed }, last_error: lastError };
+    const local = writeLocalRebuildOutputs({
+      outDir: localOutDir,
+      dateLocal,
+      mode,
+      target,
+      items: localItems,
+      summary,
+    });
+    return {
+      ok: failed === 0,
+      date_local: dateLocal,
+      mode,
+      target,
+      prepared,
+      skipped,
+      failed,
+      run_id: runId,
+      error: lastError,
+      local_only: true,
+      local_dir: local.dir,
+      local_paths: local.text_paths,
+      summary_path: local.summary_path,
+    };
   }
 
   return {

@@ -188,8 +188,8 @@ async function generateXNightAiText({ story, dict, openai, maxRetries }) {
   return generateXAiWithRetry({
     channel: "x_night",
     prompt: buildXNightPrompt({ story, dict }),
-    minChars: 100,
-    maxChars: 140,
+    minChars: 0,
+    maxChars: 180,
     maxTokens: 180,
     temperature: 0.5,
     maxRetries,
@@ -198,7 +198,7 @@ async function generateXNightAiText({ story, dict, openai, maxRetries }) {
     dict,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     createChatCompletion,
-    retryNoteTemplate: "前回は条件外でした（${reason}）。助言禁止・短文で整えて再出力。",
+    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜120文字で整えて再出力。",
     fallbackFactory,
     fallbackContext: { nextHint: nextHints },
   });

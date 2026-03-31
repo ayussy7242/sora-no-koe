@@ -4,7 +4,10 @@ const { normalizeBodyKey } = require("../../../domain/canonical");
 const { absAngularDistance, norm360 } = require("../../story/story_math");
 const { createSignHelpers } = require("../../story/story_signs");
 const { bodyGlyph, bodyLabelJa, signGlyph, signLabelJa } = require("../../../presenters/shared/text/tokens");
-const { renderRelationPdfBuffer } = require("../../../engine/pdf/relation/render");
+const { renderRelationPdfBuffer, deriveRelationData } = require("../../../engine/pdf/relation/render");
+const { buildComparePairs, buildRelationCounts, buildRelationAiInputs } = require("./ai_inputs");
+const { buildHouseCounts, computeDominantSigns, computeDominantHouses, computePrimaryHouse } = require("../shared/center_metrics");
+const { generateRelationAiTexts } = require("./ai_generate");
 const { resolveDisplayNameFromUserDoc } = require("../../../utils/resolve_display_name");
 
 const DEFAULT_RELATION_BODY_KEYS = [
@@ -22,6 +25,10 @@ const DEFAULT_RELATION_BODY_KEYS = [
   "dc",
   "mc",
   "ic",
+  "north_node",
+  "south_node",
+  "chiron",
+  "lilith",
 ];
 
 const DEFAULT_DEEP_POINT_KEYS = [
@@ -33,6 +40,41 @@ const DEFAULT_DEEP_POINT_KEYS = [
 
 const DEFAULT_ELEMENT_KEYS = ["fire", "earth", "air", "water"];
 const DEFAULT_MODALITY_KEYS = ["cardinal", "fixed", "mutable"];
+
+const AXIS_BODIES = new Set(["asc", "mc", "ic", "dc"]);
+
+const HOUSE_LABELS = {
+  1: "自己・起点",
+  2: "価値・感覚",
+  3: "思考・言語",
+  4: "基盤・安心",
+  5: "表現・創造",
+  6: "習慣・調整",
+  7: "対面・関係",
+  8: "共有・結束",
+  9: "信念・拡張",
+  10: "役割・社会",
+  11: "交流・共同",
+  12: "無意識・背景",
+};
+
+const HOUSE_BODY_WEIGHT = {
+  sun: 3,
+  moon: 3,
+  asc: 3,
+  mercury: 2,
+  venus: 2,
+  mars: 2,
+  jupiter: 1.5,
+  saturn: 1.5,
+  uranus: 1,
+  neptune: 1,
+  pluto: 1,
+  north_node: 0.8,
+  south_node: 0.8,
+  chiron: 0.8,
+  lilith: 0.8,
+};
 
 const DEFAULT_GAP_PAIRS = new Set([
   "sun_sun",
@@ -67,7 +109,11 @@ function buildAspectList(dict) {
   const fromMajorList = Array.isArray(src?.major_list)
     ? src.major_list.filter((a) => Number.isFinite(Number(a?.deg)))
     : [];
-  if (fromMajorList.length) return fromMajorList.map((a) => ({ type: a.type || a.key, deg: Number(a.deg) }));
+  if (fromMajorList.length) {
+    const list = fromMajorList.map((a) => ({ type: a.type || a.key, deg: Number(a.deg) }));
+    if (!list.some((a) => a.type === "quincunx")) list.push({ type: "quincunx", deg: 150 });
+    return list;
+  }
 
   const major = src?.major || {};
   for (const [k, v] of Object.entries(major)) {
@@ -75,7 +121,10 @@ function buildAspectList(dict) {
     if (!Number.isFinite(deg)) continue;
     out.push({ type: v?.key || k, deg });
   }
-  if (out.length) return out;
+  if (out.length) {
+    if (!out.some((a) => a.type === "quincunx")) out.push({ type: "quincunx", deg: 150 });
+    return out;
+  }
 
   return [
     { type: "conjunction", deg: 0 },
@@ -83,6 +132,7 @@ function buildAspectList(dict) {
     { type: "square", deg: 90 },
     { type: "trine", deg: 120 },
     { type: "opposition", deg: 180 },
+    { type: "quincunx", deg: 150 },
   ];
 }
 
@@ -210,6 +260,43 @@ function buildPlanetMatrix({ longitudes, dict, signFromLon, order = DEFAULT_RELA
   return rows;
 }
 
+function buildHouseIngressAiData({ ownerPlanets = [], guestPlanets = [], ownerName = "A", guestName = "B", maxHouses = 5 } = {}) {
+  const asc = ownerPlanets.find((p) => p?.body_key === "asc");
+  const ascLon = asc?.lon_deg;
+  const heading = `${guestName} → ${ownerName}`;
+  if (!Number.isFinite(Number(ascLon))) return { heading, houses: [] };
+
+  const byHouse = new Map();
+  const weightByHouse = new Map();
+  for (const row of guestPlanets) {
+    if (!row?.body_key || !Number.isFinite(Number(row?.lon_deg))) continue;
+    if (AXIS_BODIES.has(row.body_key)) continue;
+    const house = houseNumberForLon(row.lon_deg, ascLon);
+    if (!Number.isFinite(Number(house))) continue;
+    const label = row?.body_ja || row?.body_key || "";
+    if (!label) continue;
+    if (!byHouse.has(house)) byHouse.set(house, []);
+    byHouse.get(house).push(label);
+    const key = String(row.body_key || "").toLowerCase();
+    const w = HOUSE_BODY_WEIGHT[key] ?? 1;
+    weightByHouse.set(house, (weightByHouse.get(house) || 0) + w);
+  }
+
+  const houses = Array.from(byHouse.entries())
+    .map(([house, bodies]) => ({
+      house,
+      label: HOUSE_LABELS[house] || "",
+      bodies,
+      weight: weightByHouse.get(house) || 0,
+    }))
+    .filter((row) => row.bodies && row.bodies.length)
+    .sort((a, b) => (b.weight - a.weight) || (a.house - b.house))
+    .slice(0, maxHouses)
+    .map(({ house, label, bodies }) => ({ house, label, bodies }));
+
+  return { heading, houses };
+}
+
 function computeElementModalityBalance({ longitudes, dict, getSignMetaByKey }) {
   const elementCount = { fire: 0, earth: 0, air: 0, water: 0 };
   const modalityCount = { cardinal: 0, fixed: 0, mutable: 0 };
@@ -254,6 +341,7 @@ function buildConnections({
 }) {
   const aspectListAll = buildAspectList(dict);
   const allowed = Array.isArray(rules?.aspects_used) ? rules.aspects_used.map((v) => String(v)) : null;
+  if (allowed && !allowed.includes("quincunx")) allowed.push("quincunx");
   const aspectList = allowed && allowed.length
     ? aspectListAll.filter((a) => allowed.includes(a.type))
     : aspectListAll;
@@ -374,6 +462,22 @@ function applyViewerOrder(view, viewerId) {
       a: view?.modality_balance?.b || {},
       b: view?.modality_balance?.a || {},
     },
+    dominant_signs: {
+      a: view?.dominant_signs?.b || [],
+      b: view?.dominant_signs?.a || [],
+    },
+    dominant_houses: {
+      a: view?.dominant_houses?.b || [],
+      b: view?.dominant_houses?.a || [],
+    },
+    primary_house: {
+      a: view?.primary_house?.b ?? null,
+      b: view?.primary_house?.a ?? null,
+    },
+    house_counts: {
+      a: view?.house_counts?.b || {},
+      b: view?.house_counts?.a || {},
+    },
     connections: Array.isArray(view?.connections)
       ? view.connections.map((c) => ({
           ...c,
@@ -397,6 +501,44 @@ function applyViewerOrder(view, viewerId) {
         pair: typeof g?.pair === "string" ? g.pair.split("_").reverse().join("_") : g?.pair,
       }))
     : [];
+
+  if (view?.ai_inputs) {
+    const ai = { ...(view.ai_inputs || {}) };
+    if (ai?.relation_center && typeof ai.relation_center === "object") {
+      ai.relation_center = { ...ai.relation_center };
+    }
+    if (ai?.relation_core && typeof ai.relation_core === "object") {
+      ai.relation_core = { ...ai.relation_core };
+    }
+    if (ai?.a_center || ai?.b_center) {
+      ai.a_center = view?.ai_inputs?.b_center || {};
+      ai.b_center = view?.ai_inputs?.a_center || {};
+    }
+    if (ai?.house_ingress_a || ai?.house_ingress_b) {
+      const temp = ai.house_ingress_a;
+      ai.house_ingress_a = view?.ai_inputs?.house_ingress_b || {};
+      ai.house_ingress_b = temp || {};
+    }
+    if (Array.isArray(ai?.sign_facing)) {
+      ai.sign_facing = ai.sign_facing.map((row) => ({
+        ...row,
+        a_sign: row?.b_sign ?? row?.a_sign,
+        b_sign: row?.a_sign ?? row?.b_sign,
+      }));
+    }
+    swapped.ai_inputs = ai;
+  }
+
+  if (view?.ai_texts) {
+    const texts = { ...(view.ai_texts || {}) };
+    const aLines = texts.house_ingress_a_lines;
+    const aSummary = texts.house_ingress_a_summary;
+    texts.house_ingress_a_lines = texts.house_ingress_b_lines;
+    texts.house_ingress_a_summary = texts.house_ingress_b_summary;
+    texts.house_ingress_b_lines = aLines;
+    texts.house_ingress_b_summary = aSummary;
+    swapped.ai_texts = texts;
+  }
 
   return swapped;
 }
@@ -572,6 +714,154 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     const houseLinks = buildHouseLinks(connections);
     const gaps = buildGaps(connections, rules);
 
+    const mainPlanetKeys = new Set(["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"]);
+    const planetMainA = planetMatrixA.filter((p) => mainPlanetKeys.has(p?.body_key));
+    const planetMainB = planetMatrixB.filter((p) => mainPlanetKeys.has(p?.body_key));
+    const houseCountsA = buildHouseCounts(planetMainA);
+    const houseCountsB = buildHouseCounts(planetMainB);
+    const northNodeSignA = deepPointsA.find((p) => p?.body_key === "north_node")?.sign_key || null;
+    const northNodeSignB = deepPointsB.find((p) => p?.body_key === "north_node")?.sign_key || null;
+    const dominantSignsA = computeDominantSigns({ planets: planetMainA, nodeSignKeys: [northNodeSignA] });
+    const dominantSignsB = computeDominantSigns({ planets: planetMainB, nodeSignKeys: [northNodeSignB] });
+    const dominantHousesA = computeDominantHouses({ planets: planetMainA, houseCounts: houseCountsA });
+    const dominantHousesB = computeDominantHouses({ planets: planetMainB, houseCounts: houseCountsB });
+    const buildAngles = (list) => {
+      const out = {};
+      list.forEach((p) => {
+        const key = String(p?.body_key || "").toLowerCase();
+        if (!["asc", "mc", "ic", "dc"].includes(key)) return;
+        out[key] = { house: p?.house ?? null };
+      });
+      return out;
+    };
+    const buildNodesExtras = (list) => {
+      const out = { nodes: {}, extras: {} };
+      list.forEach((p) => {
+        const key = String(p?.body_key || "").toLowerCase();
+        if (key === "north_node") out.nodes.north = { house: p?.house ?? null, sign_key: p?.sign_key || null };
+        if (key === "south_node") out.nodes.south = { house: p?.house ?? null, sign_key: p?.sign_key || null };
+        if (key === "chiron") out.extras.chiron = { house: p?.house ?? null, sign_key: p?.sign_key || null };
+        if (key === "lilith") out.extras.lilith = { house: p?.house ?? null, sign_key: p?.sign_key || null };
+      });
+      return out;
+    };
+    const aAngles = buildAngles(planetMatrixA);
+    const bAngles = buildAngles(planetMatrixB);
+    const aNodesExtras = buildNodesExtras(deepPointsA);
+    const bNodesExtras = buildNodesExtras(deepPointsB);
+    const primaryHouseA = computePrimaryHouse({ planets: planetMainA, angles: aAngles, nodes: aNodesExtras.nodes, extras: aNodesExtras.extras });
+    const primaryHouseB = computePrimaryHouse({ planets: planetMainB, angles: bAngles, nodes: bNodesExtras.nodes, extras: bNodesExtras.extras });
+
+    const derived = deriveRelationData({
+      people: { a: { name: nameA }, b: { name: nameB } },
+      planet_matrix: { a: planetMatrixA, b: planetMatrixB },
+      deep_points: { a: deepPointsA, b: deepPointsB },
+      element_balance: {
+        a: { element_count: balanceA.element_count, top_element: balanceA.top_element },
+        b: { element_count: balanceB.element_count, top_element: balanceB.top_element },
+      },
+      modality_balance: {
+        a: { modality_count: balanceA.modality_count, top_modality: balanceA.top_modality },
+        b: { modality_count: balanceB.modality_count, top_modality: balanceB.top_modality },
+      },
+      connections,
+    });
+
+    const comparePairs = buildComparePairs({
+      aPlanets: planetMatrixA,
+      bPlanets: planetMatrixB,
+      connections,
+    });
+
+    const relationCounts = buildRelationCounts(comparePairs);
+    const houseIngressA = buildHouseIngressAiData({
+      ownerPlanets: planetMatrixA,
+      guestPlanets: planetMatrixB,
+      ownerName: nameA || "A",
+      guestName: nameB || "B",
+    });
+    const houseIngressB = buildHouseIngressAiData({
+      ownerPlanets: planetMatrixB,
+      guestPlanets: planetMatrixA,
+      ownerName: nameB || "B",
+      guestName: nameA || "A",
+    });
+
+    const summarizeLinks = (list = []) =>
+      list.slice(0, 4).map((c) => ({
+        a: c?.a?.body_ja || c?.a?.body_key || "—",
+        b: c?.b?.body_ja || c?.b?.body_key || "—",
+        aspect: c?.aspect || "",
+        orb: c?.orb ?? null,
+      }));
+
+    const summarizeCompare = (rows = []) =>
+      rows.slice(0, 6).map((row) => ({
+        body: row?.body_ja || row?.body_key || "—",
+        a_sign: row?.a?.sign_ja || row?.a?.sign_key || "—",
+        b_sign: row?.b?.sign_ja || row?.b?.sign_key || "—",
+        a_house: Number.isFinite(Number(row?.a?.house)) ? `${row.a.house}H` : "",
+        b_house: Number.isFinite(Number(row?.b?.house)) ? `${row.b.house}H` : "",
+        aspect: row?.aspect || "",
+      }));
+
+    const compareIndex = new Map(comparePairs.map((row) => [row?.body_key, row]));
+    const pickCompare = (keys) => keys.map((k) => compareIndex.get(k)).filter(Boolean);
+    const personalCompare = pickCompare(["sun", "moon", "mercury", "venus", "mars"]);
+    const socialCompare = pickCompare(["jupiter", "saturn"]);
+    const transpersonalCompare = pickCompare(["uranus", "neptune", "pluto"]);
+    const axisCompare = pickCompare(["asc", "dc", "mc", "ic"]);
+    const deepCompare = pickCompare(["north_node", "south_node", "lilith", "chiron"]);
+
+    const aiInputs = buildRelationAiInputs({
+      relation_center: derived?.relationCenter || {},
+      relation_core: derived?.relationCore || {},
+      relation_pattern: {
+        name: derived?.relationPattern?.name || "",
+        type: derived?.relationPattern?.key || "",
+        summary: "",
+      },
+      pattern_evidence: derived?.relationPattern?.evidence || [],
+      a_center: {
+        dominant_signs: dominantSignsA,
+        dominant_houses: dominantHousesA,
+        element_balance: balanceA.element_count,
+        modality_balance: balanceA.modality_count,
+      },
+      b_center: {
+        dominant_signs: dominantSignsB,
+        dominant_houses: dominantHousesB,
+        element_balance: balanceB.element_count,
+        modality_balance: balanceB.modality_count,
+      },
+      sign_facing: comparePairs.map((row) => ({
+        body: row.body_ja || row.body_key,
+        a_sign: row.a_sign,
+        b_sign: row.b_sign,
+        relation_type: row.relation_type,
+      })),
+      relation_counts: relationCounts,
+      core_links: derived?.coreList ? derived.coreList.slice(0, 3).map((c) => ({
+        a: c?.a?.body_ja || c?.a?.body_key,
+        b: c?.b?.body_ja || c?.b?.body_key,
+        aspect: c?.aspect,
+        orb: c?.orb,
+      })) : [],
+      flow: { count: derived?.flowList?.length || 0, top_aspects: [], dominant_bodies: [] },
+      friction: { count: derived?.frictionList?.length || 0, top_aspects: [], dominant_bodies: [] },
+      axis: { count: derived?.axisList?.length || 0, top_links: summarizeLinks(derived?.axisList || []) },
+      deep: { count: derived?.deepList?.length || 0, top_links: summarizeLinks(derived?.deepList || []) },
+      personal: { count: personalCompare.length, rows: summarizeCompare(personalCompare) },
+      social: { count: socialCompare.length, rows: summarizeCompare(socialCompare) },
+      transpersonal: { count: transpersonalCompare.length, rows: summarizeCompare(transpersonalCompare) },
+      axis_compare: { count: axisCompare.length, rows: summarizeCompare(axisCompare) },
+      deep_compare: { count: deepCompare.length, rows: summarizeCompare(deepCompare) },
+      comm: { count: derived?.commList?.length || 0, top_links: summarizeLinks(derived?.commList || []) },
+      attraction: { count: derived?.attractionList?.length || 0, top_links: summarizeLinks(derived?.attractionList || []) },
+      house_ingress_a: houseIngressA,
+      house_ingress_b: houseIngressB,
+    });
+
     const view = {
       pair_key: normalized.pairKey,
       pair_ids: { a_id: aId, b_id: bId },
@@ -595,14 +885,33 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
         a: { modality_count: balanceA.modality_count, top_modality: balanceA.top_modality },
         b: { modality_count: balanceB.modality_count, top_modality: balanceB.top_modality },
       },
+      dominant_signs: { a: dominantSignsA, b: dominantSignsB },
+      dominant_houses: { a: dominantHousesA, b: dominantHousesB },
+      primary_house: { a: primaryHouseA, b: primaryHouseB },
+      house_counts: { a: houseCountsA, b: houseCountsB },
       connections,
       house_links: houseLinks,
       gaps,
       rules: rules || null,
+      ai_inputs: aiInputs,
+      ai_texts: {},
       status: status || null,
       schema_version: "relation_view_v1",
       updated_at: nowServer(),
     };
+
+    const aiEnabledRaw = env?.RELATION_AI_ENABLED ?? process.env.RELATION_AI_ENABLED ?? "";
+    const aiEnabled = ["1", "true", "yes", "on"].includes(String(aiEnabledRaw).toLowerCase());
+    if (aiEnabled && view.ai_inputs) {
+      try {
+        const aiResult = await generateRelationAiTexts({ env, aiInputs: view.ai_inputs });
+        if (aiResult?.ok && aiResult?.texts) {
+          view.ai_texts = aiResult.texts;
+        }
+      } catch (e) {
+        console.log("[relation_ai] generate failed:", e?.message || String(e));
+      }
+    }
 
     return { ok: true, view };
   }
