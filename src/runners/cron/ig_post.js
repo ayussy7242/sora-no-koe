@@ -214,6 +214,14 @@ function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
   return paths;
 }
 
+function writeLocalJson({ data, outDir, filename = "ig_post.json" } = {}) {
+  if (!outDir) return null;
+  ensureDir(outDir);
+  const full = path.join(outDir, filename);
+  fs.writeFileSync(full, JSON.stringify(data, null, 2), "utf8");
+  return full;
+}
+
 function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
   if (!dateLocal) return null;
   const events = buildNextMoonEvents(asOfISO, dict);
@@ -1078,6 +1086,23 @@ async function runIgPost(deps, opts = {}) {
     if (localOnly) {
       const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
       const localPaths = writeLocalCarousel({ buffers, outDir: localOutDir, prefix: "slide" });
+      const jsonPath = writeLocalJson({
+        data: {
+          ok: true,
+          dry_run: true,
+          local_only: true,
+          date_local: dateLocal,
+          as_of: asOfISO,
+          resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
+          resonance_aspect_key_used: igOut?.source?.resonance_aspect_key_used || null,
+          resonance_aspect_used: igOut?.source?.resonance_aspect_used || null,
+          slide3_display_aspect: topAspect || null,
+          caption,
+          carousel,
+        },
+        outDir: localOutDir,
+        filename: "ig_post.json",
+      });
       return {
         ok: true,
         dry_run: true,
@@ -1092,6 +1117,7 @@ async function runIgPost(deps, opts = {}) {
         caption,
         local_dir: localOutDir,
         local_paths: localPaths,
+        local_json: jsonPath,
       };
     }
 
