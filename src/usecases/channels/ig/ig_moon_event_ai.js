@@ -27,8 +27,8 @@ const BODY_LABELS = {
   pluto: "冥王星",
   chiron: "キロン",
   lilith: "リリス",
-  north_node: "ドラゴンヘッド",
-  south_node: "ドラゴンテイル",
+  north_node: "北ノード",
+  south_node: "南ノード",
 };
 
 const ASPECT_LABEL_MAP = {

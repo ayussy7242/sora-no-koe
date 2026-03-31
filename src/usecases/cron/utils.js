@@ -4,6 +4,7 @@ const { boolish, toNumberSafe, normLower } = require("../../utils/parse");
 const {
   isYYYYMMDD,
   toDateLocalJST,
+  toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,
   isValidISO,
   normalizeDateTimeLocalJST,
@@ -38,7 +39,7 @@ function pickAsOfISO({ q, b, dateLocal = null, fallbackFromDateLocal = false } =
   if (dtLocal) return dtLocal;
 
   if (fallbackFromDateLocal && dateLocal) return asOfIsoFromDateLocalJST(dateLocal);
-  return null;
+  return toDateTimeLocalJST();
 }
 
 function pickDryRun({ q, b } = {}) {

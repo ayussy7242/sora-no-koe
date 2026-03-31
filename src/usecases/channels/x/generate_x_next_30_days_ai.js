@@ -53,6 +53,8 @@ async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, 
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
+  const envMax = Number(process.env.X_AI_MAX_RETRIES);
+  const resolvedMaxRetries = Number.isFinite(envMax) ? Math.max(0, envMax) : maxRetries;
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const ctx = context || buildNext30DaysContext({ story, dict });
@@ -61,7 +63,7 @@ async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, 
   let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildNext30DaysPrompt({ story, dict, context: ctx }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");

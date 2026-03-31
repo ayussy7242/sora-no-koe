@@ -40,11 +40,21 @@ function buildMoonChangeHint(change) {
   return "";
 }
 
+function resolveMoonPhaseLabel(info) {
+  const raw = safeText(info?.phase?.name || "");
+  const illumination = Number(info?.illumination || 0);
+  const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
+  const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
+  if (raw === "満月" && !isFullNow) return "満ちゆく月";
+  if (raw === "新月" && !isNewNow) return "欠けてゆく月";
+  return raw;
+}
+
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const change = buildMoonSignChangeState({ asOfISO, dict });
   const moonSign = safeText(info?.moonSign || "");
-  const phaseLabel = safeText(info?.phase?.name || "");
+  const phaseLabel = safeText(resolveMoonPhaseLabel(info));
   const moonChangeHint = safeText(buildMoonChangeHint(change));
   const nextChange = change?.next || null;
   const nextChangeText = nextChange?.date
@@ -79,12 +89,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
   let lastText = "";
 
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
-  const illumination = Number(info?.illumination || 0);
-  const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
-  const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
-  const allowNewFull = isNewNow || isFullNow;
   const moonSign = safeText(info?.moonSign || "");
-  const phaseLabel = safeText(info?.phase?.name || "");
+  const phaseLabel = safeText(resolveMoonPhaseLabel(info));
 
   for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +
@@ -103,9 +109,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
       maxTokens: 160,
     });
 
-    const overrides = allowNewFull
-      ? {}
-      : { forbiddenTerms: ["あなた", "新月", "満月"] };
+    const overrides = {};
     const verdict = runAiTextPipeline({
       rawText: text,
       preset: PRESETS.ig.moon,

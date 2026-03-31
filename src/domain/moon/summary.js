@@ -10,6 +10,7 @@ const {
   moonPhaseInfo,
   waNameFromMoonAge,
   formatMoonPhaseLabel,
+  normalizeMoonPhaseByIllumination,
 } = require("./phase");
 const { signLabelJa, signKeyFromLon, degInSignFromLon } = require("./labels");
 
@@ -32,13 +33,13 @@ function buildTodayMoonInfo({ asOfISO, story, dict }) {
   const phaseDeg = Number.isFinite(Number(sunLon)) && Number.isFinite(Number(moonLon))
     ? ((Number(moonLon) - Number(sunLon) + 360) % 360)
     : null;
-  const phase = moonPhaseInfo(phaseDeg);
   const phaseAngle = Number.isFinite(Number(sunLon)) && Number.isFinite(Number(moonLon))
     ? absAngularDistance(moonLon, sunLon)
     : null;
   const illumination = Number.isFinite(Number(phaseAngle))
     ? (1 - Math.cos((Number(phaseAngle) * Math.PI) / 180)) / 2
     : null;
+  const phase = normalizeMoonPhaseByIllumination(moonPhaseInfo(phaseDeg), illumination);
   const moonAge = Number.isFinite(Number(phaseDeg)) ? (Number(phaseDeg) / 360) * SYNODIC_MONTH_DAYS : null;
   const moonSign = story?.public?.moon?.sign_ja || signLabelJa(useDict, story?.public?.moon?.sign_key);
   const moonSignKey = signKeyFromLon(useDict, moonLon);

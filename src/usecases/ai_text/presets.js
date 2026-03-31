@@ -19,10 +19,10 @@ const PRESETS = {
     },
     moon: {
       outputType: "plain_text",
-      minChars: 40,
+      minChars: 100,
       maxChars: 220,
       forbiddenTerms: ["あなた"],
-      forbiddenTermReasons: { "あなた": "has_you", "新月": "has_newfull", "満月": "has_newfull" },
+      forbiddenTermReasons: { "あなた": "has_you" },
       normalizeRules: ["collapse_spaces"],
     },
     resonance: {

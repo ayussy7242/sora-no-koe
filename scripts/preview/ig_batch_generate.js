@@ -355,8 +355,8 @@ function buildSlides({ story, dateLocal, withCta }) {
     pluto: { name: "冥王星", glyph: "♇" },
     lilith: { name: "リリス", glyph: "⚸" },
     chiron: { name: "キロン", glyph: "⚷" },
-    north_node: { name: "ドラゴンヘッド", glyph: "☊" },
-    south_node: { name: "ドラゴンテイル", glyph: "☋" },
+    north_node: { name: "北ノード", glyph: "☊" },
+    south_node: { name: "南ノード", glyph: "☋" },
   };
 
   const aKey = topAspect?.a || "moon";

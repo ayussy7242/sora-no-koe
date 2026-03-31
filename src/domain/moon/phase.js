@@ -22,6 +22,20 @@ function moonPhaseInfo(phaseDeg) {
   return astroPhaseFromDeg(phaseDeg);
 }
 
+function normalizeMoonPhaseByIllumination(phase, illumination, { fullThreshold = 0.98, newThreshold = 0.02 } = {}) {
+  if (!phase) return phase;
+  const illum = Number(illumination);
+  const isFullNow = Number.isFinite(illum) && illum >= Number(fullThreshold);
+  const isNewNow = Number.isFinite(illum) && illum <= Number(newThreshold);
+  if (phase.name === "満月" && !isFullNow) {
+    return { key: "waxing_gibbous", name: "満ちゆく月", symbol: "🌔" };
+  }
+  if (phase.name === "新月" && !isNewNow) {
+    return { key: "waning_gibbous", name: "欠けゆく月", symbol: "🌖" };
+  }
+  return phase;
+}
+
 function waNameFromMoonAge(moonAge) {
   if (!Number.isFinite(Number(moonAge))) return "";
   const ageRaw = Number(moonAge);
@@ -72,6 +86,7 @@ module.exports = {
   moonPhaseSymbolFromDeg,
   astroPhaseFromDeg,
   moonPhaseInfo,
+  normalizeMoonPhaseByIllumination,
   waNameFromMoonAge,
   formatMoonPhaseLabel,
 };

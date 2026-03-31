@@ -41,11 +41,11 @@ const BODY_ALIAS_MAP = buildAliasMap([
   { key: "lilith", aliases: ["⚸", "ブラックムーン", "黒い月", "black_moon", "mean_apog", "meanapog"] },
   {
     key: "north_node",
-    aliases: ["☊", "true_node", "mean_node", "ascending_node", "northnode", "nnode", "ドラゴンヘッド", "龍頭"],
+    aliases: ["☊", "true_node", "mean_node", "ascending_node", "northnode", "nnode", "北ノード", "龍頭"],
   },
   {
     key: "south_node",
-    aliases: ["☋", "descending_node", "southnode", "snode", "ドラゴンテイル", "龍尾"],
+    aliases: ["☋", "descending_node", "southnode", "snode", "南ノード", "龍尾"],
   },
   { key: "asc", aliases: ["ascendant", "ascn", "ac"] },
   { key: "mc", aliases: ["midheaven", "medium_coeli", "medium coeli", "m.c."] },

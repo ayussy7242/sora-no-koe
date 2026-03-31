@@ -3,6 +3,7 @@
 const {
   isYYYYMMDD,
   toDateLocalJST,
+  toDateTimeLocalJST,
   isValidISO,
   normalizeDateTimeLocalJST,
 } = require("../../utils/time_utils");
@@ -39,7 +40,7 @@ function resolveAsOfISO(req) {
   const dtLocal = normalizeDateTimeLocalJST(req.query.datetime_local);
   if (dtLocal) return dtLocal;
 
-  return new Date().toISOString();
+  return toDateTimeLocalJST();
 }
 
 /**

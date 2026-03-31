@@ -17,6 +17,31 @@ function toDateLocalJST(date = new Date()) {
   return ymdInTimeZone(date, "Asia/Tokyo");
 }
 
+function dateTimePartsInTimeZone(date, timeZone) {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = fmt.formatToParts(date);
+  const out = {};
+  for (const p of parts) {
+    if (p.type !== "literal") out[p.type] = p.value;
+  }
+  return out;
+}
+
+function toDateTimeLocalJST(date = new Date()) {
+  const { year, month, day, hour, minute, second } = dateTimePartsInTimeZone(date, "Asia/Tokyo");
+  const ms = String(date.getMilliseconds()).padStart(3, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}.${ms}+09:00`;
+}
+
 function asOfIsoFromDateLocalJST(dateLocal) {
   // JST 12:00 == UTC 03:00
   return `${dateLocal}T03:00:00.000Z`;
@@ -57,6 +82,8 @@ function normalizeDateTimeLocalJST(datetimeLocalRaw) {
 module.exports = {
   ymdInTimeZone,
   toDateLocalJST,
+  dateTimePartsInTimeZone,
+  toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,
   isYYYYMMDD,
   isValidISO,
