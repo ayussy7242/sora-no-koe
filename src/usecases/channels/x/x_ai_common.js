@@ -1,194 +1,35 @@
 "use strict";
 
 const { signJa } = require("../../../presenters/format/format/common");
-const { countChars, splitTrailingHashtags, joinBodyAndTags } = require("../../../utils/hashtag_utils");
-
-function hasForbidden(text) {
-  const t = String(text || "");
-  const forbidden = /(すべき|した方がいい|するといい|してください|必ず|確実|運命|使命|アドバイス|促されるでしょう)/;
-  return forbidden.test(t);
-}
-
-function findSplitIndex(chars, maxChars, marks, maxOverflow = 2, minSplitChars = 6) {
-  const splitMarks = new Set(marks);
-  const candidates = [];
-  for (let i = 0; i < chars.length; i++) {
-    if (!splitMarks.has(chars[i])) continue;
-    const idx = i + 1;
-    if (idx < minSplitChars) continue;
-    candidates.push(idx);
-  }
-
-  const before = candidates.filter((i) => i <= maxChars);
-  if (before.length) return before[before.length - 1];
-
-  const after = candidates.filter((i) => i <= maxChars + maxOverflow);
-  if (after.length) return after[0];
-
-  return null;
-}
-
-function collapseBlankRuns(lines) {
-  const out = [];
-  let blankRun = 0;
-  const flushBlanks = () => {
-    if (blankRun <= 0) return;
-    if (blankRun >= 3) {
-      out.push("");
-    } else {
-      for (let i = 0; i < blankRun; i++) out.push("");
-    }
-    blankRun = 0;
-  };
-
-  for (const line of lines) {
-    const isBlank = !String(line || "").trim();
-    if (isBlank) {
-      blankRun += 1;
-      continue;
-    }
-    flushBlanks();
-    out.push(line);
-  }
-  flushBlanks();
-
-  return out;
-}
-
-function isEmojiLine(line, maxChars = 4) {
-  const t = String(line || "").trim();
-  if (!t) return false;
-  const chars = Array.from(t);
-  if (chars.length < 1 || chars.length > maxChars) return false;
-  return chars.every((ch) => /\p{Extended_Pictographic}/u.test(ch));
-}
-
-function mergeTrailingEmojiLines(lines, maxChars = 4) {
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (isEmojiLine(line, maxChars)) {
-      const hasPrev = out.length > 0 && String(out[out.length - 1] || "").trim();
-      const next = lines[i + 1];
-      const hasNextText = next && String(next || "").trim() && !isEmojiLine(next, maxChars);
-      if (hasPrev && !hasNextText) {
-        let emoji = String(line || "").trim();
-        i += 1;
-        while (i < lines.length && isEmojiLine(lines[i], maxChars)) {
-          emoji += String(lines[i] || "").trim();
-          i += 1;
-        }
-        out[out.length - 1] = `${out[out.length - 1]}${emoji}`;
-        continue;
-      }
-    }
-    out.push(line);
-    i += 1;
-  }
-  return out;
-}
-
-function formatXAiText(text, opts = {}) {
-  const normalizeSpaces = opts.normalizeSpaces !== false;
-  const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : 180;
-  const raw = String(text || "").trim();
-  if (!raw) return "";
-
-  const { body, tags } = splitTrailingHashtags(raw);
-
-  let base = String(body || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/[。．.]\s*(?=\p{Extended_Pictographic})/gu, "")
-    .replace(/(\p{Extended_Pictographic}\uFE0F?)。/gu, "$1");
-
-  if (normalizeSpaces) {
-    base = base.replace(/[ \t]+/g, " ");
-  }
-
-  base = base.replace(/、\s*/g, "\n");
-  base = base.replace(/([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu, "$1\n$2");
-  base = base.replace(/。\s*/g, "。\n");
-  base = base.replace(/(\p{Extended_Pictographic}\uFE0F?)(?!\n)/gu, "$1\n\n");
-
-  const rawLines = base.split("\n");
-  const normalized = collapseBlankRuns(rawLines);
-
-  const outLines = [];
-  for (const line of normalized) {
-    const trimmed = String(line || "").trim();
-    if (!trimmed) {
-      outLines.push("");
-      continue;
-    }
-    outLines.push(trimmed);
-  }
-
-  let cleaned = outLines;
-  while (cleaned.length && !String(cleaned[cleaned.length - 1] || "").trim()) {
-    cleaned = cleaned.slice(0, -1);
-  }
-
-  if (tags.length) {
-    cleaned.push("", tags.join(" "));
-  }
-
-  let out = cleaned.join("\n").trim();
-
-  if (maxChars && tags.length && countChars(out) > maxChars) {
-    let curTags = tags.slice();
-    while (curTags.length && countChars(out) > maxChars) {
-      curTags.pop();
-      const rebuilt = cleaned.slice(0, cleaned.length - 2);
-      if (curTags.length) {
-        rebuilt.push("", curTags.join(" "));
-      }
-      out = rebuilt.join("\n").trim();
-    }
-  }
-
-  return out;
-}
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { formatXAiText } = require("../../ai_text/normalizers");
 
 function validateXAiText(text, opts = {}) {
-  let t = formatXAiText(text, opts);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (hasForbidden(t)) return { ok: false, reason: "has_forbidden" };
-
-  const minChars = Number.isFinite(Number(opts.minChars)) ? Number(opts.minChars) : 60;
-  const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : 180;
+  const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : null;
+  const minChars = Number.isFinite(Number(opts.minChars)) ? Number(opts.minChars) : null;
   const maxHashtags = Number.isFinite(Number(opts.maxHashtags)) ? Number(opts.maxHashtags) : null;
-  const trimHashtags = opts.trimHashtags === true;
-  const minBodyChars = Number.isFinite(Number(opts.minBodyChars)) ? Number(opts.minBodyChars) : null;
-  const maxBodyChars = Number.isFinite(Number(opts.maxBodyChars)) ? Number(opts.maxBodyChars) : null;
+  const trimHashtags = opts.trimHashtags !== false;
+  const normalizeSpaces = opts.normalizeSpaces !== false;
 
-  const split = t ? splitTrailingHashtags(t) : { body: "", tags: [] };
-  if ((maxHashtags != null || trimHashtags) && t) {
-    let tags = split.tags.slice();
-    if (maxHashtags != null && tags.length > maxHashtags) {
-      tags = tags.slice(0, maxHashtags);
-    }
-    let rebuilt = joinBodyAndTags(split.body, tags);
-    if (trimHashtags && Number.isFinite(maxChars)) {
-      while (tags.length && countChars(rebuilt) > maxChars) {
-        tags.pop();
-        rebuilt = joinBodyAndTags(split.body, tags);
-      }
-    }
-    t = rebuilt;
-  }
+  const overrides = {
+    ...(minChars != null ? { minChars } : {}),
+    ...(maxChars != null ? { maxChars } : {}),
+    xFormat: { normalizeSpaces, maxChars: maxChars != null ? maxChars : PRESETS.x.base.maxChars },
+    hashtagRules: {
+      maxHashtags,
+      trimHashtags,
+    },
+  };
 
-  if (minBodyChars != null || maxBodyChars != null) {
-    const bodyLen = countChars(split.body);
-    if (minBodyChars != null && bodyLen < minBodyChars) return { ok: false, reason: `body_too_short:${bodyLen}` };
-    if (maxBodyChars != null && bodyLen > maxBodyChars) return { ok: false, reason: `body_too_long:${bodyLen}` };
-  }
+  const verdict = runAiTextPipeline({
+    rawText: text,
+    preset: PRESETS.x.base,
+    overrides,
+  });
 
-  const len = countChars(t);
-  if (len < minChars) return { ok: false, reason: `too_short:${len}` };
-  if (len > maxChars) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
+  if (!verdict.ok) return { ok: false, reason: verdict.reason || "invalid" };
+  return { ok: true, text: verdict.text, len: verdict.meta?.charCount || Array.from(String(verdict.text || "")).length };
 }
 
 function clampText(text, maxChars) {
@@ -297,7 +138,7 @@ async function generateXAiWithRetry(opts = {}) {
   const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : undefined;
   const maxTokens = Number.isFinite(Number(opts.maxTokens)) ? Number(opts.maxTokens) : 160;
   const temperature = Number.isFinite(Number(opts.temperature)) ? Number(opts.temperature) : 0.5;
-  const maxRetries = Number.isFinite(Number(opts.maxRetries)) ? Number(opts.maxRetries) : 8;
+  const maxRetries = Number.isFinite(Number(opts.maxRetries)) ? Number(opts.maxRetries) : 5;
   const fallbackFn = typeof opts.fallbackFactory === "function" ? opts.fallbackFactory : null;
   const fallbackContext = opts.fallbackContext || {};
   const story = opts.story;
