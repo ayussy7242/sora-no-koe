@@ -165,6 +165,15 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     return !!(hasDate && hasTime && hasGeo);
   }
 
+  async function isNatalReady(appUserId) {
+    if (!appUserId) return false;
+    const snap = await db.collection("natal_cache").doc(appUserId).get();
+    if (!snap.exists) return false;
+    const cache = snap.data() || {};
+    if (cache.needs_compute === true) return false;
+    return isNatalCacheComplete(cache);
+  }
+
   // --------------------
   // parsers
   // --------------------
@@ -368,6 +377,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     getLineState,
     setLineState,
     hasNatal,
+    isNatalReady,
     resetNatal,
     enqueueNatalCalcJob,
     isNatalCacheComplete,

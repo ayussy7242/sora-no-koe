@@ -28,6 +28,21 @@ if (!isCloudRun) {
 const functions = require("@google-cloud/functions-framework");
 const { createApp } = require("./app");
 
+// -------------------- Global error hooks --------------------
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] unhandledRejection", {
+    reason: reason?.message || String(reason),
+    stack: reason?.stack,
+  });
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] uncaughtException", {
+    message: err?.message || String(err),
+    stack: err?.stack,
+  });
+});
+
 // -------------------- Config --------------------
 const env = require("../config/env");
 const { swisseph, swisseph_setup } = require("../config/swisseph");

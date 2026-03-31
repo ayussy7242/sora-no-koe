@@ -40,6 +40,7 @@ const {
   verifySignature,
   createMessageDeduper,
 } = require("../integrations/line/webhook_utils");
+const { memorySnapshot, logWithReq } = require("../utils/logging");
 
 // -------------------- flexible import helper --------------------
 function pickFactory(mod, name) {
@@ -214,6 +215,11 @@ function createLineRouter(deps = {}) {
   // -------------------- webhook handler --------------------
   async function handleWebhook(req, res) {
     const requestId = getReqId(req);
+    const t0 = Date.now();
+    logWithReq(req, "[line/webhook] start", { url: req?.originalUrl, mem: memorySnapshot() });
+    res.on("finish", () => {
+      logWithReq(req, "[line/webhook] done", { status: res.statusCode, ms: Date.now() - t0, mem: memorySnapshot() });
+    });
 
     try {
       const d = resolveDeps(req, deps);

@@ -1,8 +1,8 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("./shared");
-const { resolveColors } = require("../theme/ig_theme");
-const { DEFAULT_MOON_LAYOUT } = require("../../../shared/space_background");
+const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { resolveColors } = require("../../theme/ig_theme");
+const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
 
 const MOON_LAYOUT = DEFAULT_MOON_LAYOUT;
 
@@ -105,7 +105,7 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const observationLines = wrapLines(observation, 26, 4);
+  const observationLines = wrapLines(observation, 26, 12);
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
     fields.push(makeField({
@@ -292,7 +292,7 @@ function buildSlideMoonSvg({
   const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
-  const observationLines = wrapLines(observation, 26, 4);
+  const observationLines = wrapLines(observation, 26, 12);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);

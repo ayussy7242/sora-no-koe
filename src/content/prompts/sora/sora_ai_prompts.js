@@ -20,7 +20,7 @@ const {
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ROLES,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_ASPECTS,
   BLUEPRINT_LIGHT_V2_SEGMENT_PROMPT_CLOSING,
-} = require("../blueprint/blueprint_light");
+} = require("../pdf/blueprint/light");
 const {
   SORA_AI_USER_GUIDE_ITEM,
   SORA_AI_USER_GUIDE_SORA,

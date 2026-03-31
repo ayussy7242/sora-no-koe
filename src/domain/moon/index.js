@@ -15,6 +15,7 @@ const {
 } = require("./sign");
 const {
   fullMoonNameJaFromDate,
+  fullMoonNameEnFromDate,
   getFullMoonForDate,
   lastFullMoonDate,
   lastNewMoonDate,
@@ -36,6 +37,7 @@ const {
 
 module.exports = {
   fullMoonNameJaFromDate,
+  fullMoonNameEnFromDate,
   moonPhaseSymbolFromDeg,
   astroPhaseFromDeg,
   moonPhaseInfo,

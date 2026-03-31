@@ -149,5 +149,6 @@ async function renderStoryBackgroundSet({
 
 module.exports = {
   CANVAS,
+  renderStoryBackground,
   renderStoryBackgroundSet,
 };

@@ -7,7 +7,7 @@ const path = require("path");
 const { admin, getDb } = require("../../src/integrations/firebase/firebase");
 const env = require("../../src/config/env");
 const dict = require("../../src/content/dict");
-const { createRelationService } = require("../../src/usecases/relations");
+const { createRelationService } = require("../../src/usecases/pdf/relation");
 const { renderRelationPdfBuffer } = require("../../src/engine/pdf/relation/render");
 
 function getArg(name, fallback = null) {
@@ -28,7 +28,8 @@ function sanitizeFilename(input) {
 (async () => {
   const pairKey = requireArg("pair_key");
   const viewerId = requireArg("viewer_app_user_id");
-  const force = String(getArg("force") || "") === "1" || String(getArg("force") || "").toLowerCase() === "true";
+  const forceArg = String(getArg("force") || "").toLowerCase();
+  const force = forceArg === "1" || forceArg === "true" || forceArg === "" || forceArg === "yes";
 
   const db = getDb();
   const relationService = createRelationService({ db, admin, dict, storage: null, env });

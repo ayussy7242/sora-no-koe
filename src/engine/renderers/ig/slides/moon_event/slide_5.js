@@ -1,8 +1,8 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, renderSvgToPng } = require("./shared");
-const { resolveColors } = require("../theme/ig_theme");
-const { buildGlyphLine } = require("./glyph_layout");
+const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { resolveColors } = require("../../theme/ig_theme");
+const { buildGlyphLine } = require("../common/glyph_layout");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
@@ -55,7 +55,7 @@ function getAvoidRegions({
   const timeY = ornamentY + 140;
   const titleY = timeY + 120;
   const subtitleY = titleY + 120;
-  const ctaY = subtitleY + 176;
+  const ctaY = subtitle ? subtitleY + 176 : titleY + 140;
   const linkY = ctaY + 64;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta || "今日の空", 18, 2);
@@ -266,7 +266,7 @@ function buildSlide5Svg({
   const timeY = ornamentY + 140;
   const titleY = timeY + 120;
   const subtitleY = titleY + 120;
-  const ctaY = subtitleY + 176;
+  const ctaY = subtitle ? subtitleY + 176 : titleY + 140;
   const linkY = ctaY + 64;
   const headerLines = wrapLines(header, 12, 2);
   const ctaLines = wrapLines(cta, 18, 2);
@@ -284,7 +284,9 @@ function buildSlide5Svg({
       ornamentBlock,
       `<text x=\"${centerX}\" y=\"${timeY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${timeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${timeTracking}em\" opacity=\"0.75\">${escapeXml(timeText)}</text>`,
       `<text x=\"${centerX}\" y=\"${titleY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${titleSize}\" font-family=\"SoraTitle\" font-weight=\"400\">${escapeXml(title)}</text>`,
-      `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\" opacity=\"0.9\">${escapeXml(subtitle)}</text>`,
+      subtitle
+        ? `<text x=\"${centerX}\" y=\"${subtitleY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${subtitleSize}\" font-family=\"SoraTitle\" opacity=\"0.9\">${escapeXml(subtitle)}</text>`
+        : "",
       `<text x=\"${centerX}\" y=\"${ctaY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${ctaSize}\" font-family=\"SoraTitle\" opacity=\"0.6\">${escapeXml(cta)}</text>`,
       `<text x=\"${centerX}\" y=\"${linkY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${linkSize}\" font-family=\"SoraTitle\" letter-spacing=\"${linkTracking}em\" opacity=\"0.4\">${escapeXml(link || miniCta)}</text>`,
       buildRightFooter({ brand, dateLabel, colors }),
