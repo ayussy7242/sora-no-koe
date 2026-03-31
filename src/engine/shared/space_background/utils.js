@@ -97,6 +97,11 @@ function curlNoise2D(x, y, seed, eps = 0.001) {
   return { x: a, y: -b };
 }
 
+function isSpaceDebug(env = process.env) {
+  const raw = String(env?.SPACE_BG_DEBUG || env?.DEBUG_SPACE_BG || "").toLowerCase();
+  return ["1", "true", "yes", "on"].includes(raw);
+}
+
 module.exports = {
   clamp,
   lerp,
@@ -108,4 +113,5 @@ module.exports = {
   fbm2D,
   ridgedFbm2D,
   curlNoise2D,
+  isSpaceDebug,
 };

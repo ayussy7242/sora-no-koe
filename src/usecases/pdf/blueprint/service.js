@@ -23,6 +23,31 @@ const {
   normalizeCuspsFromNatalCache,
 } = require("./compute/ai_input");
 
+function buildNatalHash({ natalCache, houseSystem }) {
+  if (!natalCache || typeof natalCache !== "object") return "";
+  const birth = natalCache?.birth || {};
+  const birthHash = String(natalCache?.birth_hash || "").trim();
+  const fallbackBirth = {
+    date_local: birth?.date_local || "",
+    time_hm: birth?.time_hm || "",
+    timezone: birth?.timezone || "",
+    lat: Number.isFinite(Number(birth?.lat)) ? Number(birth.lat) : "",
+    lon: Number.isFinite(Number(birth?.lon)) ? Number(birth.lon) : "",
+    place_id: birth?.place_id || "",
+  };
+  const baseBirth = birthHash || crypto.createHash("sha256").update(JSON.stringify(fallbackBirth)).digest("hex");
+  const engine = natalCache?.engine || {};
+  const payload = {
+    birth_hash: baseBirth,
+    house_system: houseSystem || natalCache?.houses?.system || engine?.houses?.system || "",
+    houses_calc_version: engine?.houses_calc_version || natalCache?.houses_calc_version || "",
+    precision_deg: engine?.precision_deg ?? natalCache?.precision_deg ?? "",
+    engine_version: engine?.version || engine?.name || "",
+    zodiac_mode: engine?.zodiac?.mode || natalCache?.zodiac?.mode || "",
+  };
+  return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex").slice(0, 12);
+}
+
 async function resolveDisplayName({ db, appUserId, lineUser }) {
   const fromLine = resolveDisplayNameFromLineUserDoc(lineUser);
   if (fromLine) return fromLine;
@@ -130,8 +155,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
     const { ok, longitudes } = natalService.extractNatalLongitudes(natalCache);
     if (!ok) throw new Error("natal_cache invalid");
-    const cusps = normalizeCuspsFromNatalCache(natalCache);
     const houseSystem = natalCache?.houses?.system || natalCache?.engine?.houses?.system || null;
+    const cusps = normalizeCuspsFromNatalCache(natalCache);
 
     const {
       rowsMain,
@@ -182,6 +207,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     });
 
     const birthText = buildBirthText(natalCache?.birth || {});
+    const natalHash = buildNatalHash({ natalCache, houseSystem });
     const displayName = await resolveDisplayName({ db, appUserId, lineUser });
 
     const skipAi = toBool(env?.BLUEPRINT_SKIP_AI || process.env.BLUEPRINT_SKIP_AI || "");
@@ -330,6 +356,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
         rowsExtra,
         elementCounts,
         dateLabel,
+        natalHash,
         allowRegenBg,
         blueprintStorage,
       });
@@ -403,6 +430,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     } = buildBlueprintLightRows({ longitudes, dict });
 
     const birthText = buildBirthText(natalCache?.birth || {});
+    const natalHash = buildNatalHash({ natalCache, houseSystem });
     const displayName = await resolveDisplayName({ db, appUserId, lineUser });
 
     let bgImages = null;
@@ -416,6 +444,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       rowsExtra,
       elementCounts,
       dateLabel,
+      natalHash,
       allowRegenBg,
       blueprintStorage,
     });

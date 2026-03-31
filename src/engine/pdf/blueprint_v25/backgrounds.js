@@ -65,7 +65,7 @@ function buildStoryStub({ rowsMain = [], rowsExtra = [], elementCounts = {}, dat
   };
 }
 
-function buildCacheKey({ rowsMain = [], rowsExtra = [], elementCounts = {}, dateLabel = "" } = {}) {
+function buildCacheKey({ rowsMain = [], rowsExtra = [], elementCounts = {}, dateLabel = "", natalHash = "" } = {}) {
   const safeRows = (rows) =>
     rows
       .map((row) => ({
@@ -76,6 +76,7 @@ function buildCacheKey({ rowsMain = [], rowsExtra = [], elementCounts = {}, date
       }))
       .filter((row) => row.key && row.sign);
   const payload = {
+    natalHash: natalHash || "",
     elementCounts: {
       fire: elementCounts?.fire ?? 0,
       earth: elementCounts?.earth ?? 0,
@@ -154,6 +155,8 @@ async function buildBlueprintV25BgImages({
   rowsExtra = [],
   elementCounts = {},
   dateLabel = "",
+  natalHash = "",
+  seedLabel = "",
   outDir,
   inline = false,
 } = {}) {
@@ -162,7 +165,7 @@ async function buildBlueprintV25BgImages({
   const dir = outDir || rootDir;
   fs.mkdirSync(dir, { recursive: true });
 
-  const cacheKey = buildCacheKey({ rowsMain, rowsExtra, elementCounts, dateLabel });
+  const cacheKey = buildCacheKey({ rowsMain, rowsExtra, elementCounts, dateLabel, natalHash });
   const cached = readCacheMeta(dir);
   if (cached?.cacheKey === cacheKey) {
     const cachedUrls = buildCachedUrls(dir, BG_IMAGE_KEYS);
@@ -196,6 +199,7 @@ async function buildBlueprintV25BgImages({
     const bg = buildSpaceBackground({
       story,
       dateLabel,
+      seedLabel,
       width: PAGE_WIDTH,
       height: PAGE_HEIGHT,
       variant: v.variant,
@@ -217,4 +221,4 @@ async function buildBlueprintV25BgImages({
   return out;
 }
 
-module.exports = { buildBlueprintV25BgImages, buildStoryStub, BG_IMAGE_KEYS };
+module.exports = { buildBlueprintV25BgImages, buildStoryStub, BG_IMAGE_KEYS, buildCacheKey };

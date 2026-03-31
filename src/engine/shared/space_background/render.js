@@ -11,6 +11,7 @@ const {
   mulberry32,
   clamp,
 } = require("./world");
+const { isSpaceDebug } = require("./utils");
 const { buildMilkyBandLayer } = require("./layers/base");
 const { buildMilkyDustLayer } = require("./layers/dust");
 const { buildClusterField } = require("./layers/stars");
@@ -56,6 +57,23 @@ function sliceClusters(clusters, offsetX, width) {
       return { ...cluster, x: x - offsetX };
     })
     .filter(Boolean);
+}
+
+const SLICE_CACHE = new Map();
+
+function buildAvoidKey(regions) {
+  if (!Array.isArray(regions) || regions.length === 0) return "none";
+  const raw = regions.map((r) => {
+    const x = Math.round(Number(r?.x) || 0);
+    const y = Math.round(Number(r?.y) || 0);
+    const w = Math.round(Number(r?.w) || 0);
+    const h = Math.round(Number(r?.h) || 0);
+    const s = Math.round((Number.isFinite(Number(r?.weight)) ? Number(r.weight) : 1) * 100);
+    const f = Math.round(Number(r?.feather) || 0);
+    const k = r?.kind || "";
+    return `${x},${y},${w},${h},${s},${f},${k}`;
+  }).join("|");
+  return hashString(raw);
 }
 
 function buildMiniHeroStars({ rand, cluster, count, width, height, avoidRect, voids = [], baseColor, glowColor }) {
@@ -175,6 +193,7 @@ function buildSpikeStars({ rand, count, width, height, avoidRect, voids = [], co
 
 function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
   if (!Array.isArray(regions) || !regions.length) return { defs: "", body: "" };
+  const rng = typeof rand === "function" ? rand : mulberry32(hashString(String(idPrefix || "space-veil")));
   const defs = [];
   const body = [];
   regions.forEach((region, idx) => {
@@ -194,8 +213,8 @@ function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
     const noiseId = `${gradId}-noise`;
     const maskId = `${gradId}-mask`;
     const baseOpacity = clamp(0.045 + weight * 0.05, 0.03, 0.12);
-    const freqX = (0.014 + (rand ? rand() : Math.random()) * 0.02).toFixed(3);
-    const freqY = (0.02 + (rand ? rand() : Math.random()) * 0.02).toFixed(3);
+    const freqX = (0.014 + rng() * 0.02).toFixed(3);
+    const freqY = (0.02 + rng() * 0.02).toFixed(3);
     const blur = clamp(Math.max(rx, ry) * 0.12, 12, 32).toFixed(1);
     defs.push(
       `<radialGradient id="${gradId}" cx="${(cx / width).toFixed(3)}" cy="${(cy / height).toFixed(3)}" r="${(Math.max(rx, ry) / Math.max(width, height)).toFixed(3)}">` +
@@ -204,7 +223,7 @@ function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
         `<stop offset="100%" stop-color="${color}" stop-opacity="0"/>` +
       `</radialGradient>` +
       `<filter id="${noiseId}" x="-40%" y="-40%" width="180%" height="180%">` +
-        `<feTurbulence type="fractalNoise" baseFrequency="${freqX} ${freqY}" numOctaves="2" seed="${Math.floor((rand ? rand() : Math.random()) * 9000)}" result="noise"/>` +
+        `<feTurbulence type="fractalNoise" baseFrequency="${freqX} ${freqY}" numOctaves="2" seed="${Math.floor(rng() * 9000)}" result="noise"/>` +
         `<feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0" result="alpha"/>` +
         `<feGaussianBlur in="alpha" stdDeviation="${blur}"/>` +
       `</filter>` +
@@ -655,6 +674,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
 function buildSpaceBackground({
   story,
   dateLabel,
+  seedLabel,
   width,
   height,
   variant = "slide1",
@@ -664,7 +684,18 @@ function buildSpaceBackground({
 } = {}) {
   const worldWidth = Number.isFinite(Number(worldWidthInput)) ? Number(worldWidthInput) : width;
   const offsetX = clamp(offsetXInput || 0, 0, Math.max(0, worldWidth - width));
-  const theme = computeSpaceTheme({ story, dateLabel, variant: "world" });
+  const seedLog = String(seedLabel || "");
+  const debug = isSpaceDebug();
+  if (debug) {
+    console.log("[space] seed", {
+      seedLabel: seedLog,
+      variant,
+      size: `${width}x${height}`,
+      worldWidth,
+      offsetX,
+    });
+  }
+  const theme = computeSpaceTheme({ story, dateLabel, seedLabel, variant: "world" });
   const textKey = Array.isArray(avoidRegions) && avoidRegions.length
     ? hashString(avoidRegions.map((f) => {
         const x = Math.round(Number(f?.x) || 0);
@@ -679,12 +710,25 @@ function buildSpaceBackground({
   const worldKey = `${theme.seed}-${worldWidth}x${height}-${textKey}`;
 
   let world = WORLD_CACHE.get(worldKey);
+  if (debug) {
+    console.log("[space] world_cache", { hit: !!world, key: worldKey, seedLabel: seedLog });
+  }
   if (!world) {
     world = buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions });
     WORLD_CACHE.set(worldKey, world);
   }
 
-  const slice = renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions });
+  const localAvoidRegions = sliceAvoidRegions(avoidRegions, offsetX, width);
+  const avoidKey = buildAvoidKey(localAvoidRegions);
+  const sliceKey = `${worldKey}-${variant}-${width}x${height}-${Math.round(offsetX)}-${avoidKey}`;
+  let slice = SLICE_CACHE.get(sliceKey);
+  if (debug) {
+    console.log("[space] slice_cache", { hit: !!slice, key: sliceKey, seedLabel: seedLog });
+  }
+  if (!slice) {
+    slice = renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions });
+    SLICE_CACHE.set(sliceKey, slice);
+  }
   const defs = `${world.defs}${slice.defs}`;
   return {
     defs,
