@@ -328,7 +328,7 @@ function buildSlide5Svg({
       letterSpacing: TOK.cta.altSubTracking,
       anchor: "middle",
     }),
-    `<text x=\"${centerX}\" y=\"1220\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"28\" font-family=\"SoraTitle\" letter-spacing=\"0.32em\">${escapeXml(brand)}</text>`,
+    `<text x=\"${centerX}\" y=\"1220\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"28\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cover.brandTracking}em\">${escapeXml(brand)}</text>`,
   ].join("");
 
   return baseSvg(inner, space);

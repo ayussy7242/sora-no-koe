@@ -2,20 +2,21 @@
 
 const fs = require("fs");
 const path = require("path");
+const { FONT_FILES } = require("../../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
 
-const FONT_FILES = {
-  title: "ZenKakuGothicNew-Regular.ttf",
-  titleBold: "ZenKakuGothicNew-Bold.ttf",
-  body: "ShipporiMincho-Regular.ttf",
-  bodyMedium: "ShipporiMincho-Regular.ttf",
-  bodyBold: "ShipporiMincho-Bold.ttf",
-  soft: "KleeOne-Regular.ttf",
-  glyph: "NotoSansSymbols2-Regular.ttf",
-  glyphAlt: "NotoSansSymbols-Regular.ttf",
-  glyphAlt2: "Symbola_hint.ttf",
+const IG_FONT_FILES = {
+  title: FONT_FILES.main.regular,
+  titleBold: FONT_FILES.main.bold,
+  body: FONT_FILES.body.pdf.regular,
+  bodyMedium: FONT_FILES.body.pdf.regular,
+  bodyBold: FONT_FILES.body.pdf.bold,
+  soft: FONT_FILES.soft.regular,
+  glyph: FONT_FILES.symbols.secondary,
+  glyphAlt: FONT_FILES.symbols.primary,
+  glyphAlt2: FONT_FILES.symbols.tertiary,
 };
 
 function resolveFontPath(filename) {
@@ -45,15 +46,15 @@ function readFontBase64(filename) {
 }
 
 const FONT_BASE64 = {
-  title: readFontBase64(FONT_FILES.title),
-  titleBold: readFontBase64(FONT_FILES.titleBold),
-  body: readFontBase64(FONT_FILES.body),
-  bodyMedium: readFontBase64(FONT_FILES.bodyMedium),
-  bodyBold: readFontBase64(FONT_FILES.bodyBold),
-  soft: readFontBase64(FONT_FILES.soft),
-  glyph: readFontBase64(FONT_FILES.glyph),
-  glyphAlt: readFontBase64(FONT_FILES.glyphAlt),
-  glyphAlt2: readFontBase64(FONT_FILES.glyphAlt2),
+  title: readFontBase64(IG_FONT_FILES.title),
+  titleBold: readFontBase64(IG_FONT_FILES.titleBold),
+  body: readFontBase64(IG_FONT_FILES.body),
+  bodyMedium: readFontBase64(IG_FONT_FILES.bodyMedium),
+  bodyBold: readFontBase64(IG_FONT_FILES.bodyBold),
+  soft: readFontBase64(IG_FONT_FILES.soft),
+  glyph: readFontBase64(IG_FONT_FILES.glyph),
+  glyphAlt: readFontBase64(IG_FONT_FILES.glyphAlt),
+  glyphAlt2: readFontBase64(IG_FONT_FILES.glyphAlt2),
 };
 
 function fontFaceCss() {
@@ -107,7 +108,7 @@ function fontFaceCss() {
 }
 
 module.exports = {
-  FONT_FILES,
+  FONT_FILES: IG_FONT_FILES,
   resolveFontPath,
   readFontBase64,
   FONT_BASE64,

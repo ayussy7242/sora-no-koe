@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
+const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
@@ -13,10 +14,10 @@ const CANVAS_HEIGHT = 630;
 const SAFE_TOP = 140;
 const SAFE_BOTTOM = 90;
 
-const FONT_FILES = {
-  line1: "ZenKakuGothicNew-Medium.ttf",
-  line2: "ShipporiMincho-Regular.ttf",
-  line2Bold: "ShipporiMincho-Bold.ttf",
+const BLOG_FONT_FILES = {
+  line1: FONT_FILES.main.medium,
+  line2: FONT_FILES.body.blog.regular,
+  line2Bold: FONT_FILES.body.blog.bold,
 };
 
 function resolveFontPath(filename) {
@@ -46,9 +47,9 @@ function readFontBase64(filename) {
 }
 
 const FONT_BASE64 = {
-  line1: readFontBase64(FONT_FILES.line1),
-  line2: readFontBase64(FONT_FILES.line2),
-  line2Bold: readFontBase64(FONT_FILES.line2Bold),
+  line1: readFontBase64(BLOG_FONT_FILES.line1),
+  line2: readFontBase64(BLOG_FONT_FILES.line2),
+  line2Bold: readFontBase64(BLOG_FONT_FILES.line2Bold),
 };
 
 function fontFaceCss() {

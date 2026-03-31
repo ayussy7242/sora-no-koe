@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { FONT_FILES: SSOT_FONTS } = require("../../shared/typography");
 
 const COLORS = Object.freeze({
   coverBg: "#14162B",
@@ -20,27 +21,27 @@ const SYMBOLS_FONT_PRIMARY_PATH = path.resolve(
   process.cwd(),
   "assets",
   "fonts",
-  "NotoSansSymbols-Regular.ttf"
+  SSOT_FONTS.symbols.primary
 );
 const SYMBOLS_FONT_SECONDARY_PATH = path.resolve(
   process.cwd(),
   "assets",
   "fonts",
-  "NotoSansSymbols2-Regular.ttf"
+  SSOT_FONTS.symbols.secondary
 );
 const SYMBOLS_FONT_TERTIARY_PATH = path.resolve(
   process.cwd(),
   "assets",
   "fonts",
-  "Symbola_hint.ttf"
+  SSOT_FONTS.symbols.tertiary
 );
 
 const FONT_FILES = Object.freeze({
-  title: path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"),
-  body: path.join(FONT_DIR, "ShipporiMincho-Regular.ttf"),
-  bold: path.join(FONT_DIR, "ShipporiMincho-Bold.ttf"),
-  note: path.join(FONT_DIR, "KleeOne-Regular.ttf"),
-  noteBold: path.join(FONT_DIR, "KleeOne-SemiBold.ttf"),
+  title: path.join(FONT_DIR, SSOT_FONTS.main.medium),
+  body: path.join(FONT_DIR, SSOT_FONTS.body.pdf.regular),
+  bold: path.join(FONT_DIR, SSOT_FONTS.body.pdf.bold),
+  note: path.join(FONT_DIR, SSOT_FONTS.soft.regular),
+  noteBold: path.join(FONT_DIR, SSOT_FONTS.soft.semiBold),
   symbolsPrimary: SYMBOLS_FONT_PRIMARY_PATH,
   symbolsSecondary: SYMBOLS_FONT_SECONDARY_PATH,
   symbolsTertiary: SYMBOLS_FONT_TERTIARY_PATH,

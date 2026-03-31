@@ -5,6 +5,7 @@ const path = require("path");
 const opentype = require("opentype.js");
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { BACKGROUND_COLORS } = require("../shared/space_background/constants");
+const { FONT_FILES } = require("../shared/typography");
 
 const SIGN_GLYPH = {
   aries: "♈",
@@ -23,11 +24,11 @@ const SIGN_GLYPH = {
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
-const FONT_FILES = {
-  uiTitle: "ZenKakuGothicNew-Medium.ttf",
-  uiBody: "ShipporiMincho-Regular.ttf",
-  astro: "NotoSansSymbols2-Regular.ttf",
-  astroAlt: "Symbola_hint.ttf",
+const WHEEL_FONT_FILES = {
+  uiTitle: FONT_FILES.main.medium,
+  uiBody: FONT_FILES.body.pdf.regular,
+  astro: FONT_FILES.symbols.secondary,
+  astroAlt: FONT_FILES.symbols.tertiary,
 };
 
 function resolveFontPath(filename) {
@@ -57,15 +58,15 @@ function readFontBase64(filename) {
 }
 
 const FONT_BASE64 = {
-  uiTitle: readFontBase64(FONT_FILES.uiTitle),
-  uiBody: readFontBase64(FONT_FILES.uiBody),
-  astro: readFontBase64(FONT_FILES.astro),
-  astroAlt: readFontBase64(FONT_FILES.astroAlt),
+  uiTitle: readFontBase64(WHEEL_FONT_FILES.uiTitle),
+  uiBody: readFontBase64(WHEEL_FONT_FILES.uiBody),
+  astro: readFontBase64(WHEEL_FONT_FILES.astro),
+  astroAlt: readFontBase64(WHEEL_FONT_FILES.astroAlt),
 };
 
 function loadAstroFonts() {
   const fonts = [];
-  const alt = resolveFontPath(FONT_FILES.astroAlt);
+  const alt = resolveFontPath(WHEEL_FONT_FILES.astroAlt);
   if (alt) {
     try {
       fonts.push(opentype.loadSync(alt));
@@ -73,7 +74,7 @@ function loadAstroFonts() {
       // ignore
     }
   }
-  const primary = resolveFontPath(FONT_FILES.astro);
+  const primary = resolveFontPath(WHEEL_FONT_FILES.astro);
   if (primary) {
     try {
       fonts.push(opentype.loadSync(primary));

@@ -3,12 +3,13 @@
 const fs = require("fs");
 const path = require("path");
 const opentype = require("opentype.js");
+const { FONT_FILES: SSOT_FONTS } = require("../../shared/typography");
 
 const FONT_DIR = path.resolve(__dirname, "..", "..", "..", "..", "assets", "fonts");
 const FONT_CANDIDATES = [
-  "NotoSansSymbols2-Regular.ttf",
-  "NotoSansSymbols-Regular.ttf",
-  "Symbola_hint.ttf",
+  SSOT_FONTS.symbols.secondary,
+  SSOT_FONTS.symbols.primary,
+  SSOT_FONTS.symbols.tertiary,
 ];
 
 const fontCache = new Map();

@@ -1,29 +1,30 @@
 "use strict";
 
 const path = require("path");
+const { FONT_FILES: SSOT_FONTS, FONT_FAMILIES } = require("../../shared/typography");
 const { PAGE_WIDTH, PAGE_HEIGHT } = require("./constants");
 
 function buildFontFaceCss() {
   const fontDir = path.resolve(__dirname, "..", "..", "..", "..", "assets", "fonts");
-  const shipp = path.join(fontDir, "ShipporiMincho-Regular.ttf");
-  const shippBold = path.join(fontDir, "ShipporiMincho-Bold.ttf");
-  const zen = path.join(fontDir, "ZenKakuGothicNew-Regular.ttf");
-  const zenMed = path.join(fontDir, "ZenKakuGothicNew-Medium.ttf");
-  const zenBold = path.join(fontDir, "ZenKakuGothicNew-Bold.ttf");
-  const notoSymbols = path.join(fontDir, "NotoSansSymbols-Regular.ttf");
-  const notoSymbols2 = path.join(fontDir, "NotoSansSymbols2-Regular.ttf");
-  const symbola = path.join(fontDir, "Symbola_hint.ttf");
+  const shipp = path.join(fontDir, SSOT_FONTS.body.pdf.regular);
+  const shippBold = path.join(fontDir, SSOT_FONTS.body.pdf.bold);
+  const zen = path.join(fontDir, SSOT_FONTS.main.regular);
+  const zenMed = path.join(fontDir, SSOT_FONTS.main.medium);
+  const zenBold = path.join(fontDir, SSOT_FONTS.main.bold);
+  const notoSymbols = path.join(fontDir, SSOT_FONTS.symbols.primary);
+  const notoSymbols2 = path.join(fontDir, SSOT_FONTS.symbols.secondary);
+  const symbola = path.join(fontDir, SSOT_FONTS.symbols.tertiary);
 
   const toFileUrl = (p) => `file://${p}`;
   return [
-    `@font-face { font-family: 'Shippori Mincho'; src: url('${toFileUrl(shipp)}') format('truetype'); font-weight: 400; font-style: normal; }`,
-    `@font-face { font-family: 'Shippori Mincho'; src: url('${toFileUrl(shippBold)}') format('truetype'); font-weight: 700; font-style: normal; }`,
-    `@font-face { font-family: 'Zen Kaku Gothic'; src: url('${toFileUrl(zen)}') format('truetype'); font-weight: 400; font-style: normal; }`,
-    `@font-face { font-family: 'Zen Kaku Gothic'; src: url('${toFileUrl(zenMed)}') format('truetype'); font-weight: 500; font-style: normal; }`,
-    `@font-face { font-family: 'Zen Kaku Gothic'; src: url('${toFileUrl(zenBold)}') format('truetype'); font-weight: 700; font-style: normal; }`,
-    `@font-face { font-family: 'Noto Symbols'; src: url('${toFileUrl(notoSymbols)}') format('truetype'); font-weight: 400; font-style: normal; }`,
-    `@font-face { font-family: 'Noto Symbols 2'; src: url('${toFileUrl(notoSymbols2)}') format('truetype'); font-weight: 400; font-style: normal; }`,
-    `@font-face { font-family: 'Symbola'; src: url('${toFileUrl(symbola)}') format('truetype'); font-weight: 400; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.bodyPdf.css}'; src: url('${toFileUrl(shipp)}') format('truetype'); font-weight: 400; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.bodyPdf.css}'; src: url('${toFileUrl(shippBold)}') format('truetype'); font-weight: 700; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.main.css}'; src: url('${toFileUrl(zen)}') format('truetype'); font-weight: 400; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.main.css}'; src: url('${toFileUrl(zenMed)}') format('truetype'); font-weight: 500; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.main.css}'; src: url('${toFileUrl(zenBold)}') format('truetype'); font-weight: 700; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.symbols.primary}'; src: url('${toFileUrl(notoSymbols)}') format('truetype'); font-weight: 400; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.symbols.secondary}'; src: url('${toFileUrl(notoSymbols2)}') format('truetype'); font-weight: 400; font-style: normal; }`,
+    `@font-face { font-family: '${FONT_FAMILIES.symbols.tertiary}'; src: url('${toFileUrl(symbola)}') format('truetype'); font-weight: 400; font-style: normal; }`,
   ].join("\n");
 }
 
@@ -74,12 +75,15 @@ ${buildFontFaceCss()}
   --fs-tag: calc(12px * var(--ui));
   --ls-title: 0.04em;
   --ls-sub: 0.08em;
+  --font-main: '${FONT_FAMILIES.main.css}', sans-serif;
+  --font-body: '${FONT_FAMILIES.bodyPdf.css}', serif;
+  --font-soft: '${FONT_FAMILIES.soft.css}', serif;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  font-family: 'Zen Kaku Gothic', sans-serif;
+  font-family: var(--font-main);
   color: var(--text);
   background: var(--bg);
   text-align: justify;
@@ -169,7 +173,7 @@ body {
 }
 
 .title {
-  font-family: 'Shippori Mincho', serif;
+  font-family: var(--font-body);
   font-size: calc(var(--fs-title) + var(--fs-bump));
   letter-spacing: var(--ls-title);
   line-height: 1.69;
@@ -305,12 +309,14 @@ body {
   font-size: var(--fs-body-text);
   line-height: var(--lh-body-text);
   color: var(--text);
+  font-family: var(--font-body);
 }
 
 .subtext {
   font-size: calc(var(--fs-sub) + var(--fs-bump));
   line-height: 2.28;
   color: var(--muted);
+  font-family: var(--font-body);
 }
 
 .title-en {
@@ -491,6 +497,7 @@ body {
 
 .map-duo-body {
   margin-top: var(--space-1);
+  font-family: var(--font-body);
 }
 
 .planet-list {
@@ -522,7 +529,7 @@ body {
 .key-points-list {
   font-size: calc(var(--fs-card-text) * 0.77 + var(--fs-bump));
   line-height: 1.7;
-  font-family: 'Zen Kaku Gothic', 'Noto Symbols 2', 'Noto Symbols', 'Symbola', sans-serif;
+  font-family: '${FONT_FAMILIES.main.css}', '${FONT_FAMILIES.symbols.secondary}', '${FONT_FAMILIES.symbols.primary}', '${FONT_FAMILIES.symbols.tertiary}', sans-serif;
 }
 
 .key-points-list .glyph {
@@ -714,7 +721,7 @@ body {
   color: var(--muted);
   margin-top: 6px;
 }
-.card-text { font-size: var(--fs-body-text); line-height: var(--lh-body-text); margin-top: 8px; color: var(--text); }
+.card-text { font-size: var(--fs-body-text); line-height: var(--lh-body-text); margin-top: 8px; color: var(--text); font-family: var(--font-body); }
 
 
 .page--dep .card-head-line {
@@ -827,6 +834,7 @@ body {
   line-height: var(--lh-body-text);
   margin-top: var(--space-1);
   color: var(--text);
+  font-family: var(--font-body);
 }
 
 
@@ -932,7 +940,7 @@ body {
 }
 
 .astro-symbol {
-  font-family: 'Noto Symbols 2', 'Noto Symbols', 'Symbola', 'Zen Kaku Gothic', sans-serif;
+  font-family: '${FONT_FAMILIES.symbols.secondary}', '${FONT_FAMILIES.symbols.primary}', '${FONT_FAMILIES.symbols.tertiary}', '${FONT_FAMILIES.main.css}', sans-serif;
   margin-right: 6px;
 }
 
@@ -1072,6 +1080,7 @@ body {
 
 .node-body {
   margin-top: 0;
+  font-family: var(--font-body);
 }
 
 .axis-node {
@@ -1171,13 +1180,13 @@ body {
 .center { text-align: center; }
 
 .cover-title {
-  font-family: 'Shippori Mincho', serif;
+  font-family: var(--font-main);
   font-size: calc(24px + var(--fs-bump));
   letter-spacing: 0.01em;
 }
 
 .cover-title-en {
-  font-family: 'Shippori Mincho', serif;
+  font-family: var(--font-main);
   font-size: calc(11px + var(--fs-bump));
   letter-spacing: 1.6px;
   color: var(--muted);

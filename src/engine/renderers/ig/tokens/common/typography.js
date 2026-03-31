@@ -1,5 +1,7 @@
 "use strict";
 
+const { LOGO_SPEC } = require("../../../../shared/typography");
+
 const IG_TYPOGRAPHY_TOKENS = Object.freeze({
   header: {
     tracking: 0.12,
@@ -11,10 +13,10 @@ const IG_TYPOGRAPHY_TOKENS = Object.freeze({
     swipeTracking: 0.12,
   },
   rightFooter: {
-    tracking: 0.12,
+    tracking: LOGO_SPEC.letterSpacingEm,
   },
   cover: {
-    brandTracking: 0.14,
+    brandTracking: LOGO_SPEC.letterSpacingEm,
     taglineTracking: 0.22,
     midTracking: 0.14,
     observation: {
