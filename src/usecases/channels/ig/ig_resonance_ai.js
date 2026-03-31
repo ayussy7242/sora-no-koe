@@ -8,6 +8,9 @@ const {
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -97,46 +100,6 @@ function buildIgResonancePrompt({ story, dict }) {
   ].join("\n");
 }
 
-function countSentences(text) {
-  const parts = String(text || "")
-    .split(/[。！？]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return parts.length;
-}
-
-function splitSentences(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return [];
-  const matches = raw.match(/[^。！？]+[。！？]/g) || [];
-  let rest = raw.replace(/[^。！？]+[。！？]/g, "").trim();
-  const out = matches.map((s) => s.trim());
-  if (rest) out.push(rest);
-  return out.filter(Boolean);
-}
-
-function sentenceCount(text) {
-  return splitSentences(text).length;
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function validateText(text) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const sentences = sentenceCount(t);
-  if (sentences < 3 || sentences > 4) return { ok: false, reason: `sentences:${sentences}` };
-  if (t.length < 120) return { ok: false, reason: `too_short:${t.length}` };
-  if (t.length > 200) return { ok: false, reason: `too_long:${t.length}` };
-
-  return { ok: true, text: t };
-}
 
 async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
@@ -144,6 +107,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
   const hasAspect = !!story?.outputs?.ig?.source?.resonance_aspect;
   if (!hasAspect) return { ok: false, error: "resonance_aspect_missing" };
 
@@ -151,7 +115,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
   let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgResonancePrompt({ story, dict }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -168,7 +132,10 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
       maxTokens: 520,
     });
 
-    const verdict = validateText(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.resonance,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";

@@ -6,21 +6,14 @@ const {
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { signJa } = require("../../../presenters/format/format/common");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
 }
 
-function countChars(text) {
-  return Array.from(String(text || "")).length;
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function buildSignCountsLine({ story, dict }) {
   const transit = story?.public?.transit_signs || {};
@@ -72,16 +65,6 @@ function buildIgObservationPrompt({ story, dict }) {
   ].join("\n");
 }
 
-function validateObservation(text) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  const len = countChars(t);
-  if (len < 10) return { ok: false, reason: `too_short:${len}` };
-  if (len > 22) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
-}
-
 function buildRetryNote(reason) {
   const r = String(reason || "unknown");
   const lenMatch = r.match(/:(\d+)/);
@@ -107,12 +90,13 @@ async function generateIgObservationText({ story, dict, openai, maxRetries = 5 }
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgObservationPrompt({ story, dict }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -139,7 +123,10 @@ async function generateIgObservationText({ story, dict, openai, maxRetries = 5 }
       continue;
     }
 
-    const verdict = validateObservation(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.observation,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";

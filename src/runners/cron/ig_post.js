@@ -1010,12 +1010,6 @@ async function runIgPost(deps, opts = {}) {
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
 
-  const accessToken = env2.IG_ACCESS_TOKEN;
-  const igUserId = env2.IG_USER_ID;
-  const graphVersion = env2.IG_GRAPH_VERSION || "v19.0";
-  if (!accessToken) throw new Error("IG_ACCESS_TOKEN missing");
-  if (!igUserId) throw new Error("IG_USER_ID missing");
-
   const now = opts.asOfISO ? new Date(opts.asOfISO) : new Date();
   if (Number.isNaN(now.getTime())) throw new Error("invalid as_of");
   const asOfISO = opts.asOfISO || now.toISOString();
@@ -1023,6 +1017,16 @@ async function runIgPost(deps, opts = {}) {
   const useAi = opts.useAi !== false;
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_POST_LOCAL_ONLY,
+    false
+  );
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.IG_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "ig", "post", dateLocal)
+  );
   const backgroundCache = resolveBackgroundCache(env2);
   const force =
     opts.force === true ||
@@ -1034,7 +1038,7 @@ async function runIgPost(deps, opts = {}) {
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 30 * 60 * 1000;
   let lockRef = null;
 
-  if (!dryRun && db && !force) {
+  if (!dryRun && !localOnly && db && !force) {
     const lock = await claimCronLock({ db, admin, id: `ig_post_${dateLocal}`, ttlMs: lockTtlMs });
     if (!lock.ok) {
       return {
@@ -1069,6 +1073,34 @@ async function runIgPost(deps, opts = {}) {
 
     const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
     const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+    const caption = renderIGCaption(story);
+
+    if (localOnly) {
+      const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
+      const localPaths = writeLocalCarousel({ buffers, outDir: localOutDir, prefix: "slide" });
+      return {
+        ok: true,
+        dry_run: true,
+        local_only: true,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
+        resonance_aspect_key_used: igOut?.source?.resonance_aspect_key_used || null,
+        resonance_aspect_used: igOut?.source?.resonance_aspect_used || null,
+        slide3_display_aspect: topAspect || null,
+        ai_input_aspect: story?.outputs?.ig?.source?.resonance_aspect || null,
+        caption,
+        local_dir: localOutDir,
+        local_paths: localPaths,
+      };
+    }
+
+    const accessToken = env2.IG_ACCESS_TOKEN;
+    const igUserId = env2.IG_USER_ID;
+    const graphVersion = env2.IG_GRAPH_VERSION || "v19.0";
+    if (!accessToken) throw new Error("IG_ACCESS_TOKEN missing");
+    if (!igUserId) throw new Error("IG_USER_ID missing");
+
     const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
     const tRender = Date.now();
     const upload = await renderAndUploadCarouselSlides({
@@ -1080,8 +1112,6 @@ async function runIgPost(deps, opts = {}) {
       backgroundCache,
     });
     console.log("[cron/ig/post] render_upload_done", { ms: Date.now() - tRender });
-
-    const caption = renderIGCaption(story);
 
     if (dryRun) {
       return {

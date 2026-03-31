@@ -6,9 +6,9 @@
  */
 const { createChatCompletion } = require("../../../../../integrations/openai/openai_client");
 const {
-  SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT,
+  SYSTEM_BLUEPRINT_LIGHT,
   BLUEPRINT_LIGHT_USER_PROMPT_TEMPLATE,
-} = require("../../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../../content/prompts/pdf/blueprint/light");
 const { extractJson, parseJsonWithRepair } = require("../json_utils");
 const {
   normalizeParagraph,
@@ -307,7 +307,7 @@ async function generateAllBatchSimple({ apiKey, baseUrl, model, input, retryNote
     baseUrl,
     model,
     messages: [
-      { role: "system", content: SORA_AI_SYSTEM_PROMPT_BLUEPRINT_LIGHT },
+      { role: "system", content: SYSTEM_BLUEPRINT_LIGHT },
       { role: "user", content: prompt },
     ],
     temperature: 0.9,

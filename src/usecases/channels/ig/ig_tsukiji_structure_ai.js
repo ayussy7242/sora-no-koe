@@ -9,13 +9,12 @@ const { normalizeBodyKey, normalizeAspectKey } = require("../../../domain/canoni
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../domain/tsukiji_public");
 const { signJa, aspectInfo } = require("../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
-}
-
-function countChars(text) {
-  return Array.from(String(text || "")).length;
 }
 
 function formatSpanDays(row) {
@@ -88,19 +87,6 @@ function buildPrompt({ story, dict, pick }) {
   ].join("\n");
 }
 
-function validateText(text) {
-  const t = String(text || "").trim();
-  if (!t) return { ok: false, reason: "empty" };
-  if (/\r|\n/.test(t)) return { ok: false, reason: "has_newline" };
-  if (!t.startsWith("構造：")) return { ok: false, reason: "no_prefix" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (t.includes("今日") || t.includes("本日") || t.includes("今")) return { ok: false, reason: "has_today" };
-  const len = countChars(t);
-  if (len < 10) return { ok: false, reason: `too_short:${len}` };
-  if (len > 24) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
-}
-
 async function generateIgTsukijiStructureText({ story, dict, openai, maxRetries = 2 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
@@ -110,12 +96,13 @@ async function generateIgTsukijiStructureText({ story, dict, openai, maxRetries 
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildPrompt({ story, dict, pick }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -132,7 +119,10 @@ async function generateIgTsukijiStructureText({ story, dict, openai, maxRetries 
       maxTokens: 160,
     });
 
-    const verdict = validateText(text);
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.tsukiji_structure,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model, pick };
 
     lastReason = verdict.reason || "";

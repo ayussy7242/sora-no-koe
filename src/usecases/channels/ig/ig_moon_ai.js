@@ -7,6 +7,9 @@ const {
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../domain/moon_info");
 const { formatDateYmdHm } = require("../../../domain/astro_compute");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
 function safeText(x) {
   return String(x || "").trim();
@@ -19,12 +22,6 @@ function countSentences(text) {
     .filter(Boolean).length;
 }
 
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function buildMoonFallback({ moonSign, phaseLabel } = {}) {
   const sign = safeText(moonSign) || "—";
@@ -69,23 +66,13 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
   ].join("\n");
 }
 
-function validateMoonText(text, { allowNewFull } = {}) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (!allowNewFull && /(新月|満月)/.test(t)) return { ok: false, reason: "has_newfull" };
-  const len = Array.from(t).length;
-  if (len < 40) return { ok: false, reason: `too_short:${len}` };
-  if (len > 220) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
-}
-
 async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
   let lastReason = "";
@@ -99,7 +86,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
   const moonSign = safeText(info?.moonSign || "");
   const phaseLabel = safeText(info?.phase?.name || "");
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
@@ -116,7 +103,14 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
       maxTokens: 160,
     });
 
-    const verdict = validateMoonText(text, { allowNewFull });
+    const overrides = allowNewFull
+      ? {}
+      : { forbiddenTerms: ["あなた", "新月", "満月"] };
+    const verdict = runAiTextPipeline({
+      rawText: text,
+      preset: PRESETS.ig.moon,
+      overrides,
+    });
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
     lastReason = verdict.reason || "";

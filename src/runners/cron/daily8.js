@@ -17,6 +17,8 @@
  * - posts_daily_delivery/{dateLocal}/deliveries/{appUserId} に送信結果を記録
  */
 
+const fs = require("fs");
+const path = require("path");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const {
   isYYYYMMDD,
@@ -62,6 +64,38 @@ function envFlag(v, defaultOn = true) {
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
   return `daily8:${dateLocal}:${r}`;
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function safeFilePart(value, fallback) {
+  const s = String(value || "").trim();
+  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || fallback;
+}
+
+function writeLocalDaily8Outputs({ outDir, dateLocal, mode, target, items, summary }) {
+  const dir = outDir || path.join(process.cwd(), "tmp", "line", "daily8", dateLocal || "unknown");
+  ensureDir(dir);
+  const payload = {
+    date_local: dateLocal,
+    mode,
+    target,
+    summary: summary || null,
+    items: Array.isArray(items) ? items : [],
+  };
+  const summaryPath = path.join(dir, "summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
+  const textPaths = [];
+  (Array.isArray(items) ? items : []).forEach((item, idx) => {
+    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
+    const textPath = path.join(dir, `${name}.txt`);
+    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
+    textPaths.push(textPath);
+  });
+  return { dir, summary_path: summaryPath, text_paths: textPaths };
 }
 
 async function getLineUserDeepMode(db, lineUserId) {
@@ -177,11 +211,23 @@ async function runDaily8(deps, opts = {}) {
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
 
+  const env2 = { ...(env || {}), ...(process.env || {}) };
   opts = normalizeOpts(opts);
 
-  const LINE_ENABLED = envFlag(env.LINE_ENABLED, true);
+  const LINE_ENABLED = envFlag(env2.LINE_ENABLED, true);
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const dryRun = toBool(opts.dryRun ?? opts.dry_run, false);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.DAILY8_LOCAL_ONLY,
+    false
+  );
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.DAILY8_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "line", "daily8", dateLocal || "unknown")
+  );
+  const runDry = dryRun || localOnly;
   const runId = makeRunId(dateLocal);
 
   const modeRaw = String(opts.mode ?? "today").trim().toLowerCase();
@@ -190,12 +236,12 @@ async function runDaily8(deps, opts = {}) {
   const mode = modeRaw === "sky" ? "sky" : "today";
   const target = targetRaw === "owner" ? "owner" : "all";
 
-  const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
-  const bucketName = env.GCS_BUCKET_SORA || env.GCS_BUCKET_BLUEPRINTS || null;
-  const wheelExpireDays = Number(env.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
+  const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
+  const bucketName = env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS || null;
+  const wheelExpireDays = Number(env2.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
-  if (!LINE_ENABLED) {
-    return { ok: true, skipped: true, reason: "LINE disabled", date_local: dateLocal, dry_run: dryRun, mode, target };
+  if (!LINE_ENABLED && !localOnly) {
+    return { ok: true, skipped: true, reason: "LINE disabled", date_local: dateLocal, dry_run: runDry, mode, target };
   }
 
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
@@ -211,6 +257,8 @@ async function runDaily8(deps, opts = {}) {
     if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
     return false;
   }
+
+  const localItems = [];
 
   async function buildPayloadFor({ appUserId, lineUserId }) {
     const asOfISO = new Date().toISOString();
@@ -266,34 +314,65 @@ async function runDaily8(deps, opts = {}) {
       const outText = payload?.text || "";
       if (!isNonEmptyText(outText)) throw new Error("outText empty");
 
-      if (!dryRun) {
+      if (localOnly) {
+        localItems.push({
+          app_user_id: appUserId,
+          line_user_id: lineUserId,
+          text: outText,
+          text_len: String(outText).length,
+          image_url: payload?.imageUrl || null,
+          is_paid_500: !!payload?.isPaid500,
+          mode,
+          target,
+        });
+        return { ok: true };
+      }
+
+      if (!runDry) {
         await linePushText({ accessToken, to: lineUserId, text: outText });
         if (payload?.imageUrl) {
           await linePushImage({ accessToken, to: lineUserId, imageUrl: payload.imageUrl });
         }
       }
 
-      await writePerUserResult({
-        db,
-        admin,
-        dateLocal,
-        appUserId,
-        payload: {
-          status: "sent",
-          reason: dryRun ? "dry_run" : "ok",
-          line_user_id: lineUserId,
-          text_len: String(outText).length,
-          created_at: startedAt,
-          finished_at: admin.firestore.FieldValue.serverTimestamp(),
-          error: null,
-          mode,
-          target,
-          dry_run: dryRun,
-        },
-      });
+      if (!localOnly) {
+        await writePerUserResult({
+          db,
+          admin,
+          dateLocal,
+          appUserId,
+          payload: {
+            status: "sent",
+            reason: runDry ? "dry_run" : "ok",
+            line_user_id: lineUserId,
+            text_len: String(outText).length,
+            created_at: startedAt,
+            finished_at: admin.firestore.FieldValue.serverTimestamp(),
+            error: null,
+            mode,
+            target,
+            dry_run: runDry,
+          },
+        });
+      }
 
       return { ok: true };
     } catch (e) {
+      if (localOnly) {
+        localItems.push({
+          app_user_id: appUserId,
+          line_user_id: lineUserId,
+          text: "",
+          text_len: 0,
+          image_url: null,
+          is_paid_500: false,
+          mode,
+          target,
+          error: e?.message || String(e),
+        });
+        return { ok: false, error: e?.message || String(e) };
+      }
+
       await writePerUserResult({
         db,
         admin,
@@ -309,7 +388,7 @@ async function runDaily8(deps, opts = {}) {
           error: e?.message || String(e),
           mode,
           target,
-          dry_run: dryRun,
+          dry_run: runDry,
         },
       });
       return { ok: false, error: e?.message || String(e) };
@@ -331,9 +410,34 @@ async function runDaily8(deps, opts = {}) {
     else failed++;
 
     const summary = { targets: { planned, attempted, sent, skipped, failed }, last_error: r.ok ? null : r.error };
+    if (localOnly) {
+      const local = writeLocalDaily8Outputs({
+        outDir: localOutDir,
+        dateLocal,
+        mode,
+        target,
+        items: localItems,
+        summary,
+      });
+      return {
+        ok: r.ok,
+        date_local: dateLocal,
+        run_id: runId,
+        dry_run: runDry,
+        local_only: true,
+        local_dir: local.dir,
+        local_paths: local.text_paths,
+        summary_path: local.summary_path,
+        targets: summary.targets,
+        mode,
+        target,
+        error: summary.last_error,
+      };
+    }
+
     await writeDeliverySummary({ db, admin, env, dateLocal, runId, summary, mode, target });
 
-    return { ok: r.ok, date_local: dateLocal, run_id: runId, dry_run: dryRun, targets: summary.targets, mode, target, error: summary.last_error };
+    return { ok: r.ok, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: summary.last_error };
   }
 
   // ---------- target=all ----------
@@ -357,19 +461,23 @@ async function runDaily8(deps, opts = {}) {
 
     if (!cond.ok) {
       skipped++;
-      await writePerUserResult({
-        db, admin, dateLocal, appUserId,
-        payload: { status: "skipped", reason: `condition: active=${cond.active}, natal=${cond.natalEnabled}, daily8=${cond.daily8}`, line_user_id: lineUserId, text_len: 0, finished_at: admin.firestore.FieldValue.serverTimestamp(), mode, target, dry_run: dryRun },
-      });
+      if (!localOnly) {
+        await writePerUserResult({
+          db, admin, dateLocal, appUserId,
+          payload: { status: "skipped", reason: `condition: active=${cond.active}, natal=${cond.natalEnabled}, daily8=${cond.daily8}`, line_user_id: lineUserId, text_len: 0, finished_at: admin.firestore.FieldValue.serverTimestamp(), mode, target, dry_run: runDry },
+        });
+      }
       continue;
     }
 
     if (!lineUserId) {
       skipped++;
-      await writePerUserResult({
-        db, admin, dateLocal, appUserId,
-        payload: { status: "skipped", reason: "no line_user_id", line_user_id: null, text_len: 0, finished_at: admin.firestore.FieldValue.serverTimestamp(), mode, target, dry_run: dryRun },
-      });
+      if (!localOnly) {
+        await writePerUserResult({
+          db, admin, dateLocal, appUserId,
+          payload: { status: "skipped", reason: "no line_user_id", line_user_id: null, text_len: 0, finished_at: admin.firestore.FieldValue.serverTimestamp(), mode, target, dry_run: runDry },
+        });
+      }
       continue;
     }
 
@@ -380,9 +488,34 @@ async function runDaily8(deps, opts = {}) {
   }
 
   const summary = { targets: { planned, attempted, sent, skipped, failed }, last_error: lastError };
+  if (localOnly) {
+    const local = writeLocalDaily8Outputs({
+      outDir: localOutDir,
+      dateLocal,
+      mode,
+      target,
+      items: localItems,
+      summary,
+    });
+    return {
+      ok: failed === 0,
+      date_local: dateLocal,
+      run_id: runId,
+      dry_run: runDry,
+      local_only: true,
+      local_dir: local.dir,
+      local_paths: local.text_paths,
+      summary_path: local.summary_path,
+      targets: summary.targets,
+      mode,
+      target,
+      error: lastError,
+    };
+  }
+
   await writeDeliverySummary({ db, admin, env, dateLocal, runId, summary, mode, target });
 
-  return { ok: failed === 0, date_local: dateLocal, run_id: runId, dry_run: dryRun, targets: summary.targets, mode, target, error: lastError };
+  return { ok: failed === 0, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: lastError };
 }
 
 module.exports = { runDaily8 };

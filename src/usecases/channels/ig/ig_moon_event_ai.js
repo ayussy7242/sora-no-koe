@@ -3,62 +3,52 @@
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-  SORA_AI_USER_GUIDE_IG_MOON_EVENT,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_PLACEMENT,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
+const { moonSignAtIso } = require("../../../domain/moon/sign");
+const { runAiTextPipeline } = require("../../ai_text");
+const { PRESETS } = require("../../ai_text/presets");
+const { resolveMaxRetries } = require("./ai_utils");
 
-function safeText(x) {
-  return String(x || "").trim();
-}
+const BODY_LABELS = {
+  sun: "太陽",
+  moon: "月",
+  mercury: "水星",
+  venus: "金星",
+  mars: "火星",
+  jupiter: "木星",
+  saturn: "土星",
+  uranus: "天王星",
+  neptune: "海王星",
+  pluto: "冥王星",
+  chiron: "キロン",
+  lilith: "リリス",
+  north_node: "ドラゴンヘッド",
+  south_node: "ドラゴンテイル",
+};
 
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function safeCount(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatElementCounts(elementCount = {}) {
-  const fire = safeCount(elementCount.fire);
-  const earth = safeCount(elementCount.earth);
-  const air = safeCount(elementCount.air);
-  const water = safeCount(elementCount.water);
-  return `火${fire} 地${earth} 風${air} 水${water}`;
-}
-
-function formatModeCounts(modeCount = {}) {
-  const cardinal = safeCount(modeCount.cardinal);
-  const fixed = safeCount(modeCount.fixed);
-  const mutable = safeCount(modeCount.mutable);
-  return `活動${cardinal} 不動${fixed} 柔軟${mutable}`;
-}
-
-function pickAirFeel(elementCount = {}, modeCount = {}) {
-  const fire = safeCount(elementCount.fire);
-  const earth = safeCount(elementCount.earth);
-  const air = safeCount(elementCount.air);
-  const water = safeCount(elementCount.water);
-  const light = fire + air;
-  const heavy = earth + water;
-  let temp = "";
-  if (light - heavy >= 2) temp = "軽い";
-  if (heavy - light >= 2) temp = "重い";
-
-  const cardinal = safeCount(modeCount.cardinal);
-  const fixed = safeCount(modeCount.fixed);
-  const mutable = safeCount(modeCount.mutable);
-  let motion = "流れる";
-  if (cardinal >= fixed && cardinal >= mutable) motion = "動く";
-  if (fixed >= cardinal && fixed >= mutable) motion = "留まる";
-
-  if (!temp) return motion;
-  return `${temp}・${motion}`;
-}
+const ASPECT_LABEL_MAP = {
+  conjunction: "コンジャンクション",
+  conj: "コンジャンクション",
+  opposition: "オポジション",
+  opp: "オポジション",
+  square: "スクエア",
+  trine: "トライン",
+  sextile: "セクスタイル",
+  quincunx: "クインカンクス",
+  inconjunct: "クインカンクス",
+  quintile: "クインタイル",
+  biquintile: "バイ・クインタイル",
+  novile: "ノヴィル",
+  septile: "セプタイル",
+  semisextile: "セミセクスタイル",
+  semisquare: "セミスクエア",
+  sesquisquare: "セスキスクエア",
+};
 
 function houseCoreLabel(dict, houseNo) {
   const n = Number(houseNo);
@@ -67,77 +57,197 @@ function houseCoreLabel(dict, houseNo) {
   return house?.core || house?.sora_short || "";
 }
 
-function buildMoonEventSummaryPrompt({ story, dict, event }) {
-  const transit = story?.public?.transit_signs || {};
-  const skyStrata = story?.public?.sky_strata || {};
-  const elementCount = skyStrata.element_count || {};
-  const modeCount = skyStrata.mode_count || skyStrata.modality_count || {};
+function bodyLabel(key) {
+  const k = String(key || "").toLowerCase();
+  return BODY_LABELS[k] || key || "—";
+}
 
-  const sunSign = transit?.sun?.sign_ja || "—";
+function signLabelEnFromKey(key) {
+  if (!key) return "";
+  const map = {
+    aries: "Aries",
+    taurus: "Taurus",
+    gemini: "Gemini",
+    cancer: "Cancer",
+    leo: "Leo",
+    virgo: "Virgo",
+    libra: "Libra",
+    scorpio: "Scorpio",
+    sagittarius: "Sagittarius",
+    capricorn: "Capricorn",
+    aquarius: "Aquarius",
+    pisces: "Pisces",
+  };
+  return map[String(key).toLowerCase()] || "";
+}
+
+function bodyHouseLabel({ dict, story, bodyKey }) {
+  const transit = story?.public?.transit_signs || {};
+  const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+  const signKey = transit?.[bodyKey]?.sign_key || "";
+  const ascIndex = signIndexFromKey(dict, ascKey);
+  const signIndex = signIndexFromKey(dict, signKey);
+  const houseNo = Number.isFinite(ascIndex) && Number.isFinite(signIndex)
+    ? houseNumberForSignIndex(signIndex, ascIndex)
+    : null;
+  return Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—";
+}
+
+function buildMoonEventPlacementPrompt({ story, dict, event }) {
+  const transit = story?.public?.transit_signs || {};
   const moonSign = transit?.moon?.sign_ja || event?.signJa || "—";
 
-  const ascKey = story?.public?.house_focus?.asc_sign_key || "";
-  const moonKey = transit?.moon?.sign_key || "";
-  const ascIndex = signIndexFromKey(dict, ascKey);
-  const moonIndex = signIndexFromKey(dict, moonKey);
-  const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
-    ? houseNumberForSignIndex(moonIndex, ascIndex)
-    : null;
-  const houseCore = houseCoreLabel(dict, houseNo);
+  const moonHouse = (() => {
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const moonKey = transit?.moon?.sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const moonIndex = signIndexFromKey(dict, moonKey);
+    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
+      ? houseNumberForSignIndex(moonIndex, ascIndex)
+      : null;
+    const core = houseCoreLabel(dict, houseNo);
+    return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
+  })();
 
-  const relationLabel = event?.kind === "full" ? "オポジション" : "コンジャンクション";
-  const eventLabel = safeText(event?.label || event?.phaseName || "");
+  const eventIso = event?.date instanceof Date ? event.date.toISOString() : story?.meta?.as_of || "";
+  const moonPos = eventIso ? moonSignAtIso({ dict, iso: eventIso }) : null;
+  const moonDeg = Number.isFinite(Number(moonPos?.degInSign))
+    ? `${Number(moonPos.degInSign).toFixed(1)}°`
+    : "—";
 
   return [
-    SORA_AI_USER_GUIDE_IG_MOON_EVENT,
+    SORA_AI_USER_GUIDE_IG_MOON_EVENT_PLACEMENT,
     "",
     "INPUT:",
-    `EVENT_LABEL: ${eventLabel}`,
-    `SUN_SIGN: ${sunSign}`,
     `MOON_SIGN: ${moonSign}`,
-    `MOON_HOUSE: ${houseCore || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—")}`,
-    `ELEMENT_COUNTS: ${formatElementCounts(elementCount)}`,
-    `MODE_COUNTS: ${formatModeCounts(modeCount)}`,
-    `AIR_FEEL: ${pickAirFeel(elementCount, modeCount)}`,
-    `RELATION_LABEL: ${relationLabel}`,
+    `MOON_HOUSE: ${moonHouse}`,
+    `MOON_DEG: ${moonDeg}`,
   ].join("\n");
 }
 
-function buildFallbackSummary({ event, elementCount = {}, modeCount = {} }) {
-  const eventLabel = safeText(event?.phaseName || event?.label || "");
-  const air = pickAirFeel(elementCount, modeCount);
-  return `${eventLabel}の空は、${air}温度が残る。`;
+function buildMoonEventSunMoonPrompt({ story, dict, event }) {
+  const transit = story?.public?.transit_signs || {};
+  const sunSign = transit?.sun?.sign_ja || "—";
+  const moonSign = transit?.moon?.sign_ja || event?.signJa || "—";
+  const relationLabel = event?.kind === "full" ? "オポジション" : "コンジャンクション";
+  const relationDeg = event?.kind === "full" ? "180" : "0";
+  const sunHouse = (() => {
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const sunKey = transit?.sun?.sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const sunIndex = signIndexFromKey(dict, sunKey);
+    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(sunIndex)
+      ? houseNumberForSignIndex(sunIndex, ascIndex)
+      : null;
+    const core = houseCoreLabel(dict, houseNo);
+    return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
+  })();
+  const moonHouse = (() => {
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const moonKey = transit?.moon?.sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const moonIndex = signIndexFromKey(dict, moonKey);
+    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
+      ? houseNumberForSignIndex(moonIndex, ascIndex)
+      : null;
+    const core = houseCoreLabel(dict, houseNo);
+    return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
+  })();
+  const sunMoonAspect = `${relationLabel} ${relationDeg}°`;
+
+  return [
+    SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
+    "",
+    "INPUT:",
+    `MOON_SIGN: ${moonSign}`,
+    `SUN_SIGN: ${sunSign}`,
+    `SUN_MOON_ASPECT: ${sunMoonAspect}`,
+    `MOON_HOUSE: ${moonHouse}`,
+    `SUN_HOUSE: ${sunHouse}`,
+  ].join("\n");
 }
 
-function validateSummaryText(text, { eventKind }) {
-  const t = normalizeText(text);
-  if (!t) return { ok: false, reason: "empty" };
-  if (t.includes("あなた")) return { ok: false, reason: "has_you" };
-  if (eventKind === "full" && !t.includes("満月")) return { ok: false, reason: "missing_full" };
-  if (eventKind === "new" && !t.includes("新月")) return { ok: false, reason: "missing_new" };
-  const len = Array.from(t).length;
-  if (len < 16) return { ok: false, reason: `too_short:${len}` };
-  if (len > 70) return { ok: false, reason: `too_long:${len}` };
-  return { ok: true, text: t, len };
+function buildMoonEventResonancePrompt({ story, dict, aspect }) {
+  const transit = story?.public?.transit_signs || {};
+  const aKey = String(aspect?.a || "").toLowerCase();
+  const bKey = String(aspect?.b || "").toLowerCase();
+  const isMoonA = aKey === "moon";
+  const moonKey = isMoonA ? aKey : bKey;
+  const otherKey = isMoonA ? bKey : aKey;
+  const moonSign = transit?.[moonKey]?.sign_ja || "—";
+  const moonHouse = bodyHouseLabel({ dict, story, bodyKey: moonKey });
+  const resonanceBody = bodyLabel(otherKey);
+  const resonanceSign = transit?.[otherKey]?.sign_ja || "—";
+  const resonanceHouse = bodyHouseLabel({ dict, story, bodyKey: otherKey });
+  const aspectKey = String(aspect?.type || aspect?.aspect || "").toLowerCase();
+  const aspectLabel = ASPECT_LABEL_MAP[aspectKey] || String(aspect?.type || aspect?.aspect || "").toUpperCase();
+  const aspectDeg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : null;
+  const aspectLabelFull = aspectDeg != null ? `${aspectLabel} ${aspectDeg}°` : aspectLabel;
+  const orb = Number.isFinite(Number(aspect?.orb_deg)) ? `${Number(aspect.orb_deg).toFixed(2)}°` : "—";
+
+  return [
+    SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
+    "",
+    "INPUT:",
+    `MOON_SIGN: ${moonSign}`,
+    `MOON_HOUSE: ${moonHouse}`,
+    `RESONANCE_BODY: ${resonanceBody}`,
+    `RESONANCE_SIGN: ${resonanceSign}`,
+    `RESONANCE_HOUSE: ${resonanceHouse}`,
+    `RESONANCE_ASPECT: ${aspectLabelFull}`,
+    `RESONANCE_ORB: ${orb}`,
+  ].join("\n");
 }
 
-async function generateIgMoonEventSummaryText({ story, dict, event, openai, maxRetries = 1 } = {}) {
+function buildMoonEventAirPrompt({ story, dict, event, resonanceAspect }) {
+  const transit = story?.public?.transit_signs || {};
+
+  const moonSign = transit?.moon?.sign_ja || event?.signJa || "—";
+  const moonKey = transit?.moon?.sign_key || "";
+  const phaseName = event?.phaseName || (event?.kind === "new" ? "新月" : "満月");
+  const moonName = event?.specialName || event?.moonName || "";
+  const moonNameEn = event?.specialNameEn || event?.moonNameEn || "";
+  const signEn = signLabelEnFromKey(moonKey);
+  const eventName = event?.kind === "new"
+    ? (signEn ? `New Moon in ${signEn}` : "New Moon")
+    : (moonName || moonNameEn || "");
+
+  return [
+    SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
+    "",
+    "INPUT:",
+    `PHASE_NAME: ${phaseName}`,
+    `MOON_SIGN: ${moonSign}`,
+    `EVENT_NAME: ${eventName || "—"}`,
+  ].join("\n");
+}
+
+function validateWithPreset(preset) {
+  return (text) => runAiTextPipeline({ rawText: text, preset });
+}
+
+async function generateWithPrompt({
+  userPrompt,
+  openai,
+  maxRetries = 1,
+  maxTokens = 160,
+  temperature = 0.4,
+  validate,
+  fallbackText,
+  returnLastTextOnFail = false,
+} = {}) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
   const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
-
-  const skyStrata = story?.public?.sky_strata || {};
-  const elementCount = skyStrata.element_count || {};
-  const modeCount = skyStrata.mode_count || skyStrata.modality_count || {};
+  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
   let retryNote = "";
-  let lastReason = "";
   let lastText = "";
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const userPrompt = buildMoonEventSummaryPrompt({ story, dict, event }) +
+  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
+    const prompt = userPrompt +
       (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
       (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
 
@@ -147,29 +257,86 @@ async function generateIgMoonEventSummaryText({ story, dict, event, openai, maxR
       model,
       messages: [
         { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
+        { role: "user", content: prompt },
       ],
-      temperature: 0.4,
-      maxTokens: 120,
+      temperature,
+      maxTokens,
     });
 
-    const verdict = validateSummaryText(text, { eventKind: event?.kind });
+    const verdict = validate(text);
     if (verdict.ok) return { ok: true, text: verdict.text, model };
 
-    lastReason = verdict.reason || "";
     lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。短く、1文で整えて再出力。";
+    retryNote = "前回は条件外でした。条件に合わせて整えて再出力。";
   }
 
-  return {
-    ok: true,
-    text: buildFallbackSummary({ event, elementCount, modeCount }),
-    model,
-    fallback: true,
-  };
+  if (returnLastTextOnFail && lastText) {
+    return { ok: true, text: lastText, model: openai?.model || process.env.OPENAI_MODEL || "gpt-4o", fallback: false };
+  }
+  return { ok: true, text: fallbackText || "", model: openai?.model || process.env.OPENAI_MODEL || "gpt-4o", fallback: true };
+}
+
+async function generateIgMoonEventPlacementText({ story, dict, event, openai, maxRetries = 1 } = {}) {
+  const userPrompt = buildMoonEventPlacementPrompt({ story, dict, event });
+  const fallbackText = "月のサインと度数が示す位置に月が置かれ、ハウスの輪郭が静かに浮かぶ。そこに照らされやすい領域が定まり、月の位置がどこに重心を置くかが見えてくる。視線はその方向へ向かいやすく、節目の重さが淡く残る。解釈ではなく、位置そのものの輪郭だけを静かに置く。";
+  return generateWithPrompt({
+    userPrompt,
+    openai,
+    maxRetries,
+    maxTokens: 240,
+    validate: validateWithPreset(PRESETS.ig.moon_event_placement),
+    fallbackText,
+  });
+}
+
+async function generateIgMoonEventSunMoonText({ story, dict, event, openai, maxRetries = 1 } = {}) {
+  const userPrompt = buildMoonEventSunMoonPrompt({ story, dict, event });
+  const fallbackText = "月と太陽が向き合う配置が、空の骨格として一本の軸を引く。サインの対比は張力になり、関係の距離が静かに立ち上がる。ハウスの位置がその軸を支え、配置の芯がどこに置かれるかが見えてくる。節目としての輪郭だけが残り、関係の骨格が空全体に広がる。";
+  return generateWithPrompt({
+    userPrompt,
+    openai,
+    maxRetries,
+    maxTokens: 240,
+    validate: validateWithPreset(PRESETS.ig.moon_event_sun_moon),
+    fallbackText,
+  });
+}
+
+async function generateIgMoonEventResonanceText({ story, dict, aspect, openai, maxRetries = 1 } = {}) {
+  if (!aspect) return { ok: false, error: "aspect missing" };
+  const userPrompt = buildMoonEventResonancePrompt({ story, dict, aspect });
+  const fallbackText = "月と別の天体が角度でつながり、もう一本の線が空に伸びる。重なりや張りがその領域ににじみ、共鳴としての輪郭が見えてくる。交差の質感が空の奥に残り、配置のもう一面が立ち上がる。説明ではなく、交差の質感だけを静かに置く。";
+  return generateWithPrompt({
+    userPrompt,
+    openai,
+    maxRetries,
+    maxTokens: 240,
+    validate: validateWithPreset(PRESETS.ig.moon_event_resonance),
+    fallbackText,
+  });
+}
+
+async function generateIgMoonEventAirText({ story, dict, event, resonanceAspect, openai, maxRetries = 1 } = {}) {
+  const userPrompt = buildMoonEventAirPrompt({ story, dict, event, resonanceAspect });
+  return generateWithPrompt({
+    userPrompt,
+    openai,
+    maxRetries,
+    maxTokens: 420,
+    validate: validateWithPreset(PRESETS.ig.moon_event_air),
+    fallbackText: "",
+    returnLastTextOnFail: true,
+  });
 }
 
 module.exports = {
-  buildMoonEventSummaryPrompt,
-  generateIgMoonEventSummaryText,
+  buildMoonEventPlacementPrompt,
+  buildMoonEventSunMoonPrompt,
+  buildMoonEventResonancePrompt,
+  buildMoonEventAirPrompt,
+  generateIgMoonEventPlacementText,
+  generateIgMoonEventSunMoonText,
+  generateIgMoonEventResonanceText,
+  generateIgMoonEventAirText,
+  generateIgMoonEventSummaryText: generateIgMoonEventAirText,
 };

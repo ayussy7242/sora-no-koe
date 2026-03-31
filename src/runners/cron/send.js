@@ -19,6 +19,8 @@
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time_utils");
 const { normLower } = require("../../utils/parse");
 
@@ -40,6 +42,37 @@ function toBool(v, defaultValue = false) {
   if (v === undefined || v === null || v === "") return defaultValue;
   const s = String(v).trim().toLowerCase();
   return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
+}
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function safeFilePart(value, fallback) {
+  const s = String(value || "").trim();
+  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || fallback;
+}
+
+function writeLocalSendOutputs({ outDir, dateLocal, target, items, summary }) {
+  const dir = outDir || path.join(process.cwd(), "tmp", "line", "send8", dateLocal || "unknown");
+  ensureDir(dir);
+  const payload = {
+    date_local: dateLocal,
+    target,
+    summary: summary || null,
+    items: Array.isArray(items) ? items : [],
+  };
+  const summaryPath = path.join(dir, "summary.json");
+  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
+  const textPaths = [];
+  (Array.isArray(items) ? items : []).forEach((item, idx) => {
+    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
+    const textPath = path.join(dir, `${name}.txt`);
+    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
+    textPaths.push(textPath);
+  });
+  return { dir, summary_path: summaryPath, text_paths: textPaths };
 }
 
 // LINE push
@@ -95,15 +128,27 @@ async function sendDaily8(deps, opts = {}) {
   if (!admin) throw new Error("admin required");
   if (!env) throw new Error("env required");
 
+  const env2 = { ...(env || {}), ...(process.env || {}) };
   // Temporary: disable sending any LINE images in daily 08:00
   const DISABLE_DAILY8_IMAGES = true;
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const target = pickTarget(opts.target);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run, false);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.SEND8_LOCAL_ONLY,
+    false
+  );
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.SEND8_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "line", "send8", dateLocal || "unknown")
+  );
+  const runDry = dryRun || localOnly;
 
-  const accessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
+  const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!accessToken && !localOnly) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
 
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
 
@@ -119,20 +164,44 @@ async function sendDaily8(deps, opts = {}) {
     if (!item.line_user_id) throw new Error("outbox item missing line_user_id");
     if (!isNonEmptyText(item.text)) throw new Error("outbox item text empty");
 
-    if (!dryRun) {
+    if (localOnly) {
+      const summary = { targets: { planned: 1, sent: 0, failed: 0 }, last_error: null };
+      const local = writeLocalSendOutputs({
+        outDir: localOutDir,
+        dateLocal,
+        target,
+        items: [{ app_user_id: ownerAppUserId, line_user_id: item.line_user_id, text: item.text, image_url: item.image_url || null }],
+        summary,
+      });
+      return {
+        ok: true,
+        date_local: dateLocal,
+        target,
+        sent: 0,
+        failed: 0,
+        dry_run: runDry,
+        local_only: true,
+        local_dir: local.dir,
+        local_paths: local.text_paths,
+        summary_path: local.summary_path,
+      };
+    }
+
+    if (!runDry) {
       await linePushText({ accessToken, to: item.line_user_id, text: item.text });
       if (!DISABLE_DAILY8_IMAGES && item.image_url) {
         await linePushImage({ accessToken, to: item.line_user_id, imageUrl: item.image_url });
       }
-      return { ok: true, date_local: dateLocal, target, sent: 1, failed: 0, dry_run: dryRun };
+      return { ok: true, date_local: dateLocal, target, sent: 1, failed: 0, dry_run: runDry };
     }
-    return { ok: true, date_local: dateLocal, target, sent: 0, failed: 0, dry_run: dryRun };
+    return { ok: true, date_local: dateLocal, target, sent: 0, failed: 0, dry_run: runDry };
   }
 
   // ---------- all ----------
   const qsnap = await outboxRoot.get();
   const planned = qsnap.size;
   let sent = 0, failed = 0;
+  const localItems = [];
 
   for (const doc of qsnap.docs) {
     const item = doc.data() || {};
@@ -140,7 +209,17 @@ async function sendDaily8(deps, opts = {}) {
       if (!item.line_user_id) throw new Error("missing line_user_id");
       if (!isNonEmptyText(item.text)) throw new Error("text empty");
 
-      if (!dryRun) {
+      if (localOnly) {
+        localItems.push({
+          app_user_id: doc.id,
+          line_user_id: item.line_user_id,
+          text: item.text,
+          image_url: item.image_url || null,
+        });
+        continue;
+      }
+
+      if (!runDry) {
         await linePushText({ accessToken, to: item.line_user_id, text: item.text });
         if (!DISABLE_DAILY8_IMAGES && item.image_url) {
           await linePushImage({ accessToken, to: item.line_user_id, imageUrl: item.image_url });
@@ -153,14 +232,38 @@ async function sendDaily8(deps, opts = {}) {
     }
   }
 
+  if (localOnly) {
+    const summary = { targets: { planned, sent: 0, failed }, last_error: failed ? "some_failed" : null };
+    const local = writeLocalSendOutputs({
+      outDir: localOutDir,
+      dateLocal,
+      target,
+      items: localItems,
+      summary,
+    });
+    return {
+      ok: failed === 0,
+      date_local: dateLocal,
+      target,
+      planned,
+      sent: 0,
+      failed,
+      dry_run: runDry,
+      local_only: true,
+      local_dir: local.dir,
+      local_paths: local.text_paths,
+      summary_path: local.summary_path,
+    };
+  }
+
   return {
     ok: failed === 0,
     date_local: dateLocal,
     target,
     planned,
-    sent: dryRun ? 0 : sent,
+    sent: runDry ? 0 : sent,
     failed,
-    dry_run: dryRun,
+    dry_run: runDry,
   };
 }
 

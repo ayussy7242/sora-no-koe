@@ -74,8 +74,8 @@ async function generateXSoraAiText({ story, dict, openai, maxRetries }) {
   return generateXAiWithRetry({
     channel: "x_morning",
     prompt: buildXSoraPrompt({ story, dict }),
-    minChars: 90,
-    maxChars: 120,
+    minChars: 0,
+    maxChars: 180,
     maxTokens: 160,
     temperature: 0.4,
     maxRetries,
