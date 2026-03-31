@@ -11,13 +11,13 @@ const ASPECT_CHANNEL_CONFIG = Object.freeze({
     useDeepFree: false,
     useDeepPaid: true,
     maxItemsFree: 1,
-    maxItemsPaid: null,
+    maxItemsPaid: 3,
   }),
   line_today: Object.freeze({
     orbLimitFree: SPEC?.orb?.free ?? 1.5,
     orbLimitPaid: SPEC?.orb?.paid ?? 3.0,
-    maxItemsFree: 3,
-    maxItemsPaid: null,
+    maxItemsFree: 1,
+    maxItemsPaid: 3,
   }),
   line_paid: Object.freeze({
     orbLimitFree: SPEC?.orb?.free ?? 1.5,

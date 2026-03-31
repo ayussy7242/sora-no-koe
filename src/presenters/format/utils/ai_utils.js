@@ -16,6 +16,8 @@ const PLANET_ALIAS = {
   dsc: "DSC",
   lilith: "リリス",
   chiron: "キロン",
+  north_node: "北ノード",
+  south_node: "南ノード",
 };
 
 const planetJa = (dictObj, planetKey) => {
