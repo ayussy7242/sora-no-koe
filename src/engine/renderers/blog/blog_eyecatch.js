@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
-const { buildSpaceBackground } = require("../../shared/space_background");
+const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
@@ -408,9 +408,18 @@ async function renderBlogEyecatchImage({
 
   if (mode === "space") {
     const avoidRegions = buildEyecatchAvoidRegions({ width, height, line1, line2, line3, preset });
+    const seedDate = story?.meta?.date_local || story?.public?.date_local || dateLabel || "";
+    const seedLabel = buildSpaceSeedLabel({
+      seedVersion: "v2",
+      channel: "blog",
+      date: seedDate,
+      variant: `eyecatch-${bgVariant || "slide1"}`,
+      prefixChannel: true,
+    });
     const space = buildSpaceBackground({
       story,
       dateLabel,
+      seedLabel,
       width,
       height,
       variant: bgVariant || "slide1",

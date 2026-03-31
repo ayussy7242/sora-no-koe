@@ -138,7 +138,7 @@ function buildElementPaletteVariants(element) {
 }
 
 function buildTodayPalette({ palette, topElement, secondaryElement, rand }) {
-  const rng = typeof rand === "function" ? rand : Math.random;
+  const rng = typeof rand === "function" ? rand : mulberry32(hashString("today-palette-default"));
   const primaryVariants = buildElementPaletteVariants(topElement);
   const secondaryVariants = buildElementPaletteVariants(secondaryElement || topElement);
   const pickVariant = (variants) => variants[Math.floor(rng() * variants.length)];
@@ -313,7 +313,8 @@ function pickElementsFromCounts(counts, fallback = "mixed") {
 function pickLongThemeColor(longRow, topElement, rand) {
   const pickFrom = (val) => {
     if (Array.isArray(val)) {
-      const r = typeof rand === "function" ? rand() : Math.random();
+      const rng = typeof rand === "function" ? rand : mulberry32(hashString(`${topElement || "mixed"}-long-theme`));
+      const r = rng();
       return val[Math.floor(r * val.length)];
     }
     return val;
@@ -396,8 +397,8 @@ function buildStarColorWeights(topElement, secondaryElement) {
   };
 }
 
-function computeSpaceTheme({ story, dateLabel, variant = "slide1" }) {
-  const dateSeed = String(story?.meta?.date_local || story?.public?.date_local || dateLabel || "");
+function computeSpaceTheme({ story, dateLabel, seedLabel, variant = "slide1" }) {
+  const dateSeed = String(seedLabel || story?.meta?.date_local || story?.public?.date_local || dateLabel || "");
   const skyStrata = story?.public?.sky_strata || story?.meta?.sky_strata || {};
   const elementCount = skyStrata?.element_count || {};
   const modality = skyStrata?.top_modality || "mixed";

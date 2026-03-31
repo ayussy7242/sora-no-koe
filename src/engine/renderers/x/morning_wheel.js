@@ -2,7 +2,7 @@
 
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
-const { buildSpaceBackground } = require("../../shared/space_background");
+const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { fontFaceCss } = require("../ig/assets/ig_fonts");
 
 const DEFAULT_X_CANVAS = Object.freeze({
@@ -49,10 +49,11 @@ function buildFooterSvg({ width, height, brand, dateLabel }) {
   return `${brandLine}${dateLine}`;
 }
 
-function buildBaseSvg({ story, dateLabel, width, height, variant, avoidRegions, underlay, footer }) {
+function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avoidRegions, underlay, footer }) {
   const space = buildSpaceBackground({
     story,
     dateLabel,
+    seedLabel,
     width,
     height,
     variant,
@@ -100,6 +101,14 @@ async function renderXMorningWheelPng({
   const top = Math.round((h - wheel) / 2);
 
   const dateLabelSafe = dateLabel || formatDateLabel(story?.meta?.date_local || story?.public?.date_local);
+  const seedDate = story?.meta?.date_local || story?.public?.date_local || dateLabel || "";
+  const seedLabel = buildSpaceSeedLabel({
+    seedVersion: "v2",
+    channel: "x",
+    date: seedDate,
+    variant: String(variant || "story_today"),
+    prefixChannel: true,
+  });
   const pad = Math.round(wheel * 0.08);
   const avoidRegions = [{
     x: left - pad,
@@ -119,6 +128,7 @@ async function renderXMorningWheelPng({
   const baseSvg = buildBaseSvg({
     story,
     dateLabel: dateLabelSafe,
+    seedLabel,
     width: w,
     height: h,
     variant,

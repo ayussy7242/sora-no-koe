@@ -71,6 +71,37 @@ async function downloadJson(lineUserId) {
     return { ok: true, filePath: path };
   }
 
+  async function getBgMeta(lineUserId) {
+    const { bgDir } = getBlueprintLightBgPaths(lineUserId);
+    if (!bgDir) return { ok: false, code: "missing_line_user" };
+    const path = `${bgDir}/bg_meta.json`;
+    const file = bucket.file(path);
+    const [exists] = await file.exists();
+    if (!exists) return { ok: true, exists: false, meta: null };
+    try {
+      const [buf] = await file.download();
+      const raw = buf.toString("utf8");
+      const meta = JSON.parse(raw);
+      return { ok: true, exists: true, meta, filePath: path };
+    } catch (e) {
+      return { ok: false, code: "meta_read_failed", error: String(e?.message || e) };
+    }
+  }
+
+  async function saveBgMeta(lineUserId, meta) {
+    const { bgDir } = getBlueprintLightBgPaths(lineUserId);
+    if (!bgDir) return { ok: false, code: "missing_line_user" };
+    const path = `${bgDir}/bg_meta.json`;
+    const file = bucket.file(path);
+    const body = JSON.stringify(meta || {}, null, 2);
+    await file.save(body, {
+      contentType: "application/json",
+      resumable: false,
+      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+    });
+    return { ok: true, filePath: path };
+  }
+
   async function getBgSignedUrls(lineUserId) {
     const { files } = getBlueprintLightBgPaths(lineUserId);
     if (!files) return { ok: false, code: "missing_line_user" };
@@ -122,6 +153,8 @@ async function downloadJson(lineUserId) {
     saveJson,
     savePdf,
     saveBgImage,
+    getBgMeta,
+    saveBgMeta,
     getBgSignedUrls,
     getSignedUrl,
   };

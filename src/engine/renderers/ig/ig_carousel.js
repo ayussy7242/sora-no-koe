@@ -2,37 +2,71 @@
 
 const fs = require("fs");
 const path = require("path");
-const { buildSpaceBackground } = require("../../shared/space_background");
-const { CANVAS, formatDateLabel } = require("./slides/shared");
-const { buildSlide1Svg, renderSlide1, getAvoidRegions: getSlide1AvoidRegions } = require("./slides/slide_1");
-const { buildSlide2BaseSvg, renderSlide2, getAvoidRegions: getSlide2AvoidRegions } = require("./slides/slide_2");
-const { buildSlidePlacementsSvg, renderSlidePlacements, getAvoidRegions: getSlidePlacementsAvoidRegions } = require("./slides/slide_placements");
-const { buildSlide3Svg, renderSlide3, getAvoidRegions: getSlide3AvoidRegions } = require("./slides/slide_3");
-const { buildSlideMoonSvg, renderSlideMoon, getAvoidRegions: getSlideMoonAvoidRegions } = require("./slides/slide_moon");
-const { buildSlide4Svg, renderSlide4, getAvoidRegions: getSlide4AvoidRegions } = require("./slides/slide_4");
-const { buildSlide5Svg, renderSlide5, getAvoidRegions: getSlide5AvoidRegions } = require("./slides/slide_5");
+const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
+const { isSpaceDebug } = require("../../shared/space_background/utils");
+const { CANVAS, formatDateLabel } = require("./slides/common/shared");
+const SLIDE_SETS = require("./slides");
 
-const SLIDE_RENDERERS = {
-  slide1: { variant: "slide1", render: renderSlide1, getAvoidRegions: getSlide1AvoidRegions },
-  cover: { variant: "slide1", render: renderSlide1, getAvoidRegions: getSlide1AvoidRegions },
-  placements: { variant: "slide2", render: renderSlidePlacements, getAvoidRegions: getSlidePlacementsAvoidRegions },
-  slidePlacements: { variant: "slide2", render: renderSlidePlacements, getAvoidRegions: getSlidePlacementsAvoidRegions },
-  moon: { variant: "moon", render: renderSlideMoon, getAvoidRegions: getSlideMoonAvoidRegions },
-  slideMoon: { variant: "moon", render: renderSlideMoon, getAvoidRegions: getSlideMoonAvoidRegions },
-  chart: { variant: "slide2", render: renderSlide2, getAvoidRegions: getSlide2AvoidRegions },
-  slide2: { variant: "slide2", render: renderSlide2, getAvoidRegions: getSlide2AvoidRegions },
-  resonance: { variant: "slide3", render: renderSlide3, getAvoidRegions: getSlide3AvoidRegions },
-  slide3: { variant: "slide3", render: renderSlide3, getAvoidRegions: getSlide3AvoidRegions },
-  tsukiji: { variant: "slide4", render: renderSlide4, getAvoidRegions: getSlide4AvoidRegions },
-  slide4: { variant: "slide4", render: renderSlide4, getAvoidRegions: getSlide4AvoidRegions },
-  cta: { variant: "slide5", render: renderSlide5, getAvoidRegions: getSlide5AvoidRegions },
-  slide5: { variant: "slide5", render: renderSlide5, getAvoidRegions: getSlide5AvoidRegions },
-};
+const DEFAULT_SET_KEY = "daily";
+const DEFAULT_SET = SLIDE_SETS[DEFAULT_SET_KEY];
+const {
+  slide1,
+  slide2,
+  slide3,
+  slide4,
+  slide5,
+  slideMoon,
+  placements,
+} = DEFAULT_SET;
+const { buildSlide1Svg, renderSlide1, getAvoidRegions: getSlide1AvoidRegions } = slide1;
+const { buildSlide2BaseSvg, renderSlide2, getAvoidRegions: getSlide2AvoidRegions } = slide2;
+const { buildSlidePlacementsSvg, renderSlidePlacements, getAvoidRegions: getSlidePlacementsAvoidRegions } = placements;
+const { buildSlide3Svg, renderSlide3, getAvoidRegions: getSlide3AvoidRegions } = slide3;
+const { buildSlideMoonSvg, renderSlideMoon, getAvoidRegions: getSlideMoonAvoidRegions } = slideMoon;
+const { buildSlide4Svg, renderSlide4, getAvoidRegions: getSlide4AvoidRegions } = slide4;
+const { buildSlide5Svg, renderSlide5, getAvoidRegions: getSlide5AvoidRegions } = slide5;
 
-const FALLBACK_RENDERER = SLIDE_RENDERERS.slide1;
+const SLIDE_RENDERER_CACHE = new Map();
 
-function resolveRenderer(kind) {
-  return SLIDE_RENDERERS[kind] || FALLBACK_RENDERER;
+function buildSlideRenderers(setKey) {
+  const set = SLIDE_SETS[setKey] || SLIDE_SETS[DEFAULT_SET_KEY];
+  const s1 = set.slide1;
+  const s2 = set.slide2;
+  const s3 = set.slide3;
+  const s4 = set.slide4;
+  const s5 = set.slide5;
+  const sMoon = set.slideMoon;
+  const sPlacements = set.placements;
+
+  return {
+    slide1: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
+    cover: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
+    placements: { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions },
+    slidePlacements: { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions },
+    moon: { variant: "moon", render: sMoon.renderSlideMoon, getAvoidRegions: sMoon.getAvoidRegions },
+    slideMoon: { variant: "moon", render: sMoon.renderSlideMoon, getAvoidRegions: sMoon.getAvoidRegions },
+    chart: { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions },
+    slide2: { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions },
+    resonance: { variant: "slide3", render: s3.renderSlide3, getAvoidRegions: s3.getAvoidRegions },
+    slide3: { variant: "slide3", render: s3.renderSlide3, getAvoidRegions: s3.getAvoidRegions },
+    tsukiji: { variant: "slide4", render: s4.renderSlide4, getAvoidRegions: s4.getAvoidRegions },
+    slide4: { variant: "slide4", render: s4.renderSlide4, getAvoidRegions: s4.getAvoidRegions },
+    cta: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
+    slide5: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
+  };
+}
+
+function getSlideRenderers(setKey) {
+  const key = String(setKey || DEFAULT_SET_KEY);
+  if (SLIDE_RENDERER_CACHE.has(key)) return SLIDE_RENDERER_CACHE.get(key);
+  const built = buildSlideRenderers(key);
+  SLIDE_RENDERER_CACHE.set(key, built);
+  return built;
+}
+
+function resolveRenderer(kind, renderers) {
+  const map = renderers || getSlideRenderers(DEFAULT_SET_KEY);
+  return map[kind] || map.slide1;
 }
 
 function hashString(str) {
@@ -79,13 +113,13 @@ function saveSpaceCache(cachePath, space) {
   }
 }
 
-function buildAvoidRegionsForSlides({ slides, width }) {
+function buildAvoidRegionsForSlides({ slides, width, renderers }) {
   if (!Array.isArray(slides) || !slides.length) return [];
   const regions = [];
   slides.forEach((item, index) => {
     const kind = item?.kind || "slide1";
     const data = item?.data || item || {};
-    const renderer = resolveRenderer(kind);
+    const renderer = resolveRenderer(kind, renderers);
     const getter = renderer?.getAvoidRegions;
     if (typeof getter !== "function") return;
     const localRegions = getter(data) || [];
@@ -111,19 +145,40 @@ async function renderInstagramCarousel({
   slide4,
   slide5,
   backgroundCache = null,
+  slideSet = DEFAULT_SET_KEY,
+  seedVariant,
+  onSlide,
 } = {}) {
+  const useCallback = typeof onSlide === "function";
   if (Array.isArray(slides) && slides.length) {
+    const slideSetKey = slideSet || DEFAULT_SET_KEY;
+    const renderers = getSlideRenderers(slideSetKey);
+    const debug = isSpaceDebug();
     const firstStory = slides.map((s) => s?.data?.story || s?.story).find(Boolean) || null;
     const firstDateLabel = slides.map((s) => s?.data?.dateLabel || s?.dateLabel).find(Boolean) || "";
-    const baseArgs = { story: firstStory, dateLabel: firstDateLabel, width: CANVAS.width, height: CANVAS.height };
+    const seedDate = firstStory?.meta?.date_local || firstStory?.public?.date_local || firstDateLabel || "";
+    const seedLabel = buildSpaceSeedLabel({
+      seedVersion: "v2",
+      channel: "ig",
+      date: seedDate,
+      variant: String(seedVariant || slideSetKey || DEFAULT_SET_KEY),
+      prefixChannel: true,
+    });
+    const baseArgs = {
+      story: firstStory,
+      dateLabel: firstDateLabel,
+      seedLabel,
+      width: CANVAS.width,
+      height: CANVAS.height,
+    };
     const worldWidth = CANVAS.width * slides.length;
-    const avoidRegions = buildAvoidRegionsForSlides({ slides, width: CANVAS.width });
+    const avoidRegions = buildAvoidRegionsForSlides({ slides, width: CANVAS.width, renderers });
     const out = [];
     for (let i = 0; i < slides.length; i++) {
       const item = slides[i];
       const kind = item?.kind || "slide1";
       const data = item?.data || item || {};
-      const renderer = resolveRenderer(kind);
+      const renderer = resolveRenderer(kind, renderers);
       const space = (() => {
         if (data.space) return data.space;
         const cacheDir = backgroundCache?.dir || "";
@@ -131,10 +186,14 @@ async function renderInstagramCarousel({
         if (cacheDir) {
           const localRegions = avoidRegions.filter((r) => r?.slideIndex === i);
           const avoidKey = buildAvoidKey(localRegions);
-          const key = [firstDateLabel || "date", kind, i + 1, slides.length, renderer.variant, avoidKey].join("_");
+          const key = [firstDateLabel || "date", slideSetKey, kind, i + 1, slides.length, renderer.variant, avoidKey].join("_");
           const cachePath = path.join(cacheDir, `${key}.json`);
           const cached = !force ? loadSpaceCache(cachePath) : null;
-          if (cached) return cached;
+          if (cached) {
+            if (debug) console.log("[space] disk_cache", { hit: true, key, seedLabel });
+            return cached;
+          }
+          if (debug) console.log("[space] disk_cache", { hit: false, key, seedLabel });
           const built = buildSpaceBackground({
             ...baseArgs,
             variant: renderer.variant,
@@ -153,14 +212,19 @@ async function renderInstagramCarousel({
           avoidRegions,
         });
       })();
-      out.push(await renderer.render({ ...data, space }));
+      const buffer = await renderer.render({ ...data, space });
+      if (useCallback) {
+        await onSlide({ index: i, total: slides.length, buffer, kind, data, slideSet: slideSetKey });
+      } else {
+        out.push(buffer);
+      }
     }
-    return out;
+    return useCallback ? { ok: true, count: slides.length } : out;
   }
 
   const story = slide2?.story || slide1?.story || slide3?.story || slide4?.story || null;
   const dateLabel = slide1?.dateLabel || slide2?.dateLabel || slide3?.dateLabel || slide4?.dateLabel || "";
-  const baseArgs = { story, dateLabel, width: CANVAS.width, height: CANVAS.height };
+  const seedDate = story?.meta?.date_local || story?.public?.date_local || dateLabel || "";
   const slideOrder = [
     { key: "slide1", data: slide1 },
     { key: "placements", data: slidePlacements },
@@ -170,16 +234,28 @@ async function renderInstagramCarousel({
     { key: "slide4", data: slide4 },
     { key: "slide5", data: slide5 },
   ].filter((item) => item.data);
+  const slideSetKey = slideSet || DEFAULT_SET_KEY;
+  const seedLabel = buildSpaceSeedLabel({
+    seedVersion: "v2",
+    channel: "ig",
+    date: seedDate,
+    variant: String(seedVariant || slideSetKey || DEFAULT_SET_KEY),
+    prefixChannel: true,
+  });
+  const baseArgs = { story, dateLabel, seedLabel, width: CANVAS.width, height: CANVAS.height };
+  const renderers = getSlideRenderers(slideSetKey);
+  const debug = isSpaceDebug();
   const worldWidth = CANVAS.width * slideOrder.length;
   const avoidRegions = buildAvoidRegionsForSlides({
     slides: slideOrder.map((item) => ({ kind: item.key, data: item.data })),
     width: CANVAS.width,
+    renderers,
   });
 
   const out = [];
   for (let i = 0; i < slideOrder.length; i++) {
     const item = slideOrder[i];
-    const renderer = resolveRenderer(item.key);
+    const renderer = resolveRenderer(item.key, renderers);
     const space = (() => {
       if (item.data?.space) return item.data.space;
       const cacheDir = backgroundCache?.dir || "";
@@ -187,10 +263,14 @@ async function renderInstagramCarousel({
       if (cacheDir) {
         const localRegions = avoidRegions.filter((r) => r?.slideIndex === i);
         const avoidKey = buildAvoidKey(localRegions);
-        const key = [dateLabel || "date", item.key, i + 1, slideOrder.length, renderer.variant, avoidKey].join("_");
+        const key = [dateLabel || "date", slideSetKey, item.key, i + 1, slideOrder.length, renderer.variant, avoidKey].join("_");
         const cachePath = path.join(cacheDir, `${key}.json`);
         const cached = !force ? loadSpaceCache(cachePath) : null;
-        if (cached) return cached;
+        if (cached) {
+          if (debug) console.log("[space] disk_cache", { hit: true, key, seedLabel });
+          return cached;
+        }
+        if (debug) console.log("[space] disk_cache", { hit: false, key, seedLabel });
         const built = buildSpaceBackground({
           ...baseArgs,
           variant: renderer.variant,
@@ -209,9 +289,14 @@ async function renderInstagramCarousel({
         avoidRegions,
       });
     })();
-    out.push(await renderer.render({ ...item.data, space }));
+    const buffer = await renderer.render({ ...item.data, space });
+    if (useCallback) {
+      await onSlide({ index: i, total: slideOrder.length, buffer, kind: item.key, data: item.data, slideSet: slideSetKey });
+    } else {
+      out.push(buffer);
+    }
   }
-  return out;
+  return useCallback ? { ok: true, count: slideOrder.length } : out;
 }
 
 module.exports = {

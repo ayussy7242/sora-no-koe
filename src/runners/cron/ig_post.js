@@ -15,19 +15,35 @@ const { generateIgResonanceText } = require("../../usecases/channels/ig/ig_reson
 const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/ig_tsukiji_structure_ai");
 const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/ig_sky_overview_ai");
 const { generateIgMoonText } = require("../../usecases/channels/ig/ig_moon_ai");
-const { generateIgMoonEventSummaryText } = require("../../usecases/channels/ig/ig_moon_event_ai");
+const {
+  generateIgMoonEventPlacementText,
+  generateIgMoonEventSunMoonText,
+  generateIgMoonEventResonanceText,
+  generateIgMoonEventAirText,
+} = require("../../usecases/channels/ig/ig_moon_event_ai");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
 } = require("../../usecases/channels/ig/ig_carousel_caption_ai");
 const { ensureIgOutputs } = require("../../usecases/story/output_helpers");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
 const {
   createImageContainer,
   createCarouselContainer,
   publishMedia,
   waitForContainer,
 } = require("../../integrations/ig/ig_graph");
+
+function resolveBackgroundCache(env = {}) {
+  const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
+  const enabled = !["0", "false", "off", "no"].includes(enabledRaw);
+  if (!enabled) return null;
+  const forceRaw = String(env.IG_BG_CACHE_REFRESH ?? "false").toLowerCase();
+  const force = ["1", "true", "yes", "on"].includes(forceRaw);
+  const dir = env.IG_BG_CACHE_DIR || path.join(process.cwd(), "tmp", "ig", "bg_cache");
+  return { dir, force };
+}
 
 function buildAspectKey(aspect, { includeOrb = false } = {}) {
   if (!aspect) return "";
@@ -309,6 +325,30 @@ function pickMoonAspect(story) {
     const aKey = String(row?.a || "").toLowerCase();
     const bKey = String(row?.b || "").toLowerCase();
     return aKey === "moon" || bKey === "moon";
+  });
+  if (!moonHits.length) return null;
+
+  const majors = new Set(["conjunction", "sextile", "square", "trine", "opposition"]);
+  const majorHits = moonHits.filter((row) => majors.has(normalizeAspectType(row?.type || row?.aspect)));
+  const target = majorHits.length ? majorHits : moonHits;
+  return target
+    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
+    .filter((item) => Number.isFinite(item.orb))
+    .sort((a, b) => a.orb - b.orb)[0]?.row || target[0] || null;
+}
+
+function pickMoonResonanceAspect(story) {
+  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const pool = [...skyTop, ...skyAll];
+  if (!pool.length) return null;
+
+  const moonHits = pool.filter((row) => {
+    const aKey = String(row?.a || "").toLowerCase();
+    const bKey = String(row?.b || "").toLowerCase();
+    if (!(aKey === "moon" || bKey === "moon")) return false;
+    const other = aKey === "moon" ? bKey : aKey;
+    return other && other !== "sun";
   });
   if (!moonHits.length) return null;
 
@@ -632,7 +672,37 @@ function buildMoonEventCaption(event) {
   return [line1, line2].filter(Boolean).join("\n").trim();
 }
 
-function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, summaryText }) {
+function signLabelEnFromKey(key) {
+  if (!key) return "";
+  const map = {
+    aries: "Aries",
+    taurus: "Taurus",
+    gemini: "Gemini",
+    cancer: "Cancer",
+    leo: "Leo",
+    virgo: "Virgo",
+    libra: "Libra",
+    scorpio: "Scorpio",
+    sagittarius: "Sagittarius",
+    capricorn: "Capricorn",
+    aquarius: "Aquarius",
+    pisces: "Pisces",
+  };
+  return map[String(key).toLowerCase()] || "";
+}
+
+function buildMoonEventCarouselSlides({
+  story,
+  event,
+  dateLocal,
+  withCta,
+  dict,
+  summaryText,
+  moonPlacementText,
+  sunMoonText,
+  moonResonanceText,
+  moonResonanceAspect,
+}) {
   const dateLabel = formatDateLabel(dateLocal);
   const transit = story?.public?.transit_signs || {};
   const skyStrata = story?.public?.sky_strata || {};
@@ -648,29 +718,6 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
       skyStrata,
       houseFocus: story?.public?.house_focus || {},
     }) || buildMoonAirSummary(elementCount, modeCount);
-
-  const slide1 = {
-    dateLabel,
-    brand: "ソラのこえ",
-    tagline: event?.phaseName || (event?.kind === "full" ? "満月" : "新月"),
-    subLabel: event?.dateLabel || "",
-    sunLine: `☉ ${sunSign}`,
-    moonLine: `☽ ${moonSign}`,
-    observation: coverObservation,
-    swipeLabel: "Swipe →",
-  };
-
-  const slide2 = {
-    dateLabel,
-    header: "全体圧",
-    subLabel: "overall pressure",
-    lines: [
-      { label: "元素バランス", sign: formatElementCounts(elementCount) },
-      { label: "三区分", sign: formatModeCounts(modeCount) },
-      { label: "空気感", sign: pickAirFeel(elementCount, modeCount) },
-    ],
-    brand: "sora-no-koe",
-  };
 
   const eventIso = event?.date instanceof Date ? event.date.toISOString() : story?.meta?.as_of || "";
   const moonPos = eventIso ? moonSignAtIso({ dict, iso: eventIso }) : null;
@@ -693,14 +740,46 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
     ? moonStatus.waxing
     : event?.kind !== "full";
 
+  const pressureLines = [
+    formatElementCounts(elementCount),
+    formatModeCounts(modeCount),
+  ].filter(Boolean);
+  const moonNameLine = (() => {
+    if (event?.kind === "full") {
+      return (event?.specialNameEn || event?.moonNameEn || "").trim();
+    }
+    if (event?.kind === "new") {
+      const signEn = signLabelEnFromKey(moonKey);
+      return signEn ? `New Moon in ${signEn}` : "New Moon";
+    }
+    return "";
+  })();
+
+  const slide1 = {
+    dateLabel,
+    brand: "ソラのこえ",
+    tagline: "",
+    subLabel: event?.dateLabel || "",
+    sunLine: event?.phaseName || (event?.kind === "full" ? "満月" : "新月"),
+    midLine: moonNameLine,
+    moonLine: moonSign,
+    observation: pressureLines.length ? "" : coverObservation,
+    pressureLines,
+    swipeLabel: "Swipe →",
+  };
+
+  const degreeLabel = moonDegLabel ? `度数 ${moonDegLabel}` : "";
+  const houseInfoLabel = houseLabel ? `ハウス ${houseLabel}` : "";
   const slide3 = {
     dateLabel,
     header: "月の配置",
     subLabel: "moon placement",
     phaseSymbol: event?.phaseSymbol || moonStatus?.phaseSymbol || "🌙",
-    phaseLabel: [moonSign, moonDegLabel].filter(Boolean).join(" "),
-    moonSign: houseLabel,
-    observation: buildMoonPlacementObservation({ houseNo, dict }),
+    phaseLabel: moonSign,
+    moonSign: "",
+    moonAgeLabel: degreeLabel,
+    illuminationLabel: houseInfoLabel,
+    observation: moonPlacementText || buildMoonPlacementObservation({ houseNo, dict }),
     nextLabel: "",
     nextSymbol: "",
     nextPhaseLabel: "",
@@ -719,29 +798,29 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
     : "太陽と月が重なり、配置の核が一点に集まる。";
   const slide4 = {
     dateLabel,
-    header: "月と太陽の関係",
+    header: "月と太陽",
     subLabel: "sun & moon",
     lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
     lineB: planetLine({ glyph: PLANET_META.sun.glyph, name: PLANET_META.sun.name, sign: sunSign }),
     aspectLine: relationLine,
     deepLine: "",
-    structure: relationStructure,
+    structure: sunMoonText || relationStructure,
     bodyAKey: "moon",
     bodyBKey: "sun",
   };
 
-  const moonAspect = pickMoonAspect(story);
+  const moonAspect = moonResonanceAspect || pickMoonResonanceAspect(story);
   const slide5 = (() => {
     if (!moonAspect) {
       return {
         dateLabel,
-        header: "月との強い角度",
-        subLabel: "moon aspect",
+        header: "月の共鳴",
+        subLabel: "moon resonance",
         lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
         lineB: "—",
         aspectLine: "該当なし",
         deepLine: "",
-        structure: "月との強い角度は今回はなし。",
+        structure: "月の共鳴は今回はなし。",
         bodyAKey: "moon",
         bodyBKey: "",
       };
@@ -766,12 +845,12 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
     const otherKey = aKey === "moon" ? bKey : aKey;
     const otherMeta = PLANET_META[otherKey] || { name: otherKey, glyph: "" };
     const circuit = aspectCircuitLabel(moonAspect?.type || moonAspect?.aspect);
-    const structure = `月と${otherMeta.name}が${label}でつながり、${circuit}が動く。`;
+    const structure = moonResonanceText || `月と${otherMeta.name}が${label}でつながり、${circuit}が動く。`;
 
     return {
       dateLabel,
-      header: "月との強い角度",
-      subLabel: "moon aspect",
+      header: "月の共鳴",
+      subLabel: "moon resonance",
       lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
       lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
       aspectLine: aspectLineFull || aspectLine || label,
@@ -784,7 +863,7 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
 
   const slide6 = {
     dateLabel,
-    header: "月の空気のまとめ",
+    header: "月の空気",
     subLabel: "moon climate",
     lines: [
       { label: summaryText || buildMoonAirSummary(elementCount, modeCount) },
@@ -794,11 +873,11 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
 
   const slide7 = {
     ornament: "☉     ☽",
-    timeText: "前日投稿",
+    timeText: "明日は",
     title: event?.phaseName ? `${event.phaseName}の空` : "月相の空",
-    subtitle: "満月 / 新月の配置",
-    cta: "保存しておく",
-    link: "link in bio",
+    subtitle: "",
+    cta: "星の配置を記録しています",
+    link: "Keep this sky",
     brand: "sora-no-koe",
     dateLabel,
   };
@@ -806,13 +885,13 @@ function buildMoonEventCarouselSlides({ story, event, dateLocal, withCta, dict, 
   return {
     slides: [
       { kind: "cover", data: slide1 },
-      { kind: "placements", data: slide2 },
       { kind: "moon", data: slide3 },
       { kind: "resonance", data: slide4 },
       { kind: "resonance", data: slide5 },
       { kind: "placements", data: slide6 },
       ...(withCta ? [{ kind: "cta", data: slide7 }] : []),
     ],
+    slideSet: "moon_event",
   };
 }
 
@@ -853,11 +932,80 @@ async function uploadCarouselSlides({
   return { ok: true, urls, paths, bucket: bucketName };
 }
 
+async function uploadCarouselSlide({
+  storage,
+  bucketName,
+  dateLocal,
+  buffer,
+  index,
+  expiresDays = 7,
+} = {}) {
+  const t0 = Date.now();
+  if (!storage) throw new Error("storage missing");
+  if (!bucketName) throw new Error("bucket missing");
+  if (!buffer) throw new Error("buffer missing");
+  const bucket = storage.bucket(bucketName);
+  const expiresMs = Math.max(1, Number(expiresDays) || 7) * 24 * 60 * 60 * 1000;
+  const relPath = path.posix.join("ig", "carousel", String(dateLocal), `slide-${index}.png`);
+  const file = bucket.file(relPath);
+  await file.save(buffer, {
+    contentType: "image/png",
+    resumable: false,
+    metadata: { cacheControl: "private, max-age=0, no-transform" },
+  });
+  const [url] = await file.getSignedUrl({
+    action: "read",
+    expires: Date.now() + expiresMs,
+    version: "v4",
+  });
+  console.log("[cron/ig/post] upload_slide", {
+    index,
+    ms: Date.now() - t0,
+    bytes: buffer?.length || 0,
+  });
+  return { url, path: relPath };
+}
+
+async function renderAndUploadCarouselSlides({
+  storage,
+  bucketName,
+  dateLocal,
+  carousel,
+  expiresDays = 7,
+  backgroundCache = null,
+} = {}) {
+  if (!carousel) throw new Error("carousel missing");
+  const t0 = Date.now();
+  const urls = [];
+  const paths = [];
+  console.log("[cron/ig/post] render_start");
+  await renderInstagramCarousel({
+    ...carousel,
+    backgroundCache,
+    onSlide: async ({ index, buffer }) => {
+      const uploaded = await uploadCarouselSlide({
+        storage,
+        bucketName,
+        dateLocal,
+        buffer,
+        index: index + 1,
+        expiresDays,
+      });
+      urls.push(uploaded.url);
+      paths.push(uploaded.path);
+    },
+  });
+  console.log("[cron/ig/post] render_done", { ms: Date.now() - t0 });
+  return { ok: true, urls, paths, bucket: bucketName };
+}
+
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const storyService = deps?.storyService;
   const storage = deps?.storage;
+  const db = deps?.db;
+  const admin = deps?.admin;
   const dict = deps?.dict || require("../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
@@ -875,39 +1023,122 @@ async function runIgPost(deps, opts = {}) {
   const useAi = opts.useAi !== false;
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
+  const backgroundCache = resolveBackgroundCache(env2);
+  const force =
+    opts.force === true ||
+    opts.force_lock === true ||
+    opts.forceLock === true ||
+    env2.IG_POST_FORCE === true;
 
-  let story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+  const lockTtlMin = Number(env2.IG_POST_LOCK_TTL_MIN || 30);
+  const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 30 * 60 * 1000;
+  let lockRef = null;
 
-  const igOut = ensureIgOutputs(story);
-  const preferredAspect = pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
-  if (preferredAspect) {
-    igOut.source.resonance_aspect = preferredAspect;
-    igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect, { includeOrb: true });
-  } else {
-    igOut.source.resonance_aspect_key = "";
+  if (!dryRun && db && !force) {
+    const lock = await claimCronLock({ db, admin, id: `ig_post_${dateLocal}`, ttlMs: lockTtlMs });
+    if (!lock.ok) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: lock.reason || "already_posted",
+        date_local: dateLocal,
+        as_of: asOfISO,
+      };
+    }
+    lockRef = lock.ref;
   }
 
-  story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi, forceAi: opts.forceAi });
+  let story;
+  try {
+    const tStory = Date.now();
+    story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+    console.log("[cron/ig/post] story_built", { ms: Date.now() - tStory });
 
-  const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
-  const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
-  const buffers = await renderInstagramCarousel(carousel);
+    const igOut = ensureIgOutputs(story);
+    const preferredAspect = pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
+    if (preferredAspect) {
+      igOut.source.resonance_aspect = preferredAspect;
+      igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect, { includeOrb: true });
+    } else {
+      igOut.source.resonance_aspect_key = "";
+    }
 
-  const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
-  const upload = await uploadCarouselSlides({
-    storage,
-    bucketName,
-    dateLocal,
-    buffers,
-    expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
-  });
+    const tAi = Date.now();
+    story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi, forceAi: opts.forceAi });
+    console.log("[cron/ig/post] ai_done", { ms: Date.now() - tAi, useAi });
 
-  const caption = renderIGCaption(story);
+    const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
+    const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
+    const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
+    const tRender = Date.now();
+    const upload = await renderAndUploadCarouselSlides({
+      storage,
+      bucketName,
+      dateLocal,
+      carousel,
+      expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
+      backgroundCache,
+    });
+    console.log("[cron/ig/post] render_upload_done", { ms: Date.now() - tRender });
 
-  if (dryRun) {
-    return {
+    const caption = renderIGCaption(story);
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dry_run: true,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
+        resonance_aspect_key_used: igOut?.source?.resonance_aspect_key_used || null,
+        resonance_aspect_used: igOut?.source?.resonance_aspect_used || null,
+        slide3_display_aspect: topAspect || null,
+        ai_input_aspect: story?.outputs?.ig?.source?.resonance_aspect || null,
+        caption,
+        image_urls: upload.urls,
+        gcs_paths: upload.paths,
+      };
+    }
+
+    const childIds = [];
+    for (const imageUrl of upload.urls) {
+      const created = await createImageContainer({
+        igUserId,
+        imageUrl,
+        accessToken,
+        version: graphVersion,
+      });
+      const childId = created?.id;
+      if (!childId) throw new Error("child container id missing");
+      const wait = await waitForContainer({ creationId: childId, accessToken, version: graphVersion });
+      if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
+      childIds.push(childId);
+    }
+
+    const carouselContainer = await createCarouselContainer({
+      igUserId,
+      children: childIds,
+      caption,
+      accessToken,
+      version: graphVersion,
+    });
+    const creationId = carouselContainer?.id;
+    if (!creationId) throw new Error("carousel container id missing");
+
+    const tWait = Date.now();
+    const waitCarousel = await waitForContainer({ creationId, accessToken, version: graphVersion });
+    console.log("[cron/ig/post] wait_carousel_done", { ms: Date.now() - tWait, ok: waitCarousel?.ok });
+    if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
+
+    const published = await publishMedia({
+      igUserId,
+      creationId,
+      accessToken,
+      version: graphVersion,
+    });
+
+    const result = {
       ok: true,
-      dry_run: true,
       date_local: dateLocal,
       as_of: asOfISO,
       resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -918,60 +1149,26 @@ async function runIgPost(deps, opts = {}) {
       caption,
       image_urls: upload.urls,
       gcs_paths: upload.paths,
+      carousel_container_id: creationId,
+      media_id: published?.id || null,
+      child_container_ids: childIds,
     };
+
+    if (lockRef) {
+      await markCronLockSuccess({
+        ref: lockRef,
+        admin,
+        extra: { date_local: dateLocal, media_id: result.media_id || null },
+      });
+    }
+
+    return result;
+  } catch (e) {
+    if (lockRef) {
+      await markCronLockFailed({ ref: lockRef, admin, error: e?.message || String(e) });
+    }
+    throw e;
   }
-
-  const childIds = [];
-  for (const imageUrl of upload.urls) {
-    const created = await createImageContainer({
-      igUserId,
-      imageUrl,
-      accessToken,
-      version: graphVersion,
-    });
-    const childId = created?.id;
-    if (!childId) throw new Error("child container id missing");
-    const wait = await waitForContainer({ creationId: childId, accessToken, version: graphVersion });
-    if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
-    childIds.push(childId);
-  }
-
-  const carouselContainer = await createCarouselContainer({
-    igUserId,
-    children: childIds,
-    caption,
-    accessToken,
-    version: graphVersion,
-  });
-  const creationId = carouselContainer?.id;
-  if (!creationId) throw new Error("carousel container id missing");
-
-  const waitCarousel = await waitForContainer({ creationId, accessToken, version: graphVersion });
-  if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
-
-  const published = await publishMedia({
-    igUserId,
-    creationId,
-    accessToken,
-    version: graphVersion,
-  });
-
-  return {
-    ok: true,
-    date_local: dateLocal,
-    as_of: asOfISO,
-    resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
-    resonance_aspect_key_used: igOut?.source?.resonance_aspect_key_used || null,
-    resonance_aspect_used: igOut?.source?.resonance_aspect_used || null,
-    slide3_display_aspect: topAspect || null,
-    ai_input_aspect: story?.outputs?.ig?.source?.resonance_aspect || null,
-    caption,
-    image_urls: upload.urls,
-    gcs_paths: upload.paths,
-    carousel_container_id: creationId,
-    media_id: published?.id || null,
-    child_container_ids: childIds,
-  };
 }
 
 async function runIgMoonEventPost(deps, opts = {}) {
@@ -998,6 +1195,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
   const useAi = opts.useAi !== false;
   const forceAi = opts.forceAi === true;
+  const backgroundCache = resolveBackgroundCache(env2);
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_MOON_EVENT_LOCAL_ONLY,
     false
@@ -1027,18 +1225,41 @@ async function runIgMoonEventPost(deps, opts = {}) {
   const story = (await buildPublicStorySnapshot({ storyService, dateLocal: eventDateLocal, asOfISO: eventAsOfISO, save: false })).story;
 
   let summaryText = "";
+  let moonPlacementText = "";
+  let sunMoonText = "";
+  let moonResonanceText = "";
+  const moonResonanceAspect = pickMoonResonanceAspect(story);
   if (useAi) {
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
     if (apiKey) {
       try {
-        const res = await generateIgMoonEventSummaryText({
+        const openai = { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL };
+        const placementRes = await generateIgMoonEventPlacementText({ story, dict, event, openai, forceAi });
+        if (placementRes?.ok && placementRes.text) moonPlacementText = placementRes.text;
+
+        const sunMoonRes = await generateIgMoonEventSunMoonText({ story, dict, event, openai, forceAi });
+        if (sunMoonRes?.ok && sunMoonRes.text) sunMoonText = sunMoonRes.text;
+
+        if (moonResonanceAspect) {
+          const resonanceRes = await generateIgMoonEventResonanceText({
+            story,
+            dict,
+            aspect: moonResonanceAspect,
+            openai,
+            forceAi,
+          });
+          if (resonanceRes?.ok && resonanceRes.text) moonResonanceText = resonanceRes.text;
+        }
+
+        const airRes = await generateIgMoonEventAirText({
           story,
           dict,
           event,
-          openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+          resonanceAspect: moonResonanceAspect,
+          openai,
           forceAi,
         });
-        if (res?.ok && res.text) summaryText = res.text;
+        if (airRes?.ok && airRes.text) summaryText = airRes.text;
       } catch (_err) {
         summaryText = "";
       }
@@ -1052,10 +1273,15 @@ async function runIgMoonEventPost(deps, opts = {}) {
     withCta,
     dict,
     summaryText,
+    moonPlacementText,
+    sunMoonText,
+    moonResonanceText,
+    moonResonanceAspect,
   });
-  const buffers = await renderInstagramCarousel(carousel);
+  carousel.seedVariant = "moon_event";
 
   if (localOnly) {
+    const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
     const localOutDir = String(
       opts.localOutDir ||
       opts.local_out_dir ||
@@ -1089,12 +1315,13 @@ async function runIgMoonEventPost(deps, opts = {}) {
   if (!igUserId) throw new Error("IG_USER_ID missing");
 
   const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
-  const upload = await uploadCarouselSlides({
+  const upload = await renderAndUploadCarouselSlides({
     storage,
     bucketName,
     dateLocal: eventDateLocal,
-    buffers,
+    carousel,
     expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
+    backgroundCache,
   });
 
   const caption = buildMoonEventCaption(event);
