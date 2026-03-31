@@ -18,7 +18,7 @@
 "use strict";
 
 const express = require("express");
-const crypto = require("crypto");
+const { safeEqual } = require("../utils/safe_equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8 } = require("../runners/cron/daily8");
 const { rebuildDaily8 } = require("../runners/cron/rebuild");
@@ -65,14 +65,6 @@ function createCronRouter(deps = {}) {
   }
   if (!renderers?.renderXMorning || !renderers?.renderXNight || !renderers?.renderXResonance) {
     throw new Error("deps.renderers (renderXMorning/renderXNight/renderXResonance) is missing");
-  }
-
-  function safeEqual(a, b) {
-    if (!a || !b) return false;
-    const aBuf = Buffer.from(String(a));
-    const bBuf = Buffer.from(String(b));
-    if (aBuf.length !== bBuf.length) return false;
-    return crypto.timingSafeEqual(aBuf, bBuf);
   }
 
   function stripQuery(url) {
