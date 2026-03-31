@@ -66,6 +66,12 @@ function createCronRouter(deps = {}) {
     throw new Error("deps.renderers (renderXMorning/renderXNight/renderXResonance) is missing");
   }
 
+  function stripQuery(url) {
+    if (!url) return "";
+    const idx = url.indexOf("?");
+    return idx === -1 ? url : url.slice(0, idx);
+  }
+
   function requireCronToken(req) {
     const token = String(req.header("x-cron-token") || "").trim();
     const CRON_TOKEN = String(env2.CRON_TOKEN || "").trim();
@@ -81,8 +87,7 @@ function createCronRouter(deps = {}) {
     const meta = {
       path,
       method: req?.method,
-      url: req?.originalUrl,
-      query: req?.query,
+      url: stripQuery(req?.originalUrl),
       error_code,
     };
     console.error(`[cron] error ${path}`, { message, ...meta });
@@ -191,7 +196,7 @@ function createCronRouter(deps = {}) {
 
     try {
       const t0 = Date.now();
-      logCronPhase(req, "[cron/ig/story/daily] start", { query: req?.query, url: req?.originalUrl });
+      logCronPhase(req, "[cron/ig/story/daily] start", { url: stripQuery(req?.originalUrl) });
       const { q, b } = getRequestParts(req);
       const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
       const dryRun = pickDryRun({ q, b });
@@ -379,7 +384,7 @@ function createCronRouter(deps = {}) {
 
     try {
       const t0 = Date.now();
-      logCronPhase(req, "[cron/ig/post] start", { query: req?.query, url: req?.originalUrl });
+      logCronPhase(req, "[cron/ig/post] start", { url: stripQuery(req?.originalUrl) });
       const { q, b } = getRequestParts(req);
       const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
