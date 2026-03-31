@@ -40,6 +40,17 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 3) intent（唯一の判定）
   const intentKey = intent.intentFromcommand(cmd);
   const relationEnabled = ["1", "true", "yes", "on"].includes(String(env.RELATION_ENABLED || "").toLowerCase());
+  const plusIntents = new Set([
+    intent.INTENT.PLUS_MENU,
+    intent.INTENT.PLUS_JOIN,
+    intent.INTENT.PLUS_CANCEL,
+    intent.INTENT.PLUS_STATUS,
+    intent.INTENT.PLUS_EXPIRE,
+  ]);
+
+  if (plusIntents.has(intentKey)) {
+    return { text: LINE_COPY.PLUS_PAUSED || "ただいま準備中です。", stage: "plus_paused_forced" };
+  }
 
   if (!relationEnabled) {
     if (relation?.getRelationState && lineUserId) {
