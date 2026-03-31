@@ -39,11 +39,22 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
 
   // 3) intent（唯一の判定）
   const intentKey = intent.intentFromcommand(cmd);
+  const relationEnabled = ["1", "true", "yes", "on"].includes(String(env.RELATION_ENABLED || "").toLowerCase());
+
+  if (!relationEnabled) {
+    if (relation?.getRelationState && lineUserId) {
+      const relState = await relation.getRelationState(lineUserId);
+      if (relState?.state) await relation.clearRelationState?.(lineUserId);
+    }
+    if (intentKey === intent.INTENT.RELATION || intentKey === intent.INTENT.RELATION_REGISTER) {
+      return { text: LINE_COPY.RELATION_PDF_UNAVAILABLE || "ただいま準備中です。", stage: "relation_unavailable" };
+    }
+  }
 
   const plusEnabled = !!env.PLUS_ENABLED;
 
   // 3.1) relation flow (番号待ち / 登録フロー)
-  if (relation?.getRelationState) {
+  if (relationEnabled && relation?.getRelationState) {
     const relState = await relation.getRelationState(lineUserId);
     if (relState?.state) {
       if (env.PAID_MODE_ENABLED) {

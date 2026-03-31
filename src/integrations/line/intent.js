@@ -124,6 +124,8 @@ const MAP = new Map([
   ["ぷらす", INTENT.PLUS_MENU],
   ["観測＋", INTENT.PLUS_MENU],
   ["観測+", INTENT.PLUS_MENU],
+  ["観測ログ＋", INTENT.PLUS_MENU],
+  ["観測ログ+", INTENT.PLUS_MENU],
   ["ソラのこえ＋", INTENT.PLUS_MENU],
   ["ソラのこえ+", INTENT.PLUS_MENU],
   ["そらぷらす", INTENT.PLUS_MENU],
