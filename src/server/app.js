@@ -35,6 +35,12 @@ function isRawBodyPath(req) {
   );
 }
 
+function stripQuery(url) {
+  if (!url) return "";
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+
 /**
  * ✅ LINE webhook を “完全に” 除外する body parser
  * - json も urlencoded も webhook では絶対に走らせない
@@ -81,6 +87,9 @@ function buildMeta(deps) {
 function createApp(deps = {}) {
   const app = express();
   const env = deps.env || {};
+  const debugEnabled = ["1", "true", "yes", "on"].includes(
+    String(env.DEBUG || process.env.DEBUG || "").trim().toLowerCase()
+  );
 
   // ✅ どこからでも deps を参照できる
   app.locals.deps = deps;
@@ -100,7 +109,8 @@ function createApp(deps = {}) {
     res.on("finish", () => {
       const ms = Date.now() - start;
       if (!req.originalUrl.startsWith("/health")) {
-        console.log(`[${req.id}] ${req.method} ${req.originalUrl} ${res.statusCode} ${ms}ms`);
+        const url = stripQuery(req.originalUrl);
+        console.log(`[${req.id}] ${req.method} ${url} ${res.statusCode} ${ms}ms`);
       }
     });
     next();
@@ -145,7 +155,9 @@ function createApp(deps = {}) {
   app.use("/internal/blueprints", createBlueprintsRouter(deps));
   app.use("/internal/tasks/blueprints", createBlueprintsRouter(deps));
   app.use("/internal/debug/blueprints", createBlueprintsDebugRouter(deps));
-  app.use("/debug", createDebugRouter(deps));
+  if (debugEnabled) {
+    app.use("/debug", createDebugRouter(deps));
+  }
   app.use("/jobs", createJobsRouter(deps));
 
   // 404

@@ -51,6 +51,23 @@ function pickFactory(mod, name) {
   return null;
 }
 
+function pickBearerToken(req) {
+  const authz = req.header("authorization");
+  if (!authz) return null;
+  if (!authz.startsWith("Bearer ")) return null;
+  return String(authz.slice(7)).trim() || null;
+}
+
+function isDebugEnabled(env) {
+  return envFlag(env?.DEBUG, false);
+}
+
+function stripQuery(url) {
+  if (!url) return "";
+  const idx = url.indexOf("?");
+  return idx === -1 ? url : url.slice(0, idx);
+}
+
 const createLineUser = pickFactory(userMod, "createLineUser");
 const createLineNatal = pickFactory(natalMod, "createLineNatal");
 const createLineStory = pickFactory(storyMod, "createLineStory");
@@ -131,6 +148,9 @@ function createLineRouter(deps = {}) {
 
   // -------------------- debug: intent --------------------
   router.get("/debug/intent", (req, res) => {
+    const d = resolveDeps(req, deps);
+    const env = d.env || {};
+    if (!isDebugEnabled(env)) return res.status(404).json({ ok: false, error: "not found" });
     const text = String(req.query.text || "");
     const normalized = intent.normalizeForCommand(text);
     return res.json({
@@ -145,7 +165,10 @@ function createLineRouter(deps = {}) {
     const env = d.env || {};
     const DEBUG_TOKEN = env.DEBUG_TOKEN || null;
     if (!DEBUG_TOKEN) return { ok: false, status: 500, error: "DEBUG_TOKEN is not set" };
-    const token = String(req.query.token || "");
+    const token =
+      (req.header("x-debug-token") ? String(req.header("x-debug-token")).trim() : null) ||
+      pickBearerToken(req) ||
+      null;
     if (!token || token !== String(DEBUG_TOKEN)) return { ok: false, status: 401, error: "unauthorized" };
     return { ok: true };
   }
@@ -153,6 +176,8 @@ function createLineRouter(deps = {}) {
   // -------------------- debug: routes --------------------
   router.get("/debug/routes", (req, res) => {
     const d = resolveDeps(req, deps);
+    const env = d.env || {};
+    if (!isDebugEnabled(env)) return res.status(404).json({ ok: false, error: "not found" });
     const auth = requireDebugToken(req, d);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
 
@@ -162,21 +187,22 @@ function createLineRouter(deps = {}) {
         "GET /line/health",
         "POST /line/webhook",
         "GET /line/debug/intent?text=...",
-        "GET /line/debug/routes?token=...",
-        "GET /line/debug/story?token=...&text=...&app_user_id=...",
+        "GET /line/debug/routes (Authorization: Bearer / x-debug-token)",
+        "GET /line/debug/story?text=...&app_user_id=... (Authorization: Bearer / x-debug-token)",
       ],
     });
   });
 
   // -------------------- debug: story --------------------
-  // GET /line/debug/story?token=...&text=きょう&app_user_id=public
+  // GET /line/debug/story?text=きょう&app_user_id=public (Authorization: Bearer / x-debug-token)
   router.get("/debug/story", async (req, res) => {
     const d = resolveDeps(req, deps);
+    const env = d.env || {};
+    if (!isDebugEnabled(env)) return res.status(404).json({ ok: false, error: "not found" });
     const auth = requireDebugToken(req, d);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
 
     try {
-      const env = d.env || {};
       requireDeps(d);
 
       const { renderers } = d;
@@ -216,7 +242,7 @@ function createLineRouter(deps = {}) {
   async function handleWebhook(req, res) {
     const requestId = getReqId(req);
     const t0 = Date.now();
-    logWithReq(req, "[line/webhook] start", { url: req?.originalUrl, mem: memorySnapshot() });
+    logWithReq(req, "[line/webhook] start", { url: stripQuery(req?.originalUrl), mem: memorySnapshot() });
     res.on("finish", () => {
       logWithReq(req, "[line/webhook] done", { status: res.statusCode, ms: Date.now() - t0, mem: memorySnapshot() });
     });

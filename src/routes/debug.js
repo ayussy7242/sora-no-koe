@@ -2,10 +2,17 @@
 
 const express = require("express");
 
+function pickBearerToken(req) {
+  const authz = req.header("authorization");
+  if (!authz) return null;
+  if (!authz.startsWith("Bearer ")) return null;
+  return String(authz.slice(7)).trim() || null;
+}
+
 function pickToken(req) {
   return (
-    (req.query.token ? String(req.query.token) : null) ||
-    (req.header("x-debug-token") ? String(req.header("x-debug-token")) : null) ||
+    (req.header("x-debug-token") ? String(req.header("x-debug-token")).trim() : null) ||
+    pickBearerToken(req) ||
     null
   );
 }
@@ -49,7 +56,7 @@ function createDebugRouter(deps = {}) {
     return next();
   }
 
-  // GET /debug/ping?token=...
+  // GET /debug/ping (Authorization: Bearer / x-debug-token)
   router.get("/ping", requireDebugToken, (_req, res) => {
     return res.json({
       ok: true,
@@ -59,7 +66,7 @@ function createDebugRouter(deps = {}) {
     });
   });
 
-  // GET /debug/env?token=...
+  // GET /debug/env (Authorization: Bearer / x-debug-token)
   router.get("/env", requireDebugToken, (_req, res) => {
     return res.json({
       ok: true,
@@ -73,7 +80,7 @@ function createDebugRouter(deps = {}) {
     });
   });
 
-  // GET /debug/user?token=...&app_user_id=...
+  // GET /debug/user?app_user_id=... (Authorization: Bearer / x-debug-token)
   router.get("/user", requireDebugToken, async (req, res) => {
     try {
       const appUserId = pickAppUserId(req);
@@ -99,7 +106,7 @@ function createDebugRouter(deps = {}) {
     }
   });
 
-  // POST /debug/resetRegistration?token=...&line_user_id=Uxxxx
+  // POST /debug/resetRegistration?line_user_id=Uxxxx (Authorization: Bearer / x-debug-token)
   router.post("/resetRegistration", requireDebugToken, async (req, res) => {
     try {
       const lineUserId = req.query.line_user_id ? String(req.query.line_user_id) : null;
@@ -139,7 +146,7 @@ function createDebugRouter(deps = {}) {
     }
   });
 
-  // POST /debug/wipeUser?token=...&app_user_id=...
+  // POST /debug/wipeUser?app_user_id=... (Authorization: Bearer / x-debug-token)
   router.post("/wipeUser", requireDebugToken, async (req, res) => {
     try {
       const appUserId = pickAppUserId(req);
