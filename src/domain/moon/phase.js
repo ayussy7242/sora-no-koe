@@ -78,7 +78,7 @@ function waNameFromMoonAge(moonAge) {
 function formatMoonPhaseLabel({ phaseName, waName }) {
   const core = String(phaseName || "").trim() || "—";
   const wa = String(waName || "").trim();
-  if (wa && wa !== core) return `${core}（${wa}）`;
+  if (wa && wa !== core) return `${core} (${wa})`;
   return core;
 }
 
