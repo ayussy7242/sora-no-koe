@@ -18,6 +18,7 @@
 "use strict";
 
 const express = require("express");
+const crypto = require("crypto");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8 } = require("../runners/cron/daily8");
 const { rebuildDaily8 } = require("../runners/cron/rebuild");
@@ -66,6 +67,14 @@ function createCronRouter(deps = {}) {
     throw new Error("deps.renderers (renderXMorning/renderXNight/renderXResonance) is missing");
   }
 
+  function safeEqual(a, b) {
+    if (!a || !b) return false;
+    const aBuf = Buffer.from(String(a));
+    const bBuf = Buffer.from(String(b));
+    if (aBuf.length !== bBuf.length) return false;
+    return crypto.timingSafeEqual(aBuf, bBuf);
+  }
+
   function stripQuery(url) {
     if (!url) return "";
     const idx = url.indexOf("?");
@@ -77,7 +86,7 @@ function createCronRouter(deps = {}) {
     const CRON_TOKEN = String(env2.CRON_TOKEN || "").trim();
 
     if (!CRON_TOKEN) return { ok: false, status: 500, message: "CRON_TOKEN is not set" };
-    if (String(token) !== String(CRON_TOKEN)) return { ok: false, status: 401, message: "invalid cron token" };
+    if (!safeEqual(token, CRON_TOKEN)) return { ok: false, status: 401, message: "invalid cron token" };
     return { ok: true };
   }
 

@@ -1,6 +1,7 @@
 "use strict";
 
 const express = require("express");
+const crypto = require("crypto");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 
 function createJobsRouter(deps = {}) {
@@ -13,6 +14,14 @@ function createJobsRouter(deps = {}) {
 
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const allowDebug = String(env2.DEBUG || "0") === "1";
+
+  function safeEqual(a, b) {
+    if (!a || !b) return false;
+    const aBuf = Buffer.from(String(a));
+    const bBuf = Buffer.from(String(b));
+    if (aBuf.length !== bBuf.length) return false;
+    return crypto.timingSafeEqual(aBuf, bBuf);
+  }
 
   const workerHandler = async (req, res) => {
     return handleJobsWorker(req, res, {
@@ -37,7 +46,7 @@ function createJobsRouter(deps = {}) {
     const token = req.header("x-cron-token") || "";
     const expected = env2.CRON_TOKEN;
 
-    if (!expected || String(token) !== String(expected)) {
+    if (!expected || !safeEqual(token, expected)) {
       return res.status(403).json({ ok: false, error: "forbidden (invalid cron token)" });
     }
 
