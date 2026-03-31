@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const crypto = require("crypto");
+const { safeEqual } = require("../utils/safe_equal");
 const { getJobRef } = require("../usecases/pdf/blueprint/jobs/state");
 
 function requireInternalToken({ env, req }) {
@@ -12,14 +12,6 @@ function requireInternalToken({ env, req }) {
     return { ok: false, status: 403, error: "invalid token" };
   }
   return { ok: true };
-}
-
-function safeEqual(a, b) {
-  if (!a || !b) return false;
-  const aBuf = Buffer.from(String(a));
-  const bBuf = Buffer.from(String(b));
-  if (aBuf.length !== bBuf.length) return false;
-  return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
 function toIso(v) {

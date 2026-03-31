@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const crypto = require("crypto");
+const { safeEqual } = require("../utils/safe_equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 
 function createJobsRouter(deps = {}) {
@@ -14,14 +14,6 @@ function createJobsRouter(deps = {}) {
 
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const allowDebug = String(env2.DEBUG || "0") === "1";
-
-  function safeEqual(a, b) {
-    if (!a || !b) return false;
-    const aBuf = Buffer.from(String(a));
-    const bBuf = Buffer.from(String(b));
-    if (aBuf.length !== bBuf.length) return false;
-    return crypto.timingSafeEqual(aBuf, bBuf);
-  }
 
   const workerHandler = async (req, res) => {
     return handleJobsWorker(req, res, {

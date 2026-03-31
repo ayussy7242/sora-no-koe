@@ -1,6 +1,6 @@
 "use strict";
 
-const crypto = require("crypto");
+const { safeEqual } = require("../../../../utils/safe_equal");
 const { createBlueprintLightService } = require("..");
 const { createLineApi } = require("../../../../integrations/line/api");
 const { setLineUserState } = require("../../../../integrations/line/state");
@@ -24,14 +24,6 @@ function requireTasksCaller({ env, req }) {
     return { ok: false, status: 403, error: "invalid token" };
   }
   return { ok: true };
-}
-
-function safeEqual(a, b) {
-  if (!a || !b) return false;
-  const aBuf = Buffer.from(String(a));
-  const bBuf = Buffer.from(String(b));
-  if (aBuf.length !== bBuf.length) return false;
-  return crypto.timingSafeEqual(aBuf, bBuf);
 }
 
 function toBool(v) {
