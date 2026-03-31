@@ -175,6 +175,65 @@ igOut.source.resonance_aspect = aspect;
 '
 ```
 
+### 4.3 IG Moon Event Air (SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR)
+
+```bash
+set +H
+BASE=http://localhost:8080
+DATE_LOCAL=2026-04-02
+AS_OF="2026-04-01T03:00:00+09:00"
+
+BASE="$BASE" DATE_LOCAL="$DATE_LOCAL" AS_OF="$AS_OF" DOTENV_CONFIG_PATH=config/.env \
+node -r dotenv/config <<'NODE'
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("./src/domain/moon");
+const { toDateLocalJST } = require("./src/utils/time_utils");
+const { buildMoonEventAirPrompt } = require("./src/usecases/channels/ig/ig_moon_event_ai");
+const { createChatCompletion } = require("./src/integrations/openai/openai_client");
+const { runAiTextPipeline } = require("./src/usecases/ai_text");
+const { PRESETS } = require("./src/usecases/ai_text/presets");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("./src/content/prompts/sora/sora_ai_prompts");
+const dict = require("./src/content/dict");
+
+(async()=>{
+  const base = process.env.BASE || "http://localhost:8080";
+  const dateLocal = process.env.DATE_LOCAL || "2026-04-02";
+  const asOf = process.env.AS_OF || new Date().toISOString();
+
+  const events = buildNextMoonEvents(asOf, dict);
+  const candidates = [events?.new, events?.full].filter(e => e?.date);
+
+  let event = candidates.find(e => toDateLocalJST(e.date) === dateLocal);
+  if (event == null) {
+    event = candidates[0];
+    console.error("No event on date_local, using", toDateLocalJST(event?.date));
+  }
+  event = formatMoonEventDisplay(event);
+
+  const storyUrl = `${base}/stories?app_user_id=public&mode=public&format=json&date_local=${toDateLocalJST(event.date)}&as_of=${encodeURIComponent(event.date.toISOString())}`;
+  const storyRes = await fetch(storyUrl);
+  const { story } = await storyRes.json();
+
+  const prompt = buildMoonEventAirPrompt({ story, dict, event });
+
+  const text = await createChatCompletion({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseUrl: process.env.OPENAI_BASE_URL,
+    model: process.env.OPENAI_MODEL,
+    messages: [
+      { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.4,
+    maxTokens: 420
+  });
+
+  const verdict = runAiTextPipeline({ rawText: text, preset: PRESETS.ig.moon_event_air });
+  console.log("RAW:", text);
+  console.log("VERDICT:", JSON.stringify(verdict, null, 2));
+})().catch(e=>{ console.error(e); process.exit(1); });
+NODE
+```
+
 ## Notes
 
 - `local=1` saves outputs under `tmp/safe_prod_outputs/<DATE>/...` and avoids posting.
