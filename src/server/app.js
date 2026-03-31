@@ -3,6 +3,7 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const { safeEqual } = require("../utils/safe_equal");
 
 // routers（factory）
 const { createHealthRouter } = require("../routes/health");
@@ -39,6 +40,22 @@ function stripQuery(url) {
   if (!url) return "";
   const idx = url.indexOf("?");
   return idx === -1 ? url : url.slice(0, idx);
+}
+
+function pickBearerToken(req) {
+  const authz = req.header("authorization");
+  if (!authz) return null;
+  if (!authz.startsWith("Bearer ")) return null;
+  return String(authz.slice(7)).trim() || null;
+}
+
+function allowMetaAccess(req, env) {
+  const nodeEnv = String(env?.NODE_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
+  if (nodeEnv !== "production") return true;
+  const expected = String(env?.DEBUG_TOKEN || process.env.DEBUG_TOKEN || "").trim();
+  if (!expected) return false;
+  const token = (req.header("x-debug-token") ? String(req.header("x-debug-token")).trim() : null) || pickBearerToken(req);
+  return safeEqual(token, expected);
 }
 
 /**
@@ -127,7 +144,10 @@ function createApp(deps = {}) {
     });
   });
 
-  app.get("/meta", (_req, res) => {
+  app.get("/meta", (req, res) => {
+    if (!allowMetaAccess(req, env)) {
+      return res.status(404).json({ ok: false, error: "not found" });
+    }
     res.status(200).json({
       ...buildMeta(deps),
       env: maskSecrets(env),
