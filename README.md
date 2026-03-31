@@ -57,6 +57,12 @@ Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Fra
 
 ---
 
+## テスト出力コマンド
+
+安全な本番導線テストの一覧は以下にまとめています。
+
+- [docs/test_commands.md](docs/test_commands.md)
+
 ## 2. ディレクトリ構成（重要部分）
 
 ```
