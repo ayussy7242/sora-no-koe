@@ -187,6 +187,54 @@ function findTransitWindowAroundNow({
   return { start, end, peak, bestOrb };
 }
 
+function findTransitWindowInRange({
+  kind = "transit-transit",
+  aKey,
+  bKey,
+  aspectDeg,
+  start,
+  end,
+  orbLimit = 3,
+  stepDays = 1,
+} = {}) {
+  if (kind !== "transit-transit") return null;
+  const from = toDate(start);
+  const to = toDate(end);
+  if (!from || !to) return null;
+
+  const a = normalizeBodyKey(aKey || "");
+  const b = normalizeBodyKey(bKey || "");
+  if (!a || !b) return null;
+  if (!Number.isFinite(Number(aspectDeg))) return null;
+
+  const limit = Number.isFinite(Number(orbLimit)) ? Number(orbLimit) : 3;
+  const stepMs = Math.max(1, Number(stepDays) || 1) * 86400000;
+
+  let cur = new Date(from.getTime());
+  let startHit = null;
+  let endHit = null;
+  let peak = null;
+  let bestOrb = Infinity;
+
+  while (cur.getTime() < to.getTime()) {
+    const iso = toIsoAtJstNoon(cur);
+    const orb = iso ? calcOrbAt({ kind, aKey: a, bKey: b, aspectDeg, iso }) : null;
+    if (Number.isFinite(Number(orb)) && Number(orb) <= limit) {
+      if (!startHit) startHit = new Date(cur.getTime());
+      endHit = new Date(cur.getTime());
+      if (orb < bestOrb) {
+        bestOrb = orb;
+        peak = new Date(cur.getTime());
+      }
+    }
+    cur = new Date(cur.getTime() + stepMs);
+  }
+
+  if (!startHit || !endHit || bestOrb === Infinity) return null;
+  const days = Math.round((endHit.getTime() - startHit.getTime()) / 86400000) + 1;
+  return { start: startHit, end: endHit, peak, bestOrb, days };
+}
+
 function trendLabelJa(opts = {}) {
   const applying = isApplying(opts);
   if (applying === null) return "";
@@ -198,5 +246,6 @@ module.exports = {
   isApplying,
   refinePeakTime,
   findTransitWindowAroundNow,
+  findTransitWindowInRange,
   trendLabelJa,
 };

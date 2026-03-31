@@ -8,7 +8,8 @@
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../format/format/common");
-const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon, absAngularDistance } = require("../../domain/astro_compute");
+const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro_compute");
+const { findTransitWindowInRange } = require("../../domain/aspect_proximity");
 const { toDateLocalJST } = require("../../utils/time_utils");
 const { pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
 const { detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
@@ -132,34 +133,16 @@ function buildResonanceSummaryLines(story, dict) {
 
   const bodyList = ["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"];
 
-  const scanWindow = (aKey, bKey, aspectDeg) => {
-    let cur = new Date(bounds.start.getTime());
-    let start = null;
-    let end = null;
-    let peak = null;
-    let bestOrb = Infinity;
-    while (cur.getTime() < bounds.end.getTime()) {
-      const iso = toIsoAtJstNoon(cur);
-      const lonA = calcTransitLon(aKey, iso);
-      const lonB = calcTransitLon(bKey, iso);
-      if (lonA != null && lonB != null) {
-        const dist = absAngularDistance(lonA, lonB);
-        const orb = Math.abs(dist - aspectDeg);
-        if (orb <= orbLimit) {
-          if (!start) start = new Date(cur.getTime());
-          end = new Date(cur.getTime());
-          if (orb < bestOrb) {
-            bestOrb = orb;
-            peak = new Date(cur.getTime());
-          }
-        }
-      }
-      cur = new Date(cur.getTime() + 86400000);
-    }
-    if (!start || !end || bestOrb === Infinity) return null;
-    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-    return { start, end, peak, bestOrb, days };
-  };
+  const scanWindow = (aKey, bKey, aspectDeg) => findTransitWindowInRange({
+    kind: "transit-transit",
+    aKey,
+    bKey,
+    aspectDeg,
+    start: bounds.start,
+    end: bounds.end,
+    orbLimit,
+    stepDays: 1,
+  });
 
   const candidates = [];
   for (let i = 0; i < bodyList.length; i++) {

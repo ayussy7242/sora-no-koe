@@ -107,7 +107,7 @@ code and limiting channels to condition-only configuration.
   - orb calculation
   - applying/separating判定
   - peak補正
-  - window探索
+  - window探索（短期/長期/時間窓）
 - Condition SSOT: `src/config/aspect_channel_config.js`
   - orbLimit
   - maxItems
