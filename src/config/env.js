@@ -104,8 +104,10 @@ const LINE_ENABLED =
     ? _LINE_ENABLED
     : !!(LINE_CHANNEL_SECRET && LINE_CHANNEL_ACCESS_TOKEN);
 
-// strict は任意
-const LINE_WEBHOOK_STRICT = boolEnv("LINE_WEBHOOK_STRICT", false);
+// strict は本番では強制（非本番は任意）
+const LINE_WEBHOOK_STRICT = NODE_ENV === "production"
+  ? true
+  : boolEnv("LINE_WEBHOOK_STRICT", false);
 
 const BOT_NAME = getEnv("BOT_NAME", { defaultValue: null });
 const LINE_ACCOUNT_NAME = getEnv("LINE_ACCOUNT_NAME", { defaultValue: null });
