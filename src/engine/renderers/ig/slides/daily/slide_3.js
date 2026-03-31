@@ -1,14 +1,14 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("./shared");
-const { resolveColors, BODY_GLOW_COLORS } = require("../theme/ig_theme");
+const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { resolveColors, BODY_GLOW_COLORS } = require("../../theme/ig_theme");
 const {
   PATH_GLYPHS,
   extractGlyph,
   buildGlyphLine,
   buildGlyphPath,
   pickGlyphFontFamily,
-} = require("./glyph_layout");
+} = require("../common/glyph_layout");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");

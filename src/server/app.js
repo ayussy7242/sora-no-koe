@@ -15,6 +15,7 @@ const { createDebugRouter } = require("../routes/debug");
 const { createJobsRouter } = require("../routes/jobs");
 const { createStripeRouter } = require("../routes/stripe");
 const { createBlueprintsRouter } = require("../routes/blueprints");
+const { createBlueprintsDebugRouter } = require("../routes/blueprints_debug");
 
 // -------------------- helpers --------------------
 function createReqId() {
@@ -143,6 +144,7 @@ function createApp(deps = {}) {
   app.use("/stripe", createStripeRouter(deps));
   app.use("/internal/blueprints", createBlueprintsRouter(deps));
   app.use("/internal/tasks/blueprints", createBlueprintsRouter(deps));
+  app.use("/internal/debug/blueprints", createBlueprintsDebugRouter(deps));
   app.use("/debug", createDebugRouter(deps));
   app.use("/jobs", createJobsRouter(deps));
 
@@ -159,10 +161,11 @@ function createApp(deps = {}) {
   // error handler
   app.use((err, req, res, _next) => {
     console.error(`[${req.id}] [app:error]`, err);
+    const error_code = err?.code || err?.name || null;
     res.status(err?.statusCode || err?.status || 500).json({
       ok: false,
       error: err?.message || "internal error",
-      code: err?.code || null,
+      error_code,
       request_id: req.id,
     });
   });

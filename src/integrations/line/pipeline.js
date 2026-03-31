@@ -187,6 +187,14 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.NATAL) {
+    const hasPersonal = await natal.hasNatal(appUserId);
+    if (!hasPersonal) {
+      return { text: LINE_COPY.NATAL_LIST_NEED_LINK || "先に「はじめる」で登録してね。", stage: "natal_need_link" };
+    }
+    const ready = await natal.isNatalReady?.(appUserId);
+    if (!ready) {
+      return { text: LINE_COPY.PERSONAL_PREPARING || LINE_COPY.NATAL_RECEIVED, stage: "personal_preparing" };
+    }
     const r = await natal.handleNatalList({ appUserId });
     return { text: r?.text || story.renderFallback() || "（返す文が空だった🙏）", stage: "natal_list" };
   }
@@ -207,6 +215,14 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PERSONAL_TODAY) {
+    const hasPersonal = await natal.hasNatal(appUserId);
+    if (!hasPersonal) {
+      return { text: LINE_COPY.NATAL_LIST_NEED_LINK || "先に「はじめる」で登録してね。", stage: "personal_need_link" };
+    }
+    const ready = await natal.isNatalReady?.(appUserId);
+    if (!ready) {
+      return { text: LINE_COPY.PERSONAL_PREPARING || LINE_COPY.NATAL_RECEIVED, stage: "personal_preparing" };
+    }
     const r = await story.buildToday({ appUserId: appUserId || "public" });
     let isPaid = false;
     if (env.PAID_MODE_ENABLED) {

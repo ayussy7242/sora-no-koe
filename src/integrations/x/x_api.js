@@ -212,11 +212,13 @@ async function postTweetV2({ text, replyToId, mediaIds, env }) {
   return { id, raw: json };
 }
 
-async function postTweetV1({ text, replyToId, env }) {
+async function postTweetV1({ text, replyToId, mediaIds, env }) {
   const url = "https://api.twitter.com/1.1/statuses/update.json";
+  const media = normalizeMediaIds(mediaIds);
   const params = replyToId
     ? { status: text, in_reply_to_status_id: replyToId, auto_populate_reply_metadata: true }
     : { status: text };
+  if (media.length) params.media_ids = media.join(",");
   const body = new URLSearchParams(params).toString();
 
   const res = await oauth1Fetch({
@@ -298,7 +300,16 @@ async function postTweet({ text, replyToId, mediaIds, env }) {
     throw err;
   }
 
-  return await postTweetV2({ text, replyToId, mediaIds, env });
+  try {
+    return await postTweetV2({ text, replyToId, mediaIds, env });
+  } catch (err) {
+    const status = err?.status;
+    if (status === 403) {
+      console.warn("[x_api] v2 post forbidden, fallback to v1.1");
+      return await postTweetV1({ text, replyToId, mediaIds, env });
+    }
+    throw err;
+  }
 }
 
 module.exports = {

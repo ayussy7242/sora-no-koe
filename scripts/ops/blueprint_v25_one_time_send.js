@@ -7,7 +7,7 @@ const { Storage } = require("@google-cloud/storage");
 const env = require("../../src/config/env");
 const dict = require("../../src/content/dict");
 const { admin, getDb } = require("../../src/integrations/firebase/firebase");
-const { createLineApi } = require("../../src/integrations/line/line_api");
+const { createLineApi } = require("../../src/integrations/line/api");
 const { createBlueprintLightService } = require("../../src/usecases/pdf/blueprint");
 const { createBlueprintLightStorage } = require("../../src/usecases/pdf/blueprint/storage");
 

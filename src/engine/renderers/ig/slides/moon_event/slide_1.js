@@ -1,13 +1,13 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, renderSvgToPng } = require("./shared");
-const { resolveColors } = require("../theme/ig_theme");
+const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, renderSvgToPng } = require("../common/shared");
+const { resolveColors } = require("../../theme/ig_theme");
 const {
   measureTextWidth,
   normalizeSymbol,
   extractGlyph,
   buildGlyphLine,
-} = require("./glyph_layout");
+} = require("../common/glyph_layout");
 
 const SIGN_JA_TO_KEY = {
   "牡羊座": "aries",
@@ -209,8 +209,10 @@ function getAvoidRegions({
   tagline = "今日の星の配置",
   subLabel = "",
   sunLine,
+  midLine,
   moonLine,
   observation,
+  pressureLines = [],
   swipeLabel = "Swipe →",
 } = {}) {
   const fields = [];
@@ -218,10 +220,10 @@ function getAvoidRegions({
   const brandY = TOK.cover.brandY;
   const taglineY = TOK.cover.taglineY;
   const mainSize = TOK.cover.mainSize;
+  const midSize = TOK.cover.midSize || Math.round(mainSize * 0.5);
+  const moonSize = TOK.cover.moonSize || mainSize;
   const mainGap = TOK.cover.mainGap;
   const mainStartY = TOK.cover.mainStartY;
-  const glyphBoxWidth = Math.round(mainSize * TOK.cover.glyphBoxScale);
-  const glyphGap = Math.round(mainSize * TOK.cover.glyphGapScale);
 
   if (brand) {
     const w = estimateTextWidth(brand, TOK.cover.brandSize, "title");
@@ -249,40 +251,83 @@ function getAvoidRegions({
   }
   if (subLabel) {
     const subLabelY = taglineY + TOK.subLabel.offsetY;
-    const w = estimateTextWidth(subLabel, TOK.subLabel.size, "title");
+    const subLabelSize = TOK.cover.subLabelSize || TOK.subLabel.size;
+    const w = estimateTextWidth(subLabel, subLabelSize, "title");
     fields.push(makeField({
       x: centerX - w / 2,
-      y: subLabelY - TOK.subLabel.size,
+      y: subLabelY - subLabelSize,
       w,
-      h: TOK.subLabel.size * 1.3,
+      h: subLabelSize * 1.3,
       pad: 12,
       weight: 0.7,
       kind: "subtitle",
     }));
   }
 
-  const buildRowField = (text, y) => {
+  const buildRowField = ({ text, y, size = mainSize }) => {
     if (!text) return;
     const raw = normalizeSymbol(text || "");
     const glyph = extractGlyph(raw);
+    if (!glyph) {
+      const rowWidth = estimateTextWidth(raw, size, "title");
+      const rowX = centerX - rowWidth / 2;
+      fields.push(makeField({
+        x: rowX,
+        y: y - size,
+        w: rowWidth,
+        h: size * 1.25,
+        pad: 18,
+        weight: 1,
+        kind: "heroText",
+      }));
+      return;
+    }
+    const glyphBoxWidth = Math.round(size * TOK.cover.glyphBoxScale);
+    const glyphGap = Math.round(size * TOK.cover.glyphGapScale);
     const rest = raw.replace(glyph || "", "").trimStart();
-    const restWidth = estimateTextWidth(rest, mainSize, "title");
+    const restWidth = estimateTextWidth(rest, size, "title");
     const rowWidth = glyphBoxWidth + glyphGap + restWidth;
     const rowX = centerX - rowWidth / 2;
     fields.push(makeField({
       x: rowX,
-      y: y - mainSize,
+      y: y - size,
       w: rowWidth,
-      h: mainSize * 1.25,
+      h: size * 1.25,
       pad: 18,
       weight: 1,
       kind: "heroText",
     }));
   };
-  buildRowField(sunLine, mainStartY);
-  buildRowField(moonLine, mainStartY + mainGap);
+  const heroLines = [
+    { text: sunLine, size: mainSize, offsetY: 0 },
+    { text: midLine, size: midSize, offsetY: TOK.cover.midOffsetY || 0 },
+    { text: moonLine, size: moonSize, offsetY: TOK.cover.moonOffsetY || 0 },
+  ].filter((line) => String(line?.text || "").trim());
+  const lineCount = heroLines.length;
+  const startY = lineCount >= 3 ? mainStartY - mainGap * 0.5 : mainStartY;
+  heroLines.forEach((line, idx) => {
+    buildRowField({
+      text: line.text,
+      y: startY + mainGap * idx + (line.offsetY || 0),
+      size: line.size,
+    });
+  });
 
-  const obsLines = wrapLines(observation, 20, 2);
+  const pressureList = Array.isArray(pressureLines) ? pressureLines.filter(Boolean) : [];
+  if (pressureList.length) {
+    const maxWidth = Math.max(...pressureList.map((l) => estimateTextWidth(l, TOK.cover.pressure.size, "body")));
+    fields.push(makeField({
+      x: centerX - maxWidth / 2,
+      y: TOK.cover.pressure.y - TOK.cover.pressure.size,
+      w: maxWidth,
+      h: TOK.cover.pressure.lineHeight * pressureList.length,
+      pad: 14,
+      weight: 0.8,
+      kind: "body",
+    }));
+  }
+
+  const obsLines = pressureList.length ? [] : wrapLines(observation, 20, 2);
   if (obsLines.length) {
     const obsWidth = Math.max(...obsLines.map((l) => estimateTextWidth(l, TOK.cover.observation.size, "body")));
     const obsBlockY = obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle;
@@ -330,10 +375,12 @@ function buildSlide1Svg({
   tagline = "今日の星の配置",
   subLabel = "",
   sunLine,
+  midLine,
   moonLine,
   sunSignKey,
   moonSignKey,
   observation,
+  pressureLines = [],
   swipeLabel = "Swipe →",
   space,
 } = {}) {
@@ -342,35 +389,47 @@ function buildSlide1Svg({
   const brandY = TOK.cover.brandY;
   const taglineY = TOK.cover.taglineY;
   const subLabelY = taglineY + TOK.subLabel.offsetY;
+  const subLabelSize = TOK.cover.subLabelSize || TOK.subLabel.size;
   const mainSize = TOK.cover.mainSize;
+  const midSize = TOK.cover.midSize || Math.round(mainSize * 0.5);
+  const moonSize = TOK.cover.moonSize || mainSize;
   const mainGap = TOK.cover.mainGap;
   const mainStartY = TOK.cover.mainStartY;
-  const glyphBoxWidth = Math.round(mainSize * TOK.cover.glyphBoxScale);
-  const glyphGap = Math.round(mainSize * TOK.cover.glyphGapScale);
+  const midOpacity = 0.6;
 
-  const buildCenteredRow = ({ text, y }) => {
+  const buildCenteredRow = ({ text, y, size = mainSize, color = colors.textMain, tracking = 0.02, opacity = 1, fontFamily = "SoraTitle" }) => {
     const raw = normalizeSymbol(text || "");
+    if (!raw) return "";
     const glyph = extractGlyph(raw);
+    if (!glyph) {
+      const opacityAttr = opacity < 1 ? ` opacity=\"${opacity}\"` : "";
+      return `<text x=\"${centerX}\" y=\"${y}\" text-anchor=\"middle\" fill=\"${color}\" font-size=\"${size}\" font-family=\"${fontFamily}\" letter-spacing=\"${tracking}em\"${opacityAttr}>${escapeXml(raw)}</text>`;
+    }
     const rest = raw.replace(glyph || "", "").trimStart();
-    const restWidth = measureTextWidth(rest, mainSize, "title");
+    const glyphBoxWidth = Math.round(size * TOK.cover.glyphBoxScale);
+    const glyphGap = Math.round(size * TOK.cover.glyphGapScale);
+    const restWidth = measureTextWidth(rest, size, "title");
     const rowWidth = glyphBoxWidth + glyphGap + restWidth;
     const rowX = centerX - rowWidth / 2;
     const glyphScale = glyph === "☉" ? 0.92 : glyph === "☽" ? 1.0 : 1.0;
-    return buildGlyphLine({
+    const lineSvg = buildGlyphLine({
       x: rowX,
       y,
       text: raw,
-      size: mainSize,
-      color: colors.textMain,
-      fontFamily: "SoraTitle",
-      letterSpacing: 0.02,
+      size,
+      color,
+      fontFamily,
+      letterSpacing: tracking,
       glyphBoxWidth,
       glyphGap,
       glyphScale,
     });
+    if (opacity < 1) return `<g opacity=\"${opacity}\">${lineSvg}</g>`;
+    return lineSvg;
   };
 
-  const obsLines = wrapLines(observation, 20, 2);
+  const pressureList = Array.isArray(pressureLines) ? pressureLines.filter(Boolean) : [];
+  const obsLines = pressureList.length ? [] : wrapLines(observation, 20, 2);
   const obsBlockY = obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle;
 
   const sunKey = detectSignKey({ signKey: sunSignKey, text: sunLine });
@@ -403,10 +462,45 @@ function buildSlide1Svg({
     `<text x=\"${centerX}\" y=\"${brandY}\" text-anchor=\"middle\" fill=\"${colors.textMain}\" font-size=\"${TOK.cover.brandSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cover.brandTracking}em\">${escapeXml(brand)}</text>`,
     `<text x=\"${centerX}\" y=\"${taglineY}\" text-anchor=\"middle\" fill=\"${colors.textSub}\" font-size=\"${TOK.cover.taglineSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.cover.taglineTracking}em\">${escapeXml(tagline)}</text>`,
     subLabel
-      ? `<text x=\"${centerX}\" y=\"${subLabelY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${TOK.subLabel.size}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
+      ? `<text x=\"${centerX}\" y=\"${subLabelY}\" text-anchor=\"middle\" fill=\"${colors.textDim}\" font-size=\"${subLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
       : "",
-    buildCenteredRow({ text: sunLine || "", y: mainStartY }),
-    buildCenteredRow({ text: moonLine || "", y: mainStartY + mainGap }),
+    (() => {
+      const heroLines = [
+        { text: sunLine, size: mainSize, color: colors.textMain, tracking: 0.02, opacity: 1, offsetY: 0 },
+        { text: midLine, size: midSize, color: colors.textDim, tracking: TOK.cover.midTracking, opacity: midOpacity, offsetY: TOK.cover.midOffsetY || 0, fontFamily: "SoraSoft" },
+        { text: moonLine, size: moonSize, color: colors.textMain, tracking: 0.02, opacity: 1, offsetY: TOK.cover.moonOffsetY || 0 },
+      ].filter((line) => String(line?.text || "").trim());
+      const lineCount = heroLines.length;
+      const startY = lineCount >= 3 ? mainStartY - mainGap * 0.5 : mainStartY;
+      return heroLines
+        .map((line, idx) => buildCenteredRow({
+          text: line.text || "",
+          y: startY + mainGap * idx + (line.offsetY || 0),
+          size: line.size,
+          color: line.color,
+          tracking: line.tracking,
+          opacity: line.opacity,
+          fontFamily: line.fontFamily,
+        }))
+        .join("");
+    })(),
+    pressureList.length
+      ? (() => {
+          const opacity = Number.isFinite(TOK.cover.pressure.opacity) ? TOK.cover.pressure.opacity : 0.62;
+          const block = textBlock({
+            x: centerX,
+            y: TOK.cover.pressure.y,
+            lines: pressureList,
+            size: TOK.cover.pressure.size,
+            lineHeight: TOK.cover.pressure.lineHeight,
+            color: colors.textDim,
+            fontFamily: "SoraBody",
+            letterSpacing: TOK.cover.pressure.tracking,
+            anchor: "middle",
+          });
+          return `<g opacity=\"${opacity}\">${block}</g>`;
+        })()
+      : "",
     textBlock({
       x: centerX,
       y: obsBlockY,

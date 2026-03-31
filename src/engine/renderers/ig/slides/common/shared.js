@@ -1,10 +1,10 @@
 "use strict";
 
 const sharp = require("sharp");
-const { IG_TOKENS } = require("../tokens/ig_tokens");
-const { fontFaceCss } = require("../assets/ig_fonts");
-const { buildSpaceBackground } = require("../../../shared/space_background");
-const { resolveColors } = require("../theme/ig_theme");
+const { IG_TOKENS } = require("../../tokens/ig_tokens");
+const { fontFaceCss } = require("../../assets/ig_fonts");
+const { buildSpaceBackground } = require("../../../../shared/space_background");
+const { resolveColors } = require("../../theme/ig_theme");
 
 const CANVAS = {
   width: 1080,

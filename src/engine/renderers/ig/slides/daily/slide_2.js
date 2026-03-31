@@ -1,9 +1,9 @@
 "use strict";
 
 const sharp = require("sharp");
-const { buildSoraWheelSvg } = require("../../../graphics/sora_wheel");
-const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("./shared");
-const { resolveColors } = require("../theme/ig_theme");
+const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
+const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
+const { resolveColors } = require("../../theme/ig_theme");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");

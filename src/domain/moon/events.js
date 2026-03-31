@@ -26,6 +26,27 @@ function fullMoonNameJaFromDate(date) {
   return names[month] || "";
 }
 
+function fullMoonNameEnFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const month = jst.getUTCMonth() + 1;
+  const names = {
+    1: "Wolf Moon",
+    2: "Snow Moon",
+    3: "Worm Moon",
+    4: "Pink Moon",
+    5: "Flower Moon",
+    6: "Strawberry Moon",
+    7: "Buck Moon",
+    8: "Sturgeon Moon",
+    9: "Harvest Moon",
+    10: "Hunter's Moon",
+    11: "Beaver Moon",
+    12: "Cold Moon",
+  };
+  return names[month] || "";
+}
+
 function getFullMoonForDate(asOfISO) {
   const base = asOfISO ? new Date(asOfISO) : new Date();
   if (Number.isNaN(base.getTime())) return null;
@@ -136,9 +157,13 @@ function formatMoonEventDisplay(ev = {}) {
   const phaseName = kind === "new" ? "新月" : "満月";
   const signJa = ev?.signJa || signLabelFromLon(dict, calcTransitLon("moon", date.toISOString()));
   const moonName = fullMoonNameJaFromDate(date);
+  const moonNameEn = fullMoonNameEnFromDate(date);
   const specialName = kind === "new"
     ? (isBlackMoon(date) ? "ブラックムーン" : "")
     : (isBlueMoon(date) ? "ブルームーン" : "");
+  const specialNameEn = kind === "new"
+    ? (isBlackMoon(date) ? "Black Moon" : "")
+    : (isBlueMoon(date) ? "Blue Moon" : "");
 
   const core = signJa && signJa !== "—" ? `${signJa}${phaseName}` : phaseName;
   let label = core;
@@ -160,8 +185,10 @@ function formatMoonEventDisplay(ev = {}) {
     phaseSymbol,
     phaseName,
     specialName,
+    specialNameEn,
     signJa,
     moonName,
+    moonNameEn,
     label,
     line1,
     line2,
