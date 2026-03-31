@@ -235,6 +235,27 @@ function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
   return null;
 }
 
+function resolveMoonEventSpaceConfig(event) {
+  if (!event || !event.kind) return null;
+  if (event.kind === "full") {
+    return {
+      starDensityScale: 0.65,
+      milkyIntensityScale: 0.75,
+      milkyThicknessScale: 0.9,
+      milkyDustScale: 0.75,
+    };
+  }
+  if (event.kind === "new") {
+    return {
+      starDensityScale: 1.55,
+      milkyIntensityScale: 1.35,
+      milkyThicknessScale: 1.25,
+      milkyDustScale: 1.45,
+    };
+  }
+  return null;
+}
+
 function formatElementCounts(elementCount = {}) {
   const fire = safeCount(elementCount.fire);
   const earth = safeCount(elementCount.earth);
@@ -1335,6 +1356,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
     moonResonanceAspect,
   });
   carousel.seedVariant = "moon_event";
+  carousel.spaceConfig = resolveMoonEventSpaceConfig(event);
 
   if (localOnly) {
     const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });

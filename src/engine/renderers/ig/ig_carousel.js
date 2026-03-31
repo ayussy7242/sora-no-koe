@@ -93,6 +93,20 @@ function buildAvoidKey(regions) {
   return hashString(raw);
 }
 
+function buildSpaceConfigKey(spaceConfig) {
+  if (!spaceConfig || typeof spaceConfig !== "object") return "default";
+  const entries = [
+    ["starDensityScale", spaceConfig.starDensityScale],
+    ["milkyIntensityScale", spaceConfig.milkyIntensityScale],
+    ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
+    ["milkyDustScale", spaceConfig.milkyDustScale],
+  ]
+    .filter(([, v]) => Number.isFinite(Number(v)))
+    .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`);
+  if (!entries.length) return "default";
+  return hashString(entries.join("|"));
+}
+
 function loadSpaceCache(cachePath) {
   try {
     if (!cachePath || !fs.existsSync(cachePath)) return null;
@@ -148,6 +162,7 @@ async function renderInstagramCarousel({
   slideSet = DEFAULT_SET_KEY,
   seedVariant,
   onSlide,
+  spaceConfig = null,
 } = {}) {
   const useCallback = typeof onSlide === "function";
   if (Array.isArray(slides) && slides.length) {
@@ -170,9 +185,11 @@ async function renderInstagramCarousel({
       seedLabel,
       width: CANVAS.width,
       height: CANVAS.height,
+      spaceConfig,
     };
     const worldWidth = CANVAS.width * slides.length;
     const avoidRegions = buildAvoidRegionsForSlides({ slides, width: CANVAS.width, renderers });
+    const spaceConfigKey = buildSpaceConfigKey(spaceConfig);
     const out = [];
     for (let i = 0; i < slides.length; i++) {
       const item = slides[i];
@@ -186,7 +203,7 @@ async function renderInstagramCarousel({
         if (cacheDir) {
           const localRegions = avoidRegions.filter((r) => r?.slideIndex === i);
           const avoidKey = buildAvoidKey(localRegions);
-          const key = [firstDateLabel || "date", slideSetKey, kind, i + 1, slides.length, renderer.variant, avoidKey].join("_");
+          const key = [firstDateLabel || "date", slideSetKey, kind, i + 1, slides.length, renderer.variant, avoidKey, spaceConfigKey].join("_");
           const cachePath = path.join(cacheDir, `${key}.json`);
           const cached = !force ? loadSpaceCache(cachePath) : null;
           if (cached) {
@@ -242,15 +259,16 @@ async function renderInstagramCarousel({
     variant: String(seedVariant || slideSetKey || DEFAULT_SET_KEY),
     prefixChannel: true,
   });
-  const baseArgs = { story, dateLabel, seedLabel, width: CANVAS.width, height: CANVAS.height };
-  const renderers = getSlideRenderers(slideSetKey);
-  const debug = isSpaceDebug();
-  const worldWidth = CANVAS.width * slideOrder.length;
-  const avoidRegions = buildAvoidRegionsForSlides({
-    slides: slideOrder.map((item) => ({ kind: item.key, data: item.data })),
-    width: CANVAS.width,
-    renderers,
-  });
+    const baseArgs = { story, dateLabel, seedLabel, width: CANVAS.width, height: CANVAS.height, spaceConfig };
+    const renderers = getSlideRenderers(slideSetKey);
+    const debug = isSpaceDebug();
+    const worldWidth = CANVAS.width * slideOrder.length;
+    const avoidRegions = buildAvoidRegionsForSlides({
+      slides: slideOrder.map((item) => ({ kind: item.key, data: item.data })),
+      width: CANVAS.width,
+      renderers,
+    });
+    const spaceConfigKey = buildSpaceConfigKey(spaceConfig);
 
   const out = [];
   for (let i = 0; i < slideOrder.length; i++) {
@@ -263,7 +281,7 @@ async function renderInstagramCarousel({
       if (cacheDir) {
         const localRegions = avoidRegions.filter((r) => r?.slideIndex === i);
         const avoidKey = buildAvoidKey(localRegions);
-        const key = [dateLabel || "date", slideSetKey, item.key, i + 1, slideOrder.length, renderer.variant, avoidKey].join("_");
+        const key = [dateLabel || "date", slideSetKey, item.key, i + 1, slideOrder.length, renderer.variant, avoidKey, spaceConfigKey].join("_");
         const cachePath = path.join(cacheDir, `${key}.json`);
         const cached = !force ? loadSpaceCache(cachePath) : null;
         if (cached) {

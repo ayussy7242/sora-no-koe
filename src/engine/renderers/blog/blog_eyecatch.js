@@ -4,6 +4,9 @@ const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
+const dict = require("../../content/dict");
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
+const { toDateLocalJST } = require("../../utils/time_utils");
 const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
@@ -389,6 +392,38 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset, space = 
   ].join("");
 }
 
+function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
+  if (!dateLocal) return null;
+  const events = buildNextMoonEvents(asOfISO, dict);
+  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
+  for (const ev of candidates) {
+    const evDateLocal = toDateLocalJST(ev.date);
+    if (evDateLocal === dateLocal) return formatMoonEventDisplay(ev);
+  }
+  return null;
+}
+
+function resolveMoonEventSpaceConfig(event) {
+  if (!event || !event.kind) return null;
+  if (event.kind === "full") {
+    return {
+      starDensityScale: 0.65,
+      milkyIntensityScale: 0.75,
+      milkyThicknessScale: 0.9,
+      milkyDustScale: 0.75,
+    };
+  }
+  if (event.kind === "new") {
+    return {
+      starDensityScale: 1.55,
+      milkyIntensityScale: 1.35,
+      milkyThicknessScale: 1.25,
+      milkyDustScale: 1.45,
+    };
+  }
+  return null;
+}
+
 async function renderBlogEyecatchImage({
   bgPath,
   bgMode = "image",
@@ -401,6 +436,7 @@ async function renderBlogEyecatchImage({
   format = "jpeg",
   quality = 92,
   preset = "C",
+  spaceConfig = null,
 } = {}) {
   const width = CANVAS_WIDTH;
   const height = CANVAS_HEIGHT;
@@ -417,6 +453,16 @@ async function renderBlogEyecatchImage({
       variant: `eyecatch-${bgVariant || "slide1"}`,
       prefixChannel: true,
     });
+    const wantsMoonAuto = /moon/i.test(String(bgVariant || ""));
+    const autoSpaceConfig = spaceConfig || (wantsMoonAuto
+      ? resolveMoonEventSpaceConfig(
+        detectMoonEventLocal({
+          dateLocal: seedDate,
+          asOfISO: story?.meta?.as_of || new Date().toISOString(),
+          dict,
+        })
+      )
+      : null);
     const space = buildSpaceBackground({
       story,
       dateLabel,
@@ -425,6 +471,7 @@ async function renderBlogEyecatchImage({
       height,
       variant: bgVariant || "slide1",
       avoidRegions,
+      spaceConfig: autoSpaceConfig,
     });
     const svg = buildEyecatchSvg({ width, height, line1, line2, line3, preset, space });
     let pipeline = sharp(Buffer.from(svg));

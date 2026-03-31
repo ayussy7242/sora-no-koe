@@ -111,13 +111,34 @@ function buildStarPopulationTheme({ theme, mood }) {
   };
 }
 
-function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions = [] }) {
+function normalizeSpaceConfig(spaceConfig) {
+  if (!spaceConfig || typeof spaceConfig !== "object") return null;
+  const pick = (value, min, max) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return clamp(num, min, max);
+  };
+  const out = {
+    starDensityScale: pick(spaceConfig.starDensityScale, 0.35, 2.8),
+    milkyIntensityScale: pick(spaceConfig.milkyIntensityScale, 0.4, 2.5),
+    milkyThicknessScale: pick(spaceConfig.milkyThicknessScale, 0.6, 2.4),
+    milkyDustScale: pick(spaceConfig.milkyDustScale, 0.4, 2.6),
+  };
+  return Object.values(out).some((v) => Number.isFinite(v)) ? out : null;
+}
+
+function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions = [], spaceConfig = null }) {
   const worldTheme = theme || computeSpaceTheme({ story, dateLabel, variant: "world" });
   const worldId = `world-${worldTheme.seed}`;
   const rand = mulberry32(worldTheme.seed);
   const streamRand = mulberry32(hashString(`${worldTheme.seed}_stream`));
   const nodeRand = mulberry32(hashString(`${worldTheme.seed}_nodes`));
   const voidRand = mulberry32(hashString(`${worldTheme.seed}_voids`));
+  const resolvedSpaceConfig = normalizeSpaceConfig(spaceConfig);
+  const starDensityScale = Number(resolvedSpaceConfig?.starDensityScale) || 1;
+  const milkyIntensityScale = Number(resolvedSpaceConfig?.milkyIntensityScale) || 1;
+  const milkyThicknessScale = Number(resolvedSpaceConfig?.milkyThicknessScale) || 1;
+  const milkyDustScale = Number(resolvedSpaceConfig?.milkyDustScale) || 1;
   const defs = [];
   const body = [];
 
@@ -470,7 +491,8 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   }
 
   const glowLayerIntensity = layerProfile.glow?.intensity ?? 0.12;
-  const milkyIntensity = clamp(0.12 + glowLayerIntensity * 0.6 + (mood.glowLevel ?? 0.5) * 0.05, 0.1, 0.32);
+  const milkyIntensityRaw = clamp(0.12 + glowLayerIntensity * 0.6 + (mood.glowLevel ?? 0.5) * 0.05, 0.1, 0.32);
+  const milkyIntensity = clamp(milkyIntensityRaw * milkyIntensityScale, 0.06, 0.6);
   const milky = buildMilkyBandLayer({
     rand: streamRand,
     width: worldWidth,
@@ -479,6 +501,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     color: todayPalette.glowColor || worldTheme.palette.primary.nebula[0],
     intensity: milkyIntensity,
     stream,
+    thicknessScale: milkyThicknessScale,
   });
   defs.push(milky.defs);
   body.push(milky.body);
@@ -493,10 +516,12 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     voids: voidMap.voids,
     color: todayPalette.dustTint || worldTheme.palette.secondary.nebula[0] || worldTheme.palette.primary.nebula[0],
     textFieldMask: textAvoidField,
+    countScale: milkyDustScale,
+    opacityScale: milkyDustScale,
   });
   body.push(milkyDust);
 
-  const densityScale = worldWidth / width;
+  const densityScale = (worldWidth / width) * starDensityScale;
 
   body.push(
     buildStarLayers({
@@ -603,6 +628,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     todayPalette,
     tone,
     milkyIntensity,
+    spaceConfig: resolvedSpaceConfig,
   };
 }
 

@@ -242,6 +242,11 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   const slideId = `${variant}-${world.worldId}-${offsetX}`;
   const defs = [];
   const overlay = [];
+  const spaceConfig = world?.spaceConfig || {};
+  const milkyThicknessScale = Number(spaceConfig?.milkyThicknessScale) || 1;
+  const milkyDustScale = Number(spaceConfig?.milkyDustScale) || 1;
+  const milkyDustOpacityScale = clamp(0.75 + milkyDustScale * 0.45, 0.6, 1.8);
+  const milkyDustSpreadScale = clamp(1 + (milkyDustScale - 1) * 0.2, 0.8, 1.4);
   const variantStrengthMap = {
     slide1: 1.0,
     moon: 0.5,
@@ -350,7 +355,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: flowScale,
-      thicknessScale: 1.6,
+      thicknessScale: 1.6 * milkyThicknessScale,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
@@ -373,7 +378,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: storyProfile.milkyScale,
-      thicknessScale: storyProfile.thickness,
+      thicknessScale: storyProfile.thickness * milkyThicknessScale,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
@@ -396,9 +401,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       densityAt: world.densityAt,
       voids: world.voids,
       color: palette.dustTint || world.theme?.palette?.secondary?.nebula?.[0] || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep,
-      countScale: storyProfile.dustScale,
-      opacityScale: 1.2,
-      spreadScale: 1.2,
+      countScale: storyProfile.dustScale * milkyDustScale,
+      opacityScale: 1.2 * milkyDustOpacityScale,
+      spreadScale: 1.2 * milkyDustSpreadScale,
       textFieldMask: world.textAvoidField,
     });
     if (storyDust) overlay.push(`<g>${storyDust}</g>`);
@@ -533,7 +538,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       color: milkyColor,
       intensity: Number.isFinite(Number(world.milkyIntensity)) ? world.milkyIntensity : 0.18,
       intensityScale: 1.35,
-      thicknessScale: 1.25,
+      thicknessScale: 1.25 * milkyThicknessScale,
       stream: {
         ...world.stream,
         x1: world.stream.x1 - offsetX,
@@ -556,9 +561,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       densityAt: world.densityAt,
       voids: world.voids,
       color: palette.dustTint || world.theme?.palette?.secondary?.nebula?.[0] || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep,
-      countScale: 1.25,
-      opacityScale: 1.15,
-      spreadScale: 1.15,
+      countScale: 1.25 * milkyDustScale,
+      opacityScale: 1.15 * milkyDustOpacityScale,
+      spreadScale: 1.15 * milkyDustSpreadScale,
       textFieldMask: world.textAvoidField,
     });
     if (milkyDustBoost) overlay.push(`<g>${milkyDustBoost}</g>`);
@@ -681,11 +686,25 @@ function buildSpaceBackground({
   worldWidth: worldWidthInput,
   offsetX: offsetXInput,
   avoidRegions = [],
+  spaceConfig = null,
 } = {}) {
   const worldWidth = Number.isFinite(Number(worldWidthInput)) ? Number(worldWidthInput) : width;
   const offsetX = clamp(offsetXInput || 0, 0, Math.max(0, worldWidth - width));
   const seedLog = String(seedLabel || "");
   const debug = isSpaceDebug();
+  const spaceConfigKey = (() => {
+    if (!spaceConfig || typeof spaceConfig !== "object") return "default";
+    const entries = [
+      ["starDensityScale", spaceConfig.starDensityScale],
+      ["milkyIntensityScale", spaceConfig.milkyIntensityScale],
+      ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
+      ["milkyDustScale", spaceConfig.milkyDustScale],
+    ]
+      .filter(([, v]) => Number.isFinite(Number(v)))
+      .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`);
+    if (!entries.length) return "default";
+    return hashString(entries.join("|"));
+  })();
   if (debug) {
     console.log("[space] seed", {
       seedLabel: seedLog,
@@ -693,6 +712,7 @@ function buildSpaceBackground({
       size: `${width}x${height}`,
       worldWidth,
       offsetX,
+      spaceConfigKey,
     });
   }
   const theme = computeSpaceTheme({ story, dateLabel, seedLabel, variant: "world" });
@@ -707,14 +727,14 @@ function buildSpaceBackground({
         return `${x},${y},${w},${h},${s},${feather}`;
       }).join("|"))
     : 0;
-  const worldKey = `${theme.seed}-${worldWidth}x${height}-${textKey}`;
+  const worldKey = `${theme.seed}-${worldWidth}x${height}-${textKey}-${spaceConfigKey}`;
 
   let world = WORLD_CACHE.get(worldKey);
   if (debug) {
     console.log("[space] world_cache", { hit: !!world, key: worldKey, seedLabel: seedLog });
   }
   if (!world) {
-    world = buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions });
+    world = buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions, spaceConfig });
     WORLD_CACHE.set(worldKey, world);
   }
 
