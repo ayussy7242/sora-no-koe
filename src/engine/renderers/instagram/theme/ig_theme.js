@@ -1,6 +1,6 @@
 "use strict";
 
-const { mixColor } = require("../color_utils");
+const { mixColor } = require("../../../shared/color");
 const { DEFAULT_COLORS, TEXT_BASE, BODY_GLOW_COLORS } = require("../tokens/common/colors");
 
 function resolveTextTheme(space) {

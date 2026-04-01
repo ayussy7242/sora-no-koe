@@ -1,7 +1,7 @@
 "use strict";
 
 const { hashString, mulberry32, clamp, lerp } = require("./utils");
-const { mixColor } = require("../../color_utils");
+const { mixColor } = require("../../shared/color");
 const { computeSpaceTheme, pickBaseColor, buildStarColorWeights, pickOpacityScale, pickMistColor } = require("./theme");
 const {
   buildVoidMap,

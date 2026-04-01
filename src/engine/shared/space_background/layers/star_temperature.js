@@ -1,7 +1,7 @@
 "use strict";
 
 const { clamp } = require("../utils");
-const { hexToRgb, rgbToHex, mixColor } = require("../../../color_utils");
+const { hexToRgb, rgbToHex, mixColor } = require("../../../shared/color");
 
 function sampleTempRange(rand, minK, maxK, skew = 1.2) {
   const u = rand();

@@ -16,7 +16,7 @@ const { buildMilkyBandLayer } = require("./layers/base");
 const { buildMilkyDustLayer } = require("./layers/dust");
 const { buildClusterField } = require("./layers/stars");
 const { renderStarSprite } = require("./layers/renderStarSprite");
-const { mixColor } = require("../../color_utils");
+const { mixColor } = require("../../shared/color");
 const { BACKGROUND_COLORS, DEFAULT_MOON_LAYOUT } = require("./constants");
 const { streamInfluenceAt, streamPoint } = require("./fields");
 

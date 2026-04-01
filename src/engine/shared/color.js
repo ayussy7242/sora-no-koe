@@ -1,6 +1,6 @@
 "use strict";
 
-const { clamp } = require("./shared/space_background/utils");
+const { clamp } = require("../../utils/data/math");
 
 function hexToRgb(hex) {
   const raw = String(hex || "").replace("#", "").trim();

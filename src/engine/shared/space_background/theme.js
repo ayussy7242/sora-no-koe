@@ -11,7 +11,7 @@ const {
   BACKGROUND_COLORS,
 } = require("./constants");
 const { clamp, hashString, mulberry32 } = require("./utils");
-const { mixColor } = require("../../color_utils");
+const { mixColor } = require("../../shared/color");
 
 function pickPalette(topElement, secondaryElement, rand) {
   const primaryBase = ELEMENT_PALETTES[topElement] || ELEMENT_PALETTES.mixed;
