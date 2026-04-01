@@ -102,7 +102,7 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const observationLines = wrapLines(observation, 26, 5);
+  const observationLines = wrapLines(observation, 26, 999);
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
     fields.push(makeField({
@@ -289,7 +289,7 @@ function buildSlideMoonSvg({
   const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
-  const observationLines = wrapLines(observation, 26, 5);
+  const observationLines = wrapLines(observation, 26, 999);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
