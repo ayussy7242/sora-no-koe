@@ -6,7 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_TODAY,
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const { buildTodayMoonInfo, findNextMoonSignChangeDetailed } = require("../../../../domain/moon_info");
 const { formatDateYmdHm } = require("../../../../domain/astro");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");

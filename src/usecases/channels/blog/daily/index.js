@@ -9,7 +9,7 @@ const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../..
 const { buildSoraWheelSvg } = require("../../../../engine/graphics/sora_wheel");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const {
   BLOG_BLOCKS_USER_GUIDE,
   BLOG_BLOCK_SECTION_GUIDE,

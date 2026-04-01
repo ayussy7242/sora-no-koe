@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./utils");

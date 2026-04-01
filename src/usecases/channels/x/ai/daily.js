@@ -1,7 +1,7 @@
 "use strict";
 
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_SORA_USER_GUIDE } = require("../../../../content/prompts/sns/x/daily");
 const { signJa } = require("../../../../presenters/format/format/common");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");

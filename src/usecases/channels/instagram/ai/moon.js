@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon_info");
 const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const { runAiTextPipeline } = require("../../../ai_text");

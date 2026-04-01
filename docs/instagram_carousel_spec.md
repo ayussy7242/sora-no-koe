@@ -111,12 +111,12 @@ Wrap rules:
 
 AI integration (optional):
 - If `story.outputs.ig.carousel.slide3_text` (or `story.outputs.ig.resonance_text`) exists, use it as `structure`.
-- The IG resonance prompt lives in `src/content/prompts/sns/instagram/ig.js` as `SORA_AI_USER_GUIDE_IG_RESONANCE`.
+- The IG resonance prompt lives in `src/content/prompts/sns/instagram/index.js` as `SORA_AI_USER_GUIDE_IG_RESONANCE`.
   - 4文固定 / 2段落固定（1段落目2文＋2段落目2文）
   - 120〜140字目安（最大150字）
 
 Observation prompt (optional):
-- The IG observation prompt lives in `src/content/prompts/sns/instagram/ig.js` as `SORA_AI_USER_GUIDE_IG_OBSERVATION`.
+- The IG observation prompt lives in `src/content/prompts/sns/instagram/index.js` as `SORA_AI_USER_GUIDE_IG_OBSERVATION`.
 - 1文のみ / 18〜28文字目安（最大32文字） / 句点・改行なし / 「〜配置」または体言止めで閉じる
 
 Storage design:

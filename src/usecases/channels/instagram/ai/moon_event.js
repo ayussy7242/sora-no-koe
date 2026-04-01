@@ -8,7 +8,7 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
 const { moonSignAtIso } = require("../../../../domain/moon/sign");

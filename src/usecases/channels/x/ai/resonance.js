@@ -1,7 +1,7 @@
 "use strict";
 
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_RESONANCE_USER_GUIDE } = require("../../../../content/prompts/sns/x/resonance");
 const { pickPrimaryResonanceAspect } = require("../../../../domain/resonance");
 const { generateXAiWithRetry, fallbackFactory } = require("./common");

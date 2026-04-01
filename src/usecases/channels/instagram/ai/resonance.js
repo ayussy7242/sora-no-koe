@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
-} = require("../../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");

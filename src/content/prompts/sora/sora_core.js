@@ -25,7 +25,7 @@ const {
   SORA_AI_USER_GUIDE_ITEM,
   SORA_AI_USER_GUIDE_SORA,
   SORA_AI_USER_GUIDE_PERSONAL,
-} = require("./today_sora");
+} = require("../line/daily/today");
 const {
   SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
   SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,

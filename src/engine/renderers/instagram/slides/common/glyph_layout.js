@@ -1,7 +1,7 @@
 "use strict";
 
 const { createGlyphLayout, PATH_GLYPHS } = require("../../layout/ig_layout");
-const { FONT_FILES, resolveFontPath } = require("../../assets/ig_fonts");
+const { FONT_FILES, resolveFontPath } = require("../../assets/fonts");
 
 const glyphLayout = createGlyphLayout({ resolveFontPath, FONT_FILES });
 

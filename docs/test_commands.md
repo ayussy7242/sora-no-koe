@@ -102,10 +102,10 @@ AS_OF=$(date +"%Y-%m-%dT%H:%M:%S+09:00")
 DOTENV_CONFIG_PATH=config/.env node -r dotenv/config -e '
 const dict=require("./src/content/dict");
 const { createChatCompletion }=require("./src/integrations/openai/openai_client");
-const { buildIgMoonPrompt }=require("./src/usecases/channels/ig/ig_moon_ai");
+const { buildIgMoonPrompt }=require("./src/usecases/channels/instagram/ai/moon");
 const { runAiTextPipeline }=require("./src/usecases/ai_text");
 const { PRESETS }=require("./src/usecases/ai_text/presets");
-const { SORA_AI_SYSTEM_PROMPT_COMMON }=require("./src/content/prompts/sora/sora_ai_prompts");
+const { SORA_AI_SYSTEM_PROMPT_COMMON }=require("./src/content/prompts/sora/sora_core");
 
 (async()=>{
   const asOf=process.env.AS_OF || process.env.AS_OF_FALLBACK;
@@ -143,11 +143,11 @@ DOTENV_CONFIG_PATH=config/.env node -r dotenv/config -e '
 const fs=require("fs");
 const dict=require("./src/content/dict");
 const { createChatCompletion }=require("./src/integrations/openai/openai_client");
-const { buildIgResonancePrompt }=require("./src/usecases/channels/ig/ig_resonance_ai");
+const { buildIgResonancePrompt }=require("./src/usecases/channels/instagram/ai/resonance");
 const { ensureIgOutputs }=require("./src/usecases/story/output_helpers");
 const { runAiTextPipeline }=require("./src/usecases/ai_text");
 const { PRESETS }=require("./src/usecases/ai_text/presets");
-const { SORA_AI_SYSTEM_PROMPT_COMMON }=require("./src/content/prompts/sora/sora_ai_prompts");
+const { SORA_AI_SYSTEM_PROMPT_COMMON }=require("./src/content/prompts/sora/sora_core");
 
 const data=JSON.parse(fs.readFileSync("/tmp/story_ig.json","utf8"));
 const story=data.story || data;
@@ -187,11 +187,11 @@ BASE="$BASE" DATE_LOCAL="$DATE_LOCAL" AS_OF="$AS_OF" DOTENV_CONFIG_PATH=config/.
 node -r dotenv/config <<'NODE'
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("./src/domain/moon");
 const { toDateLocalJST } = require("./src/utils/time_utils");
-const { buildMoonEventAirPrompt } = require("./src/usecases/channels/ig/ig_moon_event_ai");
+const { buildMoonEventAirPrompt } = require("./src/usecases/channels/instagram/ai/moon_event");
 const { createChatCompletion } = require("./src/integrations/openai/openai_client");
 const { runAiTextPipeline } = require("./src/usecases/ai_text");
 const { PRESETS } = require("./src/usecases/ai_text/presets");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("./src/content/prompts/sora/sora_ai_prompts");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("./src/content/prompts/sora/sora_core");
 const dict = require("./src/content/dict");
 
 (async()=>{
