@@ -27,7 +27,7 @@ const {
 const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/moon_event");
 const { SPEC } = require("../../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
-const { weightForBody } = require("../../../../domain/touch_point_scoring");
+const { weightForBody } = require("../../../../domain/touch_point/scoring");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -35,8 +35,8 @@ const {
   formatDateYmd,
   formatDateYmdHm,
   findNextMoonPhase,
-} = require("../../../../domain/astro_compute");
-const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../../domain/aspect_proximity");
+} = require("../../../../domain/astro/compute");
+const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../../domain/aspect/proximity");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../../domain/canonical");

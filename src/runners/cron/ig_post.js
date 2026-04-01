@@ -12,7 +12,7 @@ const {
   buildNextMoonEvents,
   orderedMoonEvents,
 } = require("../../domain/moon");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro/compute");
 const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon/phase_select");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");

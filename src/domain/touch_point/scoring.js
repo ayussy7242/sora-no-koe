@@ -1,12 +1,12 @@
 "use strict";
 
-const { normalizeBodyKey } = require("./canonical");
+const { normalizeBodyKey } = require("../canonical");
 const {
   PROFILES,
   DEFAULT_PROFILE,
   weightForBody: weightForBodyRaw,
   scoreForAspect: scoreForAspectRaw,
-} = require("../config/score_profiles");
+} = require("../../config/score_profiles");
 
 function weightForBody(bodyKey, profile = DEFAULT_PROFILE) {
   return weightForBodyRaw(normalizeBodyKey(bodyKey), profile);

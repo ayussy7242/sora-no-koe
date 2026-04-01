@@ -4,9 +4,9 @@ const { isRetrograde, buildRetrogradeMap } = require("../../../domain/astro/retr
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { SPEC } = require("../../../config/sora_spec");
 const { resolveChannelConfig, resolveProximityConfig } = require("../../../config/aspect_channel_config");
-const { weightForBody, scoreForAspect } = require("../../../domain/touch_point_scoring");
-const { computeOrbStats } = require("../../../domain/aspect_stats");
-const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point_selection");
+const { weightForBody, scoreForAspect } = require("../../../domain/touch_point/scoring");
+const { computeOrbStats } = require("../../../domain/aspect/stats");
+const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point/selection");
 const { EXTENDED_PLANETS } = require("../../../domain/astro/constants");
 const {
   computeTokyoAscDeg,
@@ -18,8 +18,8 @@ const {
   findRetrogradeWindow,
   formatDateYmdHm,
   pickApplyingUpcomingAspects,
-} = require("../../../domain/astro_compute");
-const { refinePeakTime } = require("../../../domain/aspect_proximity");
+} = require("../../../domain/astro/compute");
+const { refinePeakTime } = require("../../../domain/aspect/proximity");
 const { normalizeAspectKey } = require("../../../domain/canonical");
 const {
   glyphForBody,

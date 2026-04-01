@@ -1,6 +1,6 @@
 "use strict";
 
-const { normalizeBodyKey, normalizeAspectKey } = require("./canonical");
+const { normalizeBodyKey, normalizeAspectKey } = require("../canonical");
 
 function scoreTouchPoints(pool, { orbLimit, scoreForAspect } = {}) {
   if (!Array.isArray(pool)) return [];

@@ -1,6 +1,6 @@
 "use strict";
 
-const { calcTransitLon } = require("../astro_compute");
+const { calcTransitLon } = require("../astro/compute");
 const { signKeyFromLon, signLabelJa, degInSignFromLon } = require("./labels");
 
 function moonSignAtIso({ dict, iso }) {

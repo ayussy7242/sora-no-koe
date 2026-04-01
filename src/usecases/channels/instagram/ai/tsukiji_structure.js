@@ -6,7 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
 } = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey, normalizeAspectKey } = require("../../../../domain/canonical");
-const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../../domain/tsukiji_public");
+const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../../domain/tsukiji/public");
 const { signJa, aspectInfo } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { runAiTextPipeline } = require("../../../ai_text");

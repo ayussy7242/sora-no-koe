@@ -8,8 +8,8 @@
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../format/format/common");
-const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro_compute");
-const { findTransitWindowInRange } = require("../../domain/aspect_proximity");
+const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro/compute");
+const { findTransitWindowInRange } = require("../../domain/aspect/proximity");
 const { formatJstYmd, formatJstTimeLabel } = require("../../utils/time");
 const { joinLines } = require("../../utils/text/format");
 const { toHashtag } = require("../../utils/text/hashtag");
@@ -66,7 +66,7 @@ function monthBoundsFromKey(monthKey) {
 
 function findRetrogradeRangeInMonth(bodyKey, monthKey) {
   const { isRetrograde } = require("../../domain/astro/retrograde");
-  const { toIsoAtJstNoon } = require("../../domain/astro_compute");
+  const { toIsoAtJstNoon } = require("../../domain/astro/compute");
   const bounds = monthBoundsFromKey(monthKey);
   if (!bounds) return null;
   const { start, end } = bounds;

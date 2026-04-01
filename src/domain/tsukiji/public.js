@@ -1,12 +1,12 @@
 "use strict";
 
-const dict = require("../content/dict");
-const { resolveProximityConfig } = require("../config/aspect_channel_config");
-const { findTransitWindowAroundNow, isApplying } = require("./aspect_proximity");
-const { normalizeBodyKey, normalizeAspectKey } = require("./canonical");
+const dict = require("../../content/dict");
+const { resolveProximityConfig } = require("../../config/aspect_channel_config");
+const { findTransitWindowAroundNow, isApplying } = require("../aspect/proximity");
+const { normalizeBodyKey, normalizeAspectKey } = require("../canonical");
 let bodyLabelJa = () => "";
 try {
-  ({ bodyLabelJa } = require("../presenters/shared/text/tokens"));
+  ({ bodyLabelJa } = require("../../presenters/shared/text/tokens"));
 } catch (_err) {
   bodyLabelJa = (dictObj, key) => {
     const k = String(key || "").toLowerCase();

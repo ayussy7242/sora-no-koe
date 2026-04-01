@@ -1,7 +1,7 @@
 "use strict";
 
-const { normalizeBodyKey } = require("./canonical");
-const { absAngularDistance, calcTransitLon, toIsoAtJstNoon, norm360 } = require("./astro_compute");
+const { normalizeBodyKey } = require("../canonical");
+const { absAngularDistance, calcTransitLon, toIsoAtJstNoon, norm360 } = require("../astro/compute");
 
 const DEFAULT_SIGN_ORDER = [
   "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",

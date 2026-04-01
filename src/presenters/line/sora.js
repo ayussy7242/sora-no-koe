@@ -3,7 +3,7 @@
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveChannelConfig } = require("../../config/aspect_channel_config");
-const { scoreForAspect } = require("../../domain/touch_point_scoring");
+const { scoreForAspect } = require("../../domain/touch_point/scoring");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 const {
@@ -13,13 +13,13 @@ const {
   formatAspectDisplay,
   formatElementModalityLines,
 } = require("../format/format/common");
-const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
+const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro/compute");
 const {
   listWithOrb,
   filterWithinOrb,
   sortByOrb,
   minByOrb,
-} = require("../../domain/aspect_selection");
+} = require("../../domain/aspect/selection");
 const { formatTodayMoonLines } = require("../../domain/moon");
 
 async function renderSoraLine(story, deps = {}) {

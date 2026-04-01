@@ -2,7 +2,7 @@
 
 const dictDefault = require("../../content/dict");
 const { swisseph } = require("../../config/swisseph");
-const { jdUtFromIso, calcTransitLon, absAngularDistance } = require("../astro_compute");
+const { jdUtFromIso, calcTransitLon, absAngularDistance } = require("../astro/compute");
 const { SYNODIC_MONTH_DAYS, KM_PER_AU } = require("./constants");
 const {
   astroPhaseFromDeg,

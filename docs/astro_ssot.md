@@ -91,7 +91,7 @@ Therefore coordinates are **geocentric**.
 
 ### Additional Note
 There is a separate Tokyo ASC calculation using Whole Sign (`"W"`) in
-`src/domain/astro_compute.js`. This is **not** the natal house system.
+`src/domain/astro/compute.js`. This is **not** the natal house system.
 
 ## Time Handling
 - All calculations use **UTC** with `swe_julday(...)`.
@@ -103,7 +103,7 @@ Keep all channels consistent by centralizing aspect proximity logic in domain
 code and limiting channels to condition-only configuration.
 
 ### Roles
-- Logic SSOT: `src/domain/aspect_proximity.js`
+- Logic SSOT: `src/domain/aspect/proximity.js`
   - orb calculation
   - applying/separating判定
   - peak補正
@@ -124,7 +124,7 @@ code and limiting channels to condition-only configuration.
 
 ### Extension Rules
 - 新チャンネル追加時は **まず config を作る**
-- 条件追加は **config 優先**。必要なら最後に `aspect_proximity.js` を拡張
+- 条件追加は **config 優先**。必要なら最後に `aspect/proximity.js` を拡張
 
 ### Current Adoption (as of this doc)
 - `src/presenters/line/sora.js`
@@ -132,7 +132,7 @@ code and limiting channels to condition-only configuration.
 - `src/usecases/channels/line/paid_blocks.js`
 - `src/presenters/x/thread.js`
 - `src/usecases/channels/blog/blog_daily.js`
-- `src/domain/tsukiji_public.js`
+- `src/domain/tsukiji/public.js`
 
 ## Known Risk: Boundary Rounding
 Current sign determination is based on **rounded** longitude. Near sign

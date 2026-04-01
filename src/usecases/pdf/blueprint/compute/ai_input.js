@@ -1,6 +1,6 @@
 "use strict";
 
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
 const { norm360 } = require("./calc");
 const { buildNatalAspects } = require("./natal_aspects");
 

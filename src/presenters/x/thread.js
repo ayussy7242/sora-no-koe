@@ -18,9 +18,9 @@ const {
   formatAspectDisplay,
   formatElementModalityLines,
 } = require("../format/format/common");
-const { listWithOrb, sortByOrb } = require("../../domain/aspect_selection");
-const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
-const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
+const { listWithOrb, sortByOrb } = require("../../domain/aspect/selection");
+const { pickApplyingUpcomingAspects } = require("../../domain/astro/compute");
+const { isApplying, refinePeakTime } = require("../../domain/aspect/proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon");
 const { formatMonthDayHm } = require("../../utils/time");
 const { joinLines } = require("../../utils/text/format");

@@ -1,7 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../canonical");
-const { listWithOrb } = require("../aspect_selection");
+const { listWithOrb } = require("../aspect/selection");
 const { CORE_PLANETS, DEEP_BODIES } = require("../astro/constants");
 const { aspectInfo, signJa } = require("../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../presenters/shared/text/tokens");

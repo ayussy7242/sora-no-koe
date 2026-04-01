@@ -26,7 +26,7 @@ function renderThreads(story, deps = {}) {
     const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../format/format/channel_common");
     const { formatJstYmd } = require("../../utils/time");
     const { glyphForBody, signJa } = require("../format/format/common");
-    const { findRetrogradeWindow } = require("../../domain/astro_compute");
+    const { findRetrogradeWindow } = require("../../domain/astro/compute");
 
     const dateLabel = formatDateLabel(story);
     const moonSignJa = getMoonSignJa(story);

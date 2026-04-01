@@ -38,7 +38,7 @@ const {
   pickApplyingUpcomingAspects,
   findTransitTransitWindow,
   formatDateYmdHm,
-} = require("../../domain/astro_compute");
+} = require("../../domain/astro/compute");
 const { normalizeAspectKey } = require("../../domain/canonical");
 
 function createStoryService({

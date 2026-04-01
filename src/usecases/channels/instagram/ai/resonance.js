@@ -6,7 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_RESONANCE,
 } = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { safeTrim } = require("../../../../utils/text/normalize");

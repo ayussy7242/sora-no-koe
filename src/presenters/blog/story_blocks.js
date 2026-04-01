@@ -18,7 +18,7 @@ const {
   computeTokyoAscDeg,
   signIndexFromKey,
   houseNumberForSignIndex,
-} = require("../../domain/astro_compute");
+} = require("../../domain/astro/compute");
 const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 
 const BODY_ORDER = EXTENDED_PLANETS;

@@ -4,8 +4,8 @@ const { planetJa } = require("../format/utils/ai_utils");
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveChannelConfig } = require("../../config/aspect_channel_config");
-const { scoreForAspect } = require("../../domain/touch_point_scoring");
-const { computeOrbStats } = require("../../domain/aspect_stats");
+const { scoreForAspect } = require("../../domain/touch_point/scoring");
+const { computeOrbStats } = require("../../domain/aspect/stats");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const {
   formatDateLabel,
@@ -18,7 +18,7 @@ const {
   scoreTouchPoints,
   sortScoredTouchPoints,
   dedupeTouchPoints,
-} = require("../../domain/touch_point_selection");
+} = require("../../domain/touch_point/selection");
 
 const FREE_EXCLUDED_BODY_KEYS = new Set([
   "vertex",

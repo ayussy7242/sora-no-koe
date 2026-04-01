@@ -1,6 +1,6 @@
 "use strict";
 
-const { norm360 } = require("../astro_compute");
+const { norm360 } = require("../astro/compute");
 
 let signLabelJa = () => "";
 try {
