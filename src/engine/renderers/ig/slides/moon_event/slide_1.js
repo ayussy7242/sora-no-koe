@@ -120,6 +120,7 @@ const CONSTELLATION_POINTS = {
 
 const COVER_LAYOUT = Object.freeze({
   shiftY: 84,
+  blockShiftY: 24,
   brandExtraY: 32,
   gapScale: 0.86,
   subLabelOffsetScale: 0.85,
@@ -129,7 +130,7 @@ const COVER_LAYOUT = Object.freeze({
   observationTrackingScale: 0.8,
   pressureLineHeightScale: 0.86,
   observationLineHeightScale: 0.9,
-  pressureOffsetY: -24,
+  pressureOffsetY: -48,
   dateOffsetY: 16,
 });
 
@@ -232,8 +233,8 @@ function getAvoidRegions({
 } = {}) {
   const fields = [];
   const centerX = CANVAS.width / 2;
-  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.brandExtraY;
-  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY;
+  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY;
+  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY;
   const mainSize = TOK.cover.mainSize;
   const midSize = TOK.cover.midSize || Math.round(mainSize * 0.5);
   const moonSize = TOK.cover.moonSize || mainSize;
@@ -402,8 +403,8 @@ function buildSlide1Svg({
 } = {}) {
   const colors = resolveColors(space);
   const centerX = CANVAS.width / 2;
-  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.brandExtraY;
-  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY;
+  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY;
+  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY;
   const subLabelY = taglineY + Math.round(TOK.subLabel.offsetY * COVER_LAYOUT.subLabelOffsetScale);
   const subLabelSize = TOK.cover.subLabelSize || TOK.subLabel.size;
   const mainSize = TOK.cover.mainSize;
