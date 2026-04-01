@@ -67,10 +67,12 @@ function buildTextAvoidField({ avoidRegions }) {
   return (x, y) => textAvoidInfluenceAt(x, y, avoidRegions);
 }
 
-function buildVoidMap({ rand, width, height }) {
-  const count = 3 + Math.floor(rand() * 3);
+function buildVoidMap({ rand, width, height, count = null }) {
+  const resolved = Number.isFinite(Number(count))
+    ? Math.max(0, Math.round(Number(count)))
+    : (3 + Math.floor(rand() * 3));
   const voids = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < resolved; i++) {
     voids.push({
       x: width * (0.15 + rand() * 0.7),
       y: height * (0.15 + rand() * 0.7),

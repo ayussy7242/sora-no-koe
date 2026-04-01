@@ -101,9 +101,17 @@ function buildSpaceConfigKey(spaceConfig) {
     ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
     ["milkyDustScale", spaceConfig.milkyDustScale],
     ["whiteMix", spaceConfig.whiteMix],
+    ["moonEventKind", spaceConfig.moonEventKind],
+    ["moonEventStyle", spaceConfig.moonEventStyle],
+    ["moonEventCenter", spaceConfig.moonEventCenter],
+    ["moonEventIntensity", spaceConfig.moonEventIntensity],
   ]
-    .filter(([, v]) => Number.isFinite(Number(v)))
-    .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`);
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => {
+      const num = Number(v);
+      if (Number.isFinite(num)) return `${k}:${num.toFixed(3)}`;
+      return `${k}:${String(v)}`;
+    });
   if (!entries.length) return "default";
   return hashString(entries.join("|"));
 }

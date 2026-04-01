@@ -380,6 +380,7 @@ function buildStarLayers({
   safeZone,
   densityScale = 1,
   textFieldMask = null,
+  skipProfiles = null,
 }) {
   const seeds = sampleStarPopulation({
     rand,
@@ -408,7 +409,10 @@ function buildStarLayers({
     retroCount,
   });
 
-  const parts = seeds.map((seed) =>
+  const filtered = Array.isArray(skipProfiles) && skipProfiles.length
+    ? seeds.filter((seed) => !skipProfiles.includes(seed.profile))
+    : seeds;
+  const parts = filtered.map((seed) =>
     renderStarSprite({
       x: seed.x,
       y: seed.y,

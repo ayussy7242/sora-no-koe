@@ -126,7 +126,23 @@ function normalizeSpaceConfig(spaceConfig) {
     milkyDustScale: pick(spaceConfig.milkyDustScale, 0.4, 2.6),
     whiteMix: pick(spaceConfig.whiteMix, 0, 0.85),
   };
-  return Object.values(out).some((v) => Number.isFinite(v)) ? out : null;
+  const extra = {};
+  if (spaceConfig.moonEventKind) {
+    extra.moonEventKind = String(spaceConfig.moonEventKind).toLowerCase();
+  }
+  if (spaceConfig.moonEventStyle) {
+    extra.moonEventStyle = String(spaceConfig.moonEventStyle).toLowerCase();
+  }
+  if (spaceConfig.moonEventCenter) {
+    extra.moonEventCenter = String(spaceConfig.moonEventCenter).toLowerCase();
+  }
+  if (Number.isFinite(Number(spaceConfig.moonEventIntensity))) {
+    extra.moonEventIntensity = clamp(Number(spaceConfig.moonEventIntensity), 0.2, 2.5);
+  }
+  const hasNumeric = Object.values(out).some((v) => Number.isFinite(v));
+  const hasExtra = Object.keys(extra).length > 0;
+  if (!hasNumeric && !hasExtra) return null;
+  return { ...out, ...extra };
 }
 
 function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, avoidRegions = [], spaceConfig = null }) {
@@ -220,7 +236,8 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   });
 
   const textAvoidField = buildTextAvoidField({ avoidRegions });
-  const voidMap = buildVoidMap({ rand: voidRand, width: worldWidth, height });
+  const voidCount = resolvedSpaceConfig?.moonEventKind === "full" ? 0 : null;
+  const voidMap = buildVoidMap({ rand: voidRand, width: worldWidth, height, count: voidCount });
   const anchorClusters = buildAnchorClusters({
     rand: nodeRand,
     width: worldWidth,
@@ -359,6 +376,19 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     };
   }
   const populationTheme = buildStarPopulationTheme({ theme: worldTheme, mood });
+  const moonEventKind = String(resolvedSpaceConfig?.moonEventKind || "");
+  const moonFull = moonEventKind === "full";
+  const moonNew = moonEventKind === "new";
+  if (moonFull) {
+    populationTheme.heroBoost = clamp(populationTheme.heroBoost * 0.25, 0.04, 0.22);
+    populationTheme.isolatedBrightBias = clamp(populationTheme.isolatedBrightBias * 0.35, 0.08, 0.45);
+    populationTheme.haloSoftness = clamp(populationTheme.haloSoftness * 0.35, 0.2, 0.9);
+    populationTheme.todayColorMix = clamp(populationTheme.todayColorMix * 0.55, 0.18, 0.5);
+  } else if (moonNew) {
+    populationTheme.heroBoost = clamp(populationTheme.heroBoost * 1.1, 0.04, 0.22);
+    populationTheme.isolatedBrightBias = clamp(populationTheme.isolatedBrightBias * 1.1, 0.08, 0.45);
+    populationTheme.haloSoftness = clamp(populationTheme.haloSoftness * 1.05, 0.2, 0.9);
+  }
   const layerProfile = todayPalette.layers || {};
   const colorPresence = clamp(Number(todayPalette.colorPresence ?? 1), 1, 2.6);
   const haloLayerMix = layerProfile.starHalo?.intensity ?? null;
@@ -422,8 +452,12 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     safeZones: slideSafeZones,
     textFieldMask: textAvoidField,
   });
-  const primaryOpacityScale = pickOpacityScale(worldTheme.topElement);
-  const secondaryOpacityScale = pickOpacityScale(worldTheme.secondaryElement);
+  let primaryOpacityScale = pickOpacityScale(worldTheme.topElement);
+  let secondaryOpacityScale = pickOpacityScale(worldTheme.secondaryElement);
+  if (moonFull) {
+    primaryOpacityScale *= 0.55;
+    secondaryOpacityScale *= 0.55;
+  }
 
   const deep = buildDeepSpaceLayer({
     rand,
@@ -491,29 +525,15 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   });
   body.push(microSharpLayer);
 
-  const clusterField = buildClusterField({
-    rand: mulberry32(hashString(`${worldTheme.seed}_clusters`)),
-    width: worldWidth,
-    height,
-    clusters: [
-      ...anchorClustersAll,
-      ...deepFieldRegions.map((r) => ({ ...r, boost: 1.1, laneShift: (nodeRand() - 0.5) * 0.6 })),
-    ],
-    colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
-    avoidRect: safeZone,
-    voids: voidMap.voids,
-    tone,
-    clusterTightness: populationTheme.clusterTightness,
-    clusterFragmentation: populationTheme.clusterFragmentation,
-    textFieldMask: textAvoidField,
-  });
-  body.push(clusterField);
-  if (slide1ExtraClusters.length) {
-    const slide1ExtraClusterLayer = buildClusterField({
-      rand: mulberry32(hashString(`${worldTheme.seed}_slide1_extra_cluster_field`)),
+  if (!moonFull) {
+    const clusterField = buildClusterField({
+      rand: mulberry32(hashString(`${worldTheme.seed}_clusters`)),
       width: worldWidth,
       height,
-      clusters: slide1ExtraClusters,
+      clusters: [
+        ...anchorClustersAll,
+        ...deepFieldRegions.map((r) => ({ ...r, boost: 1.1, laneShift: (nodeRand() - 0.5) * 0.6 })),
+      ],
       colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
       avoidRect: safeZone,
       voids: voidMap.voids,
@@ -521,43 +541,63 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
       clusterTightness: populationTheme.clusterTightness,
       clusterFragmentation: populationTheme.clusterFragmentation,
       textFieldMask: textAvoidField,
-      haloMix: 0.48,
     });
-    body.push(slide1ExtraClusterLayer);
+    body.push(clusterField);
+    if (slide1ExtraClusters.length) {
+      const slide1ExtraClusterLayer = buildClusterField({
+        rand: mulberry32(hashString(`${worldTheme.seed}_slide1_extra_cluster_field`)),
+        width: worldWidth,
+        height,
+        clusters: slide1ExtraClusters,
+        colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
+        avoidRect: safeZone,
+        voids: voidMap.voids,
+        tone,
+        clusterTightness: populationTheme.clusterTightness,
+        clusterFragmentation: populationTheme.clusterFragmentation,
+        textFieldMask: textAvoidField,
+        haloMix: 0.48,
+      });
+      body.push(slide1ExtraClusterLayer);
+    }
   }
 
-  const glowLayerIntensity = layerProfile.glow?.intensity ?? 0.12;
-  const milkyIntensityRaw = clamp(0.12 + glowLayerIntensity * 0.6 + (mood.glowLevel ?? 0.5) * 0.05, 0.1, 0.32);
-  const milkyIntensity = clamp(milkyIntensityRaw * milkyIntensityScale, 0.06, 0.6);
-  const milky = buildMilkyBandLayer({
-    rand: streamRand,
-    width: worldWidth,
-    height,
-    idPrefix: `${worldId}-milky`,
-    color: todayPalette.glowColor || worldTheme.palette.primary.nebula[0],
-    intensity: milkyIntensity,
-    stream,
-    thicknessScale: milkyThicknessScale,
-  });
-  defs.push(milky.defs);
-  body.push(milky.body);
+  let milkyIntensity = 0;
+  if (!moonFull) {
+    const glowLayerIntensity = layerProfile.glow?.intensity ?? 0.12;
+    const milkyIntensityRaw = clamp(0.12 + glowLayerIntensity * 0.6 + (mood.glowLevel ?? 0.5) * 0.05, 0.1, 0.32);
+    milkyIntensity = clamp(milkyIntensityRaw * milkyIntensityScale, 0.06, 0.6);
+    const milky = buildMilkyBandLayer({
+      rand: streamRand,
+      width: worldWidth,
+      height,
+      idPrefix: `${worldId}-milky`,
+      color: todayPalette.glowColor || worldTheme.palette.primary.nebula[0],
+      intensity: milkyIntensity,
+      stream,
+      thicknessScale: milkyThicknessScale,
+    });
+    defs.push(milky.defs);
+    body.push(milky.body);
 
-  const milkyDust = buildMilkyDustLayer({
-    rand: streamRand,
-    width: worldWidth,
-    height,
-    stream,
-    streamGaps,
-    densityAt,
-    voids: voidMap.voids,
-    color: todayPalette.dustTint || worldTheme.palette.secondary.nebula[0] || worldTheme.palette.primary.nebula[0],
-    textFieldMask: textAvoidField,
-    countScale: milkyDustScale,
-    opacityScale: milkyDustScale,
-  });
-  body.push(milkyDust);
+    const milkyDust = buildMilkyDustLayer({
+      rand: streamRand,
+      width: worldWidth,
+      height,
+      stream,
+      streamGaps,
+      densityAt,
+      voids: voidMap.voids,
+      color: todayPalette.dustTint || worldTheme.palette.secondary.nebula[0] || worldTheme.palette.primary.nebula[0],
+      textFieldMask: textAvoidField,
+      countScale: milkyDustScale,
+      opacityScale: milkyDustScale,
+    });
+    body.push(milkyDust);
+  }
 
   const densityScale = (worldWidth / width) * starDensityScale;
+  const starIntensityScale = moonFull ? 0.4 : (moonNew ? 1.05 : 1);
 
   body.push(
     buildStarLayers({
@@ -568,7 +608,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
       retroCount: worldTheme.retroCount,
       avoidCenter: false,
       avoidCircles: [],
-      intensityScale: 1,
+      intensityScale: starIntensityScale,
       colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
       tone,
       stream,
@@ -589,60 +629,67 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
       safeZone,
       densityScale,
       textFieldMask: textAvoidField,
+      skipProfiles: moonFull ? ["bright", "giant", "spark"] : null,
     })
   );
 
-  const extraHero = buildHeroStars({
-    rand: mulberry32(hashString(`${worldTheme.seed}_extraHero`)),
-    width: worldWidth,
-    height,
-    densityAt,
-    voids: voidMap.voids,
-    colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
-    countOverride: 2,
-    tone,
-    textFieldMask: textAvoidField,
-  });
-  if (extraHero) body.push(extraHero);
+  if (!moonFull) {
+    const extraHero = buildHeroStars({
+      rand: mulberry32(hashString(`${worldTheme.seed}_extraHero`)),
+      width: worldWidth,
+      height,
+      densityAt,
+      voids: voidMap.voids,
+      colorWeights: buildStarColorWeights(worldTheme.topElement, worldTheme.secondaryElement),
+      countOverride: 2,
+      tone,
+      textFieldMask: textAvoidField,
+    });
+    if (extraHero) body.push(extraHero);
+  }
 
-  const darkLane = buildDarkLaneLayer({
-    rand: streamRand,
-    width: worldWidth,
-    height,
-    stream,
-    idPrefix: `${worldId}-darkLane`,
-    intensity: 0.24,
-  });
-  defs.push(darkLane.defs);
-  body.push(darkLane.body);
+  if (!moonFull) {
+    const darkLane = buildDarkLaneLayer({
+      rand: streamRand,
+      width: worldWidth,
+      height,
+      stream,
+      idPrefix: `${worldId}-darkLane`,
+      intensity: 0.24,
+    });
+    defs.push(darkLane.defs);
+    body.push(darkLane.body);
+  }
 
-  const colorAtmosphere = buildColorAtmosphereLayer({
-    rand,
-    width: worldWidth,
-    height,
-    stream,
-    streamGaps,
-    densityAt,
-    filamentAt,
-    ridgeAt,
-    flowField,
-    clusters: [...anchorClustersAll, ...deepFieldRegions],
-    deepFields: deepFieldRegions,
-    voids: voidMap.voids,
-    palette: worldTheme.palette,
-    todayPalette,
-    primaryOpacityScale,
-    secondaryOpacityScale,
-    mistColor: (mistRand) => pickMistColor(worldTheme.topElement, worldTheme.secondaryElement, mistRand),
-    fogPattern: worldTheme.fogPattern,
-    spreadPattern,
-    longThemeColor: worldTheme.longThemeColor,
-    mood,
-    heroRegions,
-    safeZone,
-    idPrefix: `${worldId}-color`,
-    textFieldMask: textAvoidField,
-  });
+  const colorAtmosphere = moonFull
+    ? { defs: "", body: "" }
+    : buildColorAtmosphereLayer({
+      rand,
+      width: worldWidth,
+      height,
+      stream,
+      streamGaps,
+      densityAt,
+      filamentAt,
+      ridgeAt,
+      flowField,
+      clusters: [...anchorClustersAll, ...deepFieldRegions],
+      deepFields: deepFieldRegions,
+      voids: voidMap.voids,
+      palette: worldTheme.palette,
+      todayPalette,
+      primaryOpacityScale,
+      secondaryOpacityScale,
+      mistColor: (mistRand) => pickMistColor(worldTheme.topElement, worldTheme.secondaryElement, mistRand),
+      fogPattern: worldTheme.fogPattern,
+      spreadPattern,
+      longThemeColor: worldTheme.longThemeColor,
+      mood,
+      heroRegions,
+      safeZone,
+      idPrefix: `${worldId}-color`,
+      textFieldMask: textAvoidField,
+    });
 
   return {
     worldId,

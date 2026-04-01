@@ -240,25 +240,27 @@ function resolveMoonEventSpaceConfig(event) {
   if (!event || !event.kind) return null;
   if (event.kind === "full") {
     return {
-      starDensityScale: 0.65,
-      milkyIntensityScale: 0.75,
-      milkyThicknessScale: 0.9,
-      milkyDustScale: 0.75,
+      starDensityScale: 0.38,
+      milkyIntensityScale: 0.6,
+      milkyThicknessScale: 0.75,
+      milkyDustScale: 0.6,
       whiteMix: 0.45,
       moonEventKind: "full",
       moonEventStyle: "halo",
-      moonEventIntensity: 1.0,
+      moonEventCenter: "center",
+      moonEventIntensity: 1.35,
     };
   }
   if (event.kind === "new") {
     return {
-      starDensityScale: 1.55,
-      milkyIntensityScale: 1.35,
+      starDensityScale: 2.1,
+      milkyIntensityScale: 1.55,
       milkyThicknessScale: 1.25,
-      milkyDustScale: 1.45,
+      milkyDustScale: 1.6,
       whiteMix: 0.45,
       moonEventKind: "new",
       moonEventStyle: "eclipse",
+      moonEventCenter: "center",
       moonEventIntensity: 1.15,
     };
   }

@@ -17,7 +17,7 @@ const { buildMilkyDustLayer } = require("./layers/dust");
 const { buildClusterField } = require("./layers/stars");
 const { renderStarSprite } = require("./layers/renderStarSprite");
 const { mixColor } = require("../../color_utils");
-const { BACKGROUND_COLORS } = require("./constants");
+const { BACKGROUND_COLORS, DEFAULT_MOON_LAYOUT } = require("./constants");
 const { streamInfluenceAt, streamPoint } = require("./fields");
 
 function sliceAvoidRegions(avoidRegions, offsetX, width) {
@@ -235,6 +235,109 @@ function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
       `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="url(#${gradId})" mask="url(#${maskId})"/>`
     );
   });
+  return { defs: defs.join(""), body: body.join("") };
+}
+
+function buildMoonEventOverlay({
+  width,
+  height,
+  kind,
+  style,
+  palette,
+  idPrefix,
+  intensity = 1,
+  variant,
+  center,
+  radius,
+} = {}) {
+  const mode = String(kind || "").toLowerCase();
+  if (mode !== "full" && mode !== "new") return { defs: "", body: "" };
+  const mood = String(style || "").toLowerCase();
+  const defs = [];
+  const body = [];
+  const minDim = Math.min(width, height);
+  const isMoonSlide = variant === "moon";
+  const moonScale = isMoonSlide ? (minDim / 1080) : 1;
+  const moonSize = isMoonSlide
+    ? (Number(DEFAULT_MOON_LAYOUT?.size) || 172) * moonScale
+    : 0;
+  const baseR = Number.isFinite(Number(radius))
+    ? Number(radius)
+    : (isMoonSlide ? moonSize * 0.92 : minDim * 0.28);
+  const cx = Number.isFinite(Number(center?.x))
+    ? Number(center.x)
+    : (isMoonSlide
+      ? ((Number(DEFAULT_MOON_LAYOUT?.x) || 0) * moonScale + moonSize / 2)
+      : width * 0.5);
+  const cy = Number.isFinite(Number(center?.y))
+    ? Number(center.y)
+    : (isMoonSlide
+      ? ((Number(DEFAULT_MOON_LAYOUT?.y) || 0) * moonScale + moonSize / 2)
+      : height * 0.48);
+  const strength = clamp(Number(intensity) || 1, 0.2, 2.5);
+  const glowBase = palette?.glowColor
+    || palette?.gasColorA
+    || palette?.primary?.nebula?.[0]
+    || BACKGROUND_COLORS.accentBlue;
+  const glowCool = mixColor(glowBase, "#FFFFFF", 0.62);
+  const deep = mixColor(BACKGROUND_COLORS.bgDeep, glowBase, 0.12);
+
+  if (mode === "full") {
+    const glowId = `${idPrefix}-moonGlow`;
+    const ringFilterId = `${idPrefix}-moonRingBlur`;
+    const haloFilterId = `${idPrefix}-moonHaloBlur`;
+    defs.push(
+      `<filter id="${ringFilterId}" x="-50%" y="-50%" width="200%" height="200%">` +
+        `<feGaussianBlur stdDeviation="${(0.9 * strength).toFixed(2)}"/>` +
+      `</filter>`
+    );
+    defs.push(
+      `<filter id="${haloFilterId}" x="-50%" y="-50%" width="200%" height="200%">` +
+        `<feGaussianBlur stdDeviation="${(4.2 * strength).toFixed(2)}"/>` +
+      `</filter>`
+    );
+    const ringCount = 1;
+    for (let i = 0; i < ringCount; i++) {
+      const ringR = baseR * (1.06 + i * 0.1);
+      const ringOpacity = clamp((0.28 - i * 0.03) * strength, 0.14, 0.48);
+      const ringWidth = (2.2 + i * 0.45) * strength;
+      body.push(
+        `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${ringR.toFixed(2)}" fill="none" stroke="${glowCool}" stroke-width="${ringWidth.toFixed(2)}" stroke-opacity="${ringOpacity.toFixed(3)}" filter="url(#${ringFilterId})"/>`
+      );
+      const haloOpacity = clamp((0.14 - i * 0.02) * strength, 0.06, 0.24);
+      const haloWidth = (11 + i * 3) * strength;
+      body.push(
+        `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(ringR * 1.02).toFixed(2)}" fill="none" stroke="${glowCool}" stroke-width="${haloWidth.toFixed(2)}" stroke-opacity="${haloOpacity.toFixed(3)}" filter="url(#${haloFilterId})"/>`
+      );
+    }
+  } else if (mode === "new") {
+    const voidId = `${idPrefix}-moonVoid`;
+    const voidStrength = mood === "eclipse" ? 0.95 : 0.85;
+    defs.push(
+      `<radialGradient id="${voidId}" cx="50%" cy="50%" r="50%">` +
+        `<stop offset="0%" stop-color="${BACKGROUND_COLORS.bgDeep}" stop-opacity="${(voidStrength * strength).toFixed(3)}"/>` +
+        `<stop offset="55%" stop-color="${deep}" stop-opacity="${(0.45 * strength).toFixed(3)}"/>` +
+        `<stop offset="100%" stop-color="${deep}" stop-opacity="0"/>` +
+      `</radialGradient>`
+    );
+    body.push(
+      `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(baseR * 1.12).toFixed(2)}" fill="url(#${voidId})" opacity="${(0.85 * strength).toFixed(3)}"/>`
+    );
+    body.push(
+      `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(baseR * 0.98).toFixed(2)}" fill="${BACKGROUND_COLORS.bgDeep}" opacity="0.5"/>`
+    );
+    const rimFilterId = `${idPrefix}-moonRimBlur`;
+    defs.push(
+      `<filter id="${rimFilterId}" x="-50%" y="-50%" width="200%" height="200%">` +
+        `<feGaussianBlur stdDeviation="${(1.2 * strength).toFixed(2)}"/>` +
+      `</filter>`
+    );
+    const rimOpacity = clamp((0.22 + (mood === "eclipse" ? 0.08 : 0)) * strength, 0.1, 0.42);
+    body.push(
+      `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(baseR * 1.04).toFixed(2)}" fill="none" stroke="${glowCool}" stroke-width="${(1.8 * strength).toFixed(2)}" stroke-opacity="${rimOpacity.toFixed(3)}" filter="url(#${rimFilterId})"/>`
+    );
+  }
+
   return { defs: defs.join(""), body: body.join("") };
 }
 
@@ -484,18 +587,21 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (variant === "slide1" && world.densityAt) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const bloomColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
-    const bloomRand = mulberry32(hashString(`${slideId}-bloom`));
-    const bloomLayer = buildBloomGlows({
-      rand: bloomRand,
-      width,
-      height,
-      positions: [
-        { x: width * 0.18, y: height * 0.22 },
-        { x: width * 0.82, y: height * 0.78 },
-      ],
-      color: bloomColor,
-    });
-    if (bloomLayer) overlay.push(bloomLayer);
+    const moonEventKind = String(spaceConfig?.moonEventKind || "").toLowerCase();
+    if (moonEventKind !== "full") {
+      const bloomRand = mulberry32(hashString(`${slideId}-bloom`));
+      const bloomLayer = buildBloomGlows({
+        rand: bloomRand,
+        width,
+        height,
+        positions: [
+          { x: width * 0.18, y: height * 0.22 },
+          { x: width * 0.82, y: height * 0.78 },
+        ],
+        color: bloomColor,
+      });
+      if (bloomLayer) overlay.push(bloomLayer);
+    }
 
     const spikeLayer = buildSpikeStars({
       rand: mulberry32(hashString(`${slideId}-spike-stars`)),
@@ -673,6 +779,46 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       }
     }
   }
+
+  const moonEventKind = String(spaceConfig?.moonEventKind || "").toLowerCase();
+  const moonEventCenterMode = String(spaceConfig?.moonEventCenter || "center").toLowerCase();
+  const moonEventTarget = (() => {
+    if (variant !== "slide1" || moonEventCenterMode !== "hero") return null;
+    const heroes = localAvoidRegions.filter((r) => r?.kind === "heroText");
+    if (!heroes.length) return null;
+    return heroes.reduce((best, r) => {
+      const cy = (Number(r?.y) || 0) + (Number(r?.h) || 0) * 0.5;
+      if (!best || cy > best.cy) return { region: r, cy };
+      return best;
+    }, null);
+  })();
+  const moonEventCenter = moonEventTarget?.region
+    ? {
+        x: (Number(moonEventTarget.region.x) || 0) + (Number(moonEventTarget.region.w) || 0) * 0.5,
+        y: moonEventTarget.cy,
+      }
+    : (variant === "slide1"
+      ? { x: width * 0.5, y: height * 0.5 }
+      : null);
+  const moonEventRadius = moonEventTarget?.region
+    ? Math.max(28, Math.min(Number(moonEventTarget.region.w) || 0, Number(moonEventTarget.region.h) || 0) * 0.45)
+    : (variant === "slide1" ? Math.min(width, height) * 0.384 : null);
+  if ((moonEventKind === "full" || moonEventKind === "new") && variant === "slide1") {
+    const moonOverlay = buildMoonEventOverlay({
+      width,
+      height,
+      kind: moonEventKind,
+      style: spaceConfig?.moonEventStyle,
+      intensity: spaceConfig?.moonEventIntensity,
+      palette: world.todayPalette || palette,
+      idPrefix: `${slideId}-moonEvent`,
+      variant,
+      center: moonEventCenter,
+      radius: moonEventRadius,
+    });
+    if (moonOverlay.defs) defs.push(moonOverlay.defs);
+    if (moonOverlay.body) overlay.push(`<g>${moonOverlay.body}</g>`);
+  }
   return { defs: colorDefs + defs.join(""), body: worldGroup + colorGroup + veilLayer + overlay.join("") };
 }
 
@@ -700,9 +846,17 @@ function buildSpaceBackground({
       ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
       ["milkyDustScale", spaceConfig.milkyDustScale],
       ["whiteMix", spaceConfig.whiteMix],
+      ["moonEventKind", spaceConfig.moonEventKind],
+      ["moonEventStyle", spaceConfig.moonEventStyle],
+      ["moonEventCenter", spaceConfig.moonEventCenter],
+      ["moonEventIntensity", spaceConfig.moonEventIntensity],
     ]
-      .filter(([, v]) => Number.isFinite(Number(v)))
-      .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`);
+      .filter(([, v]) => v !== null && v !== undefined && v !== "")
+      .map(([k, v]) => {
+        const num = Number(v);
+        if (Number.isFinite(num)) return `${k}:${num.toFixed(3)}`;
+        return `${k}:${String(v)}`;
+      });
     if (!entries.length) return "default";
     return hashString(entries.join("|"));
   })();
