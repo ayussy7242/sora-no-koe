@@ -5,340 +5,148 @@ const { buildBlueprintCss } = require("../blueprint_v25/styles");
 const { buildGlyphImgTag } = require("../blueprint_v25/glyphs");
 const { PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/constants");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
-const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
-const { BACKGROUND_COLORS } = require("../../shared/space_background/constants");
 
-const COLOR_A = "#F59E0B"; // orange
-const COLOR_B = "#14B8A6"; // greenish blue
-const ELEMENT_COLORS = {
-  fire: "#FF6B6B",
-  earth: "#E6C36D",
-  air: "#7FBF8F",
-  water: "#7AA7FF",
-};
-const ELEMENT_HUES = {
-  fire: 0,
-  earth: 40,
-  air: 120,
-  water: 200,
-};
-const BAND_TITLE = "RELATION BLUEPRINT";
-const SPACE_BG_ENABLED = !["0", "false", "off"].includes(String(process.env.RELATION_PDF_SPACE_BG ?? "0").toLowerCase());
-const SPACE_SVG_CACHE = new Map();
+const {
+  COLOR_A,
+  COLOR_B,
+  ELEMENT_COLORS,
+  ELEMENT_HUES,
+  BAND_TITLE,
+  ASPECT_COLORS,
+  ELEMENT_LABELS,
+  MODALITY_LABELS,
+  SIGN_MODALITY,
+  SAME_BODY_KEYS,
+  ASPECT_DISPLAY,
+  SIGN_ELEMENT,
+  SIGN_ORDER,
+  SIGN_RELATION_LABELS,
+  SIGN_RELATION_SYMBOLS,
+  RELATION_GLYPHS,
+  OPPOSITE_SIGN,
+  HOUSE_BANDS,
+  WHEEL_BODIES,
+  BODY_SHORT_LABELS,
+  AXIS_SYMBOLS,
+  RELATION_TYPE_LABELS,
+  HOUSE_LABELS,
+  HOUSE_BODY_WEIGHT,
+  AXIS_BODIES,
+  DEEP_BODIES,
+  CORE_BODIES,
+  BODY_ORDER,
+  BODY_ORDER_MAP,
+  MAX_ROWS_PER_COL,
+  CORE_PAIR_KEYS,
+  COMM_PAIR_KEYS,
+  ATTRACTION_PAIR_KEYS,
+  FRICTION_PAIR_KEYS,
+  SOFT_ASPECTS,
+  HARD_ASPECTS,
+  PAIR_PRIORITY,
+  BODY_PRIORITY,
+  ASPECT_WEIGHT,
+} = require("./constants");
+const {
+  escapeHtml,
+  formatPlanetRow,
+  formatBodyKeyShort,
+  formatElementKey,
+  formatModalityKey,
+  pickDominantElementKey,
+  topTwoFromCounts,
+  formatAspectLabel,
+  shortName,
+  normalizeAspectKey,
+  formatOrbValue,
+  formatConnectionSideHtml,
+  formatAspectDisplay,
+  formatGapRow,
+  formatHouseLinkRow,
+} = require("./formatters");
+const {
+  buildSpaceSvg,
+  renderSpaceBg,
+  buildHeader,
+  buildFooter,
+  buildCosmicNav,
+  renderRelationRow,
+  buildTwoColList,
+  buildSingleList,
+  buildConnectionList,
+  buildBlockGrid,
+  formatAxisLine,
+  buildAxisBlock,
+  buildDeepBlock,
+  buildHouseBlock,
+  buildAxisHouseDeepStack,
+  formatCompareRow,
+  formatSignRelationRow,
+  buildRelationCenterBlocks,
+  buildComparePairsSection,
+  buildSignRelationSection,
+  buildCoreSection,
+  buildRelationPatternSection,
+  buildConnectionDualStack,
+  buildConnectionStack,
+  buildRelationCoreText,
+  buildCompareMetaHtml,
+  buildCompareLayerItem,
+  buildCompareLayer,
+  buildCompareBlockDefs,
+  buildCompareBlockStack,
+  buildCompareBlocksSection,
+  buildSignFacingRowHtml,
+  buildSignFacingSection,
+  buildSignFacingText,
+  mergeUniqueBodies,
+  formatDateLocal,
+  formatBirthLine,
+  formatPlaceLine,
+  buildPeopleBlock,
+  buildMetricRow,
+  buildElementBarList,
+  buildModalityBarList,
+  buildElementModalityColumns,
+  buildBottomSections,
+  buildPage,
+  buildCoverPage,
+} = require("./components");
+const {
+  chunkTwoColumns,
+  splitTwoColumns,
+  chunkList,
+  buildPrefixSums,
+  sumTail,
+  calcBlockHeight,
+  maxRowsFitFromEnd,
+  paginateStackBlocksFromStart,
+  paginateSingleListFromEnd,
+  paginateDualListsFromEnd,
+} = require("./layout");
 
-const ASPECT_COLORS = {
-  conjunction: "#E5E7EB",
-  opposition: "#F43F5E",
-  square: "#F97316",
-  trine: "#3B82F6",
-  sextile: "#22D3EE",
-};
 
-const ELEMENT_LABELS = {
-  fire: "火",
-  earth: "地",
-  air: "風",
-  water: "水",
-};
 
-const MODALITY_LABELS = {
-  cardinal: "活動",
-  fixed: "固定",
-  mutable: "柔軟",
-};
 
-const SIGN_MODALITY = {
-  aries: "cardinal",
-  taurus: "fixed",
-  gemini: "mutable",
-  cancer: "cardinal",
-  leo: "fixed",
-  virgo: "mutable",
-  libra: "cardinal",
-  scorpio: "fixed",
-  sagittarius: "mutable",
-  capricorn: "cardinal",
-  aquarius: "fixed",
-  pisces: "mutable",
-};
 
-const SAME_BODY_KEYS = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"];
 
-const ASPECT_DISPLAY = {
-  conjunction: { symbol: "☌", ja: "コンジャンクション" },
-  opposition: { symbol: "☍", ja: "オポジション" },
-  square: { symbol: "□", ja: "スクエア" },
-  trine: { symbol: "△", ja: "トライン" },
-  sextile: { symbol: "✶", ja: "セクスタイル" },
-  quincunx: { symbol: "◇", ja: "クインカンクス" },
-  semisextile: { symbol: "∿", ja: "セミセクスタイル" },
-  semisquare: { symbol: "⌒", ja: "セミスクエア" },
-  sesquiquadrate: { symbol: "⌒̶", ja: "セスキスクエア" },
-  quintile: { symbol: "☆", ja: "クインタイル" },
-  biquintile: { symbol: "✦", ja: "バイクインタイル" },
-  novile: { symbol: "○", ja: "ノヴィル" },
-  binovile: { symbol: "◎", ja: "バイノヴィル" },
-  quadnovile: { symbol: "◉", ja: "クアドラノヴィル" },
-  septile: { symbol: "※", ja: "セプタイル系" },
-  biseptile: { symbol: "※", ja: "セプタイル系" },
-  triseptile: { symbol: "※", ja: "セプタイル系" },
-  decile: { symbol: "▽", ja: "デシル" },
-  tridecile: { symbol: "△̶", ja: "トリデシル" },
-};
 
-const SIGN_ELEMENT = {
-  aries: "fire",
-  taurus: "earth",
-  gemini: "air",
-  cancer: "water",
-  leo: "fire",
-  virgo: "earth",
-  libra: "air",
-  scorpio: "water",
-  sagittarius: "fire",
-  capricorn: "earth",
-  aquarius: "air",
-  pisces: "water",
-};
 
-const SIGN_ORDER = [
-  "aries",
-  "taurus",
-  "gemini",
-  "cancer",
-  "leo",
-  "virgo",
-  "libra",
-  "scorpio",
-  "sagittarius",
-  "capricorn",
-  "aquarius",
-  "pisces",
-];
 
-const SIGN_RELATION_LABELS = {
-  same_sign: "同サイン",
-  opposite_sign: "対向",
-  same_element: "同元素",
-  square_element: "スクエア帯",
-  quincunx_like: "噛み合いにくさ",
-  adjacent: "隣接",
-  other: "非接続",
-};
 
-const SIGN_RELATION_SYMBOLS = {
-  same_sign: "☌",
-  opposite_sign: "☍",
-  same_element: "△",
-  square_element: "□",
-  quincunx_like: "◇",
-  adjacent: "∿",
-  other: "",
-};
 
-const RELATION_GLYPHS = [
-  "☉", "☽", "☿", "♀", "♂", "♃", "♄", "♅", "♆", "♇",
-  "☊", "☋", "⚷", "⚸",
-  "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓",
-];
 
-const OPPOSITE_SIGN = {
-  aries: "libra",
-  taurus: "scorpio",
-  gemini: "sagittarius",
-  cancer: "capricorn",
-  leo: "aquarius",
-  virgo: "pisces",
-  libra: "aries",
-  scorpio: "taurus",
-  sagittarius: "gemini",
-  capricorn: "cancer",
-  aquarius: "leo",
-  pisces: "virgo",
-};
 
-const HOUSE_BANDS = [
-  { key: "inner", label: "内側帯", houses: [1, 2, 3, 4] },
-  { key: "relation", label: "対人帯", houses: [5, 6, 7, 8] },
-  { key: "outer", label: "社会帯", houses: [9, 10, 11, 12] },
-];
 
-const WHEEL_BODIES = [
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto",
-];
 
-const BODY_SHORT_LABELS = {
-  sun: "☉",
-  moon: "☽",
-  mercury: "☿",
-  venus: "♀",
-  mars: "♂",
-  jupiter: "♃",
-  saturn: "♄",
-  uranus: "♅",
-  neptune: "♆",
-  pluto: "♇",
-  asc: "ASC",
-  mc: "MC",
-  ic: "IC",
-  dc: "DC",
-  north_node: "☊",
-  south_node: "☋",
-  chiron: "⚷",
-  lilith: "⚸",
-};
 
-const AXIS_SYMBOLS = {
-  asc: "▲",
-  dc: "▼",
-  mc: "◆",
-  ic: "◇",
-};
 
-const RELATION_TYPE_LABELS = {
-  mirror: "鏡",
-  merge: "同調",
-  flow: "流れ",
-  tension: "張力",
-  mismatch: "噛み合い",
-  layered: "層",
-  house_binding: "流入",
-};
 
-const HOUSE_LABELS = {
-  1: "自己・起点",
-  2: "価値・感覚",
-  3: "思考・言語",
-  4: "基盤・安心",
-  5: "表現・創造",
-  6: "習慣・調整",
-  7: "対面・関係",
-  8: "共有・結束",
-  9: "信念・拡張",
-  10: "役割・社会",
-  11: "交流・共同",
-  12: "無意識・背景",
-};
 
-const HOUSE_BODY_WEIGHT = {
-  sun: 3,
-  moon: 3,
-  asc: 3,
-  mercury: 2,
-  venus: 2,
-  mars: 2,
-  jupiter: 1.5,
-  saturn: 1.5,
-  uranus: 1,
-  neptune: 1,
-  pluto: 1,
-  north_node: 0.8,
-  south_node: 0.8,
-  chiron: 0.8,
-  lilith: 0.8,
-};
 
-const AXIS_BODIES = new Set(["asc", "mc", "ic", "dc"]);
-const DEEP_BODIES = new Set(["north_node", "south_node", "chiron", "lilith"]);
-const CORE_BODIES = new Set([
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto",
-]);
 
-const BODY_ORDER = [
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto",
-  "asc",
-  "dc",
-  "mc",
-  "ic",
-  "north_node",
-  "south_node",
-  "chiron",
-  "lilith",
-];
 
-const BODY_ORDER_MAP = new Map(BODY_ORDER.map((key, idx) => [key, idx]));
 
-const MAX_ROWS_PER_COL = 18;
-
-function escapeHtml(input) {
-  const s = String(input ?? "");
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function formatPlanetRow(entry) {
-  if (!entry) return "";
-  const axisKeys = new Set(["asc", "dc", "mc", "ic"]);
-  const rawLabel = entry.body_glyph || entry.body_ja || entry.body_key || "";
-  const bodyKey = String(entry?.body_key || "").toLowerCase();
-  const axisPrefix = axisKeys.has(bodyKey) ? AXIS_SYMBOLS[bodyKey] : "";
-  const labelText = axisKeys.has(bodyKey) ? "" : rawLabel;
-  const label = axisPrefix ? `${axisPrefix} ${labelText}`.trim() : labelText;
-  const sign = entry.sign_ja || entry.sign_key || "";
-  const lon = entry.lon_deg;
-  const deg = Number.isFinite(Number(lon)) ? Math.floor(((Number(lon) % 30) + 30) % 30) : null;
-  const degText = Number.isFinite(Number(deg)) ? `${deg}°` : "";
-  const signPart = [sign, degText].filter(Boolean).join(" ").trim();
-  const house = Number.isFinite(Number(entry.house)) ? `${entry.house}H` : "";
-  const parts = [label, signPart].filter(Boolean);
-  let row = parts.join(" ").trim();
-  if (house) row = row ? `${row}｜${house}` : house;
-  return row || "—";
-}
-
-function formatBodyKeyShort(keyRaw) {
-  const key = String(keyRaw || "").toLowerCase();
-  return BODY_SHORT_LABELS[key] || key.toUpperCase() || "—";
-}
-
-function formatElementKey(keyRaw) {
-  const key = String(keyRaw || "").toLowerCase();
-  return ELEMENT_LABELS[key] || key || "—";
-}
-
-function formatModalityKey(keyRaw) {
-  const key = String(keyRaw || "").toLowerCase();
-  return MODALITY_LABELS[key] || key || "—";
-}
-
-function pickDominantElementKey(counts = {}) {
-  const order = ["fire", "earth", "air", "water"];
-  const entries = order.map((key) => ({ key, count: Number(counts[key] || 0) }));
-  const max = Math.max(...entries.map((e) => e.count));
-  if (!Number.isFinite(max) || max <= 0) return null;
-  return entries.find((e) => e.count === max)?.key || null;
-}
 
 function buildWheelStoryFromRelation({ planets = [], deepPoints = [] } = {}) {
   const transit_signs = {};
@@ -400,87 +208,6 @@ function buildSharedRelationWheel({ view, elementKeyA, elementKeyB } = {}) {
       </div>
     </div>
   `;
-}
-
-function topTwoFromCounts(counts = {}, labels = {}) {
-  const entries = Object.entries(counts || {}).map(([k, v]) => ({ key: k, count: Number(v || 0) }));
-  const sorted = entries.sort((a, b) => b.count - a.count).filter((r) => r.count > 0);
-  if (!sorted.length) return "—";
-  const max = sorted[0].count;
-  const top = sorted.filter((r) => r.count === max).map((r) => labels[r.key] || r.key);
-  return top.join("・") || "—";
-}
-
-function formatAspectLabel(aspectRaw) {
-  const aspect = String(aspectRaw || "").toLowerCase();
-  if (!aspect) return "";
-  if (aspect === "same_sign") return "同サイン";
-  if (aspect === "same_element") return "同元素";
-  return aspect;
-}
-
-function shortName(name, max = 15) {
-  const text = String(name || "").trim();
-  if (text.length <= max) return text || "A";
-  return `${text.slice(0, max)}...`;
-}
-
-function normalizeAspectKey(aspectRaw) {
-  const raw = String(aspectRaw || "").toLowerCase().trim();
-  if (!raw) return "";
-  const key = raw.replace(/\s+/g, "_").replace(/-/g, "_");
-  const alias = {
-    same_sign: "conjunction",
-    same_element: "trine",
-    inconjunct: "quincunx",
-    semi_sextile: "semisextile",
-    semi_square: "semisquare",
-    sesqui_square: "sesquiquadrate",
-    sesquisquare: "sesquiquadrate",
-    bi_quintile: "biquintile",
-    quadra_novile: "quadnovile",
-    quad_novile: "quadnovile",
-    tri_novile: "quadnovile",
-    bi_novile: "binovile",
-    septile_series: "septile",
-    tri_septile: "triseptile",
-    bi_septile: "biseptile",
-    tri_decile: "tridecile",
-  };
-  return alias[key] || key;
-}
-
-function formatOrbValue(orbRaw) {
-  if (!Number.isFinite(Number(orbRaw))) return "0.00";
-  return Number(orbRaw).toFixed(2);
-}
-
-function formatConnectionSideHtml(side) {
-  if (!side) return "—";
-  const symbol = side?.body_glyph || "";
-  const axisKeys = new Set(["asc", "dc", "mc", "ic"]);
-  const bodyKey = String(side?.body_key || "").toLowerCase();
-  const rawName = side?.body_ja || side?.body_key || "";
-  const nameText = axisKeys.has(bodyKey) ? String(rawName).toUpperCase() : rawName;
-  const axisPrefix = axisKeys.has(bodyKey) ? AXIS_SYMBOLS[bodyKey] : "";
-  const name = axisPrefix ? `${axisPrefix} ${nameText}`.trim() : nameText;
-  const sign = side?.sign_ja || side?.sign_key || "";
-  const house = Number.isFinite(Number(side?.house)) ? `${side.house}H` : "";
-  const bodyGlyph = symbol ? buildGlyphImgTag(symbol, { className: "glyph-img glyph-img--body", size: 26, color: "#EDEEFF" }) : "";
-  const signGlyph = side?.sign_glyph ? buildGlyphImgTag(side.sign_glyph, { className: "glyph-img glyph-img--sign", size: 16, color: "#EDEEFF" }) : "";
-  const bodyText = [name].filter(Boolean).join(" ").trim();
-  const signText = [sign, house].filter(Boolean).join(" ").trim();
-  return `
-    <span class="connection-body">${bodyGlyph}<span class="connection-body-text">${escapeHtml(bodyText || "—")}</span></span>
-    <span class="connection-sign">${signGlyph}<span class="connection-sign-text">${escapeHtml(signText || "—")}</span></span>
-  `;
-}
-
-function formatAspectDisplay(aspectRaw, orbRaw) {
-  const key = normalizeAspectKey(aspectRaw);
-  const meta = ASPECT_DISPLAY[key] || { symbol: "※", ja: "セプタイル系" };
-  const orb = formatOrbValue(orbRaw);
-  return { symbol: meta.symbol, label: meta.ja, orb: `${orb}°` };
 }
 
 function angleDistance(a, b) {
@@ -566,810 +293,6 @@ function buildSignRelationPairs({ aPlanets = [], bPlanets = [] } = {}) {
     .slice(0, 8);
 }
 
-function formatConnectionRow(conn, opts = {}) {
-  if (!conn) return "";
-  const left = formatConnectionSide(conn?.a);
-  const right = formatConnectionSide(conn?.b);
-  const aspect = formatAspectDisplay(conn?.aspect, conn?.orb);
-  return `${left}    ${aspect.symbol} ${aspect.label} ${aspect.orb}    ${right}`.trim();
-}
-
-function formatGapRow(gap) {
-  if (!gap) return "";
-  const pair = String(gap?.pair || "");
-  const parts = pair.split("_");
-  const a = formatBodyKeyShort(parts[0]);
-  const b = formatBodyKeyShort(parts[1]);
-  const aspect = gap?.aspect || "";
-  const orb = Number.isFinite(Number(gap?.orb)) ? `${Number(gap.orb).toFixed(2)}°` : "";
-  return `${a} × ${b}｜${aspect} ${orb}`.trim();
-}
-
-function formatHouseLinkRow(link) {
-  if (!link) return "";
-  const aHouse = Number.isFinite(Number(link?.a_house)) ? `${link.a_house}H` : "—";
-  const bHouse = Number.isFinite(Number(link?.b_house)) ? `${link.b_house}H` : "—";
-  const via = String(link?.via || "");
-  const parts = via.split("_");
-  const viaLabel = parts.length === 2 ? `${formatBodyKeyShort(parts[0])}×${formatBodyKeyShort(parts[1])}` : via;
-  return `${aHouse} ↔ ${bHouse}｜${viaLabel}`.trim();
-}
-
-function buildSpaceSvg(variant = "slide3", seedLabel = "") {
-  const cacheKey = `${variant}::${seedLabel || ""}`;
-  const cached = SPACE_SVG_CACHE.get(cacheKey);
-  if (cached) return cached;
-  const seed = buildSpaceSeedLabel({
-    seedVersion: "v2",
-    channel: "relation",
-    pairId: seedLabel,
-    prefixChannel: true,
-  });
-  const bg = buildSpaceBackground({ width: PAGE_WIDTH, height: PAGE_HEIGHT, variant, seedLabel: seed });
-  const svg = [
-    `<svg class="bg-space__svg" xmlns="http://www.w3.org/2000/svg" width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" viewBox="0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}" preserveAspectRatio="xMidYMid slice">`,
-    `<rect width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" fill="${BACKGROUND_COLORS.bgDeep}"/>`,
-    `<defs>${bg.defs}</defs>`,
-    bg.body,
-    `</svg>`,
-  ].join("");
-  SPACE_SVG_CACHE.set(cacheKey, svg);
-  return svg;
-}
-
-function renderSpaceBg(variant, seedLabel = "") {
-  if (!SPACE_BG_ENABLED) return "";
-  return `<div class="bg-space">${buildSpaceSvg(variant, seedLabel)}</div>`;
-}
-
-function buildHeader(meta) {
-  return `
-    <div class="relation-head">
-      <div class="subtitle label relation-en">${escapeHtml(meta?.en || "")}</div>
-      <div class="title">${escapeHtml(meta?.ja || "")}</div>
-      <div class="page-intro">${escapeHtml(meta?.intro || "")}</div>
-    </div>
-  `;
-}
-
-function buildFooter({ pageNo, total }) {
-  const no = String(pageNo || "").padStart(2, "0");
-  const totalText = total ? String(total).padStart(2, "0") : "";
-  const pageText = totalText ? `${no} / ${totalText}` : no;
-  return `
-    <div class="relation-brand">sora-no-koe</div>
-    <div class="page-number relation-page-number">PAGE ${pageText}</div>
-  `;
-}
-
-function buildCosmicNav(activeIndex, totalSlides) {
-  const total = Number.isFinite(totalSlides) ? totalSlides : 0;
-  if (!total) return "";
-  const dots = Array.from({ length: total }, (_, i) => {
-    const isActive = i === activeIndex;
-    return `<span class="nav-dot ${isActive ? "active" : ""}">${isActive ? "★" : "○"}</span>`;
-  }).join("");
-  return `<div class="star-nav">${dots}</div>`;
-}
-
-function renderRelationRow(row) {
-  if (!row) return "";
-  if (typeof row === "string") {
-    return `<div class="relation-row">${escapeHtml(row)}</div>`;
-  }
-  const text = escapeHtml(row.text || "");
-  const className = row.className ? ` ${row.className}` : "";
-  return `<div class="relation-row${className}">${text}</div>`;
-}
-
-function buildTwoColList({ leftRows = [], rightRows = [], leftTitle = "A SIDE", rightTitle = "B SIDE", leftSub = "A", rightSub = "B", className = "" }) {
-  return `
-    <div class="relation-cols ${className || ""}">
-      <div class="chart-box relation-col">
-        <div class="card-head">${escapeHtml(leftTitle)}</div>
-        ${leftSub ? `<div class="card-sub">${escapeHtml(leftSub)}</div>` : ""}
-        <div class="card-list relation-list">
-          ${leftRows.map(renderRelationRow).join("")}
-        </div>
-      </div>
-      <div class="chart-box relation-col">
-        <div class="card-head">${escapeHtml(rightTitle)}</div>
-        ${rightSub ? `<div class="card-sub">${escapeHtml(rightSub)}</div>` : ""}
-        <div class="card-list relation-list">
-          ${rightRows.map(renderRelationRow).join("")}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildSingleList({ title = "", sub = "", rows = [] } = {}) {
-  return `
-    <div class="relation-cols relation-cols--single">
-      <div class="chart-box relation-col">
-        <div class="card-head">${escapeHtml(title)}</div>
-        ${sub ? `<div class="card-sub">${escapeHtml(sub)}</div>` : ""}
-        <div class="card-list relation-list">
-          ${rows.map(renderRelationRow).join("")}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildConnectionList({ title = "", sub = "", note = "", aiText = "", connections = [], aName = "A", bName = "B", showNames = true } = {}) {
-  const safeA = shortName(aName);
-  const safeB = shortName(bName);
-  const rows = connections.length
-    ? connections.map((conn) => {
-        const left = formatConnectionSideHtml(conn?.a);
-        const right = formatConnectionSideHtml(conn?.b);
-        const aspect = formatAspectDisplay(conn?.aspect, conn?.orb);
-        return `
-          <div class="connection-row">
-            <div class="connection-left">${left}</div>
-            <div class="connection-center">
-              <span class="connection-symbol">${escapeHtml(aspect.symbol)}</span>
-              <span class="connection-label">${escapeHtml(aspect.label)}</span>
-            </div>
-            <div class="connection-right">${right}</div>
-          </div>
-        `;
-      }).join("")
-    : `
-      <div class="connection-row connection-row--empty">
-        <div class="connection-center">—</div>
-      </div>
-    `;
-
-  return `
-    <div class="relation-cols relation-cols--single relation-cols--connection connection-grid">
-      <div class="chart-box relation-col">
-        <div class="card-head">${escapeHtml(title)}</div>
-        ${sub ? `<div class="card-sub">${escapeHtml(sub)}</div>` : ""}
-        ${note ? `<div class="card-note">${escapeHtml(note)}</div>` : ""}
-        <div class="connection-names">
-          <span class="connection-name-left">${escapeHtml(safeA)}</span>
-          <span class="connection-name-right">${escapeHtml(safeB)}</span>
-        </div>
-        <div class="connection-list">
-          ${rows}
-        </div>
-        ${aiText ? `<div class="card-ai">${escapeHtml(aiText)}</div>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-function buildBlockGrid(blocks = [], className = "") {
-  return `
-    <div class="relation-blocks ${className || ""}">
-      ${blocks
-        .map(
-          (b) => `
-          <div class="chart-box relation-block">
-            <div class="card-head">${escapeHtml(b.title || "")}</div>
-            ${b.sub ? `<div class="card-sub">${escapeHtml(b.sub)}</div>` : ""}
-            <div class="card-list relation-list">
-              ${(b.rows || []).map((row) => `<div class="relation-row">${escapeHtml(row)}</div>`).join("")}
-            </div>
-          </div>
-        `
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function formatAxisLine(conn) {
-  if (!conn) return "—";
-  const left = formatConnectionSide(conn?.a);
-  const right = formatConnectionSide(conn?.b);
-  const aspect = formatAspectDisplay(conn?.aspect, conn?.orb);
-  return `${left} ${aspect.symbol} ${right} ${aspect.orb}`.trim();
-}
-
-function buildAxisBlock({ title = "AXIS", connections = [], aName = "A", bName = "B", aiText = "" } = {}) {
-  return `
-    <div class="relation-block relation-block--axis">
-      ${buildConnectionList({ title, sub: "", note: "関係の骨組み", aiText, connections, aName, bName, showNames: false })}
-    </div>
-  `;
-}
-
-function buildDeepBlock({ title = "DEEP", connections = [], aName = "A", bName = "B", aiText = "" } = {}) {
-  return `
-    <div class="relation-block relation-block--deep">
-      ${buildConnectionList({ title, sub: "", note: "深層で残りやすい接触", aiText, connections, aName, bName, showNames: false })}
-    </div>
-  `;
-}
-
-function buildHouseBlock({ title = "HOUSE", sections = [] } = {}) {
-  const left = sections?.[0] || { heading: "", houses: [], summary: "" };
-  const right = sections?.[1] || { heading: "", houses: [], summary: "" };
-  const normalizeHeading = (heading) => {
-    const text = String(heading || "");
-    if (!text) return "";
-    const parts = text.split("→").map((s) => s.trim()).filter(Boolean);
-    if (parts.length !== 2) return text;
-    return `${shortName(parts[0])} → ${shortName(parts[1])}`;
-  };
-  const renderHouseEntry = (entry, aiLine = "") => {
-    if (!entry) return "";
-    const houseNum = Number.isFinite(Number(entry?.house)) ? `${entry.house}H` : "—";
-    const label = entry?.label ? `｜${entry.label}` : "";
-    const items = Array.isArray(entry?.items) ? entry.items.filter(Boolean).join(" / ") : "";
-    return `
-      <div class="house-entry">
-        <div class="house-title">${escapeHtml(`${houseNum}${label}`)}</div>
-        <div class="house-items">${items ? escapeHtml(items) : "—"}</div>
-        ${aiLine ? `<div class="house-ai">${escapeHtml(aiLine)}</div>` : ""}
-      </div>
-    `;
-  };
-  const renderSection = (section) => {
-    const houses = Array.isArray(section?.houses) ? section.houses : [];
-    const aiLines = Array.isArray(section?.aiLines) ? section.aiLines : [];
-    const summary = section?.summary || "";
-    return `
-      <div class="chart-box relation-col">
-        <div class="card-head">${escapeHtml(normalizeHeading(section?.heading || ""))}</div>
-        <div class="card-list house-list">
-          ${houses.length ? houses.map((entry, idx) => renderHouseEntry(entry, aiLines[idx] || "")).join("") : `<div class="house-entry house-entry--empty">—</div>`}
-        </div>
-        ${summary ? `<div class="house-summary">${escapeHtml(summary)}</div>` : ""}
-      </div>
-    `;
-  };
-  return `
-    <div class="relation-house">
-      <div class="card-head relation-house-title">${escapeHtml(title)}</div>
-      <div class="card-note">相手が自分のどの領域を動かしやすいか</div>
-      <div class="relation-cols relation-cols--house">
-        ${renderSection(left)}
-        ${renderSection(right)}
-      </div>
-    </div>
-  `;
-}
-
-function buildAxisHouseDeepStack({
-  axisConnections = [],
-  houseSections = [],
-  deepConnections = [],
-  aName = "A",
-  bName = "B",
-  axisText = "",
-  deepText = "",
-} = {}) {
-  return `
-    <div class="relation-stack">
-      ${buildAxisBlock({ connections: axisConnections, aName, bName, aiText: axisText })}
-      ${buildHouseBlock({ sections: houseSections })}
-      ${buildDeepBlock({ connections: deepConnections, aName, bName, aiText: deepText })}
-    </div>
-  `;
-}
-
-function formatCompareRow(row = {}) {
-  const body = row?.body_ja || row?.body_key || "—";
-  const aSign = row?.a?.sign_ja || row?.a?.sign_key || "";
-  const bSign = row?.b?.sign_ja || row?.b?.sign_key || "";
-  const aHouse = Number.isFinite(Number(row?.a?.house)) ? `${row.a.house}H` : "";
-  const bHouse = Number.isFinite(Number(row?.b?.house)) ? `${row.b.house}H` : "";
-  const relation = row?.sign_relation_label || "—";
-  const aspect = row?.aspect ? (ASPECT_DISPLAY[normalizeAspectKey(row.aspect)]?.ja || row.aspect) : "";
-  const orb = Number.isFinite(Number(row?.orb)) ? `${Number(row.orb).toFixed(2)}°` : "";
-  const aspectPart = aspect ? `${aspect} ${orb}`.trim() : "";
-  return `${body}｜${aSign} ${aHouse} ↔ ${bSign} ${bHouse}｜${relation}${aspectPart ? ` / ${aspectPart}` : ""}`.trim();
-}
-
-function formatSignRelationRow(row = {}) {
-  const a = row?.a_sign_ja || row?.a_sign_key || "—";
-  const b = row?.b_sign_ja || row?.b_sign_key || "—";
-  const rel = row?.relation_label || "—";
-  return `${a} × ${b}｜${rel}`;
-}
-
-function buildRelationCenterBlocks({ aLabel, bLabel, topSignA, topSignB, topHouseA, topHouseB, topElementA, topElementB, topModalityA, topModalityB, baseLines = [], relationCenter }) {
-  const blocks = [
-    {
-      title: "A CENTER",
-      sub: aLabel,
-      rows: [
-        `支配サイン: ${topSignA || "—"}`,
-        `支配ハウス: ${topHouseA || "—"}`,
-        `主成分: ${topElementA || "—"} / ${topModalityA || "—"}`,
-      ],
-    },
-    {
-      title: "B CENTER",
-      sub: bLabel,
-      rows: [
-        `支配サイン: ${topSignB || "—"}`,
-        `支配ハウス: ${topHouseB || "—"}`,
-        `主成分: ${topElementB || "—"} / ${topModalityB || "—"}`,
-      ],
-    },
-    {
-      title: "OVERLAP",
-      sub: relationCenter?.dominant_overlap_type || "",
-      rows: [
-        relationCenter?.shared_sign_label ? `重なりサイン: ${relationCenter.shared_sign_label}` : "重なりサイン: —",
-        relationCenter?.shared_house_cluster ? `重なりハウス: ${relationCenter.shared_house_cluster}` : "重なりハウス: —",
-        relationCenter?.overlap_line || "重なりの帯は分散しています。",
-      ],
-    },
-    {
-      title: "DIRECTION",
-      sub: relationCenter?.direction_vector || "",
-      rows: [
-        baseLines?.[1] || "分離帯は固定されません。",
-        baseLines?.[2] || "流れ帯は未確定です。",
-      ],
-    },
-  ];
-
-  return buildBlockGrid(blocks, "relation-blocks--two");
-}
-
-function buildComparePairsSection({ rows = [] } = {}) {
-  const cols = splitTwoColumns(rows.map(formatCompareRow));
-  return buildTwoColList({ leftRows: cols.left, rightRows: cols.right, leftTitle: "A ⇄ B", rightTitle: "A ⇄ B", leftSub: "", rightSub: "" });
-}
-
-function buildSignRelationSection({ rows = [] } = {}) {
-  const list = rows.map(formatSignRelationRow);
-  return buildSingleList({ title: "SIGN RELATION", sub: "", rows: list });
-}
-
-function buildCoreSection({ relationCore, coreConnections = [], aName, bName } = {}) {
-  const coreRows = [
-    `主軸｜${relationCore?.main_axis || "—"}`,
-    `張力｜${relationCore?.dominant_tension || "—"}`,
-    `通路｜${relationCore?.dominant_flow || "—"}`,
-    `型｜${relationCore?.dominant_relation_type || "—"}`,
-  ];
-  const coreTop = coreConnections.slice(0, 3);
-  return `
-    <div class="relation-stack">
-      ${buildSingleList({ title: "RELATION CORE", sub: "骨組み", rows: coreRows })}
-      ${buildConnectionList({ title: "CORE LINKS", sub: "", note: "関係の中心に近い接触", connections: coreTop, aName, bName })}
-    </div>
-  `;
-}
-
-function buildRelationPatternSection({ pattern, evidence = [], text = "" } = {}) {
-  const rows = evidence.length ? evidence : ["根拠は整理中です。"];
-  return `
-    <div class="relation-pattern">
-      <div class="chart-box relation-pattern-name">
-        <div class="card-head">パターン名</div>
-        <div class="card-sub">PATTERN NAME</div>
-        <div class="card-body text-block">${escapeHtml(pattern?.name || "—")}</div>
-      </div>
-      <div class="chart-box relation-pattern-summary">
-        <div class="card-head">構造まとめ</div>
-        <div class="card-sub">STRUCTURE SUMMARY</div>
-        <div class="relation-pattern-evidence">
-          ${rows.map((row) => `<div class="relation-row">${escapeHtml(row)}</div>`).join("")}
-        </div>
-        <div class="relation-pattern-text">${escapeHtml(text || "")}</div>
-      </div>
-    </div>
-  `;
-}
-
-function buildConnectionDualStack({
-  aName,
-  bName,
-  leftTitle,
-  rightTitle,
-  leftNote = "",
-  rightNote = "",
-  leftAiText = "",
-  rightAiText = "",
-  leftConnections = [],
-  rightConnections = [],
-} = {}) {
-  return `
-    <div class="relation-stack">
-      ${buildConnectionList({ title: leftTitle, sub: "", note: leftNote, aiText: leftAiText, connections: leftConnections, aName, bName, showNames: true })}
-      ${buildConnectionList({ title: rightTitle, sub: "", note: rightNote, aiText: rightAiText, connections: rightConnections, aName, bName, showNames: false })}
-    </div>
-  `;
-}
-
-function buildConnectionStack({ blocks = [] } = {}) {
-  const html = (Array.isArray(blocks) ? blocks : [])
-    .filter((b) => b && b.include !== false)
-    .map((b) => buildConnectionList(b))
-    .join("");
-  return `<div class="relation-stack">${html}</div>`;
-}
-
-function buildRelationCoreText({ relationCore }) {
-  const axis = relationCore?.main_axis || "主軸";
-  const tension = relationCore?.dominant_tension || "張力";
-  const flow = relationCore?.dominant_flow || "通路";
-  const type = relationCore?.dominant_relation_type || "layered";
-  return `${axis}を中心に、${tension}が輪郭を作り、${flow}が通路を支えます。全体は${type}の型としてまとまりやすい。`;
-}
-
-function buildCompareMetaHtml(row = {}) {
-  const aSign = row?.a?.sign_ja || row?.a?.sign_key || "—";
-  const bSign = row?.b?.sign_ja || row?.b?.sign_key || "—";
-  const aHouse = Number.isFinite(Number(row?.a?.house)) ? `${row.a.house}H` : "";
-  const bHouse = Number.isFinite(Number(row?.b?.house)) ? `${row.b.house}H` : "";
-  const aSignGlyph = row?.a?.sign_glyph ? buildGlyphImgTag(row.a.sign_glyph, { className: "glyph-img glyph-img--sign", size: 16, color: "#EDEEFF" }) : "";
-  const bSignGlyph = row?.b?.sign_glyph ? buildGlyphImgTag(row.b.sign_glyph, { className: "glyph-img glyph-img--sign", size: 16, color: "#EDEEFF" }) : "";
-  const aText = `${escapeHtml(aSign)}${aHouse ? ` ${escapeHtml(aHouse)}` : ""}`;
-  const bText = `${escapeHtml(bSign)}${bHouse ? ` ${escapeHtml(bHouse)}` : ""}`;
-  const aspect = row?.aspect ? formatAspectDisplay(row.aspect, row.orb) : null;
-  const aspectLabelMap = {
-    conjunction: "重なり",
-    opposition: "対向",
-    square: "直角",
-    trine: "調和",
-    quincunx: "調整",
-  };
-
-  const getHouseBand = (house) => {
-    const h = Number(house);
-    if (!Number.isFinite(h)) return null;
-    if (h >= 1 && h <= 3) return "1-3";
-    if (h >= 4 && h <= 6) return "4-6";
-    if (h >= 7 && h <= 9) return "7-9";
-    if (h >= 10 && h <= 12) return "10-12";
-    return null;
-  };
-
-  const aSignKey = row?.a?.sign_key || "";
-  const bSignKey = row?.b?.sign_key || "";
-  const aElem = SIGN_ELEMENT[aSignKey];
-  const bElem = SIGN_ELEMENT[bSignKey];
-  const aModality = SIGN_MODALITY[aSignKey];
-  const bModality = SIGN_MODALITY[bSignKey];
-  const sameSign = aSignKey && bSignKey && aSignKey === bSignKey;
-  const sameElement = aElem && bElem && aElem === bElem;
-  const sameModality = aModality && bModality && aModality === bModality;
-  const sameHouse = Number.isFinite(Number(row?.a?.house)) && Number.isFinite(Number(row?.b?.house)) && Number(row.a.house) === Number(row.b.house);
-  const sameHouseBand = getHouseBand(row?.a?.house) && getHouseBand(row?.b?.house) && getHouseBand(row?.a?.house) === getHouseBand(row?.b?.house);
-
-  const attributeLabelMap = {
-    same_sign: "◎ 同サイン",
-    same_element: "◯ 同元素",
-    same_modality: "▣ 同区分",
-    same_house: "▤ 同ハウス",
-    same_house_band: "▥ 同ハウス帯",
-    none: "◌ 非接続",
-  };
-
-  let attributeKey = "none";
-  if (sameSign) attributeKey = "same_sign";
-  else if (sameElement) attributeKey = "same_element";
-  else if (sameModality) attributeKey = "same_modality";
-  else if (sameHouse) attributeKey = "same_house";
-  else if (sameHouseBand) attributeKey = "same_house_band";
-
-  const attributeLabel = attributeLabelMap[attributeKey] || attributeLabelMap.none;
-
-  const aspectKey = row?.aspect ? normalizeAspectKey(row.aspect) : "";
-  const aspectLabel = aspectKey && aspectLabelMap[aspectKey] ? aspectLabelMap[aspectKey] : aspect?.label;
-  const aspectText = aspect && aspectLabel ? `${aspect.symbol}${aspectLabel}`.trim() : attributeLabel;
-  return `
-    <span class="compare-meta-side">${aSignGlyph}<span class="compare-meta-sign-text">${aText}</span></span>
-    <span class="compare-meta-rel">${escapeHtml(aspectText)}</span>
-    <span class="compare-meta-side compare-meta-side--weak">${bSignGlyph}<span class="compare-meta-sign-text">${bText}</span></span>
-  `;
-}
-
-function buildCompareLayerItem(row = {}) {
-  if (!row) return "";
-  const bodyGlyph = row?.a?.body_glyph || row?.b?.body_glyph || "";
-  const bodyKey = String(row?.body_key || "").toLowerCase();
-  const rawName = row?.body_ja || row?.body_key || "—";
-  const bodyRaw = AXIS_BODIES.has(bodyKey) ? String(rawName).toUpperCase() : rawName;
-  const axisPrefix = AXIS_SYMBOLS[bodyKey] ? `${AXIS_SYMBOLS[bodyKey]} ` : "";
-  const bodyJa = axisPrefix ? `${axisPrefix}${bodyRaw}` : bodyRaw;
-  const title = `${bodyGlyph} ${bodyJa}`.trim();
-  const glyph = bodyGlyph ? buildGlyphImgTag(bodyGlyph, { className: "glyph-img glyph-img--body", size: 24, color: "#EDEEFF" }) : "";
-  const metaHtml = buildCompareMetaHtml(row);
-  return `
-    <div class="compare-layer-item card">
-      <div class="compare-row">
-        <div class="card-title">${glyph}<span class="card-title-text">${escapeHtml(bodyJa)}</span></div>
-        <div class="card-meta-inline compare-meta-line">${metaHtml}</div>
-      </div>
-    </div>
-  `;
-}
-
-function buildCompareLayer({ title = "", note = "", aiText = "", rows = [], className = "" } = {}) {
-  return `
-    <div class="chart-box relation-col compare-layer ${className || ""}">
-      <div class="card-head">${escapeHtml(title)}</div>
-      ${note ? `<div class="card-note">${escapeHtml(note)}</div>` : ""}
-      <div class="compare-layer-list">
-        ${rows.map((row) => buildCompareLayerItem(row)).join("")}
-      </div>
-      ${aiText ? `<div class="card-ai">${escapeHtml(aiText)}</div>` : ""}
-    </div>
-  `;
-}
-
-function buildCompareBlockDefs({ personal = [], social = [], transpersonal = [], axis = [], deep = [], aiTexts = {} } = {}) {
-  return [
-    { title: "PERSONAL", note: "内側の機能", aiText: aiTexts.personal_text || "", rows: personal },
-    { title: "SOCIAL", note: "外との接点", aiText: aiTexts.social_text || "", rows: social },
-    { title: "TRANSPERSONAL", note: "構造変化", aiText: aiTexts.transpersonal_text || "", rows: transpersonal },
-    { title: "AXIS", note: "構造の骨", aiText: aiTexts.axis_compare_text || "", rows: axis },
-    { title: "DEEP", note: "地下構造", aiText: aiTexts.deep_compare_text || "", rows: deep },
-  ];
-}
-
-function buildCompareBlockStack(blocks = []) {
-  return `
-    <div class="relation-stack">
-      ${(Array.isArray(blocks) ? blocks : []).map((b) => buildCompareLayer(b)).join("")}
-    </div>
-  `;
-}
-
-function buildCompareBlocksSection({ core = [], emotion = [], action = [], communication = [], expansion = [], axisDeep = [] } = {}) {
-  return buildCompareBlockStack(buildCompareBlockDefs({ core, emotion, action, communication, expansion, axisDeep }));
-}
-
-function buildSignFacingRowHtml(row = {}, note = "") {
-  const bodyGlyph = row?.a?.body_glyph || "";
-  const bodyJa = row?.body_ja || row?.body_key || "—";
-  const aSignGlyph = row?.a?.sign_glyph || "";
-  const aSign = row?.a?.sign_ja || row?.a?.sign_key || "—";
-  const bSignGlyph = row?.b?.sign_glyph || "";
-  const bSign = row?.b?.sign_ja || row?.b?.sign_key || "—";
-  const rel = row?.sign_relation || "other";
-  const relSymbol = SIGN_RELATION_SYMBOLS[rel] || "·";
-  const bodyGlyphTag = bodyGlyph ? buildGlyphImgTag(bodyGlyph, { className: "glyph-img glyph-img--body", size: 24, color: "#EDEEFF" }) : "";
-  const aSignGlyphTag = aSignGlyph ? buildGlyphImgTag(aSignGlyph, { className: "glyph-img glyph-img--sign", size: 18, color: "#EDEEFF" }) : "";
-  const bSignGlyphTag = bSignGlyph ? buildGlyphImgTag(bSignGlyph, { className: "glyph-img glyph-img--sign", size: 18, color: "#EDEEFF" }) : "";
-  return `
-    <div class="sign-facing-row card">
-      <div class="sign-facing-head">
-        <div class="card-title">${bodyGlyphTag}<span class="card-title-text">${escapeHtml(bodyJa)}</span></div>
-        <div class="card-meta-inline sign-facing-meta">
-          <span class="sign-facing-sign">${aSignGlyphTag}<span class="sign-facing-sign-text">${escapeHtml(aSign)}</span></span>
-          <span class="sign-facing-rel">${escapeHtml(relSymbol)}</span>
-          <span class="sign-facing-sign sign-facing-sign--weak">${bSignGlyphTag}<span class="sign-facing-sign-text">${escapeHtml(bSign)}</span></span>
-        </div>
-      </div>
-      ${note ? `<div class="card-text text-block sign-facing-note">→ ${escapeHtml(note)}</div>` : ""}
-    </div>
-  `;
-}
-
-function buildSignFacingSection({ rows = [], noteMap = {} } = {}) {
-  const items = rows.length ? rows : [{ _empty: true }];
-  return `
-    <div class="relation-cols relation-cols--single relation-cols--sign-facing">
-      <div class="chart-box relation-col">
-        <div class="card-head">SIGN FACING</div>
-        <div class="card-list relation-list sign-facing-list">
-          ${items
-            .map((row) => {
-              if (row._empty) {
-                return `<div class="sign-facing-row"><div class="sign-facing-main">—</div></div>`;
-              }
-              const key = row?.body_key || "";
-              const note = noteMap?.[key] || "";
-              return buildSignFacingRowHtml(row, note);
-            })
-            .join("")}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildSignFacingText({ rows = [] } = {}) {
-  if (!rows.length) return "サインの向かい合いは分散しています。";
-  const counts = rows.reduce((acc, r) => {
-    const key = r?.sign_relation || "other";
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || "other";
-  const label = SIGN_RELATION_LABELS[top] || top;
-  return `向かい合いの中心は「${label}」に寄っています。サインの距離が関係の空気を作ります。`;
-}
-
-function mergeUniqueBodies(base = [], extra = []) {
-  const seen = new Set(base.map((row) => row?.body_key).filter(Boolean));
-  const add = extra.filter((row) => row?.body_key && !seen.has(row.body_key));
-  return [...base, ...add];
-}
-
-function formatDateLocal(dateRaw) {
-  if (!dateRaw) return "";
-  return String(dateRaw).replace(/\./g, "-").replace(/\//g, "-").replace(/-/g, "/");
-}
-
-function formatBirthLine(person = {}) {
-  const birth = person?.birth || person || {};
-  const date = formatDateLocal(birth?.date_local || birth?.date);
-  const time = birth?.time_hm || birth?.time || "";
-  if (date && time) return `${date} ${time}`;
-  if (date) return date;
-  return "—";
-}
-
-function formatPlaceLine(person = {}) {
-  const birth = person?.birth || person || {};
-  return birth?.place_text || birth?.place_formatted || birth?.place || "—";
-}
-
-function buildPeopleBlock({ a = {}, b = {} } = {}) {
-  const aName = shortName(a?.name || "A");
-  const bName = shortName(b?.name || "B");
-  const aBirth = formatBirthLine(a);
-  const bBirth = formatBirthLine(b);
-  const aPlace = formatPlaceLine(a);
-  const bPlace = formatPlaceLine(b);
-  return `
-    <div class="relation-info">
-      <div class="chart-box relation-info-card">
-        <div class="card-head">A</div>
-        <div class="card-sub">PROFILE</div>
-        <div class="card-list relation-info-list">
-          <div class="relation-info-name">${escapeHtml(aName)}</div>
-          <div class="relation-info-birth">${escapeHtml(aBirth)}</div>
-          <div class="relation-info-place">${escapeHtml(aPlace)}</div>
-        </div>
-      </div>
-      <div class="chart-box relation-info-card">
-        <div class="card-head">B</div>
-        <div class="card-sub">PROFILE</div>
-        <div class="card-list relation-info-list">
-          <div class="relation-info-name">${escapeHtml(bName)}</div>
-          <div class="relation-info-birth">${escapeHtml(bBirth)}</div>
-          <div class="relation-info-place">${escapeHtml(bPlace)}</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildMetricRow({ glyph, label, count, percent, color }) {
-  const glyphTag = buildGlyphImgTag(glyph, { className: "astro-symbol-img", size: 22, color });
-  return `
-    <div class="metric-row">
-      <div class="metric-label">${glyphTag}<span class="metric-name">${escapeHtml(label)}</span><span class="metric-count">${escapeHtml(count)}</span></div>
-      <div class="metric-bar"><div class="bar" style="--bar-fill:${percent}%; --bar-color:${color};"></div></div>
-    </div>
-  `;
-}
-
-function buildElementBarList(balance = {}) {
-  const c = balance?.element_count || {};
-  const total = 10;
-  return `
-    <div class="bar-list bar-list--element">
-      ${buildMetricRow({ glyph: "🜂", label: "火", count: c.fire ?? 0, percent: ((c.fire ?? 0) / total) * 100, color: "#FF6B6B" })}
-      ${buildMetricRow({ glyph: "🜃", label: "地", count: c.earth ?? 0, percent: ((c.earth ?? 0) / total) * 100, color: "#E6C36D" })}
-      ${buildMetricRow({ glyph: "🜁", label: "風", count: c.air ?? 0, percent: ((c.air ?? 0) / total) * 100, color: "#7FBF8F" })}
-      ${buildMetricRow({ glyph: "🜄", label: "水", count: c.water ?? 0, percent: ((c.water ?? 0) / total) * 100, color: "#7AA7FF" })}
-    </div>
-  `;
-}
-
-function buildModalityBarList(balance = {}) {
-  const c = balance?.modality_count || {};
-  const total = 10;
-  return `
-    <div class="bar-list bar-list--modality">
-      ${buildMetricRow({ glyph: "△", label: "活動宮", count: c.cardinal ?? 0, percent: ((c.cardinal ?? 0) / total) * 100, color: "#FFB27A" })}
-      ${buildMetricRow({ glyph: "□", label: "不動宮", count: c.fixed ?? 0, percent: ((c.fixed ?? 0) / total) * 100, color: "#9EC5FF" })}
-      ${buildMetricRow({ glyph: "◇", label: "柔軟宮", count: c.mutable ?? 0, percent: ((c.mutable ?? 0) / total) * 100, color: "#9FD3A8" })}
-    </div>
-  `;
-}
-
-function buildElementModalityColumns({ aBalance, bBalance } = {}) {
-  return `
-    <div class="relation-bars">
-      <div class="relation-bars-col">
-        <div class="chart-box relation-bar-box">
-          <div class="card-head">A エレメント</div>
-          <div class="card-sub">ELEMENT BALANCE</div>
-          ${buildElementBarList(aBalance)}
-        </div>
-        <div class="chart-box relation-bar-box">
-          <div class="card-head">A モード</div>
-          <div class="card-sub">MODALITY BALANCE</div>
-          ${buildModalityBarList(aBalance)}
-        </div>
-      </div>
-      <div class="relation-bars-col">
-        <div class="chart-box relation-bar-box">
-          <div class="card-head">B エレメント</div>
-          <div class="card-sub">ELEMENT BALANCE</div>
-          ${buildElementBarList(bBalance)}
-        </div>
-        <div class="chart-box relation-bar-box">
-          <div class="card-head">B モード</div>
-          <div class="card-sub">MODALITY BALANCE</div>
-          ${buildModalityBarList(bBalance)}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildBottomSections(sections = []) {
-  if (!sections.length) return "";
-  return `
-    <div class="relation-bottom">
-      ${sections
-        .map(
-          (s) => `
-            <div class="relation-section">
-              ${s.label ? `<span class="relation-label">${escapeHtml(s.label || "")}</span>` : ""}
-              <span class="relation-text">${escapeHtml(s.text || "")}</span>
-            </div>
-          `
-        )
-        .join("")}
-    </div>
-  `;
-}
-
-function buildPage({ meta, leftRows, rightRows, bottomSections, extra = "", middleHtml = "", leftTitle, rightTitle, leftSub, rightSub, pageNo = 1, total = null, variant = "slide3", spaceOpacity = 0.8, pageClass = "", seedLabel = "" }) {
-  const spaceStyle = Number.isFinite(Number(spaceOpacity)) ? ` style="--space-opacity:${spaceOpacity};"` : "";
-  const middleContent = middleHtml || buildTwoColList({ leftRows, rightRows, leftTitle, rightTitle, leftSub, rightSub });
-  return `
-    <div class="page page--space relation-page ${pageClass || ""}"${spaceStyle}>
-      ${renderSpaceBg(variant, seedLabel)}
-      <div class="blueprint-grid"></div>
-      <div class="page-corner">✦</div>
-      <div class="slide">
-        <div class="top">
-          ${buildHeader(meta)}
-        </div>
-        <div class="middle">
-          ${middleContent}
-        </div>
-        ${extra}
-        <div class="bottom">
-          ${buildBottomSections(bottomSections)}
-        </div>
-      </div>
-      ${buildCosmicNav(pageNo - 1, total)}
-      ${buildFooter({ pageNo, total })}
-    </div>
-  `;
-}
-
-function buildCoverPage({ meta, wheelHtml = "", pageNo = 1, total = null, spaceOpacity = 0.9, pageClass = "", seedLabel = "" }) {
-  const spaceStyle = Number.isFinite(Number(spaceOpacity)) ? ` style="--space-opacity:${spaceOpacity};"` : "";
-  return `
-    <div class="page page--space relation-page ${pageClass || ""}"${spaceStyle}>
-      ${renderSpaceBg("slide1", seedLabel)}
-      <div class="blueprint-grid"></div>
-      <div class="page-corner">✦</div>
-      <div class="slide relation-cover">
-        <div class="top center">
-          <div class="label relation-en">${escapeHtml(meta?.en || "")}</div>
-          <div class="title relation-cover-ja">${escapeHtml(meta?.ja || "")}</div>
-          <div class="page-intro">${escapeHtml(meta?.intro || "")}</div>
-        </div>
-        ${wheelHtml ? `<div class="relation-wheel-wrap">${wheelHtml}</div>` : ""}
-      </div>
-      ${buildCosmicNav(pageNo - 1, total)}
-      ${buildFooter({ pageNo, total })}
-    </div>
-  `;
-}
-
 function mapBodies(list = []) {
   const out = new Map();
   for (const row of list) {
@@ -1445,208 +368,6 @@ function buildRelationWheelSvg(view, { size = 680, maxLines = 5, connections: co
   `;
 }
 
-function chunkTwoColumns(list = [], rowsPerCol = MAX_ROWS_PER_COL) {
-  const out = [];
-  const chunkSize = rowsPerCol * 2;
-  for (let i = 0; i < list.length; i += chunkSize) {
-    const slice = list.slice(i, i + chunkSize);
-    out.push({
-      left: slice.slice(0, rowsPerCol),
-      right: slice.slice(rowsPerCol),
-    });
-  }
-  if (!out.length) out.push({ left: ["—"], right: ["—"] });
-  return out;
-}
-
-function splitTwoColumns(list = []) {
-  if (!list.length) return { left: ["—"], right: ["—"] };
-  const mid = Math.ceil(list.length / 2);
-  return { left: list.slice(0, mid), right: list.slice(mid) };
-}
-
-function chunkList(list = [], size = 6) {
-  if (!list.length) return [[]];
-  const out = [];
-  for (let i = 0; i < list.length; i += size) {
-    out.push(list.slice(i, i + size));
-  }
-  return out;
-}
-
-function buildPrefixSums(list = []) {
-  const sums = [0];
-  for (const value of list) {
-    sums.push(sums[sums.length - 1] + value);
-  }
-  return sums;
-}
-
-function sumTail(sums, endIndex, count) {
-  if (!count) return 0;
-  const start = Math.max(0, endIndex - count);
-  return sums[endIndex] - sums[start];
-}
-
-function calcBlockHeight({ headHeight = 0, rowHeights = [], gap = 0, endIndex = rowHeights.length, count = rowHeights.length, sums = null } = {}) {
-  const safeCount = Math.max(0, count);
-  const totalRows = sums ? sumTail(sums, endIndex, safeCount) : rowHeights.slice(endIndex - safeCount, endIndex).reduce((a, b) => a + b, 0);
-  if (!safeCount) return headHeight;
-  return headHeight + totalRows + gap * Math.max(0, safeCount - 1);
-}
-
-function maxRowsFitFromEnd({ rowHeights = [], headHeight = 0, gap = 0, endIndex = rowHeights.length, maxHeight = 0 }) {
-  let total = headHeight;
-  let count = 0;
-  for (let i = endIndex - 1; i >= 0; i--) {
-    const rowHeight = rowHeights[i] || 0;
-    const extraGap = count > 0 ? gap : 0;
-    if (total + extraGap + rowHeight > maxHeight) break;
-    total += extraGap + rowHeight;
-    count += 1;
-  }
-  return Math.max(count, 1);
-}
-
-function paginateStackBlocksFromStart({ blockHeights = [], gap = 0, maxHeight = 0 }) {
-  const pages = [];
-  let start = 0;
-  let total = 0;
-  for (let i = 0; i < blockHeights.length; i += 1) {
-    const h = blockHeights[i] || 0;
-    const nextTotal = total ? total + gap + h : h;
-    if (nextTotal <= maxHeight || start === i) {
-      total = nextTotal;
-      continue;
-    }
-    pages.push({ start, end: i });
-    start = i;
-    total = h;
-  }
-  if (blockHeights.length) pages.push({ start, end: blockHeights.length });
-  if (!pages.length) pages.push({ start: 0, end: 0 });
-  return pages;
-}
-
-function paginateSingleListFromEnd({ rowHeights = [], headHeight = 0, gap = 0, maxNoBottom = 0, maxWithBottom = 0 }) {
-  const pages = [];
-  let end = rowHeights.length;
-  let isLast = true;
-  while (end > 0) {
-    const maxHeight = isLast ? maxWithBottom : maxNoBottom;
-    const count = maxRowsFitFromEnd({ rowHeights, headHeight, gap, endIndex: end, maxHeight });
-    const start = Math.max(0, end - count);
-    pages.push({ start, end, count, isLast });
-    end = start;
-    isLast = false;
-  }
-  return pages.reverse();
-}
-
-function paginateDualListsFromEnd({
-  flowHeights = [],
-  frictionHeights = [],
-  flowHeadHeight = 0,
-  frictionHeadHeight = 0,
-  flowGap = 0,
-  frictionGap = 0,
-  stackGap = 0,
-  maxNoBottom = 0,
-  maxWithBottom = 0,
-}) {
-  const flowSums = buildPrefixSums(flowHeights);
-  const frictionSums = buildPrefixSums(frictionHeights);
-  const pages = [];
-  let flowEnd = flowHeights.length;
-  let frictionEnd = frictionHeights.length;
-  let isLast = true;
-
-  const pickCounts = (maxHeight) => {
-    const minFlow = flowEnd > 0 ? 1 : 0;
-    const minFriction = frictionEnd > 0 ? 1 : 0;
-    let best = null;
-
-    for (let flowCount = minFlow; flowCount <= flowEnd; flowCount += 1) {
-      const flowHeight = calcBlockHeight({
-        headHeight: flowHeadHeight,
-        rowHeights: flowHeights,
-        gap: flowGap,
-        endIndex: flowEnd,
-        count: flowCount,
-        sums: flowSums,
-      });
-      const needsStack = minFriction > 0;
-      const remain = maxHeight - flowHeight - (needsStack ? stackGap : 0);
-      if (remain < 0) continue;
-
-      let bestFrictionCount = null;
-      for (let frictionCount = frictionEnd; frictionCount >= minFriction; frictionCount -= 1) {
-        const frictionHeight = calcBlockHeight({
-          headHeight: frictionHeadHeight,
-          rowHeights: frictionHeights,
-          gap: frictionGap,
-          endIndex: frictionEnd,
-          count: frictionCount,
-          sums: frictionSums,
-        });
-        if (frictionHeight <= remain) {
-          bestFrictionCount = frictionCount;
-          break;
-        }
-      }
-      if (bestFrictionCount === null) continue;
-
-      const frictionHeight = calcBlockHeight({
-        headHeight: frictionHeadHeight,
-        rowHeights: frictionHeights,
-        gap: frictionGap,
-        endIndex: frictionEnd,
-        count: bestFrictionCount,
-        sums: frictionSums,
-      });
-      const totalHeight = flowHeight + (bestFrictionCount > 0 ? stackGap + frictionHeight : 0);
-      const totalRows = flowCount + bestFrictionCount;
-
-      if (!best || totalRows > best.totalRows || (totalRows === best.totalRows && totalHeight > best.totalHeight)) {
-        best = { flowCount, frictionCount: bestFrictionCount, totalRows, totalHeight };
-      }
-    }
-
-    if (!best) {
-      const fallbackFlow = flowEnd > 0 ? 1 : 0;
-      const fallbackFriction = frictionEnd > 0 ? 1 : 0;
-      return { flowCount: fallbackFlow, frictionCount: fallbackFriction };
-    }
-    return best;
-  };
-
-  while (flowEnd > 0 || frictionEnd > 0) {
-    const maxHeight = isLast ? maxWithBottom : maxNoBottom;
-    const pick = pickCounts(maxHeight);
-    const flowCount = Math.min(pick.flowCount || 0, flowEnd);
-    const frictionCount = Math.min(pick.frictionCount || 0, frictionEnd);
-
-    const flowStart = Math.max(0, flowEnd - flowCount);
-    const frictionStart = Math.max(0, frictionEnd - frictionCount);
-
-    pages.push({
-      flowStart,
-      flowEnd,
-      flowCount,
-      frictionStart,
-      frictionEnd,
-      frictionCount,
-      isLast,
-    });
-
-    flowEnd = flowStart;
-    frictionEnd = frictionStart;
-    isLast = false;
-  }
-
-  return pages.reverse();
-}
-
 function pickCoreBodies(list = []) {
   return list.filter((row) => CORE_BODIES.has(row?.body_key));
 }
@@ -1664,100 +385,13 @@ function normalizePairKey(a, b) {
   return `${right}_${left}`;
 }
 
-const CORE_PAIR_KEYS = new Set([
-  "sun_moon",
-  "moon_moon",
-  "moon_venus",
-  "venus_mars",
-  "mercury_moon",
-  "sun_asc",
-  "moon_asc",
-]);
 
-const COMM_PAIR_KEYS = new Set([
-  "mercury_mercury",
-  "mercury_moon",
-  "sun_mercury",
-  "moon_moon",
-  "moon_venus",
-  "mercury_jupiter",
-  "moon_jupiter",
-]);
 
-const ATTRACTION_PAIR_KEYS = new Set([
-  "venus_mars",
-  "venus_venus",
-  "mars_mars",
-  "sun_venus",
-  "moon_mars",
-  "venus_jupiter",
-  "mars_jupiter",
-  "sun_jupiter",
-]);
 
-const FRICTION_PAIR_KEYS = new Set([
-  "moon_saturn",
-  "venus_saturn",
-  "mercury_mars",
-  "moon_pluto",
-  "mars_mars",
-  "jupiter_jupiter",
-]);
 
-const SOFT_ASPECTS = new Set(["conjunction", "trine", "sextile"]);
-const HARD_ASPECTS = new Set(["square", "opposition", "quincunx"]);
 
-const PAIR_PRIORITY = {
-  sun_moon: 10,
-  moon_moon: 8,
-  moon_venus: 7,
-  venus_mars: 7,
-  mercury_moon: 6,
-  sun_asc: 6,
-  moon_asc: 6,
-  sun_north_node: 7,
-  moon_north_node: 7,
-  asc_north_node: 7,
-  sun_south_node: 6,
-  moon_south_node: 6,
-  asc_south_node: 6,
-  sun_jupiter: 6,
-  moon_jupiter: 6,
-  venus_jupiter: 6,
-  mercury_jupiter: 5,
-};
 
-const BODY_PRIORITY = {
-  sun: 6,
-  moon: 6,
-  mercury: 4,
-  venus: 4,
-  mars: 4,
-  asc: 4,
-  dc: 3,
-  mc: 3,
-  ic: 3,
-  north_node: 4,
-  south_node: 4,
-  jupiter: 3,
-  saturn: 3,
-  pluto: 2,
-  uranus: 1,
-  neptune: 1,
-  chiron: 2,
-  lilith: 2,
-};
 
-const ASPECT_WEIGHT = {
-  conjunction: 6,
-  trine: 4,
-  sextile: 3,
-  square: 2,
-  opposition: 2,
-  quincunx: 1,
-  same_sign: 4,
-  same_element: 2,
-};
 
 function scoreConnection(conn, category = "", bonus = 0) {
   const orb = Number.isFinite(Number(conn?.orb)) ? Number(conn.orb) : 99;
