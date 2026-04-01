@@ -5,7 +5,7 @@ const {
 } = require("../../common/common");
 const {
   X_PUBLIC_COMMON,
-} = require("./x_public_common");
+} = require("./common");
 
 const X_SORA_USER_GUIDE = `
 #役割

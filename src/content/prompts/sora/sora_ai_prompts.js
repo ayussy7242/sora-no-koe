@@ -40,13 +40,13 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
-} = require("../sns/instagram/ig");
+} = require("../sns/instagram");
 const {
   SORA_AI_PUBLIC_IG_STORY_COMMON,
   SORA_AI_USER_GUIDE_IG_STORY_TODAY,
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
-} = require("../sns/instagram/ig_story");
+} = require("../sns/instagram/story");
 
 const SORA_AI_SYSTEM_PROMPT_COMMON = `${SYSTEM_COMMON}\n\n${STYLE_COMMON}`.trim();
 

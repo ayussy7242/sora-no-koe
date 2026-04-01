@@ -2,7 +2,7 @@
 
 const {
   POLITE_TONE_COMMON,
-} = require("../../../common/common");
+} = require("../../common/common");
 
 /* =================================================
 IG｜共通ルール

@@ -2,7 +2,7 @@
 
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
-const { X_MONTHLY_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_monthly_prompts");
+const { X_MONTHLY_USER_GUIDE } = require("../../../../content/prompts/sns/x/monthly");
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon_info");
 const { listWithOrb } = require("../../../../domain/aspect_selection");
 const { normalizeBodyKey } = require("../../../../domain/canonical");

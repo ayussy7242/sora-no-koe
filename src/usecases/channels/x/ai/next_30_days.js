@@ -2,7 +2,7 @@
 
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
-const { X_NEXT_30_DAYS_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_next_30_days_prompts");
+const { X_NEXT_30_DAYS_USER_GUIDE } = require("../../../../content/prompts/sns/x/next_30_days");
 const { buildMonthlyContext } = require("./monthly");
 const { toDateLocalJST } = require("../../../../utils/time_utils");
 const { validateXAiText } = require("./common");

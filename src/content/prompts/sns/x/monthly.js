@@ -3,7 +3,7 @@
 const {
   X_PUBLIC_COMMON,
   X_PUBLIC_SHORT_COMMON,
-} = require("./x_public_common");
+} = require("./common");
 
 const X_MONTHLY_USER_GUIDE = `
 月初投稿「今月の空模様」の短い観測文を生成する。

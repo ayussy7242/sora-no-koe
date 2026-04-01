@@ -6,7 +6,7 @@ const {
 
 const {
   X_PUBLIC_COMMON,
-} = require("./x_public_common");
+} = require("./common");
 
 const X_NIGHT_USER_GUIDE = `
 X夜投稿の1投稿目冒頭に置く「夜の空の観測メッセージ」を生成する。

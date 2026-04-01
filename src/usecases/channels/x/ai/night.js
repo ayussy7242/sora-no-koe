@@ -2,7 +2,7 @@
 
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
-const { X_NIGHT_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_night_prompts");
+const { X_NIGHT_USER_GUIDE } = require("../../../../content/prompts/sns/x/night");
 const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const {
   buildNextMoonEvents,

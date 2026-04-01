@@ -5,7 +5,7 @@ const {
 } = require("../../common/common");
 const {
   X_PUBLIC_COMMON,
-} = require("./x_public_common");
+} = require("./common");
 
 const X_RESONANCE_USER_GUIDE = `
 X朝投稿の3枚目「共鳴の空」に添える短い観測文を生成する。

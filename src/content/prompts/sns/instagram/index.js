@@ -4,9 +4,9 @@ const {
   SORA_AI_PUBLIC_IG_COMMON,
   SORA_AI_PUBLIC_IG_SHORT_COMMON,
   POLITE_TONE_COMMON,
-} = require("./common/common");
-const daily = require("./daily/ig_carousel");
-const moonEvent = require("./moon_event/ig_carousel");
+} = require("./common");
+const daily = require("./daily/carousel");
+const moonEvent = require("./moon_event/carousel");
 
 module.exports = Object.freeze({
   SORA_AI_PUBLIC_IG_COMMON,
