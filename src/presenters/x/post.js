@@ -21,9 +21,9 @@ const {
   OUTER_PLANETS,
 } = require("../../domain/astro/constants");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
-const { detectMoonEvent } = require("../../usecases/channels/x/ai/generate_x_moon_event_ai");
-const { buildMonthlyContext } = require("../../usecases/channels/x/ai/generate_x_monthly_ai");
-const { buildNext30DaysContext } = require("../../usecases/channels/x/ai/generate_x_next_30_days_ai");
+const { detectMoonEvent } = require("../../usecases/channels/x/ai/generate_x_moon_event");
+const { buildMonthlyContext } = require("../../usecases/channels/x/ai/generate_x_monthly");
+const { buildNext30DaysContext } = require("../../usecases/channels/x/ai/generate_x_next_30_days");
 
 const SEP = "────────";
 
