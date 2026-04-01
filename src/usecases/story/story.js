@@ -25,11 +25,11 @@ const {
   isYYYYMMDD,
   safeNumber,
   clamp,
-} = require("./story_math");
-const { createSignHelpers } = require("./story_signs");
-const { createTransitsService } = require("./story_transits");
-const { createNatalService } = require("./story_natal");
-const { createSkyService } = require("./story_sky");
+} = require("./math");
+const { createSignHelpers } = require("./signs");
+const { createTransitsService } = require("./transits");
+const { createNatalService } = require("./natal");
+const { createSkyService } = require("./sky");
 const { resolveDisplayNameFromUserDoc } = require("../../utils/resolve_display_name");
 const {
   computeTokyoAscDeg,

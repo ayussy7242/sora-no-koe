@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const sharp = require("sharp");
-const { createWpClient } = require("../../integrations/wordpress/wp_client");
+const { createWpClient } = require("../../integrations/wordpress/client");
 const { buildSoraWheelSvg } = require("../../engine/graphics/sora_wheel");
 const {
   generateDailyDraft,

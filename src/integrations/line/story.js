@@ -12,7 +12,7 @@
  */
 
 const { LINE_COPY } = require("../../content/copy");
-const { normalizeStoryArgs } = require("../../usecases/story/story_args");
+const { normalizeStoryArgs } = require("../../usecases/story/args");
 const { ymdInTimeZone } = require("../../utils/time");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { safeLineText } = require("./line_utils");

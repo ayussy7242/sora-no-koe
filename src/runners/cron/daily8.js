@@ -19,7 +19,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { normalizeStoryArgs } = require("../../usecases/story/story_args");
+const { normalizeStoryArgs } = require("../../usecases/story/args");
 const {
   isYYYYMMDD,
   toDateLocalJST,

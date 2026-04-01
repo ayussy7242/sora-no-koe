@@ -1,6 +1,6 @@
 "use strict";
 
-const { normalizeStoryArgs } = require("./story_args");
+const { normalizeStoryArgs } = require("./args");
 const { buildPublicStorySnapshot } = require("./store");
 
 const ROUTER_BUILD = "routes/stories.js v2026-01-27 safe-outputs + single-render";

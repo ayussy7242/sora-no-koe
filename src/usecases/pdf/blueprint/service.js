@@ -1,7 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
-const { createNatalService } = require("../../story/story_natal");
+const { createNatalService } = require("../../story/natal");
 const { generateBlueprintLightText, generateBlueprintLightTextV2 } = require("./generate_text");
 const { renderBlueprintLightPdf } = require("./render/pdf_render");
 const { createBlueprintLightStorage } = require("./storage");

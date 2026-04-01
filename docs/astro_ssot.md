@@ -25,8 +25,8 @@ format/present already-computed values.
 
 ## Transit (Story) Pipeline
 ### Where
-- `src/usecases/story/story_transits.js`
-- `src/usecases/story/story_signs.js`
+- `src/usecases/story/transits.js`
+- `src/usecases/story/signs.js`
 
 ### How
 1. Compute raw longitude via `swe_calc_ut(...)`.
@@ -34,10 +34,10 @@ format/present already-computed values.
 3. Determine sign by `Math.floor(norm360(lonDeg) / 30)` using the **rounded** longitude.
 
 ### Key Code References
-- `src/usecases/story/story_transits.js`
+- `src/usecases/story/transits.js`
   - `lonFixed = toFixedPrecision(lon, precisionDeg)`
   - `signFromLon(lonFixed)`
-- `src/usecases/story/story_signs.js`
+- `src/usecases/story/signs.js`
   - `Math.floor(norm360(lonDeg) / 30)`
 
 ## Natal Pipeline

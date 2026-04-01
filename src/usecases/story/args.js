@@ -1,6 +1,6 @@
 "use strict";
 
-// story_args.js
+// args.js
 // - buildStoryForUser の入力を共通整形する薄いヘルパー
 
 const { clamp, toNumberSafe } = require("../../utils/parse");

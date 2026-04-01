@@ -1,8 +1,8 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../../../domain/canonical");
-const { absAngularDistance, norm360 } = require("../../story/story_math");
-const { createSignHelpers } = require("../../story/story_signs");
+const { absAngularDistance, norm360 } = require("../../story/math");
+const { createSignHelpers } = require("../../story/signs");
 const { bodyGlyph, bodyLabelJa, signGlyph, signLabelJa } = require("../../../presenters/shared/text/tokens");
 const { renderRelationPdfBuffer } = require("../../../engine/pdf/relation/render");
 const { deriveRelationData } = require("./build_relation_data");
