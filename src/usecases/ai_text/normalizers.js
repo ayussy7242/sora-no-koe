@@ -53,7 +53,7 @@ function formatXAiText(text, opts = {}) {
   }
 
   base = base.replace(/([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu, "$1\n$2");
-  base = base.replace(/。\s*/g, "。\n");
+  base = base.replace(/。\s*(?=\S)/g, "。\n\n");
   base = base.replace(/(\p{Extended_Pictographic}\uFE0F?)(?!\n)/gu, "$1\n\n");
 
   const rawLines = base.split("\n");
