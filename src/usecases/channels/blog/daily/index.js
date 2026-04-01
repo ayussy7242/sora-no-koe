@@ -8,10 +8,6 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../../presenters/blog/story_blocks");
 const { buildSoraWheelSvg } = require("../../../../engine/graphics/sora_wheel");
 const {
-  SORA_AI_SYSTEM_PROMPT_COMMON,
-} = require("../../../../content/prompts/sora/sora_core");
-const {
-  BLOG_BLOCKS_USER_GUIDE,
   BLOG_BLOCK_SECTION_GUIDE,
   BLOG_BLOCK_ITEM_GUIDE,
   BLOG_STRUCT_HOUSE_GUIDE,
@@ -24,7 +20,6 @@ const {
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
 } = require("../../../../content/prompts/blog/blocks");
-const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/moon_event");
 const { SPEC } = require("../../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../../domain/touch_point/scoring");
@@ -38,7 +33,6 @@ const {
 const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../../domain/aspect/proximity");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../../domain/canonical");
-const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const {
   formatTodayMoonLines,
   formatNextMoonLines,
@@ -71,16 +65,25 @@ const {
   normalizeAspectType,
   uniqList,
 } = require("./resonance");
+const { getMoonEventPhaseLabel } = require("./selection");
 const {
-  findMoonPhaseInJstDate,
-  lastFullMoonDate,
-  diffDaysJst,
-  moonPhaseTitleLabel,
-  isMoonEventPhaseLabel,
-  getMoonEventPhaseLabel,
-  extractMoonPhaseLabel,
-  dominantLabel,
-} = require("./selection");
+  formatDateJaFromLocal,
+  formatDateDotsFromLocal,
+  formatSignDegree,
+  aspectLabelForLong,
+  buildMoonEventTitle,
+  buildSeoTitle,
+  buildLeadAspectTitle,
+  buildDailyTitle,
+  buildAioseoMeta,
+  buildDailyEyecatchLines,
+} = require("./output");
+const {
+  systemPrompt,
+  userPrompt,
+  buildMoonEventPrompt,
+  stripAiLogs,
+} = require("./prompt");
 
 function findBannedTerm(text) {
   const s = String(text || "");
@@ -89,40 +92,6 @@ function findBannedTerm(text) {
     if (t && s.includes(t)) return t;
   }
   return "";
-}
-
-function buildAioseoMeta({ story, dateLocal, title }) {
-  const dateJa = formatDateJaFromLocal(dateLocal) || String(dateLocal || "").trim();
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
-  const lead = leadAspectFromResonancePool(skyAll, resonanceOrbLimit)
-    || [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
-
-  let leadText = "";
-  if (lead) {
-    const aKey = normalizeBodyKey(lead?.a || "");
-    const bKey = normalizeBodyKey(lead?.b || "");
-    const leftLabel = bodyLabelJa(dict, aKey) || aKey;
-    const rightLabel = bodyLabelJa(dict, bKey) || bKey;
-    const deg = Number.isFinite(Number(lead?.aspect_deg)) ? Math.round(Number(lead.aspect_deg)) : null;
-    if (leftLabel && rightLabel && Number.isFinite(deg)) {
-      leadText = `${leftLabel}と${rightLabel}が${deg}度で接続し、主要なアスペクトが形成されています。`;
-    } else if (leftLabel && rightLabel) {
-      leadText = `${leftLabel}と${rightLabel}の主要アスペクトが形成されています。`;
-    }
-  }
-
-  const description = [
-    dateJa ? `${dateJa}の星の配置。` : "今日の星の配置。",
-    leadText,
-    "今日のトランジット構造と天体配置を一覧で確認できます。",
-  ].filter(Boolean).join("");
-
-  return {
-    aioseo_title: String(title || "").trim(),
-    aioseo_description: description,
-    aioseo_focus_keyphrase: dateJa ? `${dateJa} 星の配置` : "今日の星の配置",
-  };
 }
 
 function splitCoreWords(core) {
@@ -228,236 +197,11 @@ function aspectVoice(typeRaw) {
   return pickList(parts, 4);
 }
 
-function systemPrompt() {
-  return SORA_AI_SYSTEM_PROMPT_COMMON;
-}
-
-function userPrompt({ dateLocal, dataBlock }) {
-  return [
-    BLOG_BLOCKS_USER_GUIDE,
-    "",
-    `日付: ${dateLocal}`,
-    "",
-    "INPUT:",
-    dataBlock,
-  ].join("\n");
-}
-
-function formatDateJaFromLocal(dateLocal) {
-  const parts = String(dateLocal || "").trim().split("-");
-  if (parts.length !== 3) return "";
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return "";
-  return `${y}年${m}月${d}日`;
-}
-
-function formatDateDotsFromLocal(dateLocal) {
-  const parts = String(dateLocal || "").trim().split("-");
-  if (parts.length !== 3) return "";
-  const y = Number(parts[0]);
-  const m = String(Number(parts[1])).padStart(2, "0");
-  const d = String(Number(parts[2])).padStart(2, "0");
-  if (!Number.isFinite(y) || !Number.isFinite(Number(m)) || !Number.isFinite(Number(d))) return "";
-  return `${y}.${m}.${d}`;
-}
-
-function storySignJa(story, bodyKey) {
-  const direct =
-    story?.public?.transit_signs?.[bodyKey]?.sign_ja ||
-    story?.public?.[bodyKey]?.sign_ja ||
-    "";
-  if (direct) return direct;
-  const rawKey =
-    story?.public?.transit_signs?.[bodyKey]?.sign_key ||
-    story?.public?.[bodyKey]?.sign_key ||
-    "";
-  const key = normalizeSignKey(rawKey);
-  return key ? signLabelJa(dict, key) : "";
-}
-
-function formatElementCount(count = {}) {
-  return `火${count.fire || 0} 地${count.earth || 0} 風${count.air || 0} 水${count.water || 0}`;
-}
-
-function formatModalityCount(count = {}) {
-  return `活動${count.cardinal || 0} 不動${count.fixed || 0} 柔軟${count.mutable || 0}`;
-}
-
-function formatSignConcentration(counts = {}) {
-  const entries = Object.entries(counts)
-    .map(([k, v]) => [k, Number(v)])
-    .filter(([k, v]) => k && Number.isFinite(v) && v > 0)
-    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
-  if (!entries.length) return "";
-  const top = entries.slice(0, 2).map(([k, v]) => {
-    const label = signLabelJa(dict, k) || k;
-    return `${label}${v}件`;
-  });
-  return top.join(" / ");
-}
-
-function getTransitInfo(story, bodyKey) {
-  const raw = story?.public?.transit_signs?.[bodyKey] || story?.public?.[bodyKey] || {};
-  const signKey = normalizeSignKey(raw?.sign_key || "");
-  const signJa = raw?.sign_ja || signLabelJa(dict, signKey) || "";
-  const lonDeg = Number.isFinite(Number(raw?.lon_deg)) ? Number(raw.lon_deg) : null;
-  return { signKey, signJa, lonDeg };
-}
-
-function buildMoonEventTitle(story, dateLocal) {
-  const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const phaseLabel = getMoonEventPhaseLabel({ dateLocal, asOfISO });
-  if (!phaseLabel) return "";
-
-  const dateDots = formatDateDotsFromLocal(dateLocal)
-    || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");
-  const sunSign = storySignJa(story, "sun");
-  const moonSign = storySignJa(story, "moon");
-  if (!dateDots || !sunSign || !moonSign) return "";
-  return `${dateDots}｜${moonSign}${phaseLabel}｜太陽 ${sunSign} × 月 ${moonSign}`;
-}
-
-function buildMoonEventPrompt({ story, dateLocal, phaseLabel }) {
-  const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const dateDots = formatDateDotsFromLocal(dateLocal)
-    || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");
-
-  const sun = getTransitInfo(story, "sun");
-  const moon = getTransitInfo(story, "moon");
-  const sunSignDeg = sun.signKey ? formatSignDegree(sun.signKey, sun.lonDeg) : (sun.signJa || "—");
-  const moonSignDeg = moon.signKey ? formatSignDegree(moon.signKey, moon.lonDeg) : (moon.signJa || "—");
-
-  const aspectDeg = phaseLabel === "新月" ? 0 : 180;
-  const aspectKey = phaseLabel === "新月" ? "conjunction" : "opposition";
-  const aspectLabel = aspectLabelForLong(aspectKey, aspectDeg);
-
-  const axisWords = phaseLabel === "新月"
-    ? "重なり / 収束 / 密度"
-    : "向かい合い / 張力 / 対向";
-
-  const strata = story?.public?.sky_strata || {};
-  const elements = formatElementCount(strata.element_count || {});
-  const modalities = formatModalityCount(strata.modality_count || {});
-
-  const signCounts = {};
-  const transit = story?.public?.transit_signs || {};
-  BLOG_STRUCT_BODY_ORDER.forEach((key) => {
-    const signKey = normalizeSignKey(transit?.[key]?.sign_key || "");
-    if (!signKey) return;
-    signCounts[signKey] = (signCounts[signKey] || 0) + 1;
-  });
-  const distribution = formatSignConcentration(signCounts);
-
-  const inputLines = [
-    `DATE_DOTS: ${dateDots}`,
-    `PHASE: ${phaseLabel}`,
-    `SUN_SIGN: ${sun.signJa || "—"}`,
-    `MOON_SIGN: ${moon.signJa || "—"}`,
-    `SUN_SIGN_DEG: ${sunSignDeg}`,
-    `MOON_SIGN_DEG: ${moonSignDeg}`,
-    `ASPECT: ${aspectLabel} ${aspectDeg}°`,
-    `AXIS_WORDS: ${axisWords}`,
-    `ELEMENTS: ${elements}`,
-    `MODALITIES: ${modalities}`,
-    `DISTRIBUTION: ${distribution || "—"}`,
-  ];
-
-  return [
-    BLOG_MOON_EVENT_GUIDE,
-    "",
-    "INPUT:",
-    inputLines.join("\n"),
-  ].join("\n");
-}
-
 async function generateMoonEventDraft({ story, dateLocal, phaseLabel, runWithRetry, model }) {
   if (!phaseLabel) return "";
   const prompt = buildMoonEventPrompt({ story, dateLocal, phaseLabel });
   const text = await runWithRetry({ userContent: prompt, model, maxTokens: 1200 });
   return stripAiLogs(text);
-}
-
-function buildSeoTitle({ story, dateLocal }) {
-  const fallback = `今日のソラ｜${dateLocal}`;
-  const dateJa = formatDateJaFromLocal(dateLocal);
-  const sunSign = storySignJa(story, "sun");
-  const moonSign = storySignJa(story, "moon");
-  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
-  const moonPhase = moonPhaseTitleLabel({ dateLocal, asOfISO });
-  if (!dateJa || !sunSign || !moonSign || !moonPhase) return fallback;
-  return `${dateJa}の星の配置｜${sunSign} 太陽 × ${moonSign} 月｜${moonPhase}｜今日のソラ`;
-}
-
-function buildLeadAspectTitle({ story, dateLocal }) {
-  const dateDots = formatDateDotsFromLocal(dateLocal);
-  if (!dateDots) return "";
-  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  if (!skyAll.length) return "";
-
-  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
-  const lead = leadAspectFromResonancePool(skyAll, resonanceOrbLimit)
-    || [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
-  if (!lead) return "";
-
-  const aKey = normalizeBodyKey(lead?.a || "");
-  const bKey = normalizeBodyKey(lead?.b || "");
-  if (!aKey || !bKey) return "";
-
-  const aRank = bodyTitleRank(aKey);
-  const bRank = bodyTitleRank(bKey);
-  const leftKey = aRank <= bRank ? aKey : bKey;
-  const rightKey = aRank <= bRank ? bKey : aKey;
-
-  const retroMap = buildRetrogradeMap(asOfISO, [leftKey, rightKey]);
-  const leftSign = leftKey === aKey ? (lead?.a_sign_ja || signLabelJa(dict, lead?.a_sign_key || "")) : (lead?.b_sign_ja || signLabelJa(dict, lead?.b_sign_key || ""));
-  const rightSign = rightKey === aKey ? (lead?.a_sign_ja || signLabelJa(dict, lead?.a_sign_key || "")) : (lead?.b_sign_ja || signLabelJa(dict, lead?.b_sign_key || ""));
-  const leftLabel = [
-    `${bodyLabelJa(dict, leftKey)}${retroMap[leftKey] ? "(R)" : ""}`.trim(),
-    leftSign || "",
-  ].filter(Boolean).join(" ").trim();
-  const rightLabel = [
-    `${bodyLabelJa(dict, rightKey)}${retroMap[rightKey] ? "(R)" : ""}`.trim(),
-    rightSign || "",
-  ].filter(Boolean).join(" ").trim();
-
-  const aspectLabel = aspectLabelForLong(lead?.aspect || lead?.type, lead?.aspect_deg);
-  if (!leftLabel || !rightLabel || !aspectLabel) return "";
-
-  return `${dateDots}｜${leftLabel} × ${rightLabel} ${aspectLabel}｜今日のソラ`;
-}
-
-function buildDailyTitle(story, dateLocal) {
-  return (
-    buildMoonEventTitle(story, dateLocal)
-    || buildLeadAspectTitle({ story, dateLocal })
-    || buildSeoTitle({ story, dateLocal })
-  );
-}
-
-function stripAiLogs(text) {
-  if (!text) return text;
-  let out = String(text);
-  out = out.replace(/<p>[^<]*日本語校正フェーズ[^<]*<\/p>\s*/g, "");
-  out = out.replace(/<p>[^<]*以下が修正後の本文です[^<]*<\/p>\s*/g, "");
-  out = out.replace(/<p>[^<]*日本語校正[^<]*<\/p>\s*/g, "");
-  out = out.replace(/^.*日本語校正フェーズ.*$/gim, "");
-  out = out.replace(/^.*以下が修正後の本文です.*$/gim, "");
-  out = out.replace(/^.*日本語校正.*$/gim, "");
-  out = out.replace(/これその配置のまま/g, "");
-  out = out.replace(/置かれているされる/g, "置かれている");
-  out = out.replace(/残っているする/g, "残っている");
-  out = out.replace(/されるする/g, "される");
-  out = out.replace(/しているする/g, "している");
-  out = out.replace(/してるする/g, "してる");
-  out = out.replace(/残るする/g, "残る");
-  // strip fenced code markers (``` / ```html) while keeping inner text
-  out = out.replace(/```[a-zA-Z0-9_-]*\s*\n/g, "");
-  out = out.replace(/\n```/g, "\n");
-  out = out.replace(/```/g, "");
-  return out.trim();
 }
 
 function replaceMoonBlockHtml(html, moonHtml) {
@@ -666,27 +410,6 @@ function buildWheelHtml({ story, dateLocal } = {}) {
   }
 }
 
-function buildDailyEyecatchLines(story, dateLocal) {
-  const dateDots = formatDateDotsFromLocal(dateLocal) || "";
-  const asOfISO = story?.meta?.as_of || (dateLocal ? `${dateLocal}T03:00:00.000Z` : new Date().toISOString());
-  const title = buildLeadAspectTitle({ story, dateLocal });
-
-  let line2 = "";
-  if (title) {
-    const parts = String(title).split("｜");
-    if (parts.length >= 2) {
-      line2 = parts[1].trim();
-    }
-  }
-
-  return {
-    line1: dateDots || "今日のソラ",
-    line2: line2 || "今日のソラ",
-    line3: "今日のソラ | sora-no-koe",
-    kind: "lead_aspect",
-  };
-}
-
 async function generateDailyDraft({ story, dateLocal, openai }) {
   const blocks = buildBlogBlocks(story, { dateLocal });
   const dataBlock = blocksToInput(blocks);
@@ -799,14 +522,7 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
       continue;
     }
       const blockInput = blocksToInput([block]);
-      const content = [
-        BLOG_BLOCKS_USER_GUIDE,
-        "",
-        `日付: ${dateLocal}`,
-        "",
-        "INPUT:",
-        blockInput,
-      ].join("\n");
+      const content = userPrompt({ dateLocal, dataBlock: blockInput });
       const html = await runWithRetry({ userContent: content, model: modelParts, maxTokens: 1400 });
       parts.push(html.trim());
     }
@@ -1157,25 +873,6 @@ async function buildStructureLogHtml({ story, dateLocal, runWithRetry, modelPart
   }
 
   return sections.join("\n");
-}
-
-function formatSignDegree(signKey, lonDeg) {
-  const signJa = signLabelJa(dict, signKey) || signKey || "";
-  if (!Number.isFinite(Number(lonDeg))) return signJa;
-  const deg = ((Number(lonDeg) % 30) + 30) % 30;
-  let degInt = Math.floor(deg + 1e-6);
-  if (degInt >= 30) degInt = 29;
-  return `${signJa} ${degInt}°`.trim();
-}
-
-function aspectLabelForLong(aspectKey, aspectDeg) {
-  const key = normalizeAspectKey(aspectKey, aspectDeg);
-  const meta = formatAspectDisplay({
-    dict,
-    rawType: aspectKey,
-    aspectDeg,
-  });
-  return meta?.label || key || String(aspectKey || "");
 }
 
 async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, modelParts }) {
