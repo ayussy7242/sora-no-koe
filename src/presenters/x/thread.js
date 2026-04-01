@@ -22,7 +22,7 @@ const { listWithOrb, sortByOrb } = require("../../domain/aspect_selection");
 const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
-const { toDateLocalJST } = require("../../utils/time_utils");
+const { formatMonthDayHm } = require("../../utils/time_utils");
 const { joinLines } = require("../../utils/text_format");
 
 const THREAD_SEP = "\n\n---\n\n";
@@ -55,29 +55,6 @@ function makeAspectKey(aKey, bKey, aspectDeg) {
   if (!a || !b || !Number.isFinite(deg)) return "";
   const pair = [a, b].sort().join("|");
   return `${pair}|${deg}`;
-}
-
-function isValidDate(d) {
-  return d instanceof Date && !Number.isNaN(d.getTime());
-}
-
-function formatMonthDay(date) {
-  const ymd = isValidDate(date) ? toDateLocalJST(date) : null;
-  if (!ymd) return "-";
-  const parts = ymd.split("-");
-  const m = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (!Number.isFinite(m) || !Number.isFinite(d)) return "-";
-  return `${m}/${d}`;
-}
-
-function formatMonthDayHm(date) {
-  if (!isValidDate(date)) return "-";
-  const ymd = formatMonthDay(date);
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const hh = String(jst.getUTCHours()).padStart(2, "0");
-  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
-  return `${ymd} ${hh}:${mm}`;
 }
 
 function elementLabelFromSign(dict, signKey) {
@@ -353,7 +330,7 @@ function renderXThread(story, deps = {}) {
         windowMs: PROXIMITY_CFG.peakWindowMs,
         stepMs: PROXIMITY_CFG.peakStepMs,
       });
-      const peakText = refinedPeak && isValidDate(refinedPeak) ? formatMonthDayHm(refinedPeak) : "-";
+      const peakText = formatMonthDayHm(refinedPeak, { fallback: "-" });
 
       const lines = [
         `★ ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText} × ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`,

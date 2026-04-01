@@ -28,6 +28,38 @@ function formatJstYmd(date, opts = {}) {
   return ymd ? ymd.replace(/-/g, ".") : fallback;
 }
 
+function formatJstTimeLabel(input, opts = {}) {
+  const fallback = opts?.fallback != null ? String(opts.fallback) : "-";
+  const date = input instanceof Date ? input : new Date(input);
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return fallback;
+  const parts = dateTimePartsInTimeZone(date, "Asia/Tokyo");
+  const hh = parts?.hour;
+  const mm = parts?.minute;
+  if (!hh || !mm) return fallback;
+  return `${hh}:${mm}`;
+}
+
+function formatMonthDay(date, opts = {}) {
+  const fallback = opts?.fallback != null ? String(opts.fallback) : "-";
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return fallback;
+  const ymd = toDateLocalJST(date);
+  if (!ymd) return fallback;
+  const parts = ymd.split("-");
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!Number.isFinite(m) || !Number.isFinite(d)) return fallback;
+  return `${m}/${d}`;
+}
+
+function formatMonthDayHm(date, opts = {}) {
+  const fallback = opts?.fallback != null ? String(opts.fallback) : "-";
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return fallback;
+  const md = formatMonthDay(date, { fallback });
+  const hm = formatJstTimeLabel(date, { fallback });
+  if (md === fallback || hm === fallback) return fallback;
+  return `${md} ${hm}`;
+}
+
 function dateTimePartsInTimeZone(date, timeZone) {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -95,6 +127,9 @@ module.exports = {
   toDateLocalJST,
   formatDateLabel,
   formatJstYmd,
+  formatJstTimeLabel,
+  formatMonthDay,
+  formatMonthDayHm,
   dateTimePartsInTimeZone,
   toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,

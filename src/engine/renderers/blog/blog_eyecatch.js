@@ -8,6 +8,7 @@ const dict = require("../../../content/dict");
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { clamp } = require("../../../utils/math_utils");
+const { wrapByChars } = require("../../../utils/text_wrap");
 const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
@@ -103,25 +104,6 @@ function splitLinesByNewline(text) {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function wrapByChars(text, maxChars, maxLines = 2) {
-  const raw = String(text || "").trim();
-  if (!raw) return [];
-  const chars = Array.from(raw);
-  if (chars.length <= maxChars) return [raw];
-  const lines = [];
-  let buf = "";
-  for (const ch of chars) {
-    if (Array.from(buf).length >= maxChars) {
-      lines.push(buf);
-      buf = "";
-      if (lines.length >= maxLines) break;
-    }
-    buf += ch;
-  }
-  if (buf && lines.length < maxLines) lines.push(buf);
-  return lines.slice(0, maxLines);
 }
 
 function splitLine2(text, { maxChars = 16, maxLines = 2 } = {}) {

@@ -10,7 +10,7 @@ const { normalizeBodyKey } = require("../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../format/format/common");
 const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro_compute");
 const { findTransitWindowInRange } = require("../../domain/aspect_proximity");
-const { toDateLocalJST, formatJstYmd } = require("../../utils/time_utils");
+const { formatJstYmd, formatJstTimeLabel } = require("../../utils/time_utils");
 const { joinLines } = require("../../utils/text_format");
 const { toHashtag } = require("../../utils/hashtag_utils");
 const {
@@ -236,16 +236,6 @@ function pickDominantSignLabel(story, deps = {}) {
     }
   });
   return top || "";
-}
-
-function formatJstTimeLabel(asOfISO) {
-  if (!asOfISO) return "-";
-  const base = new Date(asOfISO);
-  if (Number.isNaN(base.getTime())) return "-";
-  const jst = new Date(base.getTime() + 9 * 60 * 60 * 1000);
-  const hh = String(jst.getUTCHours()).padStart(2, "0");
-  const mm = String(jst.getUTCMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
 }
 
 function formatPeakTimeLabel(iso) {

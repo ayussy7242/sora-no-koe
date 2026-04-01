@@ -7,6 +7,7 @@ const { buildSpaceBackground } = require("../../../../shared/space_background");
 const { resolveColors } = require("../../theme/ig_theme");
 const { formatDateLabel } = require("../../../../../utils/time_utils");
 const { escapeXml } = require("../../../../../utils/xml_utils");
+const { wrapLines } = require("../../../../../utils/text_wrap");
 
 const CANVAS = {
   width: 1080,
@@ -14,37 +15,6 @@ const CANVAS = {
 };
 
 const TOK = IG_TOKENS;
-
-function wrapLines(text, maxChars, maxLines) {
-  const raw = String(text || "");
-  if (!raw.trim()) return [];
-
-  const segments = raw.split(/\r?\n/);
-  const lines = [];
-
-  const pushWrapped = (segment) => {
-    const trimmed = String(segment || "").trim();
-    if (!trimmed) return;
-    const chars = Array.from(trimmed);
-    if (chars.length <= maxChars) {
-      lines.push(trimmed);
-      return;
-    }
-    let current = "";
-    for (const ch of chars) {
-      if (Array.from(current).length >= maxChars) {
-        lines.push(current);
-        current = "";
-      }
-      current += ch;
-      if (lines.length >= maxLines) break;
-    }
-    if (current && lines.length < maxLines) lines.push(current);
-  };
-
-  segments.forEach(pushWrapped);
-  return lines.slice(0, maxLines);
-}
 
 function textBlock({ x, y, lines, size, lineHeight, color, fontFamily, letterSpacing, anchor }) {
   const spacing = Number.isFinite(letterSpacing) ? ` letter-spacing=\"${letterSpacing}em\"` : "";
