@@ -18,7 +18,7 @@
 "use strict";
 
 const express = require("express");
-const { safeEqual } = require("../utils/safe_equal");
+const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8 } = require("../runners/cron/daily8");
 const { rebuildDaily8 } = require("../runners/cron/rebuild");
@@ -37,7 +37,7 @@ const {
   pickBoolFlag,
   pickNumberFlag,
 } = require("../usecases/cron/utils");
-const { memorySnapshot, logWithReq } = require("../utils/logging");
+const { memorySnapshot, logWithReq } = require("../utils/infra/logging");
 
 
 // -------------------- router factory --------------------

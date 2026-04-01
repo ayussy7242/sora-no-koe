@@ -1,12 +1,12 @@
 "use strict";
 
-const { safeEqual } = require("../../../../utils/safe_equal");
+const { safeEqual } = require("../../../../utils/data/equal");
 const { createBlueprintLightService } = require("..");
 const { createLineApi } = require("../../../../integrations/line/api");
 const { setLineUserState } = require("../../../../integrations/line/state");
 const { LINE_COPY } = require("../../../../content/copy");
 const dict = require("../../../../content/dict");
-const { resolveDisplayNameFromLineUserDoc } = require("../../../../utils/resolve_display_name");
+const { resolveDisplayNameFromLineUserDoc } = require("../../../../utils/text/display_name");
 const { enqueueBlueprintJob, enqueueBlueprintPdfJob } = require("./queue");
 const {
   getJobRef,

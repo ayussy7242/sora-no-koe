@@ -13,7 +13,7 @@
 
 const { isunknown } = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
-const { parseYYYYMMDD, parseHHMM } = require("../../utils/parse");
+const { parseYYYYMMDD, parseHHMM } = require("../../utils/data/parse");
 const { safeLineText } = require("./line_utils");
 
 function createLineNatal({ db, admin, geocoder = null, renderers, config = {} }) {

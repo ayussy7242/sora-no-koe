@@ -3,12 +3,12 @@
 const crypto = require("crypto");
 const intent = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
-const { resolveDisplayNameFromUserDoc } = require("../../utils/resolve_display_name");
+const { resolveDisplayNameFromUserDoc } = require("../../utils/text/display_name");
 const {
   parseYYYYMMDD,
   parseHHMM,
   parseSelectionIndex,
-} = require("../../utils/parse");
+} = require("../../utils/data/parse");
 
 function createLineRelation({ db, admin, relationService, geocoder = null, config = {} } = {}) {
   if (!db) throw new Error("line/relation: db required");

@@ -15,7 +15,7 @@ const { pickPreferredResonanceAspect } = require("../../../../domain/resonance")
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("../ai/utils");
-const { safeTrim, normalizeMultilineText } = require("../../../../utils/text_normalize");
+const { safeTrim, normalizeMultilineText } = require("../../../../utils/text/normalize");
 
 function normalizeText(text) {
   return normalizeMultilineText(text);

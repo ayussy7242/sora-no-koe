@@ -10,7 +10,7 @@ const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
-const { safeTrim } = require("../../../../utils/text_normalize");
+const { safeTrim } = require("../../../../utils/text/normalize");
 
 function countSentences(text) {
   return String(text || "")

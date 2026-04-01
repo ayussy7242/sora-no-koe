@@ -22,7 +22,7 @@
 const fs = require("fs");
 const path = require("path");
 const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time");
-const { normLower } = require("../../utils/parse");
+const { normLower } = require("../../utils/data/parse");
 
 function toSafeText(x, maxLen = 4800) {
   const s = x == null ? "" : String(x);

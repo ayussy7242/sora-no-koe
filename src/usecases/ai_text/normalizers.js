@@ -1,6 +1,6 @@
 "use strict";
 
-const { countChars, splitTrailingHashtags, joinBodyAndTags } = require("../../utils/hashtag_utils");
+const { countChars, splitTrailingHashtags, joinBodyAndTags } = require("../../utils/text/hashtag");
 const {
   normalizeNewlines,
   collapseSpaces,

@@ -42,7 +42,7 @@ const {
   publishMedia,
   waitForContainer,
 } = require("../../integrations/instagram/graph");
-const { createStorageClient } = require("../../utils/gcs_storage");
+const { createStorageClient } = require("../../utils/infra/gcs_storage");
 
 function resolveBackgroundCache(env = {}) {
   const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();

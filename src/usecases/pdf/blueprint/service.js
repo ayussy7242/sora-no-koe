@@ -13,7 +13,7 @@ const { buildBlueprintLightRows, buildBirthText, formatSignPipe } = require("./r
 const {
   resolveDisplayNameFromLineUserDoc,
   resolveDisplayNameFromUserDoc,
-} = require("../../../utils/resolve_display_name");
+} = require("../../../utils/text/display_name");
 const {
   buildAiInput,
   mapAiContent,

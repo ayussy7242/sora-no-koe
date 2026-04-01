@@ -3,7 +3,7 @@
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme/ig_theme");
 const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
-const { clamp } = require("../../../../../utils/math_utils");
+const { clamp } = require("../../../../../utils/data/math");
 
 const MOON_LAYOUT = DEFAULT_MOON_LAYOUT;
 

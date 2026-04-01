@@ -1,7 +1,7 @@
 "use strict";
 
 const { getBlueprintLightPaths, getBlueprintLightBgPaths } = require("./paths");
-const { createStorageClient } = require("../../../utils/gcs_storage");
+const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 
 function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays = 7 } = {}) {
   if (!bucketName) throw new Error("bucketName is required");

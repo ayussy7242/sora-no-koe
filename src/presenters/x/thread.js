@@ -23,7 +23,7 @@ const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
 const { formatMonthDayHm } = require("../../utils/time");
-const { joinLines } = require("../../utils/text_format");
+const { joinLines } = require("../../utils/text/format");
 
 const THREAD_SEP = "\n\n---\n\n";
 const BASE_TAGS = ["#ソラのこえ", "#きょうのそら"];

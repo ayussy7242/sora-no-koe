@@ -8,7 +8,7 @@ const {
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./utils");
-const { safeTrim } = require("../../../../utils/text_normalize");
+const { safeTrim } = require("../../../../utils/text/normalize");
 
 function buildIgObservationPrompt({ story, dict }) {
   const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");

@@ -1,7 +1,7 @@
 "use strict";
 
 const { norm360, absAngularDistance } = require("../../domain/astro/angles");
-const { clamp } = require("../../utils/parse");
+const { clamp } = require("../../utils/data/parse");
 const { isYYYYMMDD } = require("../../utils/time");
 
 function toFixedPrecision(n, precisionDeg = 0.01) {

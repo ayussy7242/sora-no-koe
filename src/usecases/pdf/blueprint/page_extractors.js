@@ -1,6 +1,6 @@
 "use strict";
 
-const { buildChartTypeFromPlanets } = require("../../../utils/chart_type");
+const { buildChartTypeFromPlanets } = require("../../../utils/data/chart_type");
 
 function getSysPageData(master, identity = {}) {
   const planets = master?.planets || [];

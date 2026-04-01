@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { safeEqual } = require("../utils/safe_equal");
+const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 
 function createJobsRouter(deps = {}) {

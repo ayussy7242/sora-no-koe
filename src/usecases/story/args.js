@@ -3,7 +3,7 @@
 // args.js
 // - buildStoryForUser の入力を共通整形する薄いヘルパー
 
-const { clamp, toNumberSafe } = require("../../utils/parse");
+const { clamp, toNumberSafe } = require("../../utils/data/parse");
 
 /**
  * buildStoryForUser の args を共通化

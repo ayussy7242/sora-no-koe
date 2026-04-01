@@ -11,8 +11,8 @@ const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModality
 const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro_compute");
 const { findTransitWindowInRange } = require("../../domain/aspect_proximity");
 const { formatJstYmd, formatJstTimeLabel } = require("../../utils/time");
-const { joinLines } = require("../../utils/text_format");
-const { toHashtag } = require("../../utils/hashtag_utils");
+const { joinLines } = require("../../utils/text/format");
+const { toHashtag } = require("../../utils/text/hashtag");
 const {
   CORE_PLANETS,
   EXTENDED_PLANETS,

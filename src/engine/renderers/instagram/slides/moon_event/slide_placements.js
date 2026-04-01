@@ -2,7 +2,7 @@
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, buildSectionHeader, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme/ig_theme");
-const { clamp } = require("../../../../../utils/math_utils");
+const { clamp } = require("../../../../../utils/data/math");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");

@@ -13,7 +13,7 @@ const {
 } = require("../../../../domain/moon_info");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
-const { safeTrim } = require("../../../../utils/text_normalize");
+const { safeTrim } = require("../../../../utils/text/normalize");
 
 
 function tomorrowNoonJstIso(asOfISO) {

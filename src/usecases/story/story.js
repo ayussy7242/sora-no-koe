@@ -30,7 +30,7 @@ const { createSignHelpers } = require("./signs");
 const { createTransitsService } = require("./transits");
 const { createNatalService } = require("./natal");
 const { createSkyService } = require("./sky");
-const { resolveDisplayNameFromUserDoc } = require("../../utils/resolve_display_name");
+const { resolveDisplayNameFromUserDoc } = require("../../utils/text/display_name");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,

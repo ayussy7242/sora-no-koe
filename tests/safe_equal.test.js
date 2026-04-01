@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { safeEqual } = require("../src/utils/safe_equal");
+const { safeEqual } = require("../src/utils/data/equal");
 
 test("safeEqual returns true for identical values", () => {
   assert.equal(safeEqual("abc", "abc"), true);

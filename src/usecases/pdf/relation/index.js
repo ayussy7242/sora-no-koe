@@ -9,9 +9,9 @@ const { deriveRelationData } = require("./build_relation_data");
 const { buildComparePairs, buildRelationCounts, buildRelationAiInputs } = require("./ai_inputs");
 const { buildHouseCounts, computeDominantSigns, computeDominantHouses, computePrimaryHouse } = require("../shared/center_metrics");
 const { generateRelationAiTexts } = require("./ai_generate");
-const { resolveDisplayNameFromUserDoc } = require("../../../utils/resolve_display_name");
+const { resolveDisplayNameFromUserDoc } = require("../../../utils/text/display_name");
 const { CORE_PLANETS } = require("../../../domain/astro/constants");
-const { createStorageClient } = require("../../../utils/gcs_storage");
+const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",

@@ -52,7 +52,7 @@ const {
   formatSignJa,
 } = require("./utils");
 const { replaceGlyphsWithImages, buildGlyphImgTag } = require("./glyphs");
-const { buildStructureLinesFromPlanets } = require("../../../utils/chart_type");
+const { buildStructureLinesFromPlanets } = require("../../../utils/data/chart_type");
 
 function buildSpaceSvg({ variant, enabled }) {
   if (!enabled) {

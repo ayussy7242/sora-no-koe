@@ -3,7 +3,7 @@
 "use strict";
 
 const express = require("express");
-const { toNumberSafe, clamp } = require("../utils/parse");
+const { toNumberSafe, clamp } = require("../utils/data/parse");
 const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD, isValidISO } = require("../utils/time");
 
 function createTransitRouter(deps = {}) {

@@ -3,7 +3,7 @@
 // parse.js
 // - small, shared parsers for query/body/opts
 
-const { clamp } = require("./math_utils");
+const { clamp } = require("./math");
 
 function toNumberSafe(v, fallback) {
   const n = Number(v);

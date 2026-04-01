@@ -1,6 +1,6 @@
 "use strict";
 
-const { clamp } = require("../../../utils/math_utils");
+const { clamp } = require("../../../utils/data/math");
 
 function lerp(a, b, t) {
   return a + (b - a) * t;

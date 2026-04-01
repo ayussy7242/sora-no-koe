@@ -5,7 +5,7 @@ const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/so
 const { X_SORA_USER_GUIDE } = require("../../../../content/prompts/sns/x/daily");
 const { signJa } = require("../../../../presenters/format/format/common");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
-const { safeTrim } = require("../../../../utils/text_normalize");
+const { safeTrim } = require("../../../../utils/text/normalize");
 
 function buildSunMoonLines({ story, dict }) {
   const transit = story?.public?.transit_signs || {};

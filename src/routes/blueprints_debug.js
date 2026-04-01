@@ -1,7 +1,7 @@
 "use strict";
 
 const express = require("express");
-const { safeEqual } = require("../utils/safe_equal");
+const { safeEqual } = require("../utils/data/equal");
 const { getJobRef } = require("../usecases/pdf/blueprint/jobs/state");
 
 function requireInternalToken({ env, req }) {

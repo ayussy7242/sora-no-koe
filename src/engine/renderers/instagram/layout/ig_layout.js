@@ -2,7 +2,7 @@
 
 const fontkit = require("fontkit");
 const opentype = require("opentype.js");
-const { escapeXml } = require("../../../../utils/xml_utils");
+const { escapeXml } = require("../../../../utils/data/xml");
 
 const PATH_GLYPHS = new Set([
   "☉","☽","☿","♀","♂","♃","♄","♅","♆","♇",

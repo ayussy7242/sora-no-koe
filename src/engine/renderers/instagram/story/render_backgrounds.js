@@ -4,7 +4,7 @@ const sharp = require("sharp");
 const { buildSpaceBackground } = require("../../../shared/space_background");
 const { fontFaceCss } = require("../assets/fonts");
 const { resolveColors } = require("../theme/ig_theme");
-const { escapeXml } = require("../../../../utils/xml_utils");
+const { escapeXml } = require("../../../../utils/data/xml");
 
 const CANVAS = {
   width: 1080,

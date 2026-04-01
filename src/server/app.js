@@ -3,7 +3,7 @@
 
 const express = require("express");
 const crypto = require("crypto");
-const { safeEqual } = require("../utils/safe_equal");
+const { safeEqual } = require("../utils/data/equal");
 
 // routers（factory）
 const { createHealthRouter } = require("../routes/health");

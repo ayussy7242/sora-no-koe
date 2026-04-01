@@ -5,8 +5,8 @@ const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { fontFaceCss } = require("../instagram/assets/fonts");
 const { formatDateLabel } = require("../../../utils/time");
-const { escapeXml } = require("../../../utils/xml_utils");
-const { clamp } = require("../../../utils/math_utils");
+const { escapeXml } = require("../../../utils/data/xml");
+const { clamp } = require("../../../utils/data/math");
 
 const DEFAULT_X_CANVAS = Object.freeze({
   width: 1200,

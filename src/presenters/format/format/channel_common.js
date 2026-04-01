@@ -1,7 +1,7 @@
 "use strict";
 
 const { formatDateLabel: formatDateLabelRaw } = require("../../../utils/time");
-const { joinLines } = require("../../../utils/text_format");
+const { joinLines } = require("../../../utils/text/format");
 
 function formatDateLabel(story) {
   return formatDateLabelRaw(story?.meta?.date_local || "");

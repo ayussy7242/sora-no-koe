@@ -12,7 +12,7 @@ const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
-const { safeTrim } = require("../../../../utils/text_normalize");
+const { safeTrim } = require("../../../../utils/text/normalize");
 
 function formatSpanDays(row) {
   if (!row) return "";

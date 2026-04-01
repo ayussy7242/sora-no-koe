@@ -4,7 +4,7 @@
 // - daily8 / rebuild8 など cron 系で共通の小物を集約
 
 const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD } = require("../../utils/time");
-const { clamp, toNumberSafe, normLower } = require("../../utils/parse");
+const { clamp, toNumberSafe, normLower } = require("../../utils/data/parse");
 
 function toSafeText(x, maxLen = 4800) {
   const s = x == null ? "" : String(x);

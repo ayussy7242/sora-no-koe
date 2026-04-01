@@ -40,7 +40,7 @@ const {
   verifySignature,
   createMessageDeduper,
 } = require("../integrations/line/webhook_utils");
-const { memorySnapshot, logWithReq } = require("../utils/logging");
+const { memorySnapshot, logWithReq } = require("../utils/infra/logging");
 
 // -------------------- flexible import helper --------------------
 function pickFactory(mod, name) {

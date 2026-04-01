@@ -7,8 +7,8 @@ const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/spac
 const dict = require("../../../content/dict");
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { toDateLocalJST } = require("../../../utils/time");
-const { clamp } = require("../../../utils/math_utils");
-const { wrapByChars } = require("../../../utils/text_wrap");
+const { clamp } = require("../../../utils/data/math");
+const { wrapByChars } = require("../../../utils/text/wrap");
 const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");

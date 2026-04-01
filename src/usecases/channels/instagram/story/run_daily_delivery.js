@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { createStorageClient } = require("../../../../utils/gcs_storage");
+const { createStorageClient } = require("../../../../utils/infra/gcs_storage");
 const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/instagram/story/render_backgrounds");
