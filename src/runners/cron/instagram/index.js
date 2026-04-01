@@ -21,7 +21,8 @@ const {
   buildMoonEventCarouselSlides,
 } = require("./slides");
 const {
-  addDaysToDateLocalJST,
+  resolveMoonEventTargetDateLocal,
+  resolveMoonEventKind,
   detectMoonEventLocal,
   resolveMoonEventSpaceConfig,
   buildMoonEventCaption,
@@ -308,14 +309,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
   if (Number.isNaN(now.getTime())) throw new Error("invalid as_of");
   const asOfISO = opts.asOfISO || now.toISOString();
 
-  const baseDateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST(now);
-  const offsetRaw = opts.dateOffsetDays ?? opts.date_offset_days ?? opts.dateOffset ?? opts.date_offset;
-  const offsetDays = Number.isFinite(Number(offsetRaw))
-    ? Number(offsetRaw)
-    : Number.isFinite(Number(env2.IG_MOON_EVENT_DATE_OFFSET_DAYS))
-      ? Number(env2.IG_MOON_EVENT_DATE_OFFSET_DAYS)
-      : 1;
-  const targetDateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
+  const { offsetDays, targetDateLocal } = resolveMoonEventTargetDateLocal({ now, opts, env: env2 });
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
   const useAi = opts.useAi !== false;
@@ -329,16 +323,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
     opts.forceNext ?? opts.force_next ?? opts.useNext ?? opts.use_next ?? env2.IG_MOON_EVENT_FORCE_NEXT,
     false
   );
-  const eventKindRaw = opts.eventKind ?? opts.event_kind ?? opts.moonEventKind ?? opts.moon_event_kind ?? opts.kind;
-  const fullFlag = toBool(opts.full ?? opts.full_moon ?? opts.fullMoon ?? opts.moon_full, false);
-  const newFlag = toBool(opts.new ?? opts.new_moon ?? opts.newMoon ?? opts.moon_new, false);
-  const eventKind = eventKindRaw
-    ? String(eventKindRaw)
-    : (fullFlag && !newFlag)
-      ? "full"
-      : (!fullFlag && newFlag)
-        ? "new"
-        : "";
+  const { eventKind } = resolveMoonEventKind(opts);
 
   const event = detectMoonEventLocal({
     dateLocal: targetDateLocal,

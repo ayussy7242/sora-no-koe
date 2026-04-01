@@ -3,6 +3,15 @@
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 
+function parseBool(v, fallback = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v !== "string") return fallback;
+  const t = v.trim().toLowerCase();
+  if (!t) return fallback;
+  return ["1", "true", "yes", "on"].includes(t);
+}
+
 function addDaysToDateLocalJST(dateLocal, offsetDays) {
   if (!isYYYYMMDD(dateLocal)) return dateLocal;
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -11,6 +20,32 @@ function addDaysToDateLocalJST(dateLocal, offsetDays) {
   if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
   const shifted = new Date(base.getTime() + shiftMs);
   return toDateLocalJST(shifted);
+}
+
+function resolveMoonEventTargetDateLocal({ now, opts = {}, env = {} } = {}) {
+  const baseDateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST(now);
+  const offsetRaw = opts.dateOffsetDays ?? opts.date_offset_days ?? opts.dateOffset ?? opts.date_offset;
+  const offsetDays = Number.isFinite(Number(offsetRaw))
+    ? Number(offsetRaw)
+    : Number.isFinite(Number(env.IG_MOON_EVENT_DATE_OFFSET_DAYS))
+      ? Number(env.IG_MOON_EVENT_DATE_OFFSET_DAYS)
+      : 1;
+  const targetDateLocal = addDaysToDateLocalJST(baseDateLocal, offsetDays);
+  return { baseDateLocal, offsetDays, targetDateLocal };
+}
+
+function resolveMoonEventKind(opts = {}) {
+  const eventKindRaw = opts.eventKind ?? opts.event_kind ?? opts.moonEventKind ?? opts.moon_event_kind ?? opts.kind;
+  const fullFlag = parseBool(opts.full ?? opts.full_moon ?? opts.fullMoon ?? opts.moon_full, false);
+  const newFlag = parseBool(opts.new ?? opts.new_moon ?? opts.newMoon ?? opts.moon_new, false);
+  const eventKind = eventKindRaw
+    ? String(eventKindRaw)
+    : (fullFlag && !newFlag)
+      ? "full"
+      : (!fullFlag && newFlag)
+        ? "new"
+        : "";
+  return { eventKind, fullFlag, newFlag };
 }
 
 function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eventKind = "" }) {
@@ -113,6 +148,8 @@ function pickMoonResonanceAspect(story) {
 
 module.exports = {
   addDaysToDateLocalJST,
+  resolveMoonEventTargetDateLocal,
+  resolveMoonEventKind,
   detectMoonEventLocal,
   resolveMoonEventSpaceConfig,
   buildMoonEventCaption,
