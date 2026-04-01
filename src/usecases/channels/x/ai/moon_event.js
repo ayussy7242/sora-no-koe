@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MOON_EVENT_USER_GUIDE } = require("../../../../content/prompts/sns/x/moon_event");
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon_info");
-const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { validateXAiText } = require("./common");
 
 function detectMoonEvent({ story, dict, asOfISO }) {

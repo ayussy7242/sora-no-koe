@@ -186,7 +186,7 @@ AS_OF="2026-04-01T03:00:00+09:00"
 BASE="$BASE" DATE_LOCAL="$DATE_LOCAL" AS_OF="$AS_OF" DOTENV_CONFIG_PATH=config/.env \
 node -r dotenv/config <<'NODE'
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("./src/domain/moon");
-const { toDateLocalJST } = require("./src/utils/time_utils");
+const { toDateLocalJST } = require("./src/utils/time");
 const { buildMoonEventAirPrompt } = require("./src/usecases/channels/instagram/ai/moon_event");
 const { createChatCompletion } = require("./src/integrations/openai/openai_client");
 const { runAiTextPipeline } = require("./src/usecases/ai_text");

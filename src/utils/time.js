@@ -1,6 +1,6 @@
 "use strict";
 
-// engine/time_utils.js
+// engine/time.js
 // - 日付/時刻の共通ヘルパー（JST / timezone）
 
 function ymdInTimeZone(date, timeZone) {

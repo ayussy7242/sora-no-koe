@@ -11,7 +11,7 @@ const {
   buildMoonSignChangeState,
   moonSignAtIso,
 } = require("../../../../domain/moon_info");
-const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
 const { safeTrim } = require("../../../../utils/text_normalize");
 

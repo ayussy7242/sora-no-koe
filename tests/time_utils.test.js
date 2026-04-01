@@ -7,7 +7,7 @@ const {
   isYYYYMMDD,
   asOfIsoFromDateLocalJST,
   normalizeDateTimeLocalJST,
-} = require("../src/utils/time_utils");
+} = require("../src/utils/time");
 
 test("isYYYYMMDD validates date format", () => {
   assert.equal(isYYYYMMDD("2026-03-31"), true);

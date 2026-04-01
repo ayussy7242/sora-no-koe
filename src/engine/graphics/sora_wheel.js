@@ -6,7 +6,7 @@ const opentype = require("opentype.js");
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { BACKGROUND_COLORS } = require("../shared/space_background/constants");
 const { FONT_FILES } = require("../shared/typography");
-const { formatDateLabel } = require("../../utils/time_utils");
+const { formatDateLabel } = require("../../utils/time");
 const { createStorageClient } = require("../../utils/gcs_storage");
 
 const SIGN_GLYPH = {

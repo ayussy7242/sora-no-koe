@@ -2,7 +2,7 @@
 
 const dictDefault = require("../../content/dict");
 const { calcTransitLon, findNextMoonPhase, formatDateYmdHm } = require("../astro_compute");
-const { toDateLocalJST } = require("../../utils/time_utils");
+const { toDateLocalJST } = require("../../utils/time");
 const { signLabelFromLon } = require("./labels");
 
 function fullMoonNameJaFromDate(date) {

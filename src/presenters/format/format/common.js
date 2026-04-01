@@ -5,7 +5,7 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../../domain/canonical");
-const { formatDateLabel } = require("../../../utils/time_utils");
+const { formatDateLabel } = require("../../../utils/time");
 const {
   bodyGlyph,
   signGlyph,

@@ -4,7 +4,7 @@ const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { fontFaceCss } = require("../instagram/assets/fonts");
-const { formatDateLabel } = require("../../../utils/time_utils");
+const { formatDateLabel } = require("../../../utils/time");
 const { escapeXml } = require("../../../utils/xml_utils");
 const { clamp } = require("../../../utils/math_utils");
 

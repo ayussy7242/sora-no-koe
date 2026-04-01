@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { countChars, trimTrailingHashtagsToMaxChars } = require("../../utils/hashtag_utils");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/ai/daily");

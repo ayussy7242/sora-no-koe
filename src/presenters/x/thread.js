@@ -22,7 +22,7 @@ const { listWithOrb, sortByOrb } = require("../../domain/aspect_selection");
 const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
-const { formatMonthDayHm } = require("../../utils/time_utils");
+const { formatMonthDayHm } = require("../../utils/time");
 const { joinLines } = require("../../utils/text_format");
 
 const THREAD_SEP = "\n\n---\n\n";

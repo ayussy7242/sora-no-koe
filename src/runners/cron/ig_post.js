@@ -15,7 +15,7 @@ const {
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
 const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
-const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { pickPreferredResonanceAspect } = require("../../domain/resonance");
 const { generateIgObservationText } = require("../../usecases/channels/instagram/ai/observation");
 const { generateIgResonanceText } = require("../../usecases/channels/instagram/ai/resonance");

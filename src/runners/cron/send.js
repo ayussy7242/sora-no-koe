@@ -21,7 +21,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time_utils");
+const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time");
 const { normLower } = require("../../utils/parse");
 
 function toSafeText(x, maxLen = 4800) {

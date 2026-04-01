@@ -2,7 +2,7 @@
 
 const { norm360, absAngularDistance } = require("../../domain/astro/angles");
 const { clamp } = require("../../utils/parse");
-const { isYYYYMMDD } = require("../../utils/time_utils");
+const { isYYYYMMDD } = require("../../utils/time");
 
 function toFixedPrecision(n, precisionDeg = 0.01) {
   const p = 1 / precisionDeg;

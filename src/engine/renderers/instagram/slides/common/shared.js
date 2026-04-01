@@ -5,7 +5,7 @@ const { IG_TOKENS } = require("../../tokens/ig_tokens");
 const { fontFaceCss } = require("../../assets/fonts");
 const { buildSpaceBackground } = require("../../../../shared/space_background");
 const { resolveColors } = require("../../theme/ig_theme");
-const { formatDateLabel } = require("../../../../../utils/time_utils");
+const { formatDateLabel } = require("../../../../../utils/time");
 const { escapeXml } = require("../../../../../utils/xml_utils");
 const { wrapLines } = require("../../../../../utils/text_wrap");
 

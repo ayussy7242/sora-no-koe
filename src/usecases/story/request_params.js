@@ -6,7 +6,7 @@ const {
   toDateTimeLocalJST,
   isValidISO,
   normalizeDateTimeLocalJST,
-} = require("../../utils/time_utils");
+} = require("../../utils/time");
 
 function pickAppUserId(req) {
   return req.query.app_user_id || req.header("x-app-user-id") || "public";

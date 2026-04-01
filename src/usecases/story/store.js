@@ -1,6 +1,6 @@
 "use strict";
 
-const { isYYYYMMDD } = require("../../utils/time_utils");
+const { isYYYYMMDD } = require("../../utils/time");
 
 function userStoryDocId(appUserId, dateLocal) {
   if (!appUserId) throw new Error("appUserId required");

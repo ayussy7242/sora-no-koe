@@ -2,7 +2,7 @@
 
 const { pickAppUserId, resolveStoryMode, resolveAsOfISO, resolveDateLocal } = require("./request_params");
 const { boolish, toNumberSafe, clamp } = require("../../utils/parse");
-const { isValidISO } = require("../../utils/time_utils");
+const { isValidISO } = require("../../utils/time");
 
 const CHANNEL_ALIAS = {
   // LINE

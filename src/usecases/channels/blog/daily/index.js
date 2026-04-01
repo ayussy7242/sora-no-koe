@@ -37,7 +37,7 @@ const {
   findNextMoonPhase,
 } = require("../../../../domain/astro_compute");
 const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../../domain/aspect_proximity");
-const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../../presenters/shared/text/tokens");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../../domain/canonical");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");

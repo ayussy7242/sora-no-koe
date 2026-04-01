@@ -3,7 +3,7 @@
 // cron_utils.js
 // - daily8 / rebuild8 など cron 系で共通の小物を集約
 
-const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { clamp, toNumberSafe, normLower } = require("../../utils/parse");
 
 function toSafeText(x, maxLen = 4800) {

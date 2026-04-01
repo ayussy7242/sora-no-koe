@@ -9,7 +9,7 @@ const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
 const { CORE_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
-const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { validateXAiText } = require("./common");
 
 function formatMonthLabel(dateLocal) {

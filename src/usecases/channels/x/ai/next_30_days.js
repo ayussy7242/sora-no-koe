@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_NEXT_30_DAYS_USER_GUIDE } = require("../../../../content/prompts/sns/x/next_30_days");
 const { buildMonthlyContext } = require("./monthly");
-const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { validateXAiText } = require("./common");
 
 function monthKeyFromDateLocal(dateLocal) {

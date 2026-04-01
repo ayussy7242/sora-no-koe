@@ -4,7 +4,7 @@
 
 const express = require("express");
 const { toNumberSafe, clamp } = require("../utils/parse");
-const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD, isValidISO } = require("../utils/time_utils");
+const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD, isValidISO } = require("../utils/time");
 
 function createTransitRouter(deps = {}) {
   const router = express.Router();

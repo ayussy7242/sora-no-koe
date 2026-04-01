@@ -8,7 +8,7 @@ const {
   asOfIsoFromDateLocalJST,
   isValidISO,
   normalizeDateTimeLocalJST,
-} = require("../../utils/time_utils");
+} = require("../../utils/time");
 
 function getRequestParts(req) {
   return { q: req.query || {}, b: req.body || {} };

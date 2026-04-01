@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { createStorageClient } = require("../../../../utils/gcs_storage");
-const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time_utils");
+const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/instagram/story/render_backgrounds");
 const { formatIgStoryLinePayload } = require("./format_message");
