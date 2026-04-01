@@ -3,13 +3,13 @@
 const fs = require("fs");
 const path = require("path");
 
-const dict = require("../../../content/dict");
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
-const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
-const { buildSoraWheelSvg } = require("../../../engine/graphics/sora_wheel");
+const dict = require("../../../../content/dict");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
+const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../../presenters/blog/story_blocks");
+const { buildSoraWheelSvg } = require("../../../../engine/graphics/sora_wheel");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-} = require("../../../content/prompts/sora/sora_ai_prompts");
+} = require("../../../../content/prompts/sora/sora_ai_prompts");
 const {
   BLOG_BLOCKS_USER_GUIDE,
   BLOG_BLOCK_SECTION_GUIDE,
@@ -23,11 +23,11 @@ const {
   BLOG_LONG_ELEMENTS_GUIDE,
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
-} = require("../../../content/prompts/blog/blog_blocks");
-const { BLOG_MOON_EVENT_GUIDE } = require("../../../content/prompts/blog/blog_moon_event");
-const { SPEC } = require("../../../config/sora_spec");
-const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
-const { weightForBody } = require("../../../domain/touch_point_scoring");
+} = require("../../../../content/prompts/blog/blog_blocks");
+const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/blog_moon_event");
+const { SPEC } = require("../../../../config/sora_spec");
+const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
+const { weightForBody } = require("../../../../domain/touch_point_scoring");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -35,16 +35,16 @@ const {
   formatDateYmd,
   formatDateYmdHm,
   findNextMoonPhase,
-} = require("../../../domain/astro_compute");
-const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../domain/aspect_proximity");
-const { toDateLocalJST } = require("../../../utils/time_utils");
-const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../presenters/shared/text/tokens");
-const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../domain/canonical");
-const { formatAspectDisplay } = require("../../../presenters/format/format/common");
+} = require("../../../../domain/astro_compute");
+const { trendLabelJa, findTransitWindowAroundNow, isApplying } = require("../../../../domain/aspect_proximity");
+const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { bodyGlyph, bodyLabelJa, signLabelJa, signGlyph } = require("../../../../presenters/shared/text/tokens");
+const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../../domain/canonical");
+const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const {
   formatTodayMoonLines,
   formatNextMoonLines,
-} = require("../../../domain/moon_info");
+} = require("../../../../domain/moon_info");
 const {
   escapeHtml,
   renderRawBlock,

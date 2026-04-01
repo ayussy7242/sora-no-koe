@@ -1,19 +1,19 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { X_NIGHT_USER_GUIDE } = require("../../../content/prompts/sns/x/x_night_prompts");
-const { formatDateYmdHm } = require("../../../domain/astro_compute");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { X_NIGHT_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_night_prompts");
+const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const {
   buildNextMoonEvents,
   orderedMoonEvents,
   lastMajorMoonEvent,
   buildMoonSignChangeState,
   moonSignAtIso,
-} = require("../../../domain/moon_info");
-const { toDateLocalJST } = require("../../../utils/time_utils");
-const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./x_ai_common");
-const { safeTrim } = require("../../../utils/text_normalize");
+} = require("../../../../domain/moon_info");
+const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
+const { safeTrim } = require("../../../../utils/text_normalize");
 
 
 function tomorrowNoonJstIso(asOfISO) {

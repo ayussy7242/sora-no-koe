@@ -1,18 +1,18 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
-} = require("../../../content/prompts/sora/sora_ai_prompts");
-const { normalizeBodyKey, normalizeAspectKey } = require("../../../domain/canonical");
-const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../domain/tsukiji_public");
-const { signJa, aspectInfo } = require("../../../presenters/format/format/common");
-const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
-const { runAiTextPipeline } = require("../../ai_text");
-const { PRESETS } = require("../../ai_text/presets");
-const { resolveMaxRetries } = require("./ai_utils");
-const { safeTrim } = require("../../../utils/text_normalize");
+} = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { normalizeBodyKey, normalizeAspectKey } = require("../../../../domain/canonical");
+const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../../domain/tsukiji_public");
+const { signJa, aspectInfo } = require("../../../../presenters/format/format/common");
+const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { resolveMaxRetries } = require("./utils");
+const { safeTrim } = require("../../../../utils/text_normalize");
 
 function formatSpanDays(row) {
   if (!row) return "";

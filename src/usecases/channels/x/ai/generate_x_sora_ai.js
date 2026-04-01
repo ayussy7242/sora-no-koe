@@ -1,11 +1,11 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { X_SORA_USER_GUIDE } = require("../../../content/prompts/sns/x/x_sora_prompts");
-const { signJa } = require("../../../presenters/format/format/common");
-const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./x_ai_common");
-const { safeTrim } = require("../../../utils/text_normalize");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { X_SORA_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_sora_prompts");
+const { signJa } = require("../../../../presenters/format/format/common");
+const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
+const { safeTrim } = require("../../../../utils/text_normalize");
 
 function buildSunMoonLines({ story, dict }) {
   const transit = story?.public?.transit_signs || {};

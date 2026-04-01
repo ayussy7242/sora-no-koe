@@ -19,15 +19,15 @@ function read(relPath) {
 
 test("IG/X AI generators route validation through runAiTextPipeline", () => {
   const files = [
-    "src/usecases/channels/ig/carousel_caption.js",
-    "src/usecases/channels/ig/moon.js",
-    "src/usecases/channels/ig/moon_event.js",
-    "src/usecases/channels/ig/observation.js",
-    "src/usecases/channels/ig/resonance.js",
-    "src/usecases/channels/ig/sky_overview.js",
-    "src/usecases/channels/ig/tsukiji_structure.js",
+    "src/usecases/channels/ig/ai/carousel_caption.js",
+    "src/usecases/channels/ig/ai/moon.js",
+    "src/usecases/channels/ig/ai/moon_event.js",
+    "src/usecases/channels/ig/ai/observation.js",
+    "src/usecases/channels/ig/ai/resonance.js",
+    "src/usecases/channels/ig/ai/sky_overview.js",
+    "src/usecases/channels/ig/ai/tsukiji_structure.js",
     "src/usecases/channels/ig/story/generate_texts.js",
-    "src/usecases/channels/x/x_ai_common.js",
+    "src/usecases/channels/x/ai/common.js",
   ];
 
   for (const file of files) {
@@ -41,13 +41,13 @@ test("IG/X AI generators route validation through runAiTextPipeline", () => {
 
 test("IG AI generators reference PRESETS for validation rules", () => {
   const files = [
-    "src/usecases/channels/ig/carousel_caption.js",
-    "src/usecases/channels/ig/moon.js",
-    "src/usecases/channels/ig/moon_event.js",
-    "src/usecases/channels/ig/observation.js",
-    "src/usecases/channels/ig/resonance.js",
-    "src/usecases/channels/ig/sky_overview.js",
-    "src/usecases/channels/ig/tsukiji_structure.js",
+    "src/usecases/channels/ig/ai/carousel_caption.js",
+    "src/usecases/channels/ig/ai/moon.js",
+    "src/usecases/channels/ig/ai/moon_event.js",
+    "src/usecases/channels/ig/ai/observation.js",
+    "src/usecases/channels/ig/ai/resonance.js",
+    "src/usecases/channels/ig/ai/sky_overview.js",
+    "src/usecases/channels/ig/ai/tsukiji_structure.js",
     "src/usecases/channels/ig/story/generate_texts.js",
   ];
 

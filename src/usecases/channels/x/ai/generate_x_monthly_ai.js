@@ -1,16 +1,16 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { X_MONTHLY_USER_GUIDE } = require("../../../content/prompts/sns/x/x_monthly_prompts");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon_info");
-const { listWithOrb } = require("../../../domain/aspect_selection");
-const { normalizeBodyKey } = require("../../../domain/canonical");
-const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
-const { CORE_PLANETS, DEEP_BODIES } = require("../../../domain/astro/constants");
-const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
-const { toDateLocalJST } = require("../../../utils/time_utils");
-const { validateXAiText } = require("./x_ai_common");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { X_MONTHLY_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_monthly_prompts");
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon_info");
+const { listWithOrb } = require("../../../../domain/aspect_selection");
+const { normalizeBodyKey } = require("../../../../domain/canonical");
+const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
+const { CORE_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
+const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { toDateLocalJST } = require("../../../../utils/time_utils");
+const { validateXAiText } = require("./common");
 
 function formatMonthLabel(dateLocal) {
   const [y, m] = String(dateLocal || "").split("-");

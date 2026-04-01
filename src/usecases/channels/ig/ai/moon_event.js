@@ -1,6 +1,6 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION,
@@ -8,13 +8,13 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
-} = require("../../../content/prompts/sora/sora_ai_prompts");
-const { formatDateYmdHm } = require("../../../domain/astro_compute");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
-const { moonSignAtIso } = require("../../../domain/moon/sign");
-const { runAiTextPipeline } = require("../../ai_text");
-const { PRESETS } = require("../../ai_text/presets");
-const { resolveMaxRetries } = require("./ai_utils");
+} = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { formatDateYmdHm } = require("../../../../domain/astro_compute");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
+const { moonSignAtIso } = require("../../../../domain/moon/sign");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { resolveMaxRetries } = require("./utils");
 
 const BODY_LABELS = {
   sun: "太陽",

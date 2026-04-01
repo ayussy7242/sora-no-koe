@@ -1,7 +1,7 @@
 "use strict";
 
-const dict = require("../../../content/dict");
-const { normalizeBodyKey } = require("../../../domain/canonical");
+const dict = require("../../../../content/dict");
+const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { BLOG_TITLE_EXCLUDE_BODIES, BLOG_TITLE_BODY_RANK } = require("./blog_daily_constants");
 
 function isResonanceBodyExcluded(row) {

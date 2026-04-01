@@ -14,7 +14,7 @@ const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text
 const { pickPreferredResonanceAspect } = require("../../../../domain/resonance");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
-const { resolveMaxRetries } = require("../ai_utils");
+const { resolveMaxRetries } = require("../ai/utils");
 const { safeTrim, normalizeMultilineText } = require("../../../../utils/text_normalize");
 
 function normalizeText(text) {

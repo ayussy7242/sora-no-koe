@@ -21,9 +21,9 @@ const {
   OUTER_PLANETS,
 } = require("../../domain/astro/constants");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
-const { detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
-const { buildMonthlyContext } = require("../../usecases/channels/x/generate_x_monthly_ai");
-const { buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
+const { detectMoonEvent } = require("../../usecases/channels/x/ai/generate_x_moon_event_ai");
+const { buildMonthlyContext } = require("../../usecases/channels/x/ai/generate_x_monthly_ai");
+const { buildNext30DaysContext } = require("../../usecases/channels/x/ai/generate_x_next_30_days_ai");
 
 const SEP = "────────";
 
@@ -350,7 +350,7 @@ function renderXMorning(story, deps = {}) {
 }
 
 function renderXMorningMain(story, deps = {}) {
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.morning || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const asOfISO = story?.meta?.as_of || null;
@@ -380,7 +380,7 @@ function renderXMorningLog(story, deps = {}) {
 }
 
 function renderXNight(story, deps = {}) {
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.night || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const asOfISO = story?.meta?.as_of || null;
@@ -396,7 +396,7 @@ function renderXNight(story, deps = {}) {
 }
 
 function renderXResonance(story, deps = {}) {
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.resonance || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const dict = deps?.dict || require("../../content/dict");
@@ -450,7 +450,7 @@ function resolveMoonEventDisplay(story, dict) {
 }
 
 function renderXMoonEvent(story, deps = {}) {
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const dict = deps?.dict || require("../../content/dict");
   const event = resolveMoonEventDisplay(story, dict);
   if (!event) return "";
@@ -477,7 +477,7 @@ function renderXMonthly(story, deps = {}) {
     buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
   if (!ctx?.monthLabel) return "";
 
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.monthly || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const points = Array.isArray(ctx.points) ? ctx.points.slice(0, 3) : [];
@@ -510,7 +510,7 @@ function renderXNext30Days(story, deps = {}) {
     buildNext30DaysContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
   if (!ctx) return "";
 
-  const { formatXAiText } = require("../../usecases/channels/x/x_ai_common");
+  const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.next_30_days || "").trim();
   const ai = rawAi ? formatXAiText(rawAi) : "";
   const events = [

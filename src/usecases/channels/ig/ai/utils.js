@@ -1,6 +1,6 @@
 "use strict";
 
-const { signJa } = require("../../../presenters/format/format/common");
+const { signJa } = require("../../../../presenters/format/format/common");
 
 function resolveMaxRetries({ maxRetries, openaiMaxRetries, envKey = "IG_AI_MAX_RETRIES" } = {}) {
   const envRaw = process.env[envKey];

@@ -1,10 +1,10 @@
 "use strict";
 
-const { signJa } = require("../../../presenters/format/format/common");
-const { CORE_PLANETS } = require("../../../domain/astro/constants");
-const { runAiTextPipeline } = require("../../ai_text");
-const { PRESETS } = require("../../ai_text/presets");
-const { formatXAiText } = require("../../ai_text/normalizers");
+const { signJa } = require("../../../../presenters/format/format/common");
+const { CORE_PLANETS } = require("../../../../domain/astro/constants");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { formatXAiText } = require("../../../ai_text/normalizers");
 
 function validateXAiText(text, opts = {}) {
   const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : null;

@@ -1,8 +1,8 @@
 "use strict";
 
-const dict = require("../../../content/dict");
-const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../../domain/astro/constants");
-const { resolveProximityConfig } = require("../../../config/aspect_channel_config");
+const dict = require("../../../../content/dict");
+const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
+const { resolveProximityConfig } = require("../../../../config/aspect_channel_config");
 
 const BLOG_BANNED_TERMS = [
   "あなた",

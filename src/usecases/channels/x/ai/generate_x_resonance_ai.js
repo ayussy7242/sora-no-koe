@@ -1,10 +1,10 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
-const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { X_RESONANCE_USER_GUIDE } = require("../../../content/prompts/sns/x/x_resonance_prompts");
-const { pickPrimaryResonanceAspect } = require("../../../domain/resonance");
-const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
+const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { X_RESONANCE_USER_GUIDE } = require("../../../../content/prompts/sns/x/x_resonance_prompts");
+const { pickPrimaryResonanceAspect } = require("../../../../domain/resonance");
+const { generateXAiWithRetry, fallbackFactory } = require("./common");
 
 function buildXResonancePrompt({ story, dict, aspect }) {
   if (!aspect) return "";

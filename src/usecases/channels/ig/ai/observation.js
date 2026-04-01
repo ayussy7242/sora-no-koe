@@ -1,14 +1,14 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
-} = require("../../../content/prompts/sora/sora_ai_prompts");
-const { runAiTextPipeline } = require("../../ai_text");
-const { PRESETS } = require("../../ai_text/presets");
-const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./ai_utils");
-const { safeTrim } = require("../../../utils/text_normalize");
+} = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./utils");
+const { safeTrim } = require("../../../../utils/text_normalize");
 
 function buildIgObservationPrompt({ story, dict }) {
   const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");

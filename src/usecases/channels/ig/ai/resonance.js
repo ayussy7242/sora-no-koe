@@ -1,18 +1,18 @@
 "use strict";
 
-const { createChatCompletion } = require("../../../integrations/openai/openai_client");
+const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
-} = require("../../../content/prompts/sora/sora_ai_prompts");
-const { normalizeBodyKey } = require("../../../domain/canonical");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
-const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
-const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
-const { safeTrim } = require("../../../utils/text_normalize");
-const { runAiTextPipeline } = require("../../ai_text");
-const { PRESETS } = require("../../ai_text/presets");
-const { resolveMaxRetries } = require("./ai_utils");
+} = require("../../../../content/prompts/sora/sora_ai_prompts");
+const { normalizeBodyKey } = require("../../../../domain/canonical");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro_compute");
+const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
+const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { safeTrim } = require("../../../../utils/text_normalize");
+const { runAiTextPipeline } = require("../../../ai_text");
+const { PRESETS } = require("../../../ai_text/presets");
+const { resolveMaxRetries } = require("./utils");
 
 function buildAspectLine({ story, dict }) {
   const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;

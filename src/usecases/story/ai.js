@@ -1,16 +1,16 @@
 "use strict";
 
-const { generateIgResonanceText } = require("../channels/ig/resonance");
-const { generateIgObservationText } = require("../channels/ig/observation");
-const { generateIgSkyOverviewText } = require("../channels/ig/sky_overview");
-const { generateIgTsukijiStructureText } = require("../channels/ig/tsukiji_structure");
-const { generateIgMoonText } = require("../channels/ig/moon");
-const { generateXSoraAiText } = require("../channels/x/generate_x_sora_ai");
-const { generateXResonanceAiText } = require("../channels/x/generate_x_resonance_ai");
+const { generateIgResonanceText } = require("../channels/ig/ai/resonance");
+const { generateIgObservationText } = require("../channels/ig/ai/observation");
+const { generateIgSkyOverviewText } = require("../channels/ig/ai/sky_overview");
+const { generateIgTsukijiStructureText } = require("../channels/ig/ai/tsukiji_structure");
+const { generateIgMoonText } = require("../channels/ig/ai/moon");
+const { generateXSoraAiText } = require("../channels/x/ai/generate_x_sora_ai");
+const { generateXResonanceAiText } = require("../channels/x/ai/generate_x_resonance_ai");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
-const { generateXNightAiText } = require("../channels/x/generate_x_night_ai");
-const { generateXMoonEventAiText, detectMoonEvent } = require("../channels/x/generate_x_moon_event_ai");
-const { generateXMonthlyAiText, buildMonthlyContext } = require("../channels/x/generate_x_monthly_ai");
+const { generateXNightAiText } = require("../channels/x/ai/generate_x_night_ai");
+const { generateXMoonEventAiText, detectMoonEvent } = require("../channels/x/ai/generate_x_moon_event_ai");
+const { generateXMonthlyAiText, buildMonthlyContext } = require("../channels/x/ai/generate_x_monthly_ai");
 const { SPEC } = require("../../config/sora_spec");
 const { ensureIgOutputs } = require("./output_helpers");
 
