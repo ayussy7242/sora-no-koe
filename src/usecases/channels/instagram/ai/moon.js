@@ -5,7 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON,
 } = require("../../../../content/prompts/sora/sora_core");
-const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon_info");
+const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon");
 const { formatDateYmdHm } = require("../../../../domain/astro_compute");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");

@@ -3,7 +3,7 @@
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MONTHLY_USER_GUIDE } = require("../../../../content/prompts/sns/x/monthly");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon_info");
+const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon");
 const { listWithOrb } = require("../../../../domain/aspect_selection");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");

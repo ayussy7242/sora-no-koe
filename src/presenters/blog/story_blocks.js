@@ -13,7 +13,7 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../domain/canonical");
-const { formatTodayMoonLines, buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon_info");
+const { formatTodayMoonLines, buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,

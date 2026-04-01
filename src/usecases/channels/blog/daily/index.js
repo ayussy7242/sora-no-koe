@@ -44,7 +44,7 @@ const { formatAspectDisplay } = require("../../../../presenters/format/format/co
 const {
   formatTodayMoonLines,
   formatNextMoonLines,
-} = require("../../../../domain/moon_info");
+} = require("../../../../domain/moon");
 const {
   escapeHtml,
   renderRawBlock,

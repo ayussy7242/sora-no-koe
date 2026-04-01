@@ -1,6 +1,6 @@
 "use strict";
 
-const { buildTodayMoonInfo, buildNextMoonEvents, orderedMoonEvents } = require("./moon_info");
+const { buildTodayMoonInfo, buildNextMoonEvents, orderedMoonEvents } = require("./");
 
 const SYNODIC_HALF = 14.765;
 

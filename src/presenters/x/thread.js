@@ -21,7 +21,7 @@ const {
 const { listWithOrb, sortByOrb } = require("../../domain/aspect_selection");
 const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
-const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
+const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon");
 const { formatMonthDayHm } = require("../../utils/time");
 const { joinLines } = require("../../utils/text/format");
 

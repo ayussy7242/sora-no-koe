@@ -1,7 +1,7 @@
 "use strict";
 
 const { isRetrograde, buildRetrogradeMap } = require("../../../domain/astro/retrograde");
-const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon_info");
+const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { SPEC } = require("../../../config/sora_spec");
 const { resolveChannelConfig, resolveProximityConfig } = require("../../../config/aspect_channel_config");
 const { weightForBody, scoreForAspect } = require("../../../domain/touch_point_scoring");

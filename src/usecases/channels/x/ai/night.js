@@ -10,7 +10,7 @@ const {
   lastMajorMoonEvent,
   buildMoonSignChangeState,
   moonSignAtIso,
-} = require("../../../../domain/moon_info");
+} = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
 const { safeTrim } = require("../../../../utils/text/normalize");

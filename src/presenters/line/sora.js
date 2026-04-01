@@ -20,7 +20,7 @@ const {
   sortByOrb,
   minByOrb,
 } = require("../../domain/aspect_selection");
-const { formatTodayMoonLines } = require("../../domain/moon_info");
+const { formatTodayMoonLines } = require("../../domain/moon");
 
 async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
