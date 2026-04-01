@@ -6,15 +6,10 @@ const { aspectInfo } = require("../../../presenters/format/format/common");
 const { buildMoonStatus, moonSignAtIso } = require("../../../domain/moon");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
 const { pickMoonResonanceAspect } = require("./moon_event");
-const { aspectLabelJa } = require("./shared/aspects");
+const { aspectLabelJa, aspectCircuitLabel } = require("./shared/aspects");
 const { signLabelEnFromKey } = require("./shared/signs");
 const { BODY_META } = require("./shared/bodies");
-
-function planetLine({ glyph, name, sign }) {
-  if (!glyph && !name) return "";
-  const signPart = sign ? `（${sign}）` : "";
-  return `${glyph || ""} ${name || ""}${signPart}`.trim();
-}
+const { planetLine } = require("./shared/lines");
 
 function safeCount(v) {
   const n = Number(v);
@@ -101,36 +96,6 @@ function buildMoonPlacementObservation({ houseNo, dict }) {
     return `第${houseNo}ハウスに月があり、${core}の領域が立ち上がりやすい配置。`;
   }
   return `第${houseNo}ハウスに月があり、その領域が立ち上がりやすい配置。`;
-}
-
-function normalizeAspectType(raw) {
-  const key = String(raw || "").toLowerCase().trim();
-  if (!key) return "";
-  return key.replace(/_\d+$/, "");
-}
-
-const ASPECT_CIRCUITS = {
-  conjunction: "重なりの回路",
-  opposition: "向かい合う回路",
-  square: "摩擦と調整の回路",
-  trine: "流れの回路",
-  sextile: "接点の回路",
-  quincunx: "噛み合わせの回路",
-  inconjunct: "噛み合わせの回路",
-  semisextile: "かすかな接点の回路",
-  semi_sextile: "かすかな接点の回路",
-  semisquare: "小さな引っかかりの回路",
-  semi_square: "小さな引っかかりの回路",
-  sesquisquare: "蓄積の摩擦の回路",
-  quintile: "創造の回路",
-  biquintile: "創造の回路",
-  novile: "内側の熟成の回路",
-  septile: "揺らぎの回路",
-};
-
-function aspectCircuitLabel(type) {
-  const key = normalizeAspectType(type);
-  return ASPECT_CIRCUITS[key] || "接続の回路";
 }
 
 const PLANET_META = BODY_META;

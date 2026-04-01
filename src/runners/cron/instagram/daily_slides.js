@@ -8,13 +8,8 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/a
 const { signGlyph } = require("../../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../../domain/moon/phase_select");
 const { aspectLabelJa } = require("./shared/aspects");
+const { planetLine } = require("./shared/lines");
 const { BODY_META, BODY_ORDER_BASIC } = require("./shared/bodies");
-
-function planetLine({ glyph, name, sign }) {
-  if (!glyph && !name) return "";
-  const signPart = sign ? `（${sign}）` : "";
-  return `${glyph || ""} ${name || ""}${signPart}`.trim();
-}
 
 function plainMoonSymbol(kind) {
   if (kind === "new") return "●";
