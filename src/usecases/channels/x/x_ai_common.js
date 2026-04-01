@@ -1,6 +1,7 @@
 "use strict";
 
 const { signJa } = require("../../../presenters/format/format/common");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { formatXAiText } = require("../../ai_text/normalizers");
@@ -52,6 +53,37 @@ function getSunMoonLabels({ story, dict }) {
   const sun = transit?.sun?.sign_ja || (sunKey ? signJa(dict, sunKey) : "") || "";
   const moon = transit?.moon?.sign_ja || (moonKey ? signJa(dict, moonKey) : "") || "";
   return { sun, moon };
+}
+
+function buildElementCount(story) {
+  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
+  return {
+    fire: Number(counts.fire || 0),
+    earth: Number(counts.earth || 0),
+    air: Number(counts.air || 0),
+    water: Number(counts.water || 0),
+  };
+}
+
+function buildModalityCount(story) {
+  const counts = story?.meta?.modality_count || story?.meta?.sky_strata?.modality_count || story?.public?.sky_strata?.modality_count || {};
+  return {
+    cardinal: Number(counts.cardinal || 0),
+    fixed: Number(counts.fixed || 0),
+    mutable: Number(counts.mutable || 0),
+  };
+}
+
+function buildTransitSigns({ story, dict, bodyOrder } = {}) {
+  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
+  const order = Array.isArray(bodyOrder) && bodyOrder.length ? bodyOrder : CORE_PLANETS;
+  const out = {};
+  order.forEach((k) => {
+    const signKey = transit?.[k]?.sign_key || "";
+    const signLabel = transit?.[k]?.sign_ja || signJa(dict, signKey || "") || "";
+    if (signLabel) out[k] = signLabel;
+  });
+  return out;
 }
 
 function buildMorningFallback({ story, dict, maxChars }) {
@@ -271,6 +303,9 @@ async function generateXAiWithRetry(opts = {}) {
 module.exports = {
   formatXAiText,
   validateXAiText,
+  buildElementCount,
+  buildModalityCount,
+  buildTransitSigns,
   generateXAiWithRetry,
   fallbackFactory,
 };

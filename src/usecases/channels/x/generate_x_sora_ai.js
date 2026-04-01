@@ -4,28 +4,8 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { X_SORA_USER_GUIDE } = require("../../../content/prompts/sns/x/x_sora_prompts");
 const { signJa } = require("../../../presenters/format/format/common");
-const { CORE_PLANETS } = require("../../../domain/astro/constants");
-const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
+const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./x_ai_common");
 const { safeTrim } = require("../../../utils/text_normalize");
-
-function buildElementCount(story) {
-  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
-  return {
-    fire: Number(counts.fire || 0),
-    earth: Number(counts.earth || 0),
-    air: Number(counts.air || 0),
-    water: Number(counts.water || 0),
-  };
-}
-
-function buildModalityCount(story) {
-  const counts = story?.meta?.modality_count || story?.meta?.sky_strata?.modality_count || story?.public?.sky_strata?.modality_count || {};
-  return {
-    cardinal: Number(counts.cardinal || 0),
-    fixed: Number(counts.fixed || 0),
-    mutable: Number(counts.mutable || 0),
-  };
-}
 
 function buildSunMoonLines({ story, dict }) {
   const transit = story?.public?.transit_signs || {};
@@ -36,17 +16,6 @@ function buildSunMoonLines({ story, dict }) {
   return { sun, moon };
 }
 
-function buildTransitSigns({ story, dict }) {
-  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
-  const bodyOrder = CORE_PLANETS;
-  const out = {};
-  bodyOrder.forEach((k) => {
-    const signKey = transit?.[k]?.sign_key || "";
-    const signLabel = transit?.[k]?.sign_ja || signJa(dict, signKey || "") || "";
-    if (signLabel) out[k] = signLabel;
-  });
-  return out;
-}
 
 function buildXSoraPrompt({ story, dict }) {
   const { sun, moon } = buildSunMoonLines({ story, dict });
