@@ -8,6 +8,7 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/a
 const { signGlyph } = require("../../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../../domain/moon/phase_select");
 const { aspectLabelJa } = require("./shared/aspects");
+const { BODY_META, BODY_ORDER_BASIC } = require("./shared/bodies");
 
 function planetLine({ glyph, name, sign }) {
   if (!glyph && !name) return "";
@@ -112,31 +113,18 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     const transit = story?.public?.transit_signs || {};
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const ascIndex = signIndexFromKey(dict, ascKey);
-    const bodies = [
-      { key: "sun", label: "太陽", glyph: "☉" },
-      { key: "moon", label: "月", glyph: "☽" },
-      { key: "mercury", label: "水星", glyph: "☿" },
-      { key: "venus", label: "金星", glyph: "♀" },
-      { key: "mars", label: "火星", glyph: "♂" },
-      { key: "jupiter", label: "木星", glyph: "♃" },
-      { key: "saturn", label: "土星", glyph: "♄" },
-      { key: "uranus", label: "天王星", glyph: "♅" },
-      { key: "neptune", label: "海王星", glyph: "♆" },
-      { key: "pluto", label: "冥王星", glyph: "♇" },
-      { key: "lilith", label: "リリス", glyph: "⚸" },
-      { key: "chiron", label: "キロン", glyph: "⚷" },
-    ];
-    return bodies.map((body) => {
-      const signKey = transit?.[body.key]?.sign_key || "";
-      const signJa = transit?.[body.key]?.sign_ja || "—";
+    return BODY_ORDER_BASIC.map((key) => {
+      const meta = BODY_META[key] || { name: key, glyph: "" };
+      const signKey = transit?.[key]?.sign_key || "";
+      const signJa = transit?.[key]?.sign_ja || "—";
       const signIndex = signIndexFromKey(dict, signKey);
       const houseNo = Number.isFinite(signIndex) && Number.isFinite(ascIndex)
         ? houseNumberForSignIndex(signIndex, ascIndex)
         : null;
       const houseLabel = houseNo ? `${houseNo}H` : "—";
       return {
-        glyph: body.glyph,
-        label: body.label,
+        glyph: meta.glyph,
+        label: meta.name,
         signGlyph: signGlyph(signKey),
         sign: signJa,
         house: houseLabel,
@@ -157,27 +145,10 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     story?.public?.sky_top?.[0] ||
     story?.public?.sky_all?.[0] ||
     null;
-  const planetMap = {
-    sun: { name: "太陽", glyph: "☉" },
-    moon: { name: "月", glyph: "☽" },
-    mercury: { name: "水星", glyph: "☿" },
-    venus: { name: "金星", glyph: "♀" },
-    mars: { name: "火星", glyph: "♂" },
-    jupiter: { name: "木星", glyph: "♃" },
-    saturn: { name: "土星", glyph: "♄" },
-    uranus: { name: "天王星", glyph: "♅" },
-    neptune: { name: "海王星", glyph: "♆" },
-    pluto: { name: "冥王星", glyph: "♇" },
-    lilith: { name: "リリス", glyph: "⚸" },
-    chiron: { name: "キロン", glyph: "⚷" },
-    north_node: { name: "北ノード", glyph: "☊" },
-    south_node: { name: "南ノード", glyph: "☋" },
-  };
-
   const aKey = topAspect?.a || "moon";
   const bKey = topAspect?.b || "lilith";
-  const aMeta = planetMap[aKey] || { name: aKey, glyph: "" };
-  const bMeta = planetMap[bKey] || { name: bKey, glyph: "" };
+  const aMeta = BODY_META[aKey] || { name: aKey, glyph: "" };
+  const bMeta = BODY_META[bKey] || { name: bKey, glyph: "" };
 
   const aSign = story?.public?.transit_signs?.[aKey]?.sign_ja || "乙女座";
   const bSign = story?.public?.transit_signs?.[bKey]?.sign_ja || "射手座";

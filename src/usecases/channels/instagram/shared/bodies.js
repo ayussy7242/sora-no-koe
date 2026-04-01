@@ -34,4 +34,31 @@ const BODY_GLYPHS = {
   south_node: "☋",
 };
 
-module.exports = { BODY_LABELS, BODY_GLYPHS };
+const BODY_META = Object.fromEntries(
+  Object.entries(BODY_LABELS).map(([key, name]) => [
+    key,
+    { name, glyph: BODY_GLYPHS[key] || "" },
+  ])
+);
+
+const BODY_ORDER_BASIC = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+  "lilith",
+  "chiron",
+];
+
+module.exports = {
+  BODY_LABELS,
+  BODY_GLYPHS,
+  BODY_META,
+  BODY_ORDER_BASIC,
+};

@@ -8,7 +8,7 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/a
 const { pickMoonResonanceAspect } = require("./moon_event");
 const { aspectLabelJa } = require("./shared/aspects");
 const { signLabelEnFromKey } = require("./shared/signs");
-const { BODY_LABELS, BODY_GLYPHS } = require("./shared/bodies");
+const { BODY_META } = require("./shared/bodies");
 
 function planetLine({ glyph, name, sign }) {
   if (!glyph && !name) return "";
@@ -133,12 +133,7 @@ function aspectCircuitLabel(type) {
   return ASPECT_CIRCUITS[key] || "接続の回路";
 }
 
-const PLANET_META = Object.fromEntries(
-  Object.entries(BODY_LABELS).map(([key, name]) => [
-    key,
-    { name, glyph: BODY_GLYPHS[key] || "" },
-  ])
-);
+const PLANET_META = BODY_META;
 
 function buildMoonEventCarouselSlides({
   story,
