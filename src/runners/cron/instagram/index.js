@@ -4,6 +4,7 @@ const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
 const { renderIGCaption } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
+const { toBool } = require("../../../utils/data/bool");
 const { pickPreferredResonanceAspect } = require("../../../domain/resonance");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { generateIgMoonEventAiOutputs } = require("../../../usecases/channels/instagram/ai/moon_event");
@@ -51,15 +52,6 @@ function buildAspectKey(aspect, { includeOrb = false } = {}) {
     ? Number(aspect.orb_deg).toFixed(2)
     : "";
   return [a, b, deg, orb].filter(Boolean).join("|");
-}
-
-function toBool(v, fallback = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (typeof v !== "string") return fallback;
-  const t = v.trim().toLowerCase();
-  if (!t) return fallback;
-  return ["1", "true", "yes", "on"].includes(t);
 }
 
 async function runIgPost(deps, opts = {}) {

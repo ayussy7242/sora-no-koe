@@ -15,22 +15,12 @@ const {
 } = require("../../usecases/channels/blog/daily");
 const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eyecatch");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+const { toBool } = require("../../utils/data/bool");
+const { ensureDir } = require("../../utils/infra/fs");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
   return value;
-}
-
-function toBool(v, defaultValue = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (v === undefined || v === null || v === "") return defaultValue;
-  const s = String(v).trim().toLowerCase();
-  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
 }
 
 function writeLocalBlogOutput({ outDir, dateLocal, title, content }) {

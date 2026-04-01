@@ -3,11 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
-
-function ensureDir(dir) {
-  if (!dir) return;
-  fs.mkdirSync(dir, { recursive: true });
-}
+const { ensureDir } = require("../../../utils/infra/fs");
 
 function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
   if (!Array.isArray(buffers) || !buffers.length) return [];

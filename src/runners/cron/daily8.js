@@ -29,10 +29,12 @@ const {
   clamp,
   getLineUserIdFromUserDoc,
 } = require("./cron_utils");
+const { toBool } = require("../../utils/data/bool");
 const dict = require("../../content/dict");
 const { buildDailyLineMessage } = require("../../usecases/channels/line/daily_message");
 const { getLineSubscription, isPaidLine500 } = require("../../integrations/firebase/subscription");
 const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
+const { ensureDir } = require("../../utils/infra/fs");
 
 // Temporary: disable sorazu image push in daily 08:00
 const DISABLE_DAILY8_SORA_IMAGE = true;
@@ -49,13 +51,6 @@ function normalizeOpts(input) {
   }
   return {};
 }
-function toBool(v, defaultValue = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (v === undefined || v === null || v === "") return defaultValue;
-  const s = String(v).trim().toLowerCase();
-  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
-}
 function envFlag(v, defaultOn = true) {
   if (v === undefined || v === null || v === "") return defaultOn;
   const s = String(v).trim().toLowerCase();
@@ -64,10 +59,6 @@ function envFlag(v, defaultOn = true) {
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
   return `daily8:${dateLocal}:${r}`;
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
 }
 
 function safeFilePart(value, fallback) {

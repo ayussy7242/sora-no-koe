@@ -14,6 +14,7 @@ const {
   resolveDisplayNameFromLineUserDoc,
   resolveDisplayNameFromUserDoc,
 } = require("../../../utils/text/display_name");
+const { toBool } = require("../../../utils/data/bool");
 const {
   buildAiInput,
   mapAiContent,
@@ -60,10 +61,6 @@ async function resolveDisplayName({ db, appUserId, lineUser }) {
   } catch (_) {
     return "";
   }
-}
-
-function toBool(value) {
-  return value === true || value == "true" || value === 1 || value == "1";
 }
 
 function createBlueprintLightService({ db, admin, storage, env, dict }) {

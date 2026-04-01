@@ -7,6 +7,7 @@ const { setLineUserState } = require("../../../../integrations/line/state");
 const { LINE_COPY } = require("../../../../content/copy");
 const dict = require("../../../../content/dict");
 const { resolveDisplayNameFromLineUserDoc } = require("../../../../utils/text/display_name");
+const { toBool } = require("../../../../utils/data/bool");
 const { enqueueBlueprintJob, enqueueBlueprintPdfJob } = require("./queue");
 const {
   getJobRef,
@@ -24,10 +25,6 @@ function requireTasksCaller({ env, req }) {
     return { ok: false, status: 403, error: "invalid token" };
   }
   return { ok: true };
-}
-
-function toBool(v) {
-  return v === true || v === "true" || v === 1 || v === "1";
 }
 
 function toNumberSafe(v, fallback = 0) {

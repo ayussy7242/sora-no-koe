@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { countChars, trimTrailingHashtagsToMaxChars } = require("../../utils/text/hashtag");
+const { toBool } = require("../../utils/data/bool");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/ai/daily");
 const { generateXNightAiText } = require("../../usecases/channels/x/ai/night");
@@ -81,15 +82,6 @@ async function markXPostLock(db, kind, dateLocal, patch) {
     finishedAtMs: now,
     finishedAt: nowIso(now),
   }, { merge: true });
-}
-
-function toBool(v, fallback = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (typeof v !== "string") return fallback;
-  const t = v.trim().toLowerCase();
-  if (!t) return fallback;
-  return ["1", "true", "yes", "on"].includes(t);
 }
 
 function parseJsonSafe(raw) {

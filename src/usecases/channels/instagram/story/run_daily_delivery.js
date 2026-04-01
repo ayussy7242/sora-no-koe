@@ -11,6 +11,7 @@ const { sendIgStoryToLine } = require("./send_to_line");
 const { runDailyBlog } = require("../../../../runners/cron/blog_daily");
 const { buildPublicStorySnapshot } = require("../../../story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../cron/lock_utils");
+const { ensureDir } = require("../../../../utils/infra/fs");
 
 function addDays(dateLocal, days = 1) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -20,10 +21,6 @@ function addDays(dateLocal, days = 1) {
   const m = `${base.getMonth() + 1}`.padStart(2, "0");
   const d = `${base.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
 }
 
 function writeLocalStoryImages({ outDir, dateLocal, buffers }) {

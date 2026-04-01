@@ -23,6 +23,8 @@ const fs = require("fs");
 const path = require("path");
 const { isYYYYMMDD, toDateLocalJST } = require("../../utils/time");
 const { normLower } = require("../../utils/data/parse");
+const { toBool } = require("../../utils/data/bool");
+const { ensureDir } = require("../../utils/infra/fs");
 
 function toSafeText(x, maxLen = 4800) {
   const s = x == null ? "" : String(x);
@@ -36,18 +38,6 @@ function pickTarget(x) {
   const t = normLower(x, "all");
   return t === "owner" ? "owner" : "all";
 }
-function toBool(v, defaultValue = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (v === undefined || v === null || v === "") return defaultValue;
-  const s = String(v).trim().toLowerCase();
-  return ["1", "true", "yes", "y", "on", "enable", "enabled"].includes(s);
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
 function safeFilePart(value, fallback) {
   const s = String(value || "").trim();
   const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
