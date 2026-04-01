@@ -203,6 +203,7 @@ curl http://localhost:8080/meta
 ## 6. 環境変数（最低限）
 
 ローカルは `config/.env` に置く。
+雛形は `.env.example` を参照。
 
 必須になりやすいもの
 - `GCLOUD_PROJECT` / `GOOGLE_CLOUD_PROJECT`
@@ -373,6 +374,7 @@ OpenAI
 
 - 本プロジェクトは `swisseph` 経由で Swiss Ephemeris を利用しています。利用にあたっては Swiss Ephemeris のライセンス条件をご確認ください。  
   Swiss Ephemeris (Free Edition): [aloistr/swisseph](https://github.com/aloistr/swisseph)
+- 詳細な著作権表記は `THIRD_PARTY_NOTICES.md` に記載。
 
 ---
 
