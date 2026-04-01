@@ -12,7 +12,7 @@ const {
   buildDailyEyecatchLines,
   markdownToHtml,
   escapeHtml,
-} = require("../../usecases/channels/blog/ai/daily");
+} = require("../../usecases/channels/blog/daily");
 const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eyecatch");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 
