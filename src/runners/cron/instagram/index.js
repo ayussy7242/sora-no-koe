@@ -16,10 +16,8 @@ const {
   waitForContainer,
 } = require("../../../integrations/instagram/graph");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
-const {
-  buildCarouselSlides,
-  buildMoonEventCarouselSlides,
-} = require("./slides");
+const { buildCarouselSlides } = require("./daily_slides");
+const { buildMoonEventCarouselSlides } = require("./moon_event_slides");
 const {
   resolveMoonEventTargetDateLocal,
   resolveMoonEventKind,
