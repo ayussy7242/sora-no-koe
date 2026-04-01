@@ -15,6 +15,7 @@ const { LINE_COPY } = require("../../content/copy");
 const { normalizeStoryArgs } = require("../../usecases/story/story_args");
 const { ymdInTimeZone } = require("../../utils/time_utils");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+const { safeLineText } = require("./line_utils");
 
 function createLineStory({ db, storyService, renderers, natal = null, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -34,11 +35,6 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     config.LINE_ACCOUNT_NAME ||
     config.BOT_NAME ||
     "ソラのこえ。｜今日の星を置く🌌";
-
-  function safeText(s) {
-    const x = s == null ? "" : String(s);
-    return x.length > MAX_LINE_TEXT ? x.slice(0, MAX_LINE_TEXT) : x;
-  }
 
   function computeDateLocalAndAsOfISO() {
     const now = new Date();
@@ -64,7 +60,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
 
   async function renderStoryText(story, renderer) {
     const fn = typeof renderer === "function" ? renderer : renderers.renderLine;
-    return safeText(await fn(story));
+    return safeLineText(await fn(story), MAX_LINE_TEXT);
   }
 
   async function buildStory({ appUserId, mode, renderer }) {
@@ -91,8 +87,8 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   function appendTail(text, tail) {
-    if (!tail) return safeText(text);
-    return safeText(`${text}\n\n${tail}`);
+    if (!tail) return safeLineText(text, MAX_LINE_TEXT);
+    return safeLineText(`${text}\n\n${tail}`, MAX_LINE_TEXT);
   }
 
   function tailSoraSilentNoPersonal() {

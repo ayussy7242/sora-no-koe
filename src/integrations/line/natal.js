@@ -14,6 +14,7 @@
 const { isunknown } = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
 const { parseYYYYMMDD, parseHHMM } = require("../../utils/parse");
+const { safeLineText } = require("./line_utils");
 
 function createLineNatal({ db, admin, geocoder = null, renderers, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -368,7 +369,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     }
 
     const rendered = renderers.renderNatalListFromcache(cache) || "";
-    const text = rendered.length > MAX_LINE_TEXT ? rendered.slice(0, MAX_LINE_TEXT) : rendered;
+    const text = safeLineText(rendered, MAX_LINE_TEXT);
     return { text };
   }
 
