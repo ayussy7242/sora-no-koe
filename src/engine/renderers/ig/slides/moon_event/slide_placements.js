@@ -38,8 +38,8 @@ function resolveBodyLayout({
   bottomLimitY,
   baseSize = 34,
   baseLineHeight = 60,
-  maxChars = 26,
-  maxLines = 20,
+  maxChars = 30,
+  maxLines = 999,
 } = {}) {
   if (!text) return { lines: [], size: baseSize, lineHeight: baseLineHeight };
   let chars = maxChars;
@@ -48,20 +48,16 @@ function resolveBodyLayout({
     ? Math.max(0, Number(bottomLimitY) - Number(bodyStartY))
     : null;
 
-  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 30) {
-    chars = 30;
+  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 32) {
+    chars = 32;
+    lines = wrapLines(text, chars, maxLines);
+  }
+  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 34) {
+    chars = 34;
     lines = wrapLines(text, chars, maxLines);
   }
 
-  let size = baseSize;
-  let lineHeight = baseLineHeight;
-  if (availableHeight && lines.length * lineHeight > availableHeight) {
-    const scale = clamp(availableHeight / (lines.length * lineHeight), 0.72, 1);
-    size = Math.max(24, Math.round(baseSize * scale));
-    lineHeight = Math.max(42, Math.round(baseLineHeight * scale));
-  }
-
-  return { lines, size, lineHeight };
+  return { lines, size: baseSize, lineHeight: baseLineHeight };
 }
 
 function getAvoidRegions({ dateLabel, header = "月の空気", subLabel = "moon climate", lines = [], brand = "sora-no-koe" } = {}) {
