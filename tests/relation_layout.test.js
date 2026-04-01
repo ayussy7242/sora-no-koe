@@ -63,11 +63,21 @@ test("paginateStackBlocksFromStart splits pages by height", () => {
   assert.deepEqual(paginateStackBlocksFromStart({ blockHeights: [], gap: 2, maxHeight: 22 }), [{ start: 0, end: 0 }]);
 });
 
+test("paginateStackBlocksFromStart always places at least one block", () => {
+  const pages = paginateStackBlocksFromStart({ blockHeights: [30, 10], gap: 2, maxHeight: 20 });
+  assert.deepEqual(pages, [{ start: 0, end: 1 }, { start: 1, end: 2 }]);
+});
+
 test("paginateSingleListFromEnd paginates from tail", () => {
   const pages = paginateSingleListFromEnd({ rowHeights: [10, 10, 10], headHeight: 5, gap: 2, maxNoBottom: 22, maxWithBottom: 27 });
   assert.equal(pages.length, 2);
   assert.deepEqual(pages[0], { start: 0, end: 1, count: 1, isLast: false });
   assert.deepEqual(pages[1], { start: 1, end: 3, count: 2, isLast: true });
+});
+
+test("paginateSingleListFromEnd handles empty list", () => {
+  const pages = paginateSingleListFromEnd({ rowHeights: [], headHeight: 5, gap: 2, maxNoBottom: 22, maxWithBottom: 27 });
+  assert.deepEqual(pages, []);
 });
 
 test("paginateDualListsFromEnd covers all rows", () => {
@@ -91,5 +101,25 @@ test("paginateDualListsFromEnd covers all rows", () => {
   pages.forEach((p) => {
     assert.equal(p.flowEnd - p.flowStart, p.flowCount);
     assert.equal(p.frictionEnd - p.frictionStart, p.frictionCount);
+  });
+});
+
+test("paginateDualListsFromEnd works when one side is empty", () => {
+  const pages = paginateDualListsFromEnd({
+    flowHeights: [],
+    frictionHeights: [12, 12],
+    flowHeadHeight: 0,
+    frictionHeadHeight: 0,
+    flowGap: 0,
+    frictionGap: 0,
+    stackGap: 0,
+    maxNoBottom: 15,
+    maxWithBottom: 15,
+  });
+
+  const frictionTotal = pages.reduce((sum, p) => sum + (p.frictionCount || 0), 0);
+  assert.equal(frictionTotal, 2);
+  pages.forEach((p) => {
+    assert.equal(p.flowCount, 0);
   });
 });
