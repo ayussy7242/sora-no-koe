@@ -4,7 +4,7 @@ const {
   X_PUBLIC_COMMON,
 } = require("./common");
 
-const { POLITE_TONE_COMMON } = require("../../common/common");
+const { POLITE_TONE_COMMON } = require("../../common");
 
 const X_MOON_EVENT_USER_GUIDE = `
 Xで満月・新月イベントの観測文を生成する。

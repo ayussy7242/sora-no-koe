@@ -4,7 +4,7 @@ const {
   X_PUBLIC_COMMON,
 } = require("./common");
 
-const { POLITE_TONE_COMMON } = require("../../common/common");
+const { POLITE_TONE_COMMON } = require("../../common");
 
 const X_NEXT_30_DAYS_USER_GUIDE = `
 Xで「今月の空模様」の観測文を生成する。

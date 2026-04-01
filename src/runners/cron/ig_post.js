@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { renderInstagramCarousel, formatDateLabel } = require("../../engine/renderers/ig/ig_carousel");
+const { renderInstagramCarousel, formatDateLabel } = require("../../engine/renderers/instagram/ig_carousel");
 const { pickObservationLine, renderIGCaption } = require("../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../presenters/format/format/common");
 const {
@@ -17,22 +17,22 @@ const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
 const { pickPreferredResonanceAspect } = require("../../domain/resonance");
-const { generateIgObservationText } = require("../../usecases/channels/ig/ai/observation");
-const { generateIgResonanceText } = require("../../usecases/channels/ig/ai/resonance");
-const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/ai/tsukiji_structure");
-const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/ai/sky_overview");
-const { generateIgMoonText } = require("../../usecases/channels/ig/ai/moon");
+const { generateIgObservationText } = require("../../usecases/channels/instagram/ai/observation");
+const { generateIgResonanceText } = require("../../usecases/channels/instagram/ai/resonance");
+const { generateIgTsukijiStructureText } = require("../../usecases/channels/instagram/ai/tsukiji_structure");
+const { generateIgSkyOverviewText } = require("../../usecases/channels/instagram/ai/sky_overview");
+const { generateIgMoonText } = require("../../usecases/channels/instagram/ai/moon");
 const {
   generateIgMoonEventPlacementText,
   generateIgMoonEventSunMoonText,
   generateIgMoonEventResonanceText,
   generateIgMoonEventCaptionText,
   generateIgMoonEventAirText,
-} = require("../../usecases/channels/ig/ai/moon_event");
+} = require("../../usecases/channels/instagram/ai/moon_event");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
-} = require("../../usecases/channels/ig/ai/carousel_caption");
+} = require("../../usecases/channels/instagram/ai/carousel_caption");
 const { ensureIgOutputs } = require("../../usecases/story/output_helpers");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
@@ -41,7 +41,7 @@ const {
   createCarouselContainer,
   publishMedia,
   waitForContainer,
-} = require("../../integrations/ig/ig_graph");
+} = require("../../integrations/instagram/ig_graph");
 const { createStorageClient } = require("../../utils/gcs_storage");
 
 function resolveBackgroundCache(env = {}) {

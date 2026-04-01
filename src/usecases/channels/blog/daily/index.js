@@ -23,8 +23,8 @@ const {
   BLOG_LONG_ELEMENTS_GUIDE,
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
-} = require("../../../../content/prompts/blog/blog_blocks");
-const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/blog_moon_event");
+} = require("../../../../content/prompts/blog/blocks");
+const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/moon_event");
 const { SPEC } = require("../../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../../domain/touch_point_scoring");

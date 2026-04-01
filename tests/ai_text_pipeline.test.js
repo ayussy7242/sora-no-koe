@@ -19,14 +19,14 @@ function read(relPath) {
 
 test("IG/X AI generators route validation through runAiTextPipeline", () => {
   const files = [
-    "src/usecases/channels/ig/ai/carousel_caption.js",
-    "src/usecases/channels/ig/ai/moon.js",
-    "src/usecases/channels/ig/ai/moon_event.js",
-    "src/usecases/channels/ig/ai/observation.js",
-    "src/usecases/channels/ig/ai/resonance.js",
-    "src/usecases/channels/ig/ai/sky_overview.js",
-    "src/usecases/channels/ig/ai/tsukiji_structure.js",
-    "src/usecases/channels/ig/story/generate_texts.js",
+    "src/usecases/channels/instagram/ai/carousel_caption.js",
+    "src/usecases/channels/instagram/ai/moon.js",
+    "src/usecases/channels/instagram/ai/moon_event.js",
+    "src/usecases/channels/instagram/ai/observation.js",
+    "src/usecases/channels/instagram/ai/resonance.js",
+    "src/usecases/channels/instagram/ai/sky_overview.js",
+    "src/usecases/channels/instagram/ai/tsukiji_structure.js",
+    "src/usecases/channels/instagram/story/generate_texts.js",
     "src/usecases/channels/x/ai/common.js",
   ];
 
@@ -41,14 +41,14 @@ test("IG/X AI generators route validation through runAiTextPipeline", () => {
 
 test("IG AI generators reference PRESETS for validation rules", () => {
   const files = [
-    "src/usecases/channels/ig/ai/carousel_caption.js",
-    "src/usecases/channels/ig/ai/moon.js",
-    "src/usecases/channels/ig/ai/moon_event.js",
-    "src/usecases/channels/ig/ai/observation.js",
-    "src/usecases/channels/ig/ai/resonance.js",
-    "src/usecases/channels/ig/ai/sky_overview.js",
-    "src/usecases/channels/ig/ai/tsukiji_structure.js",
-    "src/usecases/channels/ig/story/generate_texts.js",
+    "src/usecases/channels/instagram/ai/carousel_caption.js",
+    "src/usecases/channels/instagram/ai/moon.js",
+    "src/usecases/channels/instagram/ai/moon_event.js",
+    "src/usecases/channels/instagram/ai/observation.js",
+    "src/usecases/channels/instagram/ai/resonance.js",
+    "src/usecases/channels/instagram/ai/sky_overview.js",
+    "src/usecases/channels/instagram/ai/tsukiji_structure.js",
+    "src/usecases/channels/instagram/story/generate_texts.js",
   ];
 
   for (const file of files) {

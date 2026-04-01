@@ -2,7 +2,7 @@
 
 const {
   POLITE_TONE_COMMON,
-} = require("../../common/common");
+} = require("../../common");
 const {
   X_PUBLIC_COMMON,
 } = require("./common");

@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * channels/ig/post.js
+ * channels/instagram/post.js
  * - IG: 観測ログ用の固定キャプション
  */
 

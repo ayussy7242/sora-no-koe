@@ -27,7 +27,7 @@ const { pickStable, getUserId } = require("../../format/utils/seed");
 const chLineToday = require("../../line/today");
 const chLineSora = require("../../line/sora");
 const chLineDistribution = require("../../line/distribution");
-const chIG = require("../../ig");
+const chIG = require("../../instagram");
 const chX = require("../../x/post");
 const chXThread = require("../../x/thread");
 const chThreads = require("../../threads/post");
@@ -287,7 +287,7 @@ function createRenderers({ BODY_JA = {}, POINT_JA = {}, ASPECT_JA = {}, dict = n
   const fnLineToday = resolveFn(chLineToday, ["renderLine"], "channels/line/today");
   const fnSoraLine = resolveFn(chLineSora, ["renderSoraLine"], "channels/line/sora");
   const fnDistributionLine = resolveFn(chLineDistribution, ["renderDistributionLine"], "channels/line/distribution");
-  const fnIG = resolveFn(chIG, ["renderIG"], "channels/ig");
+  const fnIG = resolveFn(chIG, ["renderIG"], "channels/instagram");
   const fnX = resolveFn(chX, ["renderX"], "channels/x/post");
   const fnXMorning = resolveFn(chX, ["renderXMorning"], "channels/x/post");
   const fnXMorningMain = resolveFn(chX, ["renderXMorningMain", "renderXMorning"], "channels/x/post");

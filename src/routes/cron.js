@@ -26,7 +26,7 @@ const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost, runIgMoonEventPost } = require("../runners/cron/ig_post");
 const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x_post");
-const { runDailyIgStoryDelivery } = require("../usecases/channels/ig/story/run_daily_delivery");
+const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
 const {
   getRequestParts,
   pickMode,

@@ -6,7 +6,7 @@
  * - 各チャンネルは「出力形式」だけが差分
  */
 
-const { SYSTEM_COMMON, STYLE_COMMON } = require("../common/common");
+const { SYSTEM_COMMON, STYLE_COMMON } = require("../common");
 const {
   SYSTEM_BLUEPRINT_LIGHT,
   USER_GUIDE_BLUEPRINT_LIGHT,

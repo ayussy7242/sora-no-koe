@@ -3,7 +3,7 @@
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
-const { fontFaceCss } = require("../ig/assets/ig_fonts");
+const { fontFaceCss } = require("../instagram/assets/ig_fonts");
 const { formatDateLabel } = require("../../../utils/time_utils");
 const { escapeXml } = require("../../../utils/xml_utils");
 const { clamp } = require("../../../utils/math_utils");

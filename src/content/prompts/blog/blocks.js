@@ -8,7 +8,7 @@ const {
   SENTENCE_COMMON,
   REPETITION_COMMON,
   POLITE_TONE_COMMON,
-} = require("../common/common");
+} = require("../common");
 
 /**
  * sora-no-koe blog prompt set (block-specific flow)

@@ -1,10 +1,10 @@
 "use strict";
 
-const { generateIgResonanceText } = require("../channels/ig/ai/resonance");
-const { generateIgObservationText } = require("../channels/ig/ai/observation");
-const { generateIgSkyOverviewText } = require("../channels/ig/ai/sky_overview");
-const { generateIgTsukijiStructureText } = require("../channels/ig/ai/tsukiji_structure");
-const { generateIgMoonText } = require("../channels/ig/ai/moon");
+const { generateIgResonanceText } = require("../channels/instagram/ai/resonance");
+const { generateIgObservationText } = require("../channels/instagram/ai/observation");
+const { generateIgSkyOverviewText } = require("../channels/instagram/ai/sky_overview");
+const { generateIgTsukijiStructureText } = require("../channels/instagram/ai/tsukiji_structure");
+const { generateIgMoonText } = require("../channels/instagram/ai/moon");
 const { generateXSoraAiText } = require("../channels/x/ai/daily");
 const { generateXResonanceAiText } = require("../channels/x/ai/resonance");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
