@@ -5,13 +5,7 @@ const { renderInstagramCarousel } = require("../../engine/renderers/instagram/ig
 const { renderIGCaption } = require("../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { pickPreferredResonanceAspect } = require("../../domain/resonance");
-const {
-  generateIgMoonEventPlacementText,
-  generateIgMoonEventSunMoonText,
-  generateIgMoonEventResonanceText,
-  generateIgMoonEventCaptionText,
-  generateIgMoonEventAirText,
-} = require("../../usecases/channels/instagram/ai/moon_event");
+const { generateIgMoonEventAiOutputs } = require("../../usecases/channels/instagram/ai/moon_event");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
 const {
@@ -335,54 +329,28 @@ async function runIgMoonEventPost(deps, opts = {}) {
   let moonPlacementText = "";
   let sunMoonText = "";
   let moonResonanceText = "";
-  let caption = buildMoonEventCaption(event);
+  const baseCaption = buildMoonEventCaption(event);
+  let caption = baseCaption;
   const moonResonanceAspect = pickMoonResonanceAspect(story);
-  if (useAi) {
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (apiKey) {
-      try {
-        const openai = { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL };
-        const placementRes = await generateIgMoonEventPlacementText({ story, dict, event, openai, forceAi });
-        if (placementRes?.ok && placementRes.text) moonPlacementText = placementRes.text;
-
-        const sunMoonRes = await generateIgMoonEventSunMoonText({ story, dict, event, openai, forceAi });
-        if (sunMoonRes?.ok && sunMoonRes.text) sunMoonText = sunMoonRes.text;
-
-        if (moonResonanceAspect) {
-          const resonanceRes = await generateIgMoonEventResonanceText({
-            story,
-            dict,
-            aspect: moonResonanceAspect,
-            openai,
-            forceAi,
-          });
-          if (resonanceRes?.ok && resonanceRes.text) moonResonanceText = resonanceRes.text;
-        }
-
-        const airRes = await generateIgMoonEventAirText({
-          story,
-          dict,
-          event,
-          resonanceAspect: moonResonanceAspect,
-          openai,
-          forceAi,
-        });
-        if (airRes?.ok && airRes.text) summaryText = airRes.text;
-
-        const captionRes = await generateIgMoonEventCaptionText({
-          story,
-          dict,
-          event,
-          resonanceAspect: moonResonanceAspect,
-          openai,
-          forceAi,
-        });
-        if (captionRes?.ok && captionRes.text) caption = captionRes.text;
-      } catch (_err) {
-        summaryText = "";
-      }
-    }
-  }
+  const aiOutputs = await generateIgMoonEventAiOutputs({
+    story,
+    dict,
+    event,
+    resonanceAspect: moonResonanceAspect,
+    openai: {
+      apiKey: env2.OPENAI_API_KEY,
+      baseUrl: env2.OPENAI_BASE_URL,
+      model: env2.OPENAI_MODEL,
+    },
+    useAi,
+    baseCaption,
+    forceAi,
+  });
+  summaryText = aiOutputs.summaryText;
+  moonPlacementText = aiOutputs.moonPlacementText;
+  sunMoonText = aiOutputs.sunMoonText;
+  moonResonanceText = aiOutputs.moonResonanceText;
+  caption = aiOutputs.caption;
 
   const carousel = buildMoonEventCarouselSlides({
     story,

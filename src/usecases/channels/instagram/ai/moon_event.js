@@ -415,6 +415,86 @@ async function generateIgMoonEventCaptionText({ story, dict, event, resonanceAsp
   });
 }
 
+async function generateIgMoonEventAiOutputs({
+  story,
+  dict,
+  event,
+  resonanceAspect,
+  openai,
+  useAi = true,
+  baseCaption = "",
+} = {}) {
+  const result = {
+    summaryText: "",
+    moonPlacementText: "",
+    sunMoonText: "",
+    moonResonanceText: "",
+    caption: baseCaption || "",
+  };
+
+  if (!useAi) return result;
+
+  const apiKey = String(openai?.apiKey || process.env.OPENAI_API_KEY || "").trim();
+  if (!apiKey) return result;
+
+  const openaiClient = {
+    apiKey,
+    baseUrl: openai?.baseUrl,
+    model: openai?.model,
+    maxRetries: openai?.maxRetries,
+  };
+
+  try {
+    const placementRes = await generateIgMoonEventPlacementText({
+      story,
+      dict,
+      event,
+      openai: openaiClient,
+    });
+    if (placementRes?.ok && placementRes.text) result.moonPlacementText = placementRes.text;
+
+    const sunMoonRes = await generateIgMoonEventSunMoonText({
+      story,
+      dict,
+      event,
+      openai: openaiClient,
+    });
+    if (sunMoonRes?.ok && sunMoonRes.text) result.sunMoonText = sunMoonRes.text;
+
+    if (resonanceAspect) {
+      const resonanceRes = await generateIgMoonEventResonanceText({
+        story,
+        dict,
+        aspect: resonanceAspect,
+        openai: openaiClient,
+      });
+      if (resonanceRes?.ok && resonanceRes.text) result.moonResonanceText = resonanceRes.text;
+    }
+
+    const airRes = await generateIgMoonEventAirText({
+      story,
+      dict,
+      event,
+      resonanceAspect,
+      openai: openaiClient,
+    });
+    if (airRes?.ok && airRes.text) result.summaryText = airRes.text;
+
+    const captionRes = await generateIgMoonEventCaptionText({
+      story,
+      dict,
+      event,
+      resonanceAspect,
+      openai: openaiClient,
+    });
+    if (captionRes?.ok && captionRes.text) result.caption = captionRes.text;
+  } catch (_err) {
+    result.summaryText = "";
+  }
+
+  return result;
+}
+
 module.exports = {
   buildMoonEventPlacementPrompt,
   buildMoonEventSunMoonPrompt,
@@ -427,4 +507,5 @@ module.exports = {
   generateIgMoonEventAirText,
   generateIgMoonEventCaptionText,
   generateIgMoonEventSummaryText: generateIgMoonEventAirText,
+  generateIgMoonEventAiOutputs,
 };
