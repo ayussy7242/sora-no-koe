@@ -2,6 +2,7 @@
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, buildSectionHeader, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme/ig_theme");
+const { clamp } = require("../../../../../utils/math_utils");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
@@ -29,6 +30,38 @@ function getBodyText(lines) {
   if (typeof first === "string") return first;
   if (first && typeof first === "object") return String(first.label || first.text || "");
   return "";
+}
+
+function resolveBodyLayout({
+  text,
+  bodyStartY,
+  bottomLimitY,
+  baseSize = 34,
+  baseLineHeight = 60,
+  maxChars = 26,
+  maxLines = 20,
+} = {}) {
+  if (!text) return { lines: [], size: baseSize, lineHeight: baseLineHeight };
+  let chars = maxChars;
+  let lines = wrapLines(text, chars, maxLines);
+  const availableHeight = Number.isFinite(Number(bottomLimitY)) && Number.isFinite(Number(bodyStartY))
+    ? Math.max(0, Number(bottomLimitY) - Number(bodyStartY))
+    : null;
+
+  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 30) {
+    chars = 30;
+    lines = wrapLines(text, chars, maxLines);
+  }
+
+  let size = baseSize;
+  let lineHeight = baseLineHeight;
+  if (availableHeight && lines.length * lineHeight > availableHeight) {
+    const scale = clamp(availableHeight / (lines.length * lineHeight), 0.72, 1);
+    size = Math.max(24, Math.round(baseSize * scale));
+    lineHeight = Math.max(42, Math.round(baseLineHeight * scale));
+  }
+
+  return { lines, size, lineHeight };
 }
 
 function getAvoidRegions({ dateLabel, header = "月の空気", subLabel = "moon climate", lines = [], brand = "sora-no-koe" } = {}) {
@@ -60,13 +93,19 @@ function getAvoidRegions({ dateLabel, header = "月の空気", subLabel = "moon 
 
   const bodyText = getBodyText(lines);
   if (bodyText) {
-    const bodyLines = wrapLines(bodyText, 26, 12);
+    const bodyStartY = Number.isFinite(Number(TOK.contentStartY)) ? Number(TOK.contentStartY) : 316;
+    const bottomLimitY = TOK.rightFooter?.brandY ? (TOK.rightFooter.brandY - 40) : 1160;
+    const layout = resolveBodyLayout({
+      text: bodyText,
+      bodyStartY,
+      bottomLimitY,
+    });
     const w = CANVAS.width - TOK.marginX * 2;
     fields.push(makeField({
       x: TOK.marginX,
-      y: (TOK.contentStartY || 316) - 34,
+      y: bodyStartY - layout.size,
       w,
-      h: 60 * bodyLines.length,
+      h: layout.lineHeight * layout.lines.length,
       pad: 18,
       weight: 0.9,
       kind: "body",
@@ -107,21 +146,26 @@ function buildSlidePlacementsSvg({ dateLabel, header = "月の空気", subLabel 
   const headerY = TOK.placements.headerY;
   const subLabelY = headerY + TOK.subLabel.offsetY;
   const bodyStartY = Number.isFinite(Number(TOK.contentStartY)) ? Number(TOK.contentStartY) : 316;
+  const bottomLimitY = TOK.rightFooter?.brandY ? (TOK.rightFooter.brandY - 40) : 1160;
   const bodyText = getBodyText(lines);
-  const bodyLines = wrapLines(bodyText, 26, 12);
+  const layout = resolveBodyLayout({
+    text: bodyText,
+    bodyStartY,
+    bottomLimitY,
+  });
 
   const inner = [
     buildSectionHeader({ label: header, x: marginX, y: headerY, lineWidth: TOK.header.lineWidth, colors }),
     subLabel
       ? `<text x=\"${marginX}\" y=\"${subLabelY}\" fill=\"${colors.textDim}\" font-size=\"${TOK.subLabel.size}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.subLabel.tracking}em\">${escapeXml(subLabel)}</text>`
       : "",
-    bodyLines.length
+    layout.lines.length
       ? textBlock({
           x: marginX,
           y: bodyStartY,
-          lines: bodyLines,
-          size: 34,
-          lineHeight: 60,
+          lines: layout.lines,
+          size: layout.size,
+          lineHeight: layout.lineHeight,
           color: colors.textSub,
           fontFamily: "SoraBody",
           letterSpacing: 0.02,

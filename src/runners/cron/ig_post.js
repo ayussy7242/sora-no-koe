@@ -5,7 +5,13 @@ const path = require("path");
 const { renderInstagramCarousel, formatDateLabel } = require("../../engine/renderers/ig/ig_carousel");
 const { pickObservationLine, renderIGCaption } = require("../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../presenters/format/format/common");
-const { buildMoonStatus, formatMoonEventDisplay, moonSignAtIso, buildNextMoonEvents } = require("../../domain/moon_info");
+const {
+  buildMoonStatus,
+  formatMoonEventDisplay,
+  moonSignAtIso,
+  buildNextMoonEvents,
+  orderedMoonEvents,
+} = require("../../domain/moon_info");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro_compute");
 const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
@@ -20,6 +26,7 @@ const {
   generateIgMoonEventPlacementText,
   generateIgMoonEventSunMoonText,
   generateIgMoonEventResonanceText,
+  generateIgMoonEventCaptionText,
   generateIgMoonEventAirText,
 } = require("../../usecases/channels/ig/ig_moon_event_ai");
 const {
@@ -223,16 +230,33 @@ function writeLocalJson({ data, outDir, filename = "ig_post.json" } = {}) {
   return full;
 }
 
-function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
-  if (!dateLocal) return null;
+function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eventKind = "" }) {
   const events = buildNextMoonEvents(asOfISO, dict);
   const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
-  for (const ev of candidates) {
-    const evDateLocal = toDateLocalJST(ev.date);
-    if (evDateLocal === dateLocal) {
-      return formatMoonEventDisplay(ev);
+  const normalizedKind = String(eventKind || "").toLowerCase();
+
+  if (normalizedKind === "new" || normalizedKind === "full") {
+    const picked = events?.[normalizedKind];
+    if (!picked?.date) return null;
+    if (forceNext) return formatMoonEventDisplay(picked);
+    if (!dateLocal) return null;
+    return toDateLocalJST(picked.date) === dateLocal ? formatMoonEventDisplay(picked) : null;
+  }
+
+  if (dateLocal) {
+    for (const ev of candidates) {
+      const evDateLocal = toDateLocalJST(ev.date);
+      if (evDateLocal === dateLocal) {
+        return formatMoonEventDisplay(ev);
+      }
     }
   }
+
+  if (forceNext) {
+    const ordered = orderedMoonEvents(events);
+    if (ordered.length) return formatMoonEventDisplay(ordered[0]);
+  }
+
   return null;
 }
 
@@ -1243,11 +1267,27 @@ async function runIgMoonEventPost(deps, opts = {}) {
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_MOON_EVENT_LOCAL_ONLY,
     false
   );
+  const forceNext = toBool(
+    opts.forceNext ?? opts.force_next ?? opts.useNext ?? opts.use_next ?? env2.IG_MOON_EVENT_FORCE_NEXT,
+    false
+  );
+  const eventKindRaw = opts.eventKind ?? opts.event_kind ?? opts.moonEventKind ?? opts.moon_event_kind ?? opts.kind;
+  const fullFlag = toBool(opts.full ?? opts.full_moon ?? opts.fullMoon ?? opts.moon_full, false);
+  const newFlag = toBool(opts.new ?? opts.new_moon ?? opts.newMoon ?? opts.moon_new, false);
+  const eventKind = eventKindRaw
+    ? String(eventKindRaw)
+    : (fullFlag && !newFlag)
+      ? "full"
+      : (!fullFlag && newFlag)
+        ? "new"
+        : "";
 
   const event = detectMoonEventLocal({
     dateLocal: targetDateLocal,
     asOfISO,
     dict,
+    forceNext,
+    eventKind,
   });
 
   if (!event) {
@@ -1262,6 +1302,8 @@ async function runIgMoonEventPost(deps, opts = {}) {
     };
   }
 
+  const isFullMoonEvent = event?.kind === "full";
+  const isNewMoonEvent = event?.kind === "new";
   const eventDateLocal = toDateLocalJST(event.date);
   const eventAsOfISO = event?.date instanceof Date ? event.date.toISOString() : asOfISO;
 
@@ -1271,6 +1313,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
   let moonPlacementText = "";
   let sunMoonText = "";
   let moonResonanceText = "";
+  let caption = buildMoonEventCaption(event);
   const moonResonanceAspect = pickMoonResonanceAspect(story);
   if (useAi) {
     const apiKey = String(env2.OPENAI_API_KEY || "").trim();
@@ -1303,6 +1346,16 @@ async function runIgMoonEventPost(deps, opts = {}) {
           forceAi,
         });
         if (airRes?.ok && airRes.text) summaryText = airRes.text;
+
+        const captionRes = await generateIgMoonEventCaptionText({
+          story,
+          dict,
+          event,
+          resonanceAspect: moonResonanceAspect,
+          openai,
+          forceAi,
+        });
+        if (captionRes?.ok && captionRes.text) caption = captionRes.text;
       } catch (_err) {
         summaryText = "";
       }
@@ -1333,6 +1386,26 @@ async function runIgMoonEventPost(deps, opts = {}) {
       path.join(process.cwd(), "tmp", "ig-moon-event", eventDateLocal)
     );
     const localPaths = writeLocalCarousel({ buffers, outDir: localOutDir, prefix: "slide" });
+    writeLocalJson({
+      data: {
+        ok: true,
+        dry_run: true,
+        local_only: true,
+        date_local: eventDateLocal,
+        as_of: asOfISO,
+        event: {
+          kind: event.kind,
+          is_full: isFullMoonEvent,
+          is_new: isNewMoonEvent,
+          label: event.label,
+          date_label: event.dateLabel,
+        },
+        caption,
+        carousel,
+      },
+      outDir: localOutDir,
+      filename: "ig_post.json",
+    });
     return {
       ok: true,
       dry_run: true,
@@ -1341,10 +1414,12 @@ async function runIgMoonEventPost(deps, opts = {}) {
       as_of: asOfISO,
       event: {
         kind: event.kind,
+        is_full: isFullMoonEvent,
+        is_new: isNewMoonEvent,
         label: event.label,
         date_label: event.dateLabel,
       },
-      caption: buildMoonEventCaption(event),
+      caption,
       local_dir: localOutDir,
       local_paths: localPaths,
     };
@@ -1368,7 +1443,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
     backgroundCache,
   });
 
-  const caption = buildMoonEventCaption(event);
+  // caption already resolved (AI or fallback)
 
   if (dryRun) {
     return {
@@ -1378,6 +1453,8 @@ async function runIgMoonEventPost(deps, opts = {}) {
       as_of: asOfISO,
       event: {
         kind: event.kind,
+        is_full: isFullMoonEvent,
+        is_new: isNewMoonEvent,
         label: event.label,
         date_label: event.dateLabel,
       },

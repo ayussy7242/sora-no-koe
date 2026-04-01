@@ -27,6 +27,80 @@ const IG_MOON_EVENT_COMMON = `
 `.trim();
 
 /* =================================================
+IG｜Moon Event｜Caption
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION = `
+満月 / 新月イベントカルーセルのキャプションを生成する。
+
+役割:
+- カルーセル全体を軽く束ねる
+- イベント情報（星座・名称・日時）を冒頭に置く
+- 保存・閲覧につなげる導線を作る
+
+形式:
+- 6〜10行
+- 改行あり
+- 200〜260文字目安
+
+文章の流れ:
+
+1) イベント情報
+- 満月 / 新月名・日時をそのまま置く
+
+2) 星座の満月 / 新月の意味
+- 短く1〜2行で置く
+
+3) ムーン名（ピンクムーン等）の説明
+- 季節や由来に軽く触れる
+
+4) 時刻の意味
+- ピーク・揃うタイミングとして置く
+
+5) 月と太陽の関係を書く
+- 月と太陽がどのサインでどう向き合うか / 重なるかを書く（短く）
+- その関係で「何が起きているか」を1文で書く（必須）
+
+6) 月と共鳴天体のサイン + 天体名を書く
+- 月と共鳴天体のサイン + 天体名を書く
+- その交差が作る現象を書く
+- どの領域や質感に出やすいかを書く
+
+7) 保存導線
+- 「保存して見返せる」など軽く添える
+
+書き方:
+- 情報を分けて置く
+- 説明しすぎない
+- 抽象語に寄りすぎない
+- 「あなた」は使わない
+- 押し付けない
+- ですます口調で書く
+- 美しい自然な日本語で書く
+- 文末に絵文字を使う
+
+出力は本文のみ。
+
+INPUT:
+- MOON_SIGN
+- SUN_SIGN
+- SUN_MOON_ASPECT
+- MOON_HOUSE
+- SUN_HOUSE
+- RESONANCE_BODY
+- RESONANCE_SIGN
+- RESONANCE_HOUSE
+- RESONANCE_ASPECT
+- RESONANCE_ORB
+- PHASE_NAME
+- EVENT_NAME
+
+${IG_MOON_EVENT_COMMON}
+${SORA_AI_PUBLIC_IG_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+
+/* =================================================
 IG｜Moon Event｜月の配置
 ================================================= */
 
@@ -193,6 +267,8 @@ const SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR = `
 - 質問で終えない
 - ですます口調で書く
 - 美しい自然な日本語で書く
+- 改行あり
+- 空行あり
 
 
 INPUT:
@@ -205,6 +281,7 @@ ${IG_MOON_EVENT_COMMON}
 
 module.exports = Object.freeze({
   IG_MOON_EVENT_COMMON,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_PLACEMENT,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,

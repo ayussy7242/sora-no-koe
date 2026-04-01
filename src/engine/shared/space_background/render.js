@@ -802,7 +802,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       : null);
   const moonEventRadius = moonEventTarget?.region
     ? Math.max(28, Math.min(Number(moonEventTarget.region.w) || 0, Number(moonEventTarget.region.h) || 0) * 0.45)
-    : (variant === "slide1" ? Math.min(width, height) * 0.384 : null);
+    : (variant === "slide1" ? Math.min(width, height) * 0.461 : null);
   if ((moonEventKind === "full" || moonEventKind === "new") && variant === "slide1") {
     const moonOverlay = buildMoonEventOverlay({
       width,

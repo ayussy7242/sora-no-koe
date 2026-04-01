@@ -3,11 +3,13 @@
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_PLACEMENT,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_SUN_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
+const { formatDateYmdHm } = require("../../../domain/astro_compute");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
 const { moonSignAtIso } = require("../../../domain/moon/sign");
 const { runAiTextPipeline } = require("../../ai_text");
@@ -222,6 +224,77 @@ function buildMoonEventAirPrompt({ story, dict, event, resonanceAspect }) {
   ].join("\n");
 }
 
+function buildMoonEventCaptionPrompt({ story, dict, event, resonanceAspect }) {
+  const transit = story?.public?.transit_signs || {};
+  const moonSign = transit?.moon?.sign_ja || event?.signJa || "—";
+  const sunSign = transit?.sun?.sign_ja || "—";
+  const phaseName = event?.phaseName || (event?.kind === "new" ? "新月" : "満月");
+  const eventTime = event?.date instanceof Date ? formatDateYmdHm(event.date) : "";
+  const eventName = [
+    event?.label || event?.specialName || event?.moonName || phaseName || "—",
+    event?.dateLabel || eventTime,
+  ].filter(Boolean).join(" ");
+  const relationLabel = event?.kind === "full" ? "オポジション" : "コンジャンクション";
+  const relationDeg = event?.kind === "full" ? "180" : "0";
+  const sunMoonAspect = `${relationLabel} ${relationDeg}°`;
+
+  const sunHouse = (() => {
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const sunKey = transit?.sun?.sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const sunIndex = signIndexFromKey(dict, sunKey);
+    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(sunIndex)
+      ? houseNumberForSignIndex(sunIndex, ascIndex)
+      : null;
+    const core = houseCoreLabel(dict, houseNo);
+    return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
+  })();
+
+  const moonHouse = (() => {
+    const ascKey = story?.public?.house_focus?.asc_sign_key || "";
+    const moonKey = transit?.moon?.sign_key || "";
+    const ascIndex = signIndexFromKey(dict, ascKey);
+    const moonIndex = signIndexFromKey(dict, moonKey);
+    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
+      ? houseNumberForSignIndex(moonIndex, ascIndex)
+      : null;
+    const core = houseCoreLabel(dict, houseNo);
+    return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
+  })();
+
+  const aspect = resonanceAspect || null;
+  const aKey = String(aspect?.a || "").toLowerCase();
+  const bKey = String(aspect?.b || "").toLowerCase();
+  const isMoonA = aKey === "moon";
+  const otherKey = isMoonA ? bKey : aKey;
+  const resonanceBody = aspect ? bodyLabel(otherKey) : "—";
+  const resonanceSign = aspect ? (transit?.[otherKey]?.sign_ja || "—") : "—";
+  const resonanceHouse = aspect ? bodyHouseLabel({ dict, story, bodyKey: otherKey }) : "—";
+  const aspectKey = String(aspect?.type || aspect?.aspect || "").toLowerCase();
+  const aspectLabel = ASPECT_LABEL_MAP[aspectKey] || (aspect ? String(aspect?.type || aspect?.aspect || "").toUpperCase() : "—");
+  const aspectDeg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : null;
+  const resonanceAspectLabel = aspect ? (aspectDeg != null ? `${aspectLabel} ${aspectDeg}°` : aspectLabel) : "—";
+  const resonanceOrb = Number.isFinite(Number(aspect?.orb_deg)) ? `${Number(aspect.orb_deg).toFixed(2)}°` : "—";
+
+  return [
+    SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION,
+    "",
+    "INPUT:",
+    `MOON_SIGN: ${moonSign}`,
+    `SUN_SIGN: ${sunSign}`,
+    `SUN_MOON_ASPECT: ${sunMoonAspect}`,
+    `MOON_HOUSE: ${moonHouse}`,
+    `SUN_HOUSE: ${sunHouse}`,
+    `RESONANCE_BODY: ${resonanceBody}`,
+    `RESONANCE_SIGN: ${resonanceSign}`,
+    `RESONANCE_HOUSE: ${resonanceHouse}`,
+    `RESONANCE_ASPECT: ${resonanceAspectLabel}`,
+    `RESONANCE_ORB: ${resonanceOrb}`,
+    `PHASE_NAME: ${phaseName}`,
+    `EVENT_NAME: ${eventName}`,
+  ].join("\n");
+}
+
 function validateWithPreset(preset) {
   return (text) => runAiTextPipeline({ rawText: text, preset });
 }
@@ -329,14 +402,29 @@ async function generateIgMoonEventAirText({ story, dict, event, resonanceAspect,
   });
 }
 
+async function generateIgMoonEventCaptionText({ story, dict, event, resonanceAspect, openai, maxRetries = 1 } = {}) {
+  const userPrompt = buildMoonEventCaptionPrompt({ story, dict, event, resonanceAspect });
+  return generateWithPrompt({
+    userPrompt,
+    openai,
+    maxRetries,
+    maxTokens: 320,
+    validate: validateWithPreset(PRESETS.ig.moon_event_caption),
+    fallbackText: "",
+    returnLastTextOnFail: true,
+  });
+}
+
 module.exports = {
   buildMoonEventPlacementPrompt,
   buildMoonEventSunMoonPrompt,
   buildMoonEventResonancePrompt,
   buildMoonEventAirPrompt,
+  buildMoonEventCaptionPrompt,
   generateIgMoonEventPlacementText,
   generateIgMoonEventSunMoonText,
   generateIgMoonEventResonanceText,
   generateIgMoonEventAirText,
+  generateIgMoonEventCaptionText,
   generateIgMoonEventSummaryText: generateIgMoonEventAirText,
 };

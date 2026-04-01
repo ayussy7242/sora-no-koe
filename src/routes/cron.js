@@ -441,10 +441,36 @@ function createCronRouter(deps = {}) {
       const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const forceNext = pickBoolFlag({
+        q,
+        b,
+        keys: ["force_next", "forceNext", "use_next", "useNext"],
+        defaultValue: false,
+      });
+      const fullFlag = pickBoolFlag({
+        q,
+        b,
+        keys: ["full", "full_moon", "fullMoon", "moon_full"],
+        defaultValue: false,
+      });
+      const newFlag = pickBoolFlag({
+        q,
+        b,
+        keys: ["new", "new_moon", "newMoon", "moon_new"],
+        defaultValue: false,
+      });
+      const eventKindRaw = b?.event_kind ?? q?.event_kind ?? b?.eventKind ?? q?.eventKind ?? b?.moon_event_kind ?? q?.moon_event_kind;
+      const eventKind = eventKindRaw
+        ? String(eventKindRaw)
+        : (fullFlag && !newFlag)
+          ? "full"
+          : (!fullFlag && newFlag)
+            ? "new"
+            : "";
 
       const result = await runIgMoonEventPost(
         { env, storyService, storage, dict, db },
-        { dateLocal, asOfISO, dryRun, withCta, dateOffsetDays, useAi, forceAi, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, withCta, dateOffsetDays, useAi, forceAi, local, localOutDir, forceNext, eventKind }
       );
 
       return res.json(result);

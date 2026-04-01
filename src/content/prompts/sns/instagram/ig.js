@@ -15,4 +15,5 @@ module.exports = Object.freeze({
   ...daily,
   ...moonEvent,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT: moonEvent.SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
+  SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION: moonEvent.SORA_AI_USER_GUIDE_IG_MOON_EVENT_CAPTION,
 });

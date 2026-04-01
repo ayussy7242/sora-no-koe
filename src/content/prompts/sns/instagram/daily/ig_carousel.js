@@ -373,6 +373,47 @@ ${SORA_AI_PUBLIC_IG_COMMON}
 ${POLITE_TONE_COMMON}
 `.trim();
 
+/* =================================================
+IG｜今日の月（Caption）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_MOON_CAPTION = `
+Instagram投稿の「今日の月」キャプションを生成する。
+
+役割:
+- 今日の月の配置を簡潔に束ねる
+- 月のサイン・月相・変化の気配を入れる
+- 詳細は本文に譲り、説明しすぎない
+- 保存導線を軽く添える
+
+形式:
+- 4〜6行
+- 改行あり
+- 140〜200文字目安
+
+文章の流れ:
+1) 月のサインと月相を短く置く
+2) 月の質感を1〜2行で置く
+3) 変化の気配（MOON_CHANGE_HINT / NEXT_MOON_SIGN_CHANGE）を短く添える
+4) 保存導線で静かに閉じる
+
+書き方:
+- 抽象語に寄りすぎない
+- 押し付けない
+- 「あなた」は使わない
+- 数値は出さない（時刻は NEXT_MOON_SIGN_CHANGE のみ可）
+
+INPUT:
+- MOON_SIGN
+- PHASE_LABEL
+- MOON_CHANGE_HINT
+- NEXT_MOON_SIGN_CHANGE
+- NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD
+
+${SORA_AI_PUBLIC_IG_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+
 module.exports = Object.freeze({
   SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
   SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
@@ -381,4 +422,5 @@ module.exports = Object.freeze({
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
   SORA_AI_USER_GUIDE_IG_MOON,
+  SORA_AI_USER_GUIDE_IG_MOON_CAPTION,
 });

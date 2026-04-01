@@ -98,7 +98,16 @@ const PRESETS = {
       maxChars: 300,
       forbiddenTerms: ["あなた"],
       forbiddenTermReasons: { "あなた": "has_you" },
-      normalizeRules: ["collapse_spaces"],
+      normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "collapse_blank_lines", "trim"],
+    },
+    moon_event_caption: {
+      outputType: "plain_text",
+      minChars: 180,
+      maxChars: 260,
+      lineCount: { min: 6, max: 10 },
+      forbiddenTerms: ["あなた"],
+      forbiddenTermReasons: { "あなた": "has_you" },
+      normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },
     story_today: {
       outputType: "plain_text",
