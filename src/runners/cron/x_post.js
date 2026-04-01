@@ -155,12 +155,28 @@ function ensureXMeta(story) {
   return story.meta;
 }
 
-async function buildMorningPosts({ story, dict, renderers, openai, useAi, maxOrbDeg }) {
+async function buildMorningPosts({ story, dict, renderers, openai, useAi, maxOrbDeg, maxMainChars }) {
   const meta = ensureXMeta(story);
   const errors = [];
+  let mainAiMax = null;
+
+  if (useAi && Number.isFinite(Number(maxMainChars))) {
+    const prev = meta.x_ai.morning;
+    meta.x_ai.morning = "";
+    const headerText = await renderers.renderXMorningMain(story);
+    meta.x_ai.morning = prev;
+    const headerLen = countChars(headerText);
+    const budget = Math.max(0, Number(maxMainChars) - headerLen - 2);
+    if (budget > 0) mainAiMax = budget;
+  }
 
   if (useAi) {
-    const res = await generateXSoraAiText({ story, dict, openai });
+    const res = await generateXSoraAiText({
+      story,
+      dict,
+      openai,
+      maxChars: mainAiMax ?? undefined,
+    });
     if (res?.ok && res.text) {
       meta.x_ai.morning = res.text;
     } else {
@@ -381,6 +397,14 @@ async function runXMorningPost(deps, opts = {}) {
     model: env2.OPENAI_MODEL,
   };
 
+  const maxMainChars = resolveXMaxChars(env2.X_POST_MAIN_MAX_CHARS);
+  const maxLogChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_LOG_MAX_CHARS)) ? Number(env2.X_POST_LOG_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
+  const maxResonanceChars = resolveXMaxChars(
+    Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS)) ? Number(env2.X_POST_RESONANCE_MAX_CHARS) : env2.X_POST_MAX_CHARS
+  );
+
   const maxOrb = Number.isFinite(Number(opts.resonanceOrbMax))
     ? Number(opts.resonanceOrbMax)
     : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
@@ -394,6 +418,7 @@ async function runXMorningPost(deps, opts = {}) {
     openai,
     useAi,
     maxOrbDeg: maxOrb,
+    maxMainChars,
   });
 
   if (Array.isArray(posts) && posts.length === 0 && useAi) {
@@ -431,14 +456,6 @@ async function runXMorningPost(deps, opts = {}) {
     }
     return result;
   }
-
-  const maxMainChars = resolveXMaxChars(env2.X_POST_MAIN_MAX_CHARS);
-  const maxLogChars = resolveXMaxChars(
-    Number.isFinite(Number(env2.X_POST_LOG_MAX_CHARS)) ? Number(env2.X_POST_LOG_MAX_CHARS) : env2.X_POST_MAX_CHARS
-  );
-  const maxResonanceChars = resolveXMaxChars(
-    Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS)) ? Number(env2.X_POST_RESONANCE_MAX_CHARS) : env2.X_POST_MAX_CHARS
-  );
 
   const trimmed = posts.map((post) => {
     const limit = post.slot === "main"
@@ -669,8 +686,25 @@ async function runXNightPost(deps, opts = {}) {
   };
 
   const meta = ensureXMeta(story);
+  const maxChars = resolveXMaxChars(env2.X_POST_MAX_CHARS);
+  let nightAiMax = null;
+  if (useAi && Number.isFinite(Number(maxChars))) {
+    const prev = meta.x_ai.night;
+    meta.x_ai.night = "";
+    const headerText = await renderers.renderXNight(story);
+    meta.x_ai.night = prev;
+    const headerLen = countChars(headerText);
+    const budget = Math.max(0, Number(maxChars) - headerLen - 2);
+    if (budget > 0) nightAiMax = budget;
+  }
+
   if (useAi) {
-    const res = await generateXNightAiText({ story, dict, openai });
+    const res = await generateXNightAiText({
+      story,
+      dict,
+      openai,
+      maxChars: nightAiMax ?? undefined,
+    });
     if (res?.ok && res.text) {
       meta.x_ai.night = res.text;
     } else {
@@ -694,8 +728,6 @@ async function runXNightPost(deps, opts = {}) {
   }
 
   const { posts } = await buildNightPosts({ story, dict, renderers, openai, useAi: false });
-
-  const maxChars = resolveXMaxChars(env2.X_POST_MAX_CHARS);
 
   const trimmed = posts.map((post) => {
     const res = truncateForX(post, maxChars);

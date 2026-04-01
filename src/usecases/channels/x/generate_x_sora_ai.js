@@ -66,12 +66,13 @@ function buildXSoraPrompt({ story, dict }) {
   ].join("\n");
 }
 
-async function generateXSoraAiText({ story, dict, openai, maxRetries }) {
+async function generateXSoraAiText({ story, dict, openai, maxRetries, maxChars }) {
+  const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180;
   return generateXAiWithRetry({
     channel: "x_morning",
     prompt: buildXSoraPrompt({ story, dict }),
     minChars: 0,
-    maxChars: 180,
+    maxChars: resolvedMaxChars,
     maxTokens: 160,
     temperature: 0.4,
     maxRetries,

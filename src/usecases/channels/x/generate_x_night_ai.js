@@ -179,13 +179,14 @@ function buildXNightPrompt({ story, dict }) {
   ].join("\n");
 }
 
-async function generateXNightAiText({ story, dict, openai, maxRetries }) {
+async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars }) {
   const nextHints = buildNextTransitHints(story, dict);
+  const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180;
   return generateXAiWithRetry({
     channel: "x_night",
     prompt: buildXNightPrompt({ story, dict }),
     minChars: 0,
-    maxChars: 180,
+    maxChars: resolvedMaxChars,
     maxTokens: 180,
     temperature: 0.5,
     maxRetries,
