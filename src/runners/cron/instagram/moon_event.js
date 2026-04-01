@@ -2,6 +2,7 @@
 
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
+const { normalizeAspectType } = require("../../../utils/data/normalize");
 
 function parseBool(v, fallback = false) {
   if (v === true) return true;
@@ -114,12 +115,6 @@ function buildMoonEventCaption(event) {
   const line1 = event.line1 || event.label || event.phaseName || "";
   const line2 = event.dateLabel || event.line2 || "";
   return [line1, line2].filter(Boolean).join("\n").trim();
-}
-
-function normalizeAspectType(raw) {
-  const key = String(raw || "").toLowerCase().trim();
-  if (!key) return "";
-  return key.replace(/_\d+$/, "");
 }
 
 function pickMoonResonanceAspect(story) {
