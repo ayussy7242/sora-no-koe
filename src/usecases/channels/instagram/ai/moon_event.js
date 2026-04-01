@@ -15,42 +15,9 @@ const { moonSignAtIso } = require("../../../../domain/moon/sign");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
-
-const BODY_LABELS = {
-  sun: "太陽",
-  moon: "月",
-  mercury: "水星",
-  venus: "金星",
-  mars: "火星",
-  jupiter: "木星",
-  saturn: "土星",
-  uranus: "天王星",
-  neptune: "海王星",
-  pluto: "冥王星",
-  chiron: "キロン",
-  lilith: "リリス",
-  north_node: "北ノード",
-  south_node: "南ノード",
-};
-
-const ASPECT_LABEL_MAP = {
-  conjunction: "コンジャンクション",
-  conj: "コンジャンクション",
-  opposition: "オポジション",
-  opp: "オポジション",
-  square: "スクエア",
-  trine: "トライン",
-  sextile: "セクスタイル",
-  quincunx: "クインカンクス",
-  inconjunct: "クインカンクス",
-  quintile: "クインタイル",
-  biquintile: "バイ・クインタイル",
-  novile: "ノヴィル",
-  septile: "セプタイル",
-  semisextile: "セミセクスタイル",
-  semisquare: "セミスクエア",
-  sesquisquare: "セスキスクエア",
-};
+const { signLabelEnFromKey } = require("../shared/signs");
+const { ASPECT_LABEL_MAP } = require("../shared/aspects");
+const { BODY_LABELS } = require("../shared/bodies");
 
 function houseCoreLabel(dict, houseNo) {
   const n = Number(houseNo);
@@ -62,25 +29,6 @@ function houseCoreLabel(dict, houseNo) {
 function bodyLabel(key) {
   const k = String(key || "").toLowerCase();
   return BODY_LABELS[k] || key || "—";
-}
-
-function signLabelEnFromKey(key) {
-  if (!key) return "";
-  const map = {
-    aries: "Aries",
-    taurus: "Taurus",
-    gemini: "Gemini",
-    cancer: "Cancer",
-    leo: "Leo",
-    virgo: "Virgo",
-    libra: "Libra",
-    scorpio: "Scorpio",
-    sagittarius: "Sagittarius",
-    capricorn: "Capricorn",
-    aquarius: "Aquarius",
-    pisces: "Pisces",
-  };
-  return map[String(key).toLowerCase()] || "";
 }
 
 function bodyHouseLabel({ dict, story, bodyKey }) {

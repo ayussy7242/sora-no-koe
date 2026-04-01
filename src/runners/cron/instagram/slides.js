@@ -12,36 +12,14 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/a
 const { signGlyph } = require("../../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../../domain/moon/phase_select");
 const { pickMoonResonanceAspect } = require("./moon_event");
+const { aspectLabelJa } = require("./shared/aspects");
+const { signLabelEnFromKey } = require("./shared/signs");
+const { BODY_LABELS, BODY_GLYPHS } = require("./shared/bodies");
 
 function planetLine({ glyph, name, sign }) {
   if (!glyph && !name) return "";
   const signPart = sign ? `（${sign}）` : "";
   return `${glyph || ""} ${name || ""}${signPart}`.trim();
-}
-
-function aspectLabelJa(type, deg) {
-  const key = String(type || "").toLowerCase();
-  const map = {
-    conjunction: "コンジャンクション",
-    conj: "コンジャンクション",
-    opposition: "オポジション",
-    opp: "オポジション",
-    square: "スクエア",
-    trine: "トライン",
-    sextile: "セクスタイル",
-    quincunx: "クインカンクス",
-    inconjunct: "クインカンクス",
-    quintile: "クインタイル",
-    biquintile: "バイ・クインタイル",
-    novile: "ノヴィル",
-    septile: "セプタイル",
-    semisextile: "セミセクスタイル",
-    semisquare: "セミスクエア",
-    sesquisquare: "セスキスクエア",
-  };
-  if (map[key]) return map[key];
-  if (Number.isFinite(Number(deg))) return `${deg}°`;
-  return String(type || "").toUpperCase();
 }
 
 function plainMoonSymbol(kind) {
@@ -189,22 +167,12 @@ function aspectCircuitLabel(type) {
   return ASPECT_CIRCUITS[key] || "接続の回路";
 }
 
-const PLANET_META = {
-  sun: { name: "太陽", glyph: "☉" },
-  moon: { name: "月", glyph: "☽" },
-  mercury: { name: "水星", glyph: "☿" },
-  venus: { name: "金星", glyph: "♀" },
-  mars: { name: "火星", glyph: "♂" },
-  jupiter: { name: "木星", glyph: "♃" },
-  saturn: { name: "土星", glyph: "♄" },
-  uranus: { name: "天王星", glyph: "♅" },
-  neptune: { name: "海王星", glyph: "♆" },
-  pluto: { name: "冥王星", glyph: "♇" },
-  lilith: { name: "リリス", glyph: "⚸" },
-  chiron: { name: "キロン", glyph: "⚷" },
-  north_node: { name: "北ノード", glyph: "☊" },
-  south_node: { name: "南ノード", glyph: "☋" },
-};
+const PLANET_META = Object.fromEntries(
+  Object.entries(BODY_LABELS).map(([key, name]) => [
+    key,
+    { name, glyph: BODY_GLYPHS[key] || "" },
+  ])
+);
 
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;
@@ -422,25 +390,6 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],
   };
-}
-
-function signLabelEnFromKey(key) {
-  if (!key) return "";
-  const map = {
-    aries: "Aries",
-    taurus: "Taurus",
-    gemini: "Gemini",
-    cancer: "Cancer",
-    leo: "Leo",
-    virgo: "Virgo",
-    libra: "Libra",
-    scorpio: "Scorpio",
-    sagittarius: "Sagittarius",
-    capricorn: "Capricorn",
-    aquarius: "Aquarius",
-    pisces: "Pisces",
-  };
-  return map[String(key).toLowerCase()] || "";
 }
 
 function buildMoonEventCarouselSlides({
