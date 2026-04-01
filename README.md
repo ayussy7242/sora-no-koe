@@ -1,17 +1,58 @@
 # 🌌 sora-no-koe（ソラのこえ）
 
-Astrology resonance API for **sora-no-koe** (Node.js / Cloud Run / Functions Framework)
+宇宙の配置と力学を置く、静かな観測装置。
 
-> 星の配置（構造）を「答えにしない」まま置くシステム。
-> LINEは「個人と空がどこで触れているか」だけを届ける。
+This is not fortune telling.  
+This is structure.
 
-原則
+---
+
+星は「答え」を出さない。  
+構造を持つだけ。  
+解釈と選択の主権は、人へ。
+
+## 原則
+
 - 占いしない
 - 当てない
 - 行動指示しない
 - 救わない
 
-**星は構造。解釈と選択の主権は、人へ。**
+## What this is
+
+- Astrology resonance API (Node.js / Cloud Run / Functions Framework)
+- Structure-first system
+- Single Source of Truth: `story.json`
+
+Outputs:
+
+- LINE（接点）
+- X / IG / Threads（観測）
+- BLOG（記録）
+- PDF Blueprint（構造資料）
+
+## Example
+
+```json
+{
+  "aspect": "Mars ♂ × Saturn ♄",
+  "angle": "30°",
+  "orb": 0.1,
+  "type": "semi-sextile"
+}
+```
+
+構造だけを置く。  
+意味は固定しない。
+
+## Architecture (Quick Map)
+
+- domain → 計算・力学
+- usecases → story構築
+- integrations → 外部接続
+- presenters → 出力整形
+- engine → 描画（SVG / PDF）
+- routes → HTTP入口
 
 ---
 
@@ -328,7 +369,14 @@ OpenAI
 
 ---
 
-## 12. Docs 構想（任意）
+## 12. Third-Party / Attribution
+
+- 本プロジェクトは `swisseph` 経由で Swiss Ephemeris を利用しています。利用にあたっては Swiss Ephemeris のライセンス条件をご確認ください。  
+  Swiss Ephemeris (Free Edition): [aloistr/swisseph](https://github.com/aloistr/swisseph)
+
+---
+
+## 13. Docs 構想（任意）
 
 README は入口として残し、詳細な設計メモは `docs/` にまとめる運用が相性良い。
 必要なら以下のように分割すると読みやすい。
