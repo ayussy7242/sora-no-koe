@@ -41,7 +41,7 @@ const {
   createCarouselContainer,
   publishMedia,
   waitForContainer,
-} = require("../../integrations/instagram/ig_graph");
+} = require("../../integrations/instagram/graph");
 const { createStorageClient } = require("../../utils/gcs_storage");
 
 function resolveBackgroundCache(env = {}) {
