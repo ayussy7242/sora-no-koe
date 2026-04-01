@@ -7,66 +7,338 @@ const { PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/constants");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { BACKGROUND_COLORS } = require("../../shared/space_background/constants");
-const {
-  COLOR_A,
-  COLOR_B,
-  ELEMENT_COLORS,
-  ELEMENT_HUES,
-  BAND_TITLE,
-  ASPECT_COLORS,
-  ELEMENT_LABELS,
-  MODALITY_LABELS,
-  SIGN_MODALITY,
-  SAME_BODY_KEYS,
-  ASPECT_DISPLAY,
-  SIGN_ELEMENT,
-  SIGN_ORDER,
-  SIGN_RELATION_LABELS,
-  SIGN_RELATION_SYMBOLS,
-  RELATION_GLYPHS,
-  OPPOSITE_SIGN,
-  HOUSE_BANDS,
-  WHEEL_BODIES,
-  BODY_SHORT_LABELS,
-  AXIS_SYMBOLS,
-  RELATION_TYPE_LABELS,
-  HOUSE_LABELS,
-  HOUSE_BODY_WEIGHT,
-  AXIS_BODIES,
-  DEEP_BODIES,
-  CORE_BODIES,
-  BODY_ORDER,
-  BODY_ORDER_MAP,
-  MAX_ROWS_PER_COL,
-  CORE_PAIR_KEYS,
-  COMM_PAIR_KEYS,
-  ATTRACTION_PAIR_KEYS,
-  FRICTION_PAIR_KEYS,
-  SOFT_ASPECTS,
-  HARD_ASPECTS,
-  PAIR_PRIORITY,
-  BODY_PRIORITY,
-  ASPECT_WEIGHT,
-} = require("./constants");
-const {
-  escapeHtml,
-  formatPlanetRow,
-  formatBodyKeyShort,
-  formatElementKey,
-  formatModalityKey,
-  pickDominantElementKey,
-  topTwoFromCounts,
-  formatAspectLabel,
-  shortName,
-  normalizeAspectKey,
-  formatOrbValue,
-  formatConnectionSideHtml,
-  formatAspectDisplay,
-  formatGapRow,
-  formatHouseLinkRow,
-} = require("./formatters");
+
+const COLOR_A = "#F59E0B"; // orange
+const COLOR_B = "#14B8A6"; // greenish blue
+const ELEMENT_COLORS = {
+  fire: "#FF6B6B",
+  earth: "#E6C36D",
+  air: "#7FBF8F",
+  water: "#7AA7FF",
+};
+const ELEMENT_HUES = {
+  fire: 0,
+  earth: 40,
+  air: 120,
+  water: 200,
+};
+const BAND_TITLE = "RELATION BLUEPRINT";
 const SPACE_BG_ENABLED = !["0", "false", "off"].includes(String(process.env.RELATION_PDF_SPACE_BG ?? "0").toLowerCase());
 const SPACE_SVG_CACHE = new Map();
+
+const ASPECT_COLORS = {
+  conjunction: "#E5E7EB",
+  opposition: "#F43F5E",
+  square: "#F97316",
+  trine: "#3B82F6",
+  sextile: "#22D3EE",
+};
+
+const ELEMENT_LABELS = {
+  fire: "火",
+  earth: "地",
+  air: "風",
+  water: "水",
+};
+
+const MODALITY_LABELS = {
+  cardinal: "活動",
+  fixed: "固定",
+  mutable: "柔軟",
+};
+
+const SIGN_MODALITY = {
+  aries: "cardinal",
+  taurus: "fixed",
+  gemini: "mutable",
+  cancer: "cardinal",
+  leo: "fixed",
+  virgo: "mutable",
+  libra: "cardinal",
+  scorpio: "fixed",
+  sagittarius: "mutable",
+  capricorn: "cardinal",
+  aquarius: "fixed",
+  pisces: "mutable",
+};
+
+const SAME_BODY_KEYS = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn"];
+
+const ASPECT_DISPLAY = {
+  conjunction: { symbol: "☌", ja: "コンジャンクション" },
+  opposition: { symbol: "☍", ja: "オポジション" },
+  square: { symbol: "□", ja: "スクエア" },
+  trine: { symbol: "△", ja: "トライン" },
+  sextile: { symbol: "✶", ja: "セクスタイル" },
+  quincunx: { symbol: "◇", ja: "クインカンクス" },
+  semisextile: { symbol: "∿", ja: "セミセクスタイル" },
+  semisquare: { symbol: "⌒", ja: "セミスクエア" },
+  sesquiquadrate: { symbol: "⌒̶", ja: "セスキスクエア" },
+  quintile: { symbol: "☆", ja: "クインタイル" },
+  biquintile: { symbol: "✦", ja: "バイクインタイル" },
+  novile: { symbol: "○", ja: "ノヴィル" },
+  binovile: { symbol: "◎", ja: "バイノヴィル" },
+  quadnovile: { symbol: "◉", ja: "クアドラノヴィル" },
+  septile: { symbol: "※", ja: "セプタイル系" },
+  biseptile: { symbol: "※", ja: "セプタイル系" },
+  triseptile: { symbol: "※", ja: "セプタイル系" },
+  decile: { symbol: "▽", ja: "デシル" },
+  tridecile: { symbol: "△̶", ja: "トリデシル" },
+};
+
+const SIGN_ELEMENT = {
+  aries: "fire",
+  taurus: "earth",
+  gemini: "air",
+  cancer: "water",
+  leo: "fire",
+  virgo: "earth",
+  libra: "air",
+  scorpio: "water",
+  sagittarius: "fire",
+  capricorn: "earth",
+  aquarius: "air",
+  pisces: "water",
+};
+
+const SIGN_ORDER = [
+  "aries",
+  "taurus",
+  "gemini",
+  "cancer",
+  "leo",
+  "virgo",
+  "libra",
+  "scorpio",
+  "sagittarius",
+  "capricorn",
+  "aquarius",
+  "pisces",
+];
+
+const SIGN_RELATION_LABELS = {
+  same_sign: "同サイン",
+  opposite_sign: "対向",
+  same_element: "同元素",
+  square_element: "スクエア帯",
+  quincunx_like: "噛み合いにくさ",
+  adjacent: "隣接",
+  other: "非接続",
+};
+
+const SIGN_RELATION_SYMBOLS = {
+  same_sign: "☌",
+  opposite_sign: "☍",
+  same_element: "△",
+  square_element: "□",
+  quincunx_like: "◇",
+  adjacent: "∿",
+  other: "",
+};
+
+const RELATION_GLYPHS = [
+  "☉", "☽", "☿", "♀", "♂", "♃", "♄", "♅", "♆", "♇",
+  "☊", "☋", "⚷", "⚸",
+  "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓",
+];
+
+const OPPOSITE_SIGN = {
+  aries: "libra",
+  taurus: "scorpio",
+  gemini: "sagittarius",
+  cancer: "capricorn",
+  leo: "aquarius",
+  virgo: "pisces",
+  libra: "aries",
+  scorpio: "taurus",
+  sagittarius: "gemini",
+  capricorn: "cancer",
+  aquarius: "leo",
+  pisces: "virgo",
+};
+
+const HOUSE_BANDS = [
+  { key: "inner", label: "内側帯", houses: [1, 2, 3, 4] },
+  { key: "relation", label: "対人帯", houses: [5, 6, 7, 8] },
+  { key: "outer", label: "社会帯", houses: [9, 10, 11, 12] },
+];
+
+const WHEEL_BODIES = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+];
+
+const BODY_SHORT_LABELS = {
+  sun: "☉",
+  moon: "☽",
+  mercury: "☿",
+  venus: "♀",
+  mars: "♂",
+  jupiter: "♃",
+  saturn: "♄",
+  uranus: "♅",
+  neptune: "♆",
+  pluto: "♇",
+  asc: "ASC",
+  mc: "MC",
+  ic: "IC",
+  dc: "DC",
+  north_node: "☊",
+  south_node: "☋",
+  chiron: "⚷",
+  lilith: "⚸",
+};
+
+const AXIS_SYMBOLS = {
+  asc: "▲",
+  dc: "▼",
+  mc: "◆",
+  ic: "◇",
+};
+
+const RELATION_TYPE_LABELS = {
+  mirror: "鏡",
+  merge: "同調",
+  flow: "流れ",
+  tension: "張力",
+  mismatch: "噛み合い",
+  layered: "層",
+  house_binding: "流入",
+};
+
+const HOUSE_LABELS = {
+  1: "自己・起点",
+  2: "価値・感覚",
+  3: "思考・言語",
+  4: "基盤・安心",
+  5: "表現・創造",
+  6: "習慣・調整",
+  7: "対面・関係",
+  8: "共有・結束",
+  9: "信念・拡張",
+  10: "役割・社会",
+  11: "交流・共同",
+  12: "無意識・背景",
+};
+
+const HOUSE_BODY_WEIGHT = {
+  sun: 3,
+  moon: 3,
+  asc: 3,
+  mercury: 2,
+  venus: 2,
+  mars: 2,
+  jupiter: 1.5,
+  saturn: 1.5,
+  uranus: 1,
+  neptune: 1,
+  pluto: 1,
+  north_node: 0.8,
+  south_node: 0.8,
+  chiron: 0.8,
+  lilith: 0.8,
+};
+
+const AXIS_BODIES = new Set(["asc", "mc", "ic", "dc"]);
+const DEEP_BODIES = new Set(["north_node", "south_node", "chiron", "lilith"]);
+const CORE_BODIES = new Set([
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+]);
+
+const BODY_ORDER = [
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+  "asc",
+  "dc",
+  "mc",
+  "ic",
+  "north_node",
+  "south_node",
+  "chiron",
+  "lilith",
+];
+
+const BODY_ORDER_MAP = new Map(BODY_ORDER.map((key, idx) => [key, idx]));
+
+const MAX_ROWS_PER_COL = 18;
+
+function escapeHtml(input) {
+  const s = String(input ?? "");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatPlanetRow(entry) {
+  if (!entry) return "";
+  const axisKeys = new Set(["asc", "dc", "mc", "ic"]);
+  const rawLabel = entry.body_glyph || entry.body_ja || entry.body_key || "";
+  const bodyKey = String(entry?.body_key || "").toLowerCase();
+  const axisPrefix = axisKeys.has(bodyKey) ? AXIS_SYMBOLS[bodyKey] : "";
+  const labelText = axisKeys.has(bodyKey) ? "" : rawLabel;
+  const label = axisPrefix ? `${axisPrefix} ${labelText}`.trim() : labelText;
+  const sign = entry.sign_ja || entry.sign_key || "";
+  const lon = entry.lon_deg;
+  const deg = Number.isFinite(Number(lon)) ? Math.floor(((Number(lon) % 30) + 30) % 30) : null;
+  const degText = Number.isFinite(Number(deg)) ? `${deg}°` : "";
+  const signPart = [sign, degText].filter(Boolean).join(" ").trim();
+  const house = Number.isFinite(Number(entry.house)) ? `${entry.house}H` : "";
+  const parts = [label, signPart].filter(Boolean);
+  let row = parts.join(" ").trim();
+  if (house) row = row ? `${row}｜${house}` : house;
+  return row || "—";
+}
+
+function formatBodyKeyShort(keyRaw) {
+  const key = String(keyRaw || "").toLowerCase();
+  return BODY_SHORT_LABELS[key] || key.toUpperCase() || "—";
+}
+
+function formatElementKey(keyRaw) {
+  const key = String(keyRaw || "").toLowerCase();
+  return ELEMENT_LABELS[key] || key || "—";
+}
+
+function formatModalityKey(keyRaw) {
+  const key = String(keyRaw || "").toLowerCase();
+  return MODALITY_LABELS[key] || key || "—";
+}
+
+function pickDominantElementKey(counts = {}) {
+  const order = ["fire", "earth", "air", "water"];
+  const entries = order.map((key) => ({ key, count: Number(counts[key] || 0) }));
+  const max = Math.max(...entries.map((e) => e.count));
+  if (!Number.isFinite(max) || max <= 0) return null;
+  return entries.find((e) => e.count === max)?.key || null;
+}
 
 function buildWheelStoryFromRelation({ planets = [], deepPoints = [] } = {}) {
   const transit_signs = {};
@@ -130,6 +402,86 @@ function buildSharedRelationWheel({ view, elementKeyA, elementKeyB } = {}) {
   `;
 }
 
+function topTwoFromCounts(counts = {}, labels = {}) {
+  const entries = Object.entries(counts || {}).map(([k, v]) => ({ key: k, count: Number(v || 0) }));
+  const sorted = entries.sort((a, b) => b.count - a.count).filter((r) => r.count > 0);
+  if (!sorted.length) return "—";
+  const max = sorted[0].count;
+  const top = sorted.filter((r) => r.count === max).map((r) => labels[r.key] || r.key);
+  return top.join("・") || "—";
+}
+
+function formatAspectLabel(aspectRaw) {
+  const aspect = String(aspectRaw || "").toLowerCase();
+  if (!aspect) return "";
+  if (aspect === "same_sign") return "同サイン";
+  if (aspect === "same_element") return "同元素";
+  return aspect;
+}
+
+function shortName(name, max = 15) {
+  const text = String(name || "").trim();
+  if (text.length <= max) return text || "A";
+  return `${text.slice(0, max)}...`;
+}
+
+function normalizeAspectKey(aspectRaw) {
+  const raw = String(aspectRaw || "").toLowerCase().trim();
+  if (!raw) return "";
+  const key = raw.replace(/\s+/g, "_").replace(/-/g, "_");
+  const alias = {
+    same_sign: "conjunction",
+    same_element: "trine",
+    inconjunct: "quincunx",
+    semi_sextile: "semisextile",
+    semi_square: "semisquare",
+    sesqui_square: "sesquiquadrate",
+    sesquisquare: "sesquiquadrate",
+    bi_quintile: "biquintile",
+    quadra_novile: "quadnovile",
+    quad_novile: "quadnovile",
+    tri_novile: "quadnovile",
+    bi_novile: "binovile",
+    septile_series: "septile",
+    tri_septile: "triseptile",
+    bi_septile: "biseptile",
+    tri_decile: "tridecile",
+  };
+  return alias[key] || key;
+}
+
+function formatOrbValue(orbRaw) {
+  if (!Number.isFinite(Number(orbRaw))) return "0.00";
+  return Number(orbRaw).toFixed(2);
+}
+
+function formatConnectionSideHtml(side) {
+  if (!side) return "—";
+  const symbol = side?.body_glyph || "";
+  const axisKeys = new Set(["asc", "dc", "mc", "ic"]);
+  const bodyKey = String(side?.body_key || "").toLowerCase();
+  const rawName = side?.body_ja || side?.body_key || "";
+  const nameText = axisKeys.has(bodyKey) ? String(rawName).toUpperCase() : rawName;
+  const axisPrefix = axisKeys.has(bodyKey) ? AXIS_SYMBOLS[bodyKey] : "";
+  const name = axisPrefix ? `${axisPrefix} ${nameText}`.trim() : nameText;
+  const sign = side?.sign_ja || side?.sign_key || "";
+  const house = Number.isFinite(Number(side?.house)) ? `${side.house}H` : "";
+  const bodyGlyph = symbol ? buildGlyphImgTag(symbol, { className: "glyph-img glyph-img--body", size: 26, color: "#EDEEFF" }) : "";
+  const signGlyph = side?.sign_glyph ? buildGlyphImgTag(side.sign_glyph, { className: "glyph-img glyph-img--sign", size: 16, color: "#EDEEFF" }) : "";
+  const bodyText = [name].filter(Boolean).join(" ").trim();
+  const signText = [sign, house].filter(Boolean).join(" ").trim();
+  return `
+    <span class="connection-body">${bodyGlyph}<span class="connection-body-text">${escapeHtml(bodyText || "—")}</span></span>
+    <span class="connection-sign">${signGlyph}<span class="connection-sign-text">${escapeHtml(signText || "—")}</span></span>
+  `;
+}
+
+function formatAspectDisplay(aspectRaw, orbRaw) {
+  const key = normalizeAspectKey(aspectRaw);
+  const meta = ASPECT_DISPLAY[key] || { symbol: "※", ja: "セプタイル系" };
+  const orb = formatOrbValue(orbRaw);
+  return { symbol: meta.symbol, label: meta.ja, orb: `${orb}°` };
+}
 
 function angleDistance(a, b) {
   const aNum = Number(a);
@@ -220,6 +572,27 @@ function formatConnectionRow(conn, opts = {}) {
   const right = formatConnectionSide(conn?.b);
   const aspect = formatAspectDisplay(conn?.aspect, conn?.orb);
   return `${left}    ${aspect.symbol} ${aspect.label} ${aspect.orb}    ${right}`.trim();
+}
+
+function formatGapRow(gap) {
+  if (!gap) return "";
+  const pair = String(gap?.pair || "");
+  const parts = pair.split("_");
+  const a = formatBodyKeyShort(parts[0]);
+  const b = formatBodyKeyShort(parts[1]);
+  const aspect = gap?.aspect || "";
+  const orb = Number.isFinite(Number(gap?.orb)) ? `${Number(gap.orb).toFixed(2)}°` : "";
+  return `${a} × ${b}｜${aspect} ${orb}`.trim();
+}
+
+function formatHouseLinkRow(link) {
+  if (!link) return "";
+  const aHouse = Number.isFinite(Number(link?.a_house)) ? `${link.a_house}H` : "—";
+  const bHouse = Number.isFinite(Number(link?.b_house)) ? `${link.b_house}H` : "—";
+  const via = String(link?.via || "");
+  const parts = via.split("_");
+  const viaLabel = parts.length === 2 ? `${formatBodyKeyShort(parts[0])}×${formatBodyKeyShort(parts[1])}` : via;
+  return `${aHouse} ↔ ${bHouse}｜${viaLabel}`.trim();
 }
 
 function buildSpaceSvg(variant = "slide3", seedLabel = "") {
@@ -1290,6 +1663,101 @@ function normalizePairKey(a, b) {
   if (aIdx <= bIdx) return `${left}_${right}`;
   return `${right}_${left}`;
 }
+
+const CORE_PAIR_KEYS = new Set([
+  "sun_moon",
+  "moon_moon",
+  "moon_venus",
+  "venus_mars",
+  "mercury_moon",
+  "sun_asc",
+  "moon_asc",
+]);
+
+const COMM_PAIR_KEYS = new Set([
+  "mercury_mercury",
+  "mercury_moon",
+  "sun_mercury",
+  "moon_moon",
+  "moon_venus",
+  "mercury_jupiter",
+  "moon_jupiter",
+]);
+
+const ATTRACTION_PAIR_KEYS = new Set([
+  "venus_mars",
+  "venus_venus",
+  "mars_mars",
+  "sun_venus",
+  "moon_mars",
+  "venus_jupiter",
+  "mars_jupiter",
+  "sun_jupiter",
+]);
+
+const FRICTION_PAIR_KEYS = new Set([
+  "moon_saturn",
+  "venus_saturn",
+  "mercury_mars",
+  "moon_pluto",
+  "mars_mars",
+  "jupiter_jupiter",
+]);
+
+const SOFT_ASPECTS = new Set(["conjunction", "trine", "sextile"]);
+const HARD_ASPECTS = new Set(["square", "opposition", "quincunx"]);
+
+const PAIR_PRIORITY = {
+  sun_moon: 10,
+  moon_moon: 8,
+  moon_venus: 7,
+  venus_mars: 7,
+  mercury_moon: 6,
+  sun_asc: 6,
+  moon_asc: 6,
+  sun_north_node: 7,
+  moon_north_node: 7,
+  asc_north_node: 7,
+  sun_south_node: 6,
+  moon_south_node: 6,
+  asc_south_node: 6,
+  sun_jupiter: 6,
+  moon_jupiter: 6,
+  venus_jupiter: 6,
+  mercury_jupiter: 5,
+};
+
+const BODY_PRIORITY = {
+  sun: 6,
+  moon: 6,
+  mercury: 4,
+  venus: 4,
+  mars: 4,
+  asc: 4,
+  dc: 3,
+  mc: 3,
+  ic: 3,
+  north_node: 4,
+  south_node: 4,
+  jupiter: 3,
+  saturn: 3,
+  pluto: 2,
+  uranus: 1,
+  neptune: 1,
+  chiron: 2,
+  lilith: 2,
+};
+
+const ASPECT_WEIGHT = {
+  conjunction: 6,
+  trine: 4,
+  sextile: 3,
+  square: 2,
+  opposition: 2,
+  quincunx: 1,
+  same_sign: 4,
+  same_element: 2,
+};
 
 function scoreConnection(conn, category = "", bonus = 0) {
   const orb = Number.isFinite(Number(conn?.orb)) ? Number(conn.orb) : 99;
