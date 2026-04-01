@@ -11,6 +11,7 @@ const { generateXNightAiText } = require("../../usecases/channels/x/generate_x_n
 const { generateXResonanceAiText } = require("../../usecases/channels/x/generate_x_resonance_ai");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
+const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon_info");
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
 const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
@@ -107,6 +108,15 @@ function addDaysToDateLocalJST(dateLocal, offsetDays) {
   if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
   const shifted = new Date(base.getTime() + shiftMs);
   return toDateLocalJST(shifted);
+}
+
+function pickPreviewMoonEvent({ dict, asOfISO }) {
+  const events = buildNextMoonEvents(asOfISO, dict);
+  const ordered = orderedMoonEvents(events);
+  const next = ordered[0];
+  if (!next) return null;
+  const display = formatMoonEventDisplay(next);
+  return display ? { ...next, ...display } : next;
 }
 
 function truncateForX(text, maxChars) {
@@ -872,6 +882,8 @@ async function runXMoonEventPost(deps, opts = {}) {
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
     false
   );
+  const previewRaw = opts.previewOnMissing ?? opts.preview_on_missing ?? env2.X_MOON_EVENT_PREVIEW_ON_MISSING;
+  const previewOnMissing = previewRaw === undefined ? (dryRun || localOnly) : toBool(previewRaw, false);
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const baseDateLocal = isYYYYMMDD(opts.dateLocal)
@@ -894,8 +906,17 @@ async function runXMoonEventPost(deps, opts = {}) {
   );
 
   const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+  const meta = ensureXMeta(story);
 
-  const event = detectMoonEvent({ story, dict, asOfISO });
+  let event = detectMoonEvent({ story, dict, asOfISO });
+  if (!event && previewOnMissing && (dryRun || localOnly)) {
+    event = pickPreviewMoonEvent({ dict, asOfISO });
+    if (event) {
+      meta.x_source.moon_event = event;
+      meta.x_moon_event_preview = true;
+      meta.x_moon_event_preview_reason = "moon_event_missing";
+    }
+  }
   if (!event) {
     return {
       ok: true,
