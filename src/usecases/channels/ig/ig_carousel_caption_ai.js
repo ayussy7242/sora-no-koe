@@ -10,30 +10,11 @@ const { buildTodayMoonInfo } = require("../../../domain/moon_info");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
+const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
+const { safeTrim, normalizeInlineText } = require("../../../utils/text_normalize");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { resolveMaxRetries } = require("./ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function bodyLabelJa(dict, key) {
-  if (!key) return "";
-  const k = String(key).toLowerCase();
-  return (
-    dict?.PLANETS_V2?.bodies?.[k]?.label_ja ||
-    dict?.POINTS_V1?.points?.[k]?.label_ja ||
-    k
-  );
-}
 
 function buildResonanceMeta({ story, dict }) {
   const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
@@ -43,7 +24,7 @@ function buildResonanceMeta({ story, dict }) {
   const aBody = bodyLabelJa(dict, aKey);
   const bBody = bodyLabelJa(dict, bKey);
   const info = aspectInfo(dict, aspect?.type || aspect?.aspect, aspect?.aspect_deg);
-  const label = info?.label_ja || safeText(aspect?.type || "");
+  const label = info?.label_ja || safeTrim(aspect?.type || "");
   const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(aspect?.aspect_deg);
   const degLabel = Number.isFinite(Number(deg)) ? `${deg}°` : "";
   const aspectLabel = [label, degLabel].filter(Boolean).join(" ").trim();
@@ -55,10 +36,10 @@ function buildResonanceMeta({ story, dict }) {
 
 function buildCaptionPrompt({ story, dict, asOfISO }) {
   const transit = story?.public?.transit_signs || {};
-  const sunSign = safeText(transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || ""));
-  const moonSign = safeText(transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || ""));
+  const sunSign = safeTrim(transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || ""));
+  const moonSign = safeTrim(transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || ""));
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
-  const phaseLabel = safeText(info?.phase?.name || "");
+  const phaseLabel = safeTrim(info?.phase?.name || "");
 
   return [
     SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
@@ -80,10 +61,10 @@ function buildObservationPrompt({ story, dict }) {
     SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
     "",
     "INPUT:",
-    `HOUSE_FOCUS: ${safeText(JSON.stringify(houseFocus))}`,
-    `TRANSIT_SIGNS: ${safeText(JSON.stringify(transitSigns))}`,
-    `SKY_STRATA.element_count: ${safeText(JSON.stringify(elementCount))}`,
-    `SKY_STRATA.modality_count: ${safeText(JSON.stringify(modalityCount))}`,
+    `HOUSE_FOCUS: ${safeTrim(JSON.stringify(houseFocus))}`,
+    `TRANSIT_SIGNS: ${safeTrim(JSON.stringify(transitSigns))}`,
+    `SKY_STRATA.element_count: ${safeTrim(JSON.stringify(elementCount))}`,
+    `SKY_STRATA.modality_count: ${safeTrim(JSON.stringify(modalityCount))}`,
   ].join("\n");
 }
 
@@ -97,7 +78,7 @@ function buildCaptionFallback({ story, dict, asOfISO }) {
   const line3 = resonance.aBody && resonance.bBody && resonance.aspectLabel
     ? `${resonance.aBody}と${resonance.bBody}の角度が${resonance.aspectLabel}として残ります。`
     : "空の接続は、内側に細い流れを置きます。";
-  return normalizeText([line1, line2, line3].join(" "));
+  return normalizeInlineText([line1, line2, line3].join(" "));
 }
 
 function buildObservationFallback({ story, dict }) {

@@ -3,12 +3,9 @@
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme/ig_theme");
 const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
+const { clamp } = require("../../../../../utils/math_utils");
 
 const MOON_LAYOUT = DEFAULT_MOON_LAYOUT;
-
-function clamp(n, min, max) {
-  return Math.min(Math.max(n, min), max);
-}
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");

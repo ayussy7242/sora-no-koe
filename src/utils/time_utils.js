@@ -17,6 +17,17 @@ function toDateLocalJST(date = new Date()) {
   return ymdInTimeZone(date, "Asia/Tokyo");
 }
 
+function formatDateLabel(dateLocal) {
+  return String(dateLocal || "").replace(/-/g, ".");
+}
+
+function formatJstYmd(date, opts = {}) {
+  const fallback = opts?.fallback != null ? String(opts.fallback) : "";
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return fallback;
+  const ymd = toDateLocalJST(date);
+  return ymd ? ymd.replace(/-/g, ".") : fallback;
+}
+
 function dateTimePartsInTimeZone(date, timeZone) {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -82,6 +93,8 @@ function normalizeDateTimeLocalJST(datetimeLocalRaw) {
 module.exports = {
   ymdInTimeZone,
   toDateLocalJST,
+  formatDateLabel,
+  formatJstYmd,
   dateTimePartsInTimeZone,
   toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,

@@ -7,6 +7,7 @@ const { resolveChannelConfig, resolveProximityConfig } = require("../../../confi
 const { weightForBody, scoreForAspect } = require("../../../domain/touch_point_scoring");
 const { computeOrbStats } = require("../../../domain/aspect_stats");
 const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point_selection");
+const { EXTENDED_PLANETS } = require("../../../domain/astro/constants");
 const {
   computeTokyoAscDeg,
   signIndexFromKey,
@@ -126,9 +127,7 @@ function buildHouseBlock(story, dict, asOfISO) {
   const ascIndex = Number.isFinite(Number(ascDeg)) ? Math.floor(Number(ascDeg) / 30) : null;
 
   const transitSigns = story?.public?.transit_signs || {};
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
-  ];
+  const bodyOrder = EXTENDED_PLANETS;
 
   const houseBuckets = new Map();
   for (let i = 1; i <= 12; i++) houseBuckets.set(i, { items: [], score: 0, signKey: null, signJa: null, signGlyph: null });

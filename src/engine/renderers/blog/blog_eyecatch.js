@@ -7,6 +7,7 @@ const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/spac
 const dict = require("../../../content/dict");
 const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { toDateLocalJST } = require("../../../utils/time_utils");
+const { clamp } = require("../../../utils/math_utils");
 const { FONT_FILES } = require("../../shared/typography");
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..");
@@ -95,10 +96,6 @@ function resolveBgPath(customPath) {
     }
   }
   return null;
-}
-
-function clamp(n, min, max) {
-  return Math.min(Math.max(n, min), max);
 }
 
 function splitLinesByNewline(text) {
@@ -412,6 +409,9 @@ function resolveMoonEventSpaceConfig(event) {
       milkyThicknessScale: 0.9,
       milkyDustScale: 0.75,
       whiteMix: 0.45,
+      moonEventKind: "full",
+      moonEventStyle: "halo",
+      moonEventIntensity: 1.0,
     };
   }
   if (event.kind === "new") {
@@ -421,6 +421,9 @@ function resolveMoonEventSpaceConfig(event) {
       milkyThicknessScale: 1.25,
       milkyDustScale: 1.45,
       whiteMix: 0.45,
+      moonEventKind: "new",
+      moonEventStyle: "eclipse",
+      moonEventIntensity: 1.15,
     };
   }
   return null;

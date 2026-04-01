@@ -5,6 +5,7 @@ const { SPEC } = require("../../config/sora_spec");
 const { resolveChannelConfig } = require("../../config/aspect_channel_config");
 const { scoreForAspect } = require("../../domain/touch_point_scoring");
 const { normalizeBodyKey } = require("../../domain/canonical");
+const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 const {
   formatDateLabel,
   glyphForBody,
@@ -43,9 +44,7 @@ async function renderSoraLine(story, deps = {}) {
     ? (LINE_SORA_CFG.orbLimitPaid ?? SPEC.orb.paid)
     : (LINE_SORA_CFG.orbLimitFree ?? SPEC.orb.free);
 
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
-  ];
+  const bodyOrder = EXTENDED_PLANETS;
 
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
@@ -82,10 +81,8 @@ async function renderSoraLine(story, deps = {}) {
     bodyLines.push(line);
   });
 
-  const coreBodies = new Set([
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ]);
-  const deepBodies = new Set(["lilith", "chiron"]);
+  const coreBodies = new Set(CORE_PLANETS);
+  const deepBodies = new Set(DEEP_BODIES);
   const allWithOrb = listWithOrb(skyAll);
   const coreList = allWithOrb.filter((r) => {
     const aKey = normalizeBodyKey(r?.a || "");

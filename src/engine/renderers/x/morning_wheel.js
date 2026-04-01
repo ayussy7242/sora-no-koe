@@ -4,29 +4,14 @@ const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { fontFaceCss } = require("../ig/assets/ig_fonts");
+const { formatDateLabel } = require("../../../utils/time_utils");
+const { escapeXml } = require("../../../utils/xml_utils");
+const { clamp } = require("../../../utils/math_utils");
 
 const DEFAULT_X_CANVAS = Object.freeze({
   width: 1200,
   height: 675,
 });
-
-function clamp(num, min, max) {
-  if (!Number.isFinite(Number(num))) return min;
-  return Math.max(min, Math.min(max, Number(num)));
-}
-
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
-
-function escapeXml(text) {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function buildFooterSvg({ width, height, brand, dateLabel }) {
   if (!brand && !dateLabel) return "";

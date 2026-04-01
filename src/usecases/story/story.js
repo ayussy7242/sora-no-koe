@@ -299,6 +299,9 @@ function createStoryService({
         engine: { ephemeris_source: "swisseph", precision_deg: precisionDeg },
         rules,
         sky_strata: publicObj.sky_strata,
+        element_count: publicObj?.sky_strata?.element_count || {},
+        modality_count: publicObj?.sky_strata?.modality_count || {},
+        transit_signs: publicObj.transit_signs || {},
       },
 
       public: publicObj,

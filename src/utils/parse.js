@@ -3,13 +3,11 @@
 // parse.js
 // - small, shared parsers for query/body/opts
 
+const { clamp } = require("./math_utils");
+
 function toNumberSafe(v, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
-}
-
-function clamp(n, min, max) {
-  return Math.min(max, Math.max(min, n));
 }
 
 function boolish(v) {

@@ -10,10 +10,7 @@ const { formatDateYmdHm } = require("../../../domain/astro_compute");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { resolveMaxRetries } = require("./ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim } = require("../../../utils/text_normalize");
 
 function countSentences(text) {
   return String(text || "")
@@ -24,8 +21,8 @@ function countSentences(text) {
 
 
 function buildMoonFallback({ moonSign, phaseLabel } = {}) {
-  const sign = safeText(moonSign) || "—";
-  const phase = safeText(phaseLabel) || "静かな月相";
+  const sign = safeTrim(moonSign) || "—";
+  const phase = safeTrim(phaseLabel) || "静かな月相";
   return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
 }
 
@@ -41,7 +38,7 @@ function buildMoonChangeHint(change) {
 }
 
 function resolveMoonPhaseLabel(info) {
-  const raw = safeText(info?.phase?.name || "");
+  const raw = safeTrim(info?.phase?.name || "");
   const illumination = Number(info?.illumination || 0);
   const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
   const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
@@ -53,9 +50,9 @@ function resolveMoonPhaseLabel(info) {
 function buildIgMoonPrompt({ story, dict, asOfISO }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const change = buildMoonSignChangeState({ asOfISO, dict });
-  const moonSign = safeText(info?.moonSign || "");
-  const phaseLabel = safeText(resolveMoonPhaseLabel(info));
-  const moonChangeHint = safeText(buildMoonChangeHint(change));
+  const moonSign = safeTrim(info?.moonSign || "");
+  const phaseLabel = safeTrim(resolveMoonPhaseLabel(info));
+  const moonChangeHint = safeTrim(buildMoonChangeHint(change));
   const nextChange = change?.next || null;
   const nextChangeText = nextChange?.date
     ? `${formatDateYmdHm(nextChange.date)}（${nextChange.to?.label || ""}へ）`
@@ -71,8 +68,8 @@ function buildIgMoonPrompt({ story, dict, asOfISO }) {
     `MOON_SIGN: ${moonSign}`,
     `PHASE_LABEL: ${phaseLabel}`,
     `MOON_CHANGE_HINT: ${moonChangeHint}`,
-    `NEXT_MOON_SIGN_CHANGE: ${safeText(nextChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeText(nextChangeHours)}`,
+    `NEXT_MOON_SIGN_CHANGE: ${safeTrim(nextChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeTrim(nextChangeHours)}`,
   ].join("\n");
 }
 
@@ -89,8 +86,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
   let lastText = "";
 
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
-  const moonSign = safeText(info?.moonSign || "");
-  const phaseLabel = safeText(resolveMoonPhaseLabel(info));
+  const moonSign = safeTrim(info?.moonSign || "");
+  const phaseLabel = safeTrim(resolveMoonPhaseLabel(info));
 
   for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
     const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +

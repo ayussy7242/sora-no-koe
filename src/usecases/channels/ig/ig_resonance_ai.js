@@ -8,23 +8,11 @@ const {
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro_compute");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
+const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
+const { safeTrim } = require("../../../utils/text_normalize");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { resolveMaxRetries } = require("./ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
-
-function bodyLabelJa(dict, key) {
-  if (!key) return "";
-  const k = String(key).toLowerCase();
-  return (
-    dict?.PLANETS_V2?.bodies?.[k]?.label_ja ||
-    dict?.POINTS_V1?.points?.[k]?.label_ja ||
-    k
-  );
-}
 
 function buildAspectLine({ story, dict }) {
   const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
@@ -78,7 +66,7 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 }
 
 function buildIgResonancePrompt({ story, dict }) {
-  const date = safeText(story?.meta?.date_local || story?.public?.date_local || "");
+  const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
   const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
   if (!aspect) return "";
   const { aspectLine, orb, aBody, bBody, aSign, bSign } = buildAspectLine({ story, dict });

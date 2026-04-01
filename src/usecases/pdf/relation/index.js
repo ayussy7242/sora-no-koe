@@ -9,6 +9,7 @@ const { buildComparePairs, buildRelationCounts, buildRelationAiInputs } = requir
 const { buildHouseCounts, computeDominantSigns, computeDominantHouses, computePrimaryHouse } = require("../shared/center_metrics");
 const { generateRelationAiTexts } = require("./ai_generate");
 const { resolveDisplayNameFromUserDoc } = require("../../../utils/resolve_display_name");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",
@@ -714,7 +715,7 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     const houseLinks = buildHouseLinks(connections);
     const gaps = buildGaps(connections, rules);
 
-    const mainPlanetKeys = new Set(["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"]);
+    const mainPlanetKeys = new Set(CORE_PLANETS);
     const planetMainA = planetMatrixA.filter((p) => mainPlanetKeys.has(p?.body_key));
     const planetMainB = planetMatrixB.filter((p) => mainPlanetKeys.has(p?.body_key));
     const houseCountsA = buildHouseCounts(planetMainA);

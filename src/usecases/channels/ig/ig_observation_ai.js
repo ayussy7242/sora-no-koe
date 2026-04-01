@@ -9,14 +9,11 @@ const { signJa } = require("../../../presenters/format/format/common");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { resolveMaxRetries } = require("./ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim } = require("../../../utils/text_normalize");
 
 
 function buildSignCountsLine({ story, dict }) {
-  const transit = story?.public?.transit_signs || {};
+  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
   const counts = {};
   Object.values(transit).forEach((item) => {
     const signKey = item?.sign_key;
@@ -31,7 +28,7 @@ function buildSignCountsLine({ story, dict }) {
 }
 
 function buildElementCountsLine(story) {
-  const counts = story?.public?.sky_strata?.element_count || {};
+  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
   const labels = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合" };
   const entries = Object.entries(counts)
     .map(([key, count]) => `${labels[key] || key}=${Number(count || 0)}`)
@@ -49,7 +46,7 @@ function buildHouseFocusLine(story) {
 }
 
 function buildIgObservationPrompt({ story, dict }) {
-  const date = safeText(story?.meta?.date_local || story?.public?.date_local || "");
+  const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
   const signCounts = buildSignCountsLine({ story, dict });
   const elementCounts = buildElementCountsLine(story);
   const houseFocus = buildHouseFocusLine(story);

@@ -12,10 +12,7 @@ const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
 const { resolveMaxRetries } = require("./ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim } = require("../../../utils/text_normalize");
 
 function formatSpanDays(row) {
   if (!row) return "";
@@ -62,7 +59,7 @@ function buildPrompt({ story, dict, pick }) {
   const aSign = row?.aSignJa || signJa(dict, row?.aSignKey || "") || "";
   const bSign = row?.bSignJa || signJa(dict, row?.bSignKey || "") || "";
   const aspectInfoRow = aspectInfo(dict, row?.aspect, row?.aspectDeg);
-  const aspectLabel = aspectInfoRow?.label_ja || safeText(row?.aspect || "");
+  const aspectLabel = aspectInfoRow?.label_ja || safeTrim(row?.aspect || "");
   const orb = Number.isFinite(Number(row?.orb)) ? `${Number(row.orb).toFixed(2)}°` : "";
   const spanDays = formatSpanDays(row);
   const start = formatDateYmd(row?.start);

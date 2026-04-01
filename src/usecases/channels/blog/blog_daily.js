@@ -7,6 +7,7 @@ const dict = require("../../../content/dict");
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
 const { buildSoraWheelSvg } = require("../../../engine/graphics/sora_wheel");
+const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../../domain/astro/constants");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
@@ -73,7 +74,7 @@ const BLOG_BANNED_TERMS = [
   "実行しました",
 ];
 
-const BLOG_TITLE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
+const BLOG_TITLE_EXCLUDE_BODIES = new Set(DEEP_BODIES);
 
 function isResonanceBodyExcluded(row) {
   const aKey = normalizeBodyKey(row?.a || "");
@@ -81,11 +82,7 @@ function isResonanceBodyExcluded(row) {
   return BLOG_TITLE_EXCLUDE_BODIES.has(aKey) || BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
 }
 
-const BLOG_TITLE_BODY_ORDER = [
-  "sun","moon","mercury","venus","mars",
-  "jupiter","saturn","uranus","neptune","pluto",
-  "lilith","chiron",
-];
+const BLOG_TITLE_BODY_ORDER = EXTENDED_PLANETS;
 const BLOG_TITLE_BODY_RANK = BLOG_TITLE_BODY_ORDER.reduce((acc, key, idx) => {
   acc[key] = idx + 1;
   return acc;

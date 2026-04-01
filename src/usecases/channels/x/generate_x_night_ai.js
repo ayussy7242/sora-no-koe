@@ -5,6 +5,7 @@ const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/
 const { X_NIGHT_USER_GUIDE } = require("../../../content/prompts/sns/x/x_night_prompts");
 const { signJa } = require("../../../presenters/format/format/common");
 const { calcTransitLon, norm360, formatDateYmdHm } = require("../../../domain/astro_compute");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const {
   buildNextMoonEvents,
   orderedMoonEvents,
@@ -14,13 +15,10 @@ const {
 } = require("../../../domain/moon_info");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim } = require("../../../utils/text_normalize");
 
 function buildElementCount(story) {
-  const counts = story?.public?.sky_strata?.element_count || story?.meta?.sky_strata?.element_count || {};
+  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
   return {
     fire: Number(counts.fire || 0),
     earth: Number(counts.earth || 0),
@@ -30,7 +28,7 @@ function buildElementCount(story) {
 }
 
 function buildModalityCount(story) {
-  const counts = story?.public?.sky_strata?.modality_count || story?.meta?.sky_strata?.modality_count || {};
+  const counts = story?.meta?.modality_count || story?.meta?.sky_strata?.modality_count || story?.public?.sky_strata?.modality_count || {};
   return {
     cardinal: Number(counts.cardinal || 0),
     fixed: Number(counts.fixed || 0),
@@ -39,10 +37,8 @@ function buildModalityCount(story) {
 }
 
 function buildTransitSigns({ story, dict }) {
-  const transit = story?.public?.transit_signs || {};
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ];
+  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
+  const bodyOrder = CORE_PLANETS;
   const out = {};
   bodyOrder.forEach((k) => {
     const signKey = transit?.[k]?.sign_key || "";
@@ -165,21 +161,21 @@ function buildXNightPrompt({ story, dict }) {
     X_NIGHT_USER_GUIDE,
     "",
     "INPUT:",
-    `SUN_SIGN: ${safeText(sun)}`,
-    `MOON_SIGN: ${safeText(moon)}`,
+    `SUN_SIGN: ${safeTrim(sun)}`,
+    `MOON_SIGN: ${safeTrim(moon)}`,
     `TRANSIT_SIGNS: ${JSON.stringify(transitSigns)}`,
     `SKY_STRATA.element_count: ${JSON.stringify(elementCount)}`,
     `SKY_STRATA.modality_count: ${JSON.stringify(modalityCount)}`,
-    `NEXT_TRANSIT_HINTS: ${safeText(nextHints)}`,
-    `LAST_MOON_SIGN_CHANGE: ${safeText(lastChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE: ${safeText(nextChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE_ISO: ${safeText(nextChangeIso)}`,
-    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeText(nextChangeHours)}`,
-    `TOMORROW_MOON_SIGN: ${safeText(tomorrowText)}`,
+    `NEXT_TRANSIT_HINTS: ${safeTrim(nextHints)}`,
+    `LAST_MOON_SIGN_CHANGE: ${safeTrim(lastChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE: ${safeTrim(nextChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE_ISO: ${safeTrim(nextChangeIso)}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeTrim(nextChangeHours)}`,
+    `TOMORROW_MOON_SIGN: ${safeTrim(tomorrowText)}`,
     `TOMORROW_MOON_SIGN_BASIS: JST 12:00`,
-    `MOON_CHANGE_HINT: ${safeText(moonChangeHint)}`,
-    `MOON_SIGN_DEG: ${safeText(moonDegInSign)}`,
-    `MOON_SIGN_PHASE: ${safeText(moonPhaseStage)}`,
+    `MOON_CHANGE_HINT: ${safeTrim(moonChangeHint)}`,
+    `MOON_SIGN_DEG: ${safeTrim(moonDegInSign)}`,
+    `MOON_SIGN_PHASE: ${safeTrim(moonPhaseStage)}`,
   ].join("\n");
 }
 

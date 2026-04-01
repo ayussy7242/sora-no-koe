@@ -10,6 +10,7 @@ const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveProximityConfig } = require("../../config/aspect_channel_config");
 const { normalizeBodyKey } = require("../../domain/canonical");
+const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 const {
   formatDateLabel,
   glyphForBody,
@@ -22,6 +23,7 @@ const { pickApplyingUpcomingAspects } = require("../../domain/astro_compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect_proximity");
 const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon_info");
 const { toDateLocalJST } = require("../../utils/time_utils");
+const { joinLines } = require("../../utils/text_format");
 
 const THREAD_SEP = "\n\n---\n\n";
 const BASE_TAGS = ["#ソラのこえ", "#きょうのそら"];
@@ -55,17 +57,8 @@ function makeAspectKey(aKey, bKey, aspectDeg) {
   return `${pair}|${deg}`;
 }
 
-function joinLines(lines = []) {
-  return lines.filter((v) => v !== undefined && v !== null).join("\n");
-}
-
 function isValidDate(d) {
   return d instanceof Date && !Number.isNaN(d.getTime());
-}
-
-function formatJstYmd(date) {
-  const ymd = isValidDate(date) ? toDateLocalJST(date) : null;
-  return ymd ? ymd.replace(/-/g, ".") : "-";
 }
 
 function formatMonthDay(date) {
@@ -114,16 +107,12 @@ function renderXThread(story, deps = {}) {
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
   const transitSigns = pub.transit_signs || {};
 
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
-  ];
+  const bodyOrder = EXTENDED_PLANETS;
 
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
   // ---------- Part 1: 配置一覧 ----------
-  const coreOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ];
+  const coreOrder = CORE_PLANETS;
   const pointOrder = ["lilith","chiron"];
 
   const renderBodyLine = (k) => {
@@ -183,10 +172,8 @@ function renderXThread(story, deps = {}) {
   })();
 
   const resonanceMode = deps?.resonanceMode || story?.meta?.resonance_mode || "core";
-  const resonanceCore = new Set([
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ]);
-  const resonanceDeep = new Set(["lilith", "chiron"]);
+  const resonanceCore = new Set(CORE_PLANETS);
+  const resonanceDeep = new Set(DEEP_BODIES);
   const resonanceAll = listWithOrb(skyAll);
   const coreItems = resonanceAll.filter((row) => {
     const aKey = normalizeBodyKey(row?.a || "");

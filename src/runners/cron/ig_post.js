@@ -10,6 +10,7 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astr
 const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
+const { pickPreferredResonanceAspect } = require("../../domain/resonance");
 const { generateIgObservationText } = require("../../usecases/channels/ig/ig_observation_ai");
 const { generateIgResonanceText } = require("../../usecases/channels/ig/ig_resonance_ai");
 const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/ig_tsukiji_structure_ai");
@@ -244,6 +245,9 @@ function resolveMoonEventSpaceConfig(event) {
       milkyThicknessScale: 0.9,
       milkyDustScale: 0.75,
       whiteMix: 0.45,
+      moonEventKind: "full",
+      moonEventStyle: "halo",
+      moonEventIntensity: 1.0,
     };
   }
   if (event.kind === "new") {
@@ -253,6 +257,9 @@ function resolveMoonEventSpaceConfig(event) {
       milkyThicknessScale: 1.25,
       milkyDustScale: 1.45,
       whiteMix: 0.45,
+      moonEventKind: "new",
+      moonEventStyle: "eclipse",
+      moonEventIntensity: 1.15,
     };
   }
   return null;
@@ -432,51 +439,6 @@ const PLANET_META = {
   north_node: { name: "北ノード", glyph: "☊" },
   south_node: { name: "南ノード", glyph: "☋" },
 };
-
-function pickPreferredResonanceAspect(story, opts = {}) {
-  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const pool = [...skyTop, ...skyAll];
-  if (!pool.length) return null;
-
-  const coreBodies = new Set([
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ]);
-  const deepBodies = new Set(["lilith", "chiron"]);
-  const resonanceMode = opts.resonanceMode || story?.meta?.resonance_mode || "core";
-
-  const corePool = pool.filter((row) => {
-    const aKey = String(row?.a || "").toLowerCase();
-    const bKey = String(row?.b || "").toLowerCase();
-    return coreBodies.has(aKey) && coreBodies.has(bKey);
-  });
-  const deepPool = pool.filter((row) => {
-    const aKey = String(row?.a || "").toLowerCase();
-    const bKey = String(row?.b || "").toLowerCase();
-    return deepBodies.has(aKey) || deepBodies.has(bKey);
-  });
-  const useDeep = resonanceMode === "deep";
-  const targetPool = useDeep
-    ? (deepPool.length ? deepPool : corePool)
-    : (corePool.length ? corePool : deepPool);
-  if (!targetPool.length) return null;
-
-  const withinOne = targetPool
-    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
-    .filter((r) => Number.isFinite(r.orb) && r.orb <= 1.0);
-
-  const coreHits = withinOne;
-  if (coreHits.length) {
-    coreHits.sort((a, b) => a.orb - b.orb);
-    return coreHits[0].row;
-  }
-
-  const sortedCore = targetPool
-    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
-    .filter((r) => Number.isFinite(r.orb))
-    .sort((a, b) => a.orb - b.orb);
-  return sortedCore[0]?.row || null;
-}
 
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;

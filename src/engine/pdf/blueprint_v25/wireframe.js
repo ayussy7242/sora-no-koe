@@ -5,6 +5,7 @@ const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
 const { BACKGROUND_COLORS } = require("../../shared/space_background/constants");
 const { buildBlueprintPlaceholders } = require("./placeholders");
 const { buildBlueprintCss } = require("./styles");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const {
   renderSysPage,
   renderMapPage,
@@ -457,8 +458,8 @@ function extractFromKernel({ kernel, input, p }) {
     ].filter(Boolean),
   };
 
-  const order = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
-  p.coverBodies = order
+  const coverOrder = CORE_PLANETS;
+  p.coverBodies = coverOrder
     .map((key) => {
       const sign = signByKey.get(key);
       if (!sign) return "";
@@ -724,7 +725,7 @@ function extractFromMasterChart({ masterChart, p }) {
     .filter(Boolean);
 
   const aspectTypes = new Set(["conjunction","opposition","square","trine","sextile","quincunx","sesquisquare","semisquare"]);
-  const aspectOrder = ["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","asc","mc","ic","dc"];
+  const aspectOrder = [...CORE_PLANETS, "asc", "mc", "ic", "dc"];
   const orderIdx = new Map(aspectOrder.map((key, idx) => [key, idx]));
   const normKey = (a, b) => {
     const ak = String(a || "").toLowerCase();

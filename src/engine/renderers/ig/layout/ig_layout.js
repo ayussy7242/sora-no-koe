@@ -2,6 +2,7 @@
 
 const fontkit = require("fontkit");
 const opentype = require("opentype.js");
+const { escapeXml } = require("../../../../utils/xml_utils");
 
 const PATH_GLYPHS = new Set([
   "☉","☽","☿","♀","♂","♃","♄","♅","♆","♇",
@@ -225,15 +226,6 @@ function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {
       (rest ? `<tspan dx=\"12\" font-family=\"${fontFamily}\" font-size=\"${size}\">${restSafe}</tspan>` : "") +
       `</text>`
     );
-  }
-
-  function escapeXml(value) {
-    return String(value || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&#39;");
   }
 
   return {

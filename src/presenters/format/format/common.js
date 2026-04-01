@@ -5,15 +5,12 @@ const {
   normalizeSignKey,
   normalizeAspectKey,
 } = require("../../../domain/canonical");
+const { formatDateLabel } = require("../../../utils/time_utils");
 const {
   bodyGlyph,
   signGlyph,
   signLabelJa,
 } = require("../../shared/text/tokens");
-
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
 
 function glyphForBody(key) {
   return bodyGlyph(key);

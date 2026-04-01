@@ -24,9 +24,9 @@ function renderThreads(story, deps = {}) {
         dict,
     } = deps || {};
     const { formatDateLabel, getMoonSignJa, joinAndTrimLines } = require("../format/format/channel_common");
+    const { formatJstYmd } = require("../../utils/time_utils");
     const { glyphForBody, signJa } = require("../format/format/common");
     const { findRetrogradeWindow } = require("../../domain/astro_compute");
-    const { toDateLocalJST } = require("../../utils/time_utils");
 
     const dateLabel = formatDateLabel(story);
     const moonSignJa = getMoonSignJa(story);
@@ -46,10 +46,7 @@ function renderThreads(story, deps = {}) {
         "lilith",
     ];
 
-    const formatJstYmd = (d) => {
-        const ymd = (d instanceof Date && !Number.isNaN(d.getTime())) ? toDateLocalJST(d) : null;
-        return ymd ? ymd.replace(/-/g, ".") : "-";
-    };
+    const formatJstYmdSafe = (d) => formatJstYmd(d, { fallback: "-" });
 
     const transitSigns = story?.public?.transit_signs || {};
     const retroRows = retroKeys
@@ -76,7 +73,7 @@ function renderThreads(story, deps = {}) {
             if (idx > 0) lines.push("");
             const head = `${row.glyph ? `${row.glyph} ` : ""}${row.label}${row.signLabel ? `（${row.signLabel}）` : ""}`.trim();
             lines.push(head);
-            lines.push(`📅 ${formatJstYmd(row.start)} ~ ${formatJstYmd(row.end)}`);
+            lines.push(`📅 ${formatJstYmdSafe(row.start)} ~ ${formatJstYmdSafe(row.end)}`);
 
             const bodyTag = `#${row.label}逆行`;
             const signTag = row.signLabel ? `#${row.signLabel}` : "";

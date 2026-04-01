@@ -4,20 +4,12 @@ const sharp = require("sharp");
 const { buildSpaceBackground } = require("../../../shared/space_background");
 const { fontFaceCss } = require("../assets/ig_fonts");
 const { resolveColors } = require("../theme/ig_theme");
+const { escapeXml } = require("../../../../utils/xml_utils");
 
 const CANVAS = {
   width: 1080,
   height: 1920,
 };
-
-function escapeXml(text) {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function baseSvg({ inner, space }) {
   const { width, height } = CANVAS;

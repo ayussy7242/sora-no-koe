@@ -114,6 +114,85 @@ function makeSentences(count, sentenceLen) {
   return `${sentences.join("。")}。`;
 }
 
+function charCount(text) {
+  return Array.from(String(text || "")).length;
+}
+
+function resolveTargetLen(preset) {
+  const min = Number.isFinite(Number(preset?.minChars)) ? Number(preset.minChars) : null;
+  const max = Number.isFinite(Number(preset?.maxChars)) ? Number(preset.maxChars) : null;
+  if (min != null && max != null) {
+    const mid = Math.floor((min + max) / 2);
+    return Math.min(max, Math.max(min, mid));
+  }
+  if (min != null) return min + 2;
+  if (max != null) return Math.min(max, 80);
+  return 40;
+}
+
+function buildSentenceText(preset, sentenceCount) {
+  const min = Number.isFinite(Number(preset?.minChars)) ? Number(preset.minChars) : null;
+  const max = Number.isFinite(Number(preset?.maxChars)) ? Number(preset.maxChars) : null;
+  const count = Number.isFinite(Number(sentenceCount)) ? Number(sentenceCount) : 2;
+  let target = resolveTargetLen(preset);
+  if (max != null) target = Math.min(target, max);
+  if (min != null) target = Math.max(target, min);
+
+  const punctuationLen = count; // "。" between sentences + trailing "。"
+  let perLen = Math.max(1, Math.floor((target - punctuationLen) / count));
+  let text = makeSentences(count, perLen);
+  while (max != null && charCount(text) > max && perLen > 1) {
+    perLen -= 1;
+    text = makeSentences(count, perLen);
+  }
+  return text;
+}
+
+function buildLineText(preset, lineCount) {
+  const min = Number.isFinite(Number(preset?.minChars)) ? Number(preset.minChars) : null;
+  const max = Number.isFinite(Number(preset?.maxChars)) ? Number(preset.maxChars) : null;
+  const count = Number.isFinite(Number(lineCount)) ? Number(lineCount) : 2;
+  let target = resolveTargetLen(preset);
+  if (max != null) target = Math.min(target, max);
+  if (min != null) target = Math.max(target, min);
+
+  const newlineLen = count - 1;
+  let perLen = Math.max(1, Math.floor((target - newlineLen) / count));
+  let lines = new Array(count).fill(repeatChar(perLen));
+  let text = lines.join("\n");
+  while (max != null && charCount(text) > max && perLen > 1) {
+    perLen -= 1;
+    lines = new Array(count).fill(repeatChar(perLen));
+    text = lines.join("\n");
+  }
+  return text;
+}
+
+function buildTextForPreset(preset) {
+  if (preset?.outputType === "json") {
+    return "{\"ok\":true,\"value\":1}";
+  }
+  if (preset?.mustStartWith) {
+    const prefix = String(preset.mustStartWith || "");
+    const min = Number.isFinite(Number(preset?.minChars)) ? Number(preset.minChars) : null;
+    const max = Number.isFinite(Number(preset?.maxChars)) ? Number(preset.maxChars) : null;
+    let target = resolveTargetLen(preset);
+    if (max != null) target = Math.min(target, max);
+    if (min != null) target = Math.max(target, min);
+    const prefixLen = charCount(prefix);
+    const bodyLen = Math.max(1, target - prefixLen);
+    const maxBodyLen = max != null ? Math.max(1, max - prefixLen) : bodyLen;
+    return `${prefix}${repeatChar(Math.min(bodyLen, maxBodyLen))}`;
+  }
+  if (preset?.lineCount?.min) {
+    return buildLineText(preset, preset.lineCount.min);
+  }
+  if (preset?.sentenceCount?.min) {
+    return buildSentenceText(preset, preset.sentenceCount.min);
+  }
+  return repeatChar(resolveTargetLen(preset));
+}
+
 function expectOkPreset({ preset, rawText, label }) {
   const verdict = runAiTextPipeline({ rawText, preset });
   assert.equal(verdict.ok, true, `${label} should pass`);
@@ -122,94 +201,27 @@ function expectOkPreset({ preset, rawText, label }) {
 
 test("runAiTextPipeline accepts all IG/X/PDF/Relation presets with sample outputs", () => {
   const cases = [
-    {
-      label: "ig.sky_overview",
-      preset: PRESETS.ig.sky_overview,
-      rawText: makeSentences(2, 45), // ~92 chars
-    },
-    {
-      label: "ig.observation",
-      preset: PRESETS.ig.observation,
-      rawText: repeatChar(12),
-    },
-    {
-      label: "ig.moon",
-      preset: PRESETS.ig.moon,
-      rawText: makeSentences(2, 25), // ~52 chars
-    },
-    {
-      label: "ig.resonance",
-      preset: PRESETS.ig.resonance,
-      rawText: makeSentences(3, 45), // ~138 chars
-    },
-    {
-      label: "ig.carousel_caption",
-      preset: PRESETS.ig.carousel_caption,
-      rawText: makeSentences(3, 35), // ~108 chars
-    },
-    {
-      label: "ig.carousel_observation",
-      preset: PRESETS.ig.carousel_observation,
-      rawText: `${repeatChar(18)}\n${repeatChar(18)}`,
-    },
-    {
-      label: "ig.tsukiji_structure",
-      preset: PRESETS.ig.tsukiji_structure,
-      rawText: "構造：静かな流れが続く",
-    },
-    {
-      label: "ig.moon_event_placement",
-      preset: PRESETS.ig.moon_event_placement,
-      rawText: makeSentences(3, 40), // ~123 chars
-    },
-    {
-      label: "ig.moon_event_sun_moon",
-      preset: PRESETS.ig.moon_event_sun_moon,
-      rawText: makeSentences(3, 40),
-    },
-    {
-      label: "ig.moon_event_resonance",
-      preset: PRESETS.ig.moon_event_resonance,
-      rawText: makeSentences(3, 40),
-    },
-    {
-      label: "ig.moon_event_air",
-      preset: PRESETS.ig.moon_event_air,
-      rawText: makeSentences(3, 40),
-    },
-    {
-      label: "ig.story_today",
-      preset: PRESETS.ig.story_today,
-      rawText: makeSentences(2, 30), // ~62 chars
-    },
-    {
-      label: "ig.story_resonance",
-      preset: PRESETS.ig.story_resonance,
-      rawText: makeSentences(2, 40), // ~82 chars
-    },
-    {
-      label: "ig.story_tomorrow",
-      preset: PRESETS.ig.story_tomorrow,
-      rawText: makeSentences(3, 35), // ~108 chars
-    },
-    {
-      label: "x.base",
-      preset: PRESETS.x.base,
-      rawText: `${repeatChar(40)} #tag1 #tag2`,
-    },
-    {
-      label: "pdf.blueprint_v2",
-      preset: PRESETS.pdf.blueprint_v2,
-      rawText: "{\"ok\":true,\"value\":1}",
-    },
-    {
-      label: "relation.prompt_limits",
-      preset: PRESETS.relation.prompt_limits,
-      rawText: "{\"ok\":true,\"value\":2}",
-    },
+    { label: "ig.sky_overview", preset: PRESETS.ig.sky_overview },
+    { label: "ig.observation", preset: PRESETS.ig.observation },
+    { label: "ig.moon", preset: PRESETS.ig.moon },
+    { label: "ig.resonance", preset: PRESETS.ig.resonance },
+    { label: "ig.carousel_caption", preset: PRESETS.ig.carousel_caption },
+    { label: "ig.carousel_observation", preset: PRESETS.ig.carousel_observation },
+    { label: "ig.tsukiji_structure", preset: PRESETS.ig.tsukiji_structure },
+    { label: "ig.moon_event_placement", preset: PRESETS.ig.moon_event_placement },
+    { label: "ig.moon_event_sun_moon", preset: PRESETS.ig.moon_event_sun_moon },
+    { label: "ig.moon_event_resonance", preset: PRESETS.ig.moon_event_resonance },
+    { label: "ig.moon_event_air", preset: PRESETS.ig.moon_event_air },
+    { label: "ig.story_today", preset: PRESETS.ig.story_today },
+    { label: "ig.story_resonance", preset: PRESETS.ig.story_resonance },
+    { label: "ig.story_tomorrow", preset: PRESETS.ig.story_tomorrow },
+    { label: "x.base", preset: PRESETS.x.base },
+    { label: "pdf.blueprint_v2", preset: PRESETS.pdf.blueprint_v2 },
+    { label: "relation.prompt_limits", preset: PRESETS.relation.prompt_limits },
   ];
 
   for (const item of cases) {
-    expectOkPreset(item);
+    const rawText = buildTextForPreset(item.preset);
+    expectOkPreset({ ...item, rawText });
   }
 });

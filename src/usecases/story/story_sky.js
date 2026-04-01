@@ -46,13 +46,10 @@ function createSkyService({
   }
 
   function computeSkyStrataFromTransits(transitSigns) {
+    const { CORE_PLANETS } = require("../../domain/astro/constants");
     const E = { fire: 0, earth: 0, air: 0, water: 0, unknown: 0 };
     const M = { cardinal: 0, fixed: 0, mutable: 0, unknown: 0 };
-
-    const BODIES = new Set([
-      "sun", "moon", "mercury", "venus", "mars",
-      "jupiter", "saturn", "uranus", "neptune", "pluto",
-    ]);
+    const BODIES = new Set(CORE_PLANETS);
 
     for (const [body, info] of Object.entries(transitSigns || {})) {
       if (!BODIES.has(body)) continue;

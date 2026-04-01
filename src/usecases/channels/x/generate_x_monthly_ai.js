@@ -7,18 +7,10 @@ const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain
 const { listWithOrb } = require("../../../domain/aspect_selection");
 const { normalizeBodyKey } = require("../../../domain/canonical");
 const { aspectInfo, signJa } = require("../../../presenters/format/format/common");
+const { CORE_PLANETS, DEEP_BODIES } = require("../../../domain/astro/constants");
+const { bodyLabelJa } = require("../../../presenters/shared/text/tokens");
 const { toDateLocalJST } = require("../../../utils/time_utils");
 const { validateXAiText } = require("./x_ai_common");
-
-function bodyLabelJa(dict, key) {
-  if (!key) return "";
-  const k = String(key).toLowerCase();
-  return (
-    dict?.PLANETS_V2?.bodies?.[k]?.label_ja ||
-    dict?.POINTS_V1?.points?.[k]?.label_ja ||
-    k
-  );
-}
 
 function formatMonthLabel(dateLocal) {
   const [y, m] = String(dateLocal || "").split("-");
@@ -28,10 +20,8 @@ function formatMonthLabel(dateLocal) {
 
 function buildMonthlyPoints({ story, dict, max = 3, resonanceMode }) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const coreBodies = new Set([
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ]);
-  const deepBodies = new Set(["lilith", "chiron"]);
+  const coreBodies = new Set(CORE_PLANETS);
+  const deepBodies = new Set(DEEP_BODIES);
   const mode = resonanceMode || story?.meta?.resonance_mode || "core";
   const all = listWithOrb(skyAll);
   const corePool = all.filter((row) => {

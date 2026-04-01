@@ -4,14 +4,12 @@ const { createChatCompletion } = require("../../../integrations/openai/openai_cl
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../content/prompts/sora/sora_ai_prompts");
 const { X_SORA_USER_GUIDE } = require("../../../content/prompts/sns/x/x_sora_prompts");
 const { signJa } = require("../../../presenters/format/format/common");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { generateXAiWithRetry, fallbackFactory } = require("./x_ai_common");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim } = require("../../../utils/text_normalize");
 
 function buildElementCount(story) {
-  const counts = story?.public?.sky_strata?.element_count || story?.meta?.sky_strata?.element_count || {};
+  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
   return {
     fire: Number(counts.fire || 0),
     earth: Number(counts.earth || 0),
@@ -21,7 +19,7 @@ function buildElementCount(story) {
 }
 
 function buildModalityCount(story) {
-  const counts = story?.public?.sky_strata?.modality_count || story?.meta?.sky_strata?.modality_count || {};
+  const counts = story?.meta?.modality_count || story?.meta?.sky_strata?.modality_count || story?.public?.sky_strata?.modality_count || {};
   return {
     cardinal: Number(counts.cardinal || 0),
     fixed: Number(counts.fixed || 0),
@@ -39,10 +37,8 @@ function buildSunMoonLines({ story, dict }) {
 }
 
 function buildTransitSigns({ story, dict }) {
-  const transit = story?.public?.transit_signs || {};
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ];
+  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
+  const bodyOrder = CORE_PLANETS;
   const out = {};
   bodyOrder.forEach((k) => {
     const signKey = transit?.[k]?.sign_key || "";
@@ -62,8 +58,8 @@ function buildXSoraPrompt({ story, dict }) {
     X_SORA_USER_GUIDE,
     "",
     "INPUT:",
-    `SUN_SIGN: ${safeText(sun)}`,
-    `MOON_SIGN: ${safeText(moon)}`,
+    `SUN_SIGN: ${safeTrim(sun)}`,
+    `MOON_SIGN: ${safeTrim(moon)}`,
     `TRANSIT_SIGNS: ${JSON.stringify(transitSigns)}`,
     `SKY_STRATA.element_count: ${JSON.stringify(elementCount)}`,
     `SKY_STRATA.modality_count: ${JSON.stringify(modalityCount)}`,

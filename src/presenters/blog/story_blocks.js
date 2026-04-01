@@ -19,23 +19,11 @@ const {
   signIndexFromKey,
   houseNumberForSignIndex,
 } = require("../../domain/astro_compute");
+const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 
-const BODY_ORDER = [
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto",
-  "lilith",
-  "chiron",
-];
+const BODY_ORDER = EXTENDED_PLANETS;
 
-const RESONANCE_EXCLUDE_BODIES = new Set(["lilith", "chiron"]);
+const RESONANCE_EXCLUDE_BODIES = new Set(DEEP_BODIES);
 
 function aspectMeta(typeRaw, deg) {
   const key = normalizeAspectKey(typeRaw, deg);

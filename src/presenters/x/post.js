@@ -10,23 +10,22 @@ const { normalizeBodyKey } = require("../../domain/canonical");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo, formatElementModalityLines } = require("../format/format/common");
 const { formatDateYmdHm, calcTransitLon, toIsoAtJstNoon } = require("../../domain/astro_compute");
 const { findTransitWindowInRange } = require("../../domain/aspect_proximity");
-const { toDateLocalJST } = require("../../utils/time_utils");
-const { pickPrimaryResonanceAspect } = require("../../usecases/channels/x/generate_x_resonance_ai");
+const { toDateLocalJST, formatJstYmd } = require("../../utils/time_utils");
+const { joinLines } = require("../../utils/text_format");
+const { toHashtag } = require("../../utils/hashtag_utils");
+const {
+  CORE_PLANETS,
+  EXTENDED_PLANETS,
+  PERSONAL_PLANETS,
+  SOCIAL_PLANETS,
+  OUTER_PLANETS,
+} = require("../../domain/astro/constants");
+const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
 const { detectMoonEvent } = require("../../usecases/channels/x/generate_x_moon_event_ai");
 const { buildMonthlyContext } = require("../../usecases/channels/x/generate_x_monthly_ai");
 const { buildNext30DaysContext } = require("../../usecases/channels/x/generate_x_next_30_days_ai");
 
 const SEP = "────────";
-
-function joinLines(lines = []) {
-  return lines.filter((v) => v !== undefined && v !== null).join("\n").trim();
-}
-
-function formatJstYmd(date) {
-  const { toDateLocalJST } = require("../../utils/time_utils");
-  const ymd = (date instanceof Date && !Number.isNaN(date.getTime())) ? toDateLocalJST(date) : "";
-  return ymd ? ymd.replace(/-/g, ".") : "";
-}
 
 function formatRangeShort(start, end) {
   if (!(start instanceof Date) || Number.isNaN(start.getTime())) return "";
@@ -99,9 +98,9 @@ function buildResonanceSummaryLines(story, dict) {
   const aspectList = Array.from(aspectWeights.keys());
   const orbLimit = 3;
 
-  const personal = new Set(["sun","moon","mercury","venus","mars"]);
-  const social = new Set(["jupiter","saturn"]);
-  const outer = new Set(["uranus","neptune","pluto"]);
+  const personal = new Set(PERSONAL_PLANETS);
+  const social = new Set(SOCIAL_PLANETS);
+  const outer = new Set(OUTER_PLANETS);
 
   const classOf = (k) => {
     if (outer.has(k)) return "outer";
@@ -131,7 +130,7 @@ function buildResonanceSummaryLines(story, dict) {
   const bounds = monthBoundsFromKey(monthKey);
   if (!bounds) return [];
 
-  const bodyList = ["sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto"];
+  const bodyList = CORE_PLANETS;
 
   const scanWindow = (aKey, bKey, aspectDeg) => findTransitWindowInRange({
     kind: "transit-transit",
@@ -198,16 +197,6 @@ function buildResonanceSummaryLines(story, dict) {
   return lines;
 }
 
-function toHashtag(raw) {
-  const t = String(raw || "")
-    .replace(/[#＃]/g, "")
-    .replace(/[｜|]/g, "")
-    .replace(/\s+/g, "")
-    .trim();
-  if (!t) return "";
-  return `#${t}`;
-}
-
 function buildMoonEventTags({ kind, signJa, specialName, moonName }) {
   const kindLabel = kind === "new" ? "新月" : "満月";
   const tags = [];
@@ -228,9 +217,7 @@ function buildMoonEventTags({ kind, signJa, specialName, moonName }) {
 function pickDominantSignLabel(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
   const transitSigns = story?.public?.transit_signs || {};
-  const bodyOrder = [
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ];
+  const bodyOrder = CORE_PLANETS;
 
   const counts = {};
   bodyOrder.forEach((key) => {
@@ -279,13 +266,7 @@ function buildMainLogLines(story, deps = {}) {
   const pub = story?.public || {};
   const transitSigns = pub.transit_signs || {};
 
-  const bodyOrder = includePoints
-    ? [
-      "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto","lilith","chiron",
-    ]
-    : [
-      "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-    ];
+  const bodyOrder = includePoints ? EXTENDED_PLANETS : CORE_PLANETS;
 
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 

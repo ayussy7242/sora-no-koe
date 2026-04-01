@@ -5,10 +5,7 @@ const { renderSoraLine } = require("../../../presenters/line/sora");
 const { renderDistributionLine } = require("../../../presenters/line/distribution");
 const { SPEC } = require("../../../config/sora_spec");
 const env = require("../../../config/env");
-
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
+const { formatDateLabel } = require("../../../utils/time_utils");
 
 async function buildDailyLineMessage({ story, dict, isPaid500, deepMode } = {}) {
   if (!story) throw new Error("buildDailyLineMessage: story required");

@@ -5,6 +5,8 @@ const { IG_TOKENS } = require("../../tokens/ig_tokens");
 const { fontFaceCss } = require("../../assets/ig_fonts");
 const { buildSpaceBackground } = require("../../../../shared/space_background");
 const { resolveColors } = require("../../theme/ig_theme");
+const { formatDateLabel } = require("../../../../../utils/time_utils");
+const { escapeXml } = require("../../../../../utils/xml_utils");
 
 const CANVAS = {
   width: 1080,
@@ -12,19 +14,6 @@ const CANVAS = {
 };
 
 const TOK = IG_TOKENS;
-
-function escapeXml(text) {
-  return String(text || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function formatDateLabel(dateLocal) {
-  return String(dateLocal || "").replace(/-/g, ".");
-}
 
 function wrapLines(text, maxChars, maxLines) {
   const raw = String(text || "");

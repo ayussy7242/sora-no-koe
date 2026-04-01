@@ -1,6 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../../domain/canonical");
+const { bodyLabelJa } = require("../shared/text/tokens");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
 
 function safeNumber(x) {
@@ -13,16 +14,6 @@ function formatIsoDate(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10).replace(/-/g, ".");
-}
-
-function bodyLabelJa(dict, key) {
-  if (!key) return "";
-  const k = String(key).toLowerCase();
-  return (
-    dict?.PLANETS_V2?.bodies?.[k]?.label_ja ||
-    dict?.POINTS_V1?.points?.[k]?.label_ja ||
-    k
-  );
 }
 
 function bodyWithSignLine(dict, key, signLabel) {

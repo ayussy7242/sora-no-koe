@@ -11,68 +11,14 @@ const { buildTodayMoonInfo, findNextMoonSignChangeDetailed } = require("../../..
 const { formatDateYmdHm } = require("../../../../domain/astro");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { pickPreferredResonanceAspect } = require("../../../../domain/resonance");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("../ai_utils");
-
-function safeText(x) {
-  return String(x || "").trim();
-}
+const { safeTrim, normalizeMultilineText } = require("../../../../utils/text_normalize");
 
 function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function pickPreferredResonanceAspect(story, opts = {}) {
-  const preferOutput = opts.preferOutput !== false;
-  const igResonance = preferOutput ? story?.outputs?.ig?.source?.resonance_aspect : null;
-  if (igResonance) return igResonance;
-  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const pool = [...skyTop, ...skyAll];
-  if (!pool.length) return null;
-
-  const coreBodies = new Set([
-    "sun","moon","mercury","venus","mars","jupiter","saturn","uranus","neptune","pluto",
-  ]);
-  const deepBodies = new Set(["lilith", "chiron"]);
-  const resonanceMode = opts.resonanceMode || story?.meta?.resonance_mode || "core";
-
-  const corePool = pool.filter((row) => {
-    const aKey = String(row?.a || "").toLowerCase();
-    const bKey = String(row?.b || "").toLowerCase();
-    return coreBodies.has(aKey) && coreBodies.has(bKey);
-  });
-  const deepPool = pool.filter((row) => {
-    const aKey = String(row?.a || "").toLowerCase();
-    const bKey = String(row?.b || "").toLowerCase();
-    return deepBodies.has(aKey) || deepBodies.has(bKey);
-  });
-  const useDeep = resonanceMode === "deep";
-  const targetPool = useDeep
-    ? (deepPool.length ? deepPool : corePool)
-    : (corePool.length ? corePool : deepPool);
-  if (!targetPool.length) return null;
-
-  const withinOne = targetPool
-    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
-    .filter((r) => Number.isFinite(r.orb) && r.orb <= 1.0);
-
-  const coreHits = withinOne;
-  if (coreHits.length) {
-    coreHits.sort((a, b) => a.orb - b.orb);
-    return coreHits[0].row;
-  }
-
-  const sortedCore = targetPool
-    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
-    .filter((r) => Number.isFinite(r.orb))
-    .sort((a, b) => a.orb - b.orb);
-  return sortedCore[0]?.row || null;
+  return normalizeMultilineText(text);
 }
 
 function buildAspectInput({ dict, aspect } = {}) {
@@ -107,9 +53,9 @@ function buildTodayPrompt({ moonSign, phaseLabel, sunSign }) {
     SORA_AI_USER_GUIDE_IG_STORY_TODAY,
     "",
     "INPUT:",
-    `MOON_SIGN: ${safeText(moonSign)}`,
-    `PHASE_LABEL: ${safeText(phaseLabel)}`,
-    `SUN_SIGN: ${safeText(sunSign)}`,
+    `MOON_SIGN: ${safeTrim(moonSign)}`,
+    `PHASE_LABEL: ${safeTrim(phaseLabel)}`,
+    `SUN_SIGN: ${safeTrim(sunSign)}`,
   ].join("\n");
 }
 
@@ -120,23 +66,23 @@ function buildResonancePrompt({ aspectInput, nowAspectInput, nowMoonSign, nowPha
     SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
     "",
     "INPUT:",
-    `ASPECT: ${safeText(a.aspectLabel)}`,
-    `A_BODY: ${safeText(a.aLabel)}`,
-    `B_BODY: ${safeText(a.bLabel)}`,
-    `A_SIGN: ${safeText(a.aSign)}`,
-    `B_SIGN: ${safeText(a.bSign)}`,
+    `ASPECT: ${safeTrim(a.aspectLabel)}`,
+    `A_BODY: ${safeTrim(a.aLabel)}`,
+    `B_BODY: ${safeTrim(a.bLabel)}`,
+    `A_SIGN: ${safeTrim(a.aSign)}`,
+    `B_SIGN: ${safeTrim(a.bSign)}`,
     `A_HOUSE: `,
     `B_HOUSE: `,
     `ORB: ${Number.isFinite(Number(a.orb)) ? Number(a.orb).toFixed(2) : ""}`,
     "",
     "NOW_INPUT:",
-    `NOW_MOON_SIGN: ${safeText(nowMoonSign)}`,
-    `NOW_PHASE_LABEL: ${safeText(nowPhaseLabel)}`,
-    `NOW_ASPECT: ${safeText(n.aspectLabel)}`,
-    `NOW_A_BODY: ${safeText(n.aLabel)}`,
-    `NOW_B_BODY: ${safeText(n.bLabel)}`,
-    `NOW_A_SIGN: ${safeText(n.aSign)}`,
-    `NOW_B_SIGN: ${safeText(n.bSign)}`,
+    `NOW_MOON_SIGN: ${safeTrim(nowMoonSign)}`,
+    `NOW_PHASE_LABEL: ${safeTrim(nowPhaseLabel)}`,
+    `NOW_ASPECT: ${safeTrim(n.aspectLabel)}`,
+    `NOW_A_BODY: ${safeTrim(n.aLabel)}`,
+    `NOW_B_BODY: ${safeTrim(n.bLabel)}`,
+    `NOW_A_SIGN: ${safeTrim(n.aSign)}`,
+    `NOW_B_SIGN: ${safeTrim(n.bSign)}`,
     `NOW_A_HOUSE: `,
     `NOW_B_HOUSE: `,
     `NOW_ORB: ${Number.isFinite(Number(n.orb)) ? Number(n.orb).toFixed(2) : ""}`,
@@ -149,13 +95,13 @@ function buildTomorrowPrompt({ nextMoonSign, nextPhaseLabel, nextAspectInput }) 
     SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
     "",
     "INPUT:",
-    `NEXT_MOON_SIGN: ${safeText(nextMoonSign)}`,
-    `NEXT_PHASE_LABEL: ${safeText(nextPhaseLabel)}`,
-    `NEXT_ASPECT: ${safeText(a.aspectLabel)}`,
-    `NEXT_A_BODY: ${safeText(a.aLabel)}`,
-    `NEXT_B_BODY: ${safeText(a.bLabel)}`,
-    `NEXT_A_SIGN: ${safeText(a.aSign)}`,
-    `NEXT_B_SIGN: ${safeText(a.bSign)}`,
+    `NEXT_MOON_SIGN: ${safeTrim(nextMoonSign)}`,
+    `NEXT_PHASE_LABEL: ${safeTrim(nextPhaseLabel)}`,
+    `NEXT_ASPECT: ${safeTrim(a.aspectLabel)}`,
+    `NEXT_A_BODY: ${safeTrim(a.aLabel)}`,
+    `NEXT_B_BODY: ${safeTrim(a.bLabel)}`,
+    `NEXT_A_SIGN: ${safeTrim(a.aSign)}`,
+    `NEXT_B_SIGN: ${safeTrim(a.bSign)}`,
   ].join("\n");
 }
 
@@ -172,7 +118,7 @@ function formatIllumination(value) {
 function formatAspectLine({ label, deg }) {
   if (!label && !Number.isFinite(Number(deg))) return "—";
   const degText = Number.isFinite(Number(deg)) ? `${Math.round(Number(deg))}°` : "";
-  return [safeText(label), degText].filter(Boolean).join(" ");
+  return [safeTrim(label), degText].filter(Boolean).join(" ");
 }
 
 function buildResonanceAspectLine({ aspectInput } = {}) {
@@ -185,8 +131,8 @@ function buildResonanceAspectLine({ aspectInput } = {}) {
 
 function buildTodayDataLines({ moonSign, phaseLabel, moonAge, illumination, nextMove } = {}) {
   const lines = [
-    `月相: ${safeText(phaseLabel) || "—"}`,
-    `月の星座: ${safeText(moonSign) || "—"}`,
+    `月相: ${safeTrim(phaseLabel) || "—"}`,
+    `月の星座: ${safeTrim(moonSign) || "—"}`,
     `月齢: ${formatMoonAge(moonAge)}`,
     `照度: ${formatIllumination(illumination)}`,
   ];
@@ -209,7 +155,7 @@ function buildResonanceDataLines({ aspectInput, nowAspectInput } = {}) {
 function buildResonanceSignature({ aspectInput } = {}) {
   const a = aspectInput || {};
   if (!a?.aLabel || !a?.bLabel || !a?.aSign || !a?.bSign) return "";
-  return `${safeText(a.aSign)}の${safeText(a.aLabel)} × ${safeText(a.bSign)}の${safeText(a.bLabel)}`;
+  return `${safeTrim(a.aSign)}の${safeTrim(a.aLabel)} × ${safeTrim(a.bSign)}の${safeTrim(a.bLabel)}`;
 }
 
 function injectResonanceSignature(text, { aspectInput } = {}) {
@@ -219,8 +165,8 @@ function injectResonanceSignature(text, { aspectInput } = {}) {
   if (!signature && !aspectLine) return t;
 
   const a = aspectInput || {};
-  const plain = a?.aLabel && a?.bLabel ? `${safeText(a.aLabel)} × ${safeText(a.bLabel)}` : "";
-  const plainNoSpace = a?.aLabel && a?.bLabel ? `${safeText(a.aLabel)}×${safeText(a.bLabel)}` : "";
+  const plain = a?.aLabel && a?.bLabel ? `${safeTrim(a.aLabel)} × ${safeTrim(a.bLabel)}` : "";
+  const plainNoSpace = a?.aLabel && a?.bLabel ? `${safeTrim(a.aLabel)}×${safeTrim(a.bLabel)}` : "";
   let body = t;
   if (signature) {
     body = body.replace(plain, signature).replace(plainNoSpace, signature);
@@ -239,14 +185,14 @@ function injectResonanceSignature(text, { aspectInput } = {}) {
 }
 
 function buildTomorrowDataLines({ nextStory, nextAspectInput, dict } = {}) {
-  const sunSign = safeText(nextStory?.public?.transit_signs?.sun?.sign_ja);
-  const moonSign = safeText(nextStory?.public?.transit_signs?.moon?.sign_ja);
+  const sunSign = safeTrim(nextStory?.public?.transit_signs?.sun?.sign_ja);
+  const moonSign = safeTrim(nextStory?.public?.transit_signs?.moon?.sign_ja);
   const aspect = nextAspectInput || {};
   const aspectLine = [
-    safeText(aspect.aLabel),
-    safeText(aspect.bLabel),
+    safeTrim(aspect.aLabel),
+    safeTrim(aspect.bLabel),
   ].filter(Boolean).length
-    ? `${safeText(aspect.aLabel)} × ${safeText(aspect.bLabel)}（${formatAspectLine({
+    ? `${safeTrim(aspect.aLabel)} × ${safeTrim(aspect.bLabel)}（${formatAspectLine({
         label: aspect.aspectLabel,
         deg: aspect.aspectDeg,
       })}）`
@@ -313,8 +259,8 @@ async function generateTextWithRetry({
 }
 
 function fallbackToday({ moonSign, phaseLabel } = {}) {
-  const sign = safeText(moonSign) || "—";
-  const phase = safeText(phaseLabel) || "静かな月相";
+  const sign = safeTrim(moonSign) || "—";
+  const phase = safeTrim(phaseLabel) || "静かな月相";
   return `今日の空、どうでしたか？\n${sign}の月と${phase}の輪郭が残ります。\n静かな余韻が空に置かれます。`;
 }
 
@@ -328,15 +274,15 @@ function fallbackResonance({ aspectInput, nowAspectInput, nowMoonSign, nowPhaseL
   const nowB = nowAspectInput?.bLabel || "天体";
   const nowLabel = nowAspectInput?.aspectLabel || "接続";
   const nowDeg = Number.isFinite(Number(nowAspectInput?.aspectDeg)) ? `${Math.round(Number(nowAspectInput.aspectDeg))}°` : "";
-  const nowSign = safeText(nowMoonSign) || "—";
-  const nowPhase = safeText(nowPhaseLabel) || "";
+  const nowSign = safeTrim(nowMoonSign) || "—";
+  const nowPhase = safeTrim(nowPhaseLabel) || "";
   const nowMoonText = nowPhase ? `${nowSign}の月、${nowPhase}` : `${nowSign}の月`;
   return `${a}×${b}の接続が${label}${deg}で近づきます。\n空の質感が静かに濃くなる配置です。\n今は${nowMoonText}、${nowA}×${nowB}の${nowLabel}${nowDeg}。\n何か感じた人いる？`;
 }
 
 function fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput } = {}) {
-  const sign = safeText(nextMoonSign) || "—";
-  const phase = safeText(nextPhaseLabel) || "月相";
+  const sign = safeTrim(nextMoonSign) || "—";
+  const phase = safeTrim(nextPhaseLabel) || "月相";
   const a = nextAspectInput?.aLabel || "";
   const b = nextAspectInput?.bLabel || "";
   const aspect = a && b ? `${a}×${b}` : "ひとつの接続";
@@ -360,9 +306,9 @@ async function generateIgStoryTexts({
   const useDict = dict || require("../../../../content/dict");
 
   const info = buildTodayMoonInfo({ asOfISO, story, dict: useDict });
-  const moonSign = safeText(info?.moonSign);
-  const phaseLabel = safeText(info?.phase?.name);
-  const sunSign = safeText(story?.public?.transit_signs?.sun?.sign_ja);
+  const moonSign = safeTrim(info?.moonSign);
+  const phaseLabel = safeTrim(info?.phase?.name);
+  const sunSign = safeTrim(story?.public?.transit_signs?.sun?.sign_ja);
 
   const todayPrompt = buildTodayPrompt({ moonSign, phaseLabel, sunSign });
   const todayText = await generateTextWithRetry({
@@ -378,8 +324,8 @@ async function generateIgStoryTexts({
   const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
   const nowBaseStory = nowStory || story;
   const nowInfo = buildTodayMoonInfo({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
-  const nowMoonSign = safeText(nowInfo?.moonSign);
-  const nowPhaseLabel = safeText(nowInfo?.phase?.name);
+  const nowMoonSign = safeTrim(nowInfo?.moonSign);
+  const nowPhaseLabel = safeTrim(nowInfo?.phase?.name);
   const nowAspect = pickPreferredResonanceAspect(nowBaseStory, { resonanceMode, preferOutput: false });
   const nowAspectInput = buildAspectInput({ dict: useDict, aspect: nowAspect });
   const resonancePrompt = buildResonancePrompt({
@@ -399,8 +345,8 @@ async function generateIgStoryTexts({
 
   const nextStory = tomorrowStory || story;
   const nextInfo = buildTodayMoonInfo({ asOfISO: asOfTomorrowISO, story: nextStory, dict: useDict });
-  const nextMoonSign = safeText(nextInfo?.moonSign);
-  const nextPhaseLabel = safeText(nextInfo?.phase?.name);
+  const nextMoonSign = safeTrim(nextInfo?.moonSign);
+  const nextPhaseLabel = safeTrim(nextInfo?.phase?.name);
   const nextAspect = pickPreferredResonanceAspect(nextStory, { resonanceMode });
   const nextAspectInput = buildAspectInput({ dict: useDict, aspect: nextAspect });
   const tomorrowPrompt = buildTomorrowPrompt({

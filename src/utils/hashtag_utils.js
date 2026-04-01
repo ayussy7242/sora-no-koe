@@ -4,6 +4,16 @@ function countChars(text) {
   return Array.from(String(text || "")).length;
 }
 
+function toHashtag(raw) {
+  const t = String(raw || "")
+    .replace(/[#＃]/g, "")
+    .replace(/[｜|]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  if (!t) return "";
+  return `#${t}`;
+}
+
 function splitTrailingHashtags(text) {
   const raw = String(text || "");
   const trimmed = raw.trim();
@@ -58,6 +68,7 @@ function trimTrailingHashtagsToMaxChars(text, maxChars, opts = {}) {
 
 module.exports = {
   countChars,
+  toHashtag,
   splitTrailingHashtags,
   joinBodyAndTags,
   trimTrailingHashtagsToMaxChars,

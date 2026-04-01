@@ -1,7 +1,10 @@
 "use strict";
 
+const { formatDateLabel: formatDateLabelRaw } = require("../../../utils/time_utils");
+const { joinLines } = require("../../../utils/text_format");
+
 function formatDateLabel(story) {
-  return String(story?.meta?.date_local || "").replace(/-/g, ".");
+  return formatDateLabelRaw(story?.meta?.date_local || "");
 }
 
 function getMoonSignJa(story, publicSignJa) {
@@ -12,7 +15,7 @@ function getMoonSignJa(story, publicSignJa) {
 }
 
 function joinAndTrimLines(lines) {
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return joinLines(lines, { trim: true, collapseBlank: true, filterNull: false });
 }
 
 module.exports = { formatDateLabel, getMoonSignJa, joinAndTrimLines };
