@@ -19,13 +19,13 @@ function read(relPath) {
 
 test("IG/X AI generators route validation through runAiTextPipeline", () => {
   const files = [
-    "src/usecases/channels/ig/ig_carousel_caption_ai.js",
-    "src/usecases/channels/ig/ig_moon_ai.js",
-    "src/usecases/channels/ig/ig_moon_event_ai.js",
-    "src/usecases/channels/ig/ig_observation_ai.js",
-    "src/usecases/channels/ig/ig_resonance_ai.js",
-    "src/usecases/channels/ig/ig_sky_overview_ai.js",
-    "src/usecases/channels/ig/ig_tsukiji_structure_ai.js",
+    "src/usecases/channels/ig/carousel_caption.js",
+    "src/usecases/channels/ig/moon.js",
+    "src/usecases/channels/ig/moon_event.js",
+    "src/usecases/channels/ig/observation.js",
+    "src/usecases/channels/ig/resonance.js",
+    "src/usecases/channels/ig/sky_overview.js",
+    "src/usecases/channels/ig/tsukiji_structure.js",
     "src/usecases/channels/ig/story/generate_texts.js",
     "src/usecases/channels/x/x_ai_common.js",
   ];
@@ -41,13 +41,13 @@ test("IG/X AI generators route validation through runAiTextPipeline", () => {
 
 test("IG AI generators reference PRESETS for validation rules", () => {
   const files = [
-    "src/usecases/channels/ig/ig_carousel_caption_ai.js",
-    "src/usecases/channels/ig/ig_moon_ai.js",
-    "src/usecases/channels/ig/ig_moon_event_ai.js",
-    "src/usecases/channels/ig/ig_observation_ai.js",
-    "src/usecases/channels/ig/ig_resonance_ai.js",
-    "src/usecases/channels/ig/ig_sky_overview_ai.js",
-    "src/usecases/channels/ig/ig_tsukiji_structure_ai.js",
+    "src/usecases/channels/ig/carousel_caption.js",
+    "src/usecases/channels/ig/moon.js",
+    "src/usecases/channels/ig/moon_event.js",
+    "src/usecases/channels/ig/observation.js",
+    "src/usecases/channels/ig/resonance.js",
+    "src/usecases/channels/ig/sky_overview.js",
+    "src/usecases/channels/ig/tsukiji_structure.js",
     "src/usecases/channels/ig/story/generate_texts.js",
   ];
 

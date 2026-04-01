@@ -17,22 +17,22 @@ const { signGlyph } = require("../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../domain/moon_phase");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time_utils");
 const { pickPreferredResonanceAspect } = require("../../domain/resonance");
-const { generateIgObservationText } = require("../../usecases/channels/ig/ig_observation_ai");
-const { generateIgResonanceText } = require("../../usecases/channels/ig/ig_resonance_ai");
-const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/ig_tsukiji_structure_ai");
-const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/ig_sky_overview_ai");
-const { generateIgMoonText } = require("../../usecases/channels/ig/ig_moon_ai");
+const { generateIgObservationText } = require("../../usecases/channels/ig/observation");
+const { generateIgResonanceText } = require("../../usecases/channels/ig/resonance");
+const { generateIgTsukijiStructureText } = require("../../usecases/channels/ig/tsukiji_structure");
+const { generateIgSkyOverviewText } = require("../../usecases/channels/ig/sky_overview");
+const { generateIgMoonText } = require("../../usecases/channels/ig/moon");
 const {
   generateIgMoonEventPlacementText,
   generateIgMoonEventSunMoonText,
   generateIgMoonEventResonanceText,
   generateIgMoonEventCaptionText,
   generateIgMoonEventAirText,
-} = require("../../usecases/channels/ig/ig_moon_event_ai");
+} = require("../../usecases/channels/ig/moon_event");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
-} = require("../../usecases/channels/ig/ig_carousel_caption_ai");
+} = require("../../usecases/channels/ig/carousel_caption");
 const { ensureIgOutputs } = require("../../usecases/story/output_helpers");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
