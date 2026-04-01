@@ -1,42 +1,17 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const { renderInstagramCarousel, formatDateLabel } = require("../../engine/renderers/instagram/ig_carousel");
-const { pickObservationLine } = require("../../presenters/format/ig_caption");
-const { aspectInfo } = require("../../presenters/format/format/common");
+const { formatDateLabel } = require("../../../engine/renderers/instagram/ig_carousel");
+const { pickObservationLine } = require("../../../presenters/format/ig_caption");
+const { aspectInfo } = require("../../../presenters/format/format/common");
 const {
   buildMoonStatus,
   formatMoonEventDisplay,
   moonSignAtIso,
-  buildNextMoonEvents,
-  orderedMoonEvents,
-} = require("../../domain/moon");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro/compute");
-const { signGlyph } = require("../../presenters/shared/text/tokens");
-const { selectNextMajorPhase } = require("../../domain/moon/phase_select");
-const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
-
-function resolveBackgroundCache(env = {}) {
-  const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
-  const enabled = !["0", "false", "off", "no"].includes(enabledRaw);
-  if (!enabled) return null;
-  const forceRaw = String(env.IG_BG_CACHE_REFRESH ?? "false").toLowerCase();
-  const force = ["1", "true", "yes", "on"].includes(forceRaw);
-  const dir = env.IG_BG_CACHE_DIR || path.join(process.cwd(), "tmp", "ig", "bg_cache");
-  return { dir, force };
-}
-
-function buildAspectKey(aspect, { includeOrb = false } = {}) {
-  if (!aspect) return "";
-  const a = String(aspect?.a || "").toLowerCase();
-  const b = String(aspect?.b || "").toLowerCase();
-  const deg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : "";
-  const orb = includeOrb && Number.isFinite(Number(aspect?.orb_deg))
-    ? Number(aspect.orb_deg).toFixed(2)
-    : "";
-  return [a, b, deg, orb].filter(Boolean).join("|");
-}
+} = require("../../../domain/moon");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
+const { signGlyph } = require("../../../presenters/shared/text/tokens");
+const { selectNextMajorPhase } = require("../../../domain/moon/phase_select");
+const { pickMoonResonanceAspect } = require("./moon_event");
 
 function planetLine({ glyph, name, sign }) {
   if (!glyph && !name) return "";
@@ -75,115 +50,9 @@ function plainMoonSymbol(kind) {
   return "◑";
 }
 
-function addDaysToDateLocalJST(dateLocal, offsetDays) {
-  if (!isYYYYMMDD(dateLocal)) return dateLocal;
-  const base = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(base.getTime())) return dateLocal;
-  const shiftMs = Number(offsetDays) * 86400000;
-  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
-  const shifted = new Date(base.getTime() + shiftMs);
-  return toDateLocalJST(shifted);
-}
-
 function safeCount(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
-}
-
-function toBool(v, fallback = false) {
-  if (v === true) return true;
-  if (v === false) return false;
-  if (typeof v !== "string") return fallback;
-  const t = v.trim().toLowerCase();
-  if (!t) return fallback;
-  return ["1", "true", "yes", "on"].includes(t);
-}
-
-function ensureDir(dir) {
-  if (!dir) return;
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
-  if (!Array.isArray(buffers) || !buffers.length) return [];
-  ensureDir(outDir);
-  const paths = [];
-  for (let i = 0; i < buffers.length; i++) {
-    const filename = `${prefix}-${i + 1}.png`;
-    const full = path.join(outDir, filename);
-    fs.writeFileSync(full, buffers[i]);
-    paths.push(full);
-  }
-  return paths;
-}
-
-function writeLocalJson({ data, outDir, filename = "ig_post.json" } = {}) {
-  if (!outDir) return null;
-  ensureDir(outDir);
-  const full = path.join(outDir, filename);
-  fs.writeFileSync(full, JSON.stringify(data, null, 2), "utf8");
-  return full;
-}
-
-function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eventKind = "" }) {
-  const events = buildNextMoonEvents(asOfISO, dict);
-  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
-  const normalizedKind = String(eventKind || "").toLowerCase();
-
-  if (normalizedKind === "new" || normalizedKind === "full") {
-    const picked = events?.[normalizedKind];
-    if (!picked?.date) return null;
-    if (forceNext) return formatMoonEventDisplay(picked);
-    if (!dateLocal) return null;
-    return toDateLocalJST(picked.date) === dateLocal ? formatMoonEventDisplay(picked) : null;
-  }
-
-  if (dateLocal) {
-    for (const ev of candidates) {
-      const evDateLocal = toDateLocalJST(ev.date);
-      if (evDateLocal === dateLocal) {
-        return formatMoonEventDisplay(ev);
-      }
-    }
-  }
-
-  if (forceNext) {
-    const ordered = orderedMoonEvents(events);
-    if (ordered.length) return formatMoonEventDisplay(ordered[0]);
-  }
-
-  return null;
-}
-
-function resolveMoonEventSpaceConfig(event) {
-  if (!event || !event.kind) return null;
-  if (event.kind === "full") {
-    return {
-      starDensityScale: 0.38,
-      milkyIntensityScale: 0.6,
-      milkyThicknessScale: 0.75,
-      milkyDustScale: 0.6,
-      whiteMix: 0.45,
-      moonEventKind: "full",
-      moonEventStyle: "halo",
-      moonEventCenter: "center",
-      moonEventIntensity: 1.35,
-    };
-  }
-  if (event.kind === "new") {
-    return {
-      starDensityScale: 2.1,
-      milkyIntensityScale: 1.55,
-      milkyThicknessScale: 1.25,
-      milkyDustScale: 1.6,
-      whiteMix: 0.45,
-      moonEventKind: "new",
-      moonEventStyle: "eclipse",
-      moonEventCenter: "center",
-      moonEventIntensity: 1.15,
-    };
-  }
-  return null;
 }
 
 function formatElementCounts(elementCount = {}) {
@@ -284,30 +153,6 @@ function pickMoonAspect(story) {
     const aKey = String(row?.a || "").toLowerCase();
     const bKey = String(row?.b || "").toLowerCase();
     return aKey === "moon" || bKey === "moon";
-  });
-  if (!moonHits.length) return null;
-
-  const majors = new Set(["conjunction", "sextile", "square", "trine", "opposition"]);
-  const majorHits = moonHits.filter((row) => majors.has(normalizeAspectType(row?.type || row?.aspect)));
-  const target = majorHits.length ? majorHits : moonHits;
-  return target
-    .map((row) => ({ row, orb: Number(row?.orb_deg) }))
-    .filter((item) => Number.isFinite(item.orb))
-    .sort((a, b) => a.orb - b.orb)[0]?.row || target[0] || null;
-}
-
-function pickMoonResonanceAspect(story) {
-  const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const pool = [...skyTop, ...skyAll];
-  if (!pool.length) return null;
-
-  const moonHits = pool.filter((row) => {
-    const aKey = String(row?.a || "").toLowerCase();
-    const bKey = String(row?.b || "").toLowerCase();
-    if (!(aKey === "moon" || bKey === "moon")) return false;
-    const other = aKey === "moon" ? bKey : aKey;
-    return other && other !== "sun";
   });
   if (!moonHits.length) return null;
 
@@ -579,13 +424,6 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   };
 }
 
-function buildMoonEventCaption(event) {
-  if (!event) return "";
-  const line1 = event.line1 || event.label || event.phaseName || "";
-  const line2 = event.dateLabel || event.line2 || "";
-  return [line1, line2].filter(Boolean).join("\n").trim();
-}
-
 function signLabelEnFromKey(key) {
   if (!key) return "";
   const map = {
@@ -809,123 +647,16 @@ function buildMoonEventCarouselSlides({
   };
 }
 
-
-async function uploadCarouselSlides({
-  storage,
-  bucketName,
-  dateLocal,
-  buffers,
-  expiresDays = 7,
-} = {}) {
-  if (!storage) throw new Error("storage missing");
-  if (!bucketName) throw new Error("bucket missing");
-  if (!Array.isArray(buffers) || buffers.length === 0) throw new Error("buffers missing");
-
-  const bucket = storage.bucket(bucketName);
-  const urls = [];
-  const paths = [];
-  const expiresMs = Math.max(1, Number(expiresDays) || 7) * 24 * 60 * 60 * 1000;
-
-  for (let i = 0; i < buffers.length; i++) {
-    const index = i + 1;
-    const relPath = path.posix.join("ig", "carousel", String(dateLocal), `slide-${index}.png`);
-    const file = bucket.file(relPath);
-    await file.save(buffers[i], {
-      contentType: "image/png",
-      resumable: false,
-      metadata: { cacheControl: "private, max-age=0, no-transform" },
-    });
-    const [url] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + expiresMs,
-      version: "v4",
-    });
-    urls.push(url);
-    paths.push(relPath);
-  }
-
-  return { ok: true, urls, paths, bucket: bucketName };
-}
-
-async function uploadCarouselSlide({
-  storage,
-  bucketName,
-  dateLocal,
-  buffer,
-  index,
-  expiresDays = 7,
-} = {}) {
-  const t0 = Date.now();
-  if (!storage) throw new Error("storage missing");
-  if (!bucketName) throw new Error("bucket missing");
-  if (!buffer) throw new Error("buffer missing");
-  const bucket = storage.bucket(bucketName);
-  const expiresMs = Math.max(1, Number(expiresDays) || 7) * 24 * 60 * 60 * 1000;
-  const relPath = path.posix.join("ig", "carousel", String(dateLocal), `slide-${index}.png`);
-  const file = bucket.file(relPath);
-  await file.save(buffer, {
-    contentType: "image/png",
-    resumable: false,
-    metadata: { cacheControl: "private, max-age=0, no-transform" },
-  });
-  const [url] = await file.getSignedUrl({
-    action: "read",
-    expires: Date.now() + expiresMs,
-    version: "v4",
-  });
-  console.log("[cron/ig/post] upload_slide", {
-    index,
-    ms: Date.now() - t0,
-    bytes: buffer?.length || 0,
-  });
-  return { url, path: relPath };
-}
-
-async function renderAndUploadCarouselSlides({
-  storage,
-  bucketName,
-  dateLocal,
-  carousel,
-  expiresDays = 7,
-  backgroundCache = null,
-} = {}) {
-  if (!carousel) throw new Error("carousel missing");
-  const t0 = Date.now();
-  const urls = [];
-  const paths = [];
-  console.log("[cron/ig/post] render_start");
-  await renderInstagramCarousel({
-    ...carousel,
-    backgroundCache,
-    onSlide: async ({ index, buffer }) => {
-      const uploaded = await uploadCarouselSlide({
-        storage,
-        bucketName,
-        dateLocal,
-        buffer,
-        index: index + 1,
-        expiresDays,
-      });
-      urls.push(uploaded.url);
-      paths.push(uploaded.path);
-    },
-  });
-  console.log("[cron/ig/post] render_done", { ms: Date.now() - t0 });
-  return { ok: true, urls, paths, bucket: bucketName };
-}
-
 module.exports = {
-  resolveBackgroundCache,
-  buildAspectKey,
-  toBool,
-  writeLocalCarousel,
-  writeLocalJson,
-  detectMoonEventLocal,
-  resolveMoonEventSpaceConfig,
-  addDaysToDateLocalJST,
+  planetLine,
+  aspectLabelJa,
+  plainMoonSymbol,
+  formatElementCounts,
+  formatModeCounts,
+  pickAirFeel,
+  buildMoonAirSummary,
+  buildMoonPlacementObservation,
+  buildMoonSlide,
   buildCarouselSlides,
-  buildMoonEventCaption,
   buildMoonEventCarouselSlides,
-  pickMoonResonanceAspect,
-  renderAndUploadCarouselSlides,
 };

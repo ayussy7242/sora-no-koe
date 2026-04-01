@@ -1,36 +1,67 @@
 "use strict";
 
 const path = require("path");
-const { renderInstagramCarousel } = require("../../engine/renderers/instagram/ig_carousel");
-const { renderIGCaption } = require("../../presenters/format/ig_caption");
-const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
-const { pickPreferredResonanceAspect } = require("../../domain/resonance");
-const { generateIgDailyAiOutputs } = require("../../usecases/channels/instagram/ai/daily");
-const { generateIgMoonEventAiOutputs } = require("../../usecases/channels/instagram/ai/moon_event");
-const { buildPublicStorySnapshot } = require("../../usecases/story/store");
-const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
+const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
+const { renderIGCaption } = require("../../../presenters/format/ig_caption");
+const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
+const { pickPreferredResonanceAspect } = require("../../../domain/resonance");
+const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
+const { generateIgMoonEventAiOutputs } = require("../../../usecases/channels/instagram/ai/moon_event");
+const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const {
   createImageContainer,
   createCarouselContainer,
   publishMedia,
   waitForContainer,
-} = require("../../integrations/instagram/graph");
-const { createStorageClient } = require("../../utils/infra/gcs_storage");
+} = require("../../../integrations/instagram/graph");
+const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 const {
-  resolveBackgroundCache,
-  buildAspectKey,
-  toBool,
-  writeLocalCarousel,
-  writeLocalJson,
+  buildCarouselSlides,
+  buildMoonEventCarouselSlides,
+} = require("./slides");
+const {
+  addDaysToDateLocalJST,
   detectMoonEventLocal,
   resolveMoonEventSpaceConfig,
-  addDaysToDateLocalJST,
-  buildCarouselSlides,
   buildMoonEventCaption,
-  buildMoonEventCarouselSlides,
   pickMoonResonanceAspect,
+} = require("./moon_event");
+const {
+  writeLocalCarousel,
+  writeLocalJson,
   renderAndUploadCarouselSlides,
-} = require("./ig_post_helpers");
+} = require("./io");
+
+function resolveBackgroundCache(env = {}) {
+  const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
+  const enabled = !["0", "false", "off", "no"].includes(enabledRaw);
+  if (!enabled) return null;
+  const forceRaw = String(env.IG_BG_CACHE_REFRESH ?? "false").toLowerCase();
+  const force = ["1", "true", "yes", "on"].includes(forceRaw);
+  const dir = env.IG_BG_CACHE_DIR || path.join(process.cwd(), "tmp", "ig", "bg_cache");
+  return { dir, force };
+}
+
+function buildAspectKey(aspect, { includeOrb = false } = {}) {
+  if (!aspect) return "";
+  const a = String(aspect?.a || "").toLowerCase();
+  const b = String(aspect?.b || "").toLowerCase();
+  const deg = Number.isFinite(Number(aspect?.aspect_deg)) ? Number(aspect.aspect_deg) : "";
+  const orb = includeOrb && Number.isFinite(Number(aspect?.orb_deg))
+    ? Number(aspect.orb_deg).toFixed(2)
+    : "";
+  return [a, b, deg, orb].filter(Boolean).join("|");
+}
+
+function toBool(v, fallback = false) {
+  if (v === true) return true;
+  if (v === false) return false;
+  if (typeof v !== "string") return fallback;
+  const t = v.trim().toLowerCase();
+  if (!t) return fallback;
+  return ["1", "true", "yes", "on"].includes(t);
+}
 
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
@@ -40,7 +71,7 @@ async function runIgPost(deps, opts = {}) {
   const storageClient = await createStorageClient({ storage, env: env2 });
   const db = deps?.db;
   const admin = deps?.admin;
-  const dict = deps?.dict || require("../../content/dict");
+  const dict = deps?.dict || require("../../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
 
@@ -269,7 +300,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const storyService = deps?.storyService;
-  const dict = deps?.dict || require("../../content/dict");
+  const dict = deps?.dict || require("../../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
 
