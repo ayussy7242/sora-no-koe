@@ -115,7 +115,7 @@ const SORA_AI_USER_GUIDE_IG_MOON_EVENT_PLACEMENT = `
 形式:
 - 4〜6文
 - 1段落
-- 120〜180文字目安
+- 120〜140文字目安
 - 改行しない
 
 文章の流れ:
@@ -246,7 +246,7 @@ const SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR = `
 - 240〜300文字目安
 - 改行あり
 - 空行あり
-- 余白おおめ
+- 段落後は空行いれる
 
 文章の流れ:
 1) 今回の満月 / 新月の第一印象を書く
