@@ -10,6 +10,7 @@ const { buildHouseCounts, computeDominantSigns, computeDominantHouses, computePr
 const { generateRelationAiTexts } = require("./ai_generate");
 const { resolveDisplayNameFromUserDoc } = require("../../../utils/resolve_display_name");
 const { CORE_PLANETS } = require("../../../domain/astro/constants");
+const { createStorageClient } = require("../../../utils/gcs_storage");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",
@@ -558,6 +559,11 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     null;
 
   const urlExpireDays = Number(env?.RELATION_PDF_URL_EXPIRES_DAYS ?? 7);
+  let storageClientPromise = null;
+  const getStorageClient = async () => {
+    if (!storageClientPromise) storageClientPromise = createStorageClient({ storage, env });
+    return storageClientPromise;
+  };
 
   function nowServer() {
     return admin.firestore.FieldValue.serverTimestamp();
@@ -964,10 +970,11 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
   }
 
   async function getRelationPdfSignedUrl(pairKey, viewerId) {
-    if (!storage || !bucketName) return { ok: false, code: "storage_missing" };
+    const storageClient = await getStorageClient();
+    if (!storageClient || !bucketName) return { ok: false, code: "storage_missing" };
     const path = getRelationPdfPath(pairKey, viewerId);
     if (!path) return { ok: false, code: "path_invalid" };
-    const file = storage.bucket(bucketName).file(path);
+    const file = storageClient.bucket(bucketName).file(path);
     const [exists] = await file.exists();
     if (!exists) return { ok: false, code: "not_ready" };
     const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
@@ -984,10 +991,11 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
   }
 
   async function saveRelationPdfBuffer(pairKey, viewerId, buffer) {
-    if (!storage || !bucketName) return { ok: false, code: "storage_missing" };
+    const storageClient = await getStorageClient();
+    if (!storageClient || !bucketName) return { ok: false, code: "storage_missing" };
     const path = getRelationPdfPath(pairKey, viewerId);
     if (!path) return { ok: false, code: "path_invalid" };
-    const file = storage.bucket(bucketName).file(path);
+    const file = storageClient.bucket(bucketName).file(path);
     await file.save(buffer, {
       contentType: "application/pdf",
       resumable: false,

@@ -74,8 +74,9 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
   const bucketName = env?.GCS_BUCKET_BLUEPRINTS || null;
   const urlExpireDays = Number(env?.BLUEPRINT_URL_EXPIRES_DAYS || 7);
 
-  const bucket = bucketName ? storage.bucket(bucketName) : null;
-  const blueprintStorage = bucket ? createBlueprintLightStorage({ bucket, urlExpireDays }) : null;
+  const blueprintStorage = bucketName
+    ? createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays })
+    : null;
   const natalService = createNatalService({ db, norm360 });
   const allowRegenBg = env?.BLUEPRINT_BG_REGEN !== false;
 
@@ -87,7 +88,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
   async function getOrCreateSignedUrl({ lineUserId, variant = "print" }) {
     if (!lineUserId) return { ok: false, code: "missing_line_user" };
-    if (!bucketName || !bucket || !blueprintStorage) return { ok: false, code: "config_missing" };
+    if (!bucketName || !blueprintStorage) return { ok: false, code: "config_missing" };
 
     const manifest = getBlueprintLightManifest({ variant });
     const { pdfPath: filePath } = getBlueprintLightPaths(lineUserId, manifest.variant);
@@ -112,7 +113,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
   async function hasPdf({ lineUserId, variant = "print" }) {
     if (!lineUserId) return { ok: false, code: "missing_line_user" };
-    if (!bucketName || !bucket || !blueprintStorage) return { ok: false, code: "config_missing" };
+    if (!bucketName || !blueprintStorage) return { ok: false, code: "config_missing" };
     const result = await blueprintStorage.existsPdf(lineUserId, variant);
     return { ok: true, exists: !!result?.exists, filePath: result?.filePath || null };
   }
@@ -124,7 +125,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
     skipPdf = false,
   } = {}) {
     if (!lineUserId) throw new Error("lineUserId is required");
-    if (!bucketName || !bucket || !blueprintStorage) throw new Error("bucket not configured");
+    if (!bucketName || !blueprintStorage) throw new Error("bucket not configured");
 
     const manifest = getBlueprintLightManifest({ variant });
     const { pdfPath: filePath } = getBlueprintLightPaths(lineUserId, manifest.variant);
@@ -395,7 +396,7 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
 
   async function renderPdfFromStoredJson({ lineUserId, variant = "mobile", forceRegen = false } = {}) {
     if (!lineUserId) throw new Error("lineUserId is required");
-    if (!bucketName || !bucket || !blueprintStorage) throw new Error("bucket not configured");
+    if (!bucketName || !blueprintStorage) throw new Error("bucket not configured");
 
     const manifest = getBlueprintLightManifest({ variant });
     const { pdfPath: filePath } = getBlueprintLightPaths(lineUserId, manifest.variant);

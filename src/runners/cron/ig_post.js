@@ -42,6 +42,7 @@ const {
   publishMedia,
   waitForContainer,
 } = require("../../integrations/ig/ig_graph");
+const { createStorageClient } = require("../../utils/gcs_storage");
 
 function resolveBackgroundCache(env = {}) {
   const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
@@ -914,6 +915,7 @@ function buildMoonEventCarouselSlides({
   };
 }
 
+
 async function uploadCarouselSlides({
   storage,
   bucketName,
@@ -1023,6 +1025,7 @@ async function runIgPost(deps, opts = {}) {
   const env2 = { ...(env || {}), ...(process.env || {}) };
   const storyService = deps?.storyService;
   const storage = deps?.storage;
+  const storageClient = await createStorageClient({ storage, env: env2 });
   const db = deps?.db;
   const admin = deps?.admin;
   const dict = deps?.dict || require("../../content/dict");
@@ -1137,11 +1140,12 @@ async function runIgPost(deps, opts = {}) {
     const graphVersion = env2.IG_GRAPH_VERSION || "v19.0";
     if (!accessToken) throw new Error("IG_ACCESS_TOKEN missing");
     if (!igUserId) throw new Error("IG_USER_ID missing");
+    if (!storageClient) throw new Error("storage missing");
 
     const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
     const tRender = Date.now();
     const upload = await renderAndUploadCarouselSlides({
-      storage,
+      storage: storageClient,
       bucketName,
       dateLocal,
       carousel,
@@ -1426,16 +1430,17 @@ async function runIgMoonEventPost(deps, opts = {}) {
   }
 
   const storage = deps?.storage;
+  const storageClient = await createStorageClient({ storage, env: env2 });
   const accessToken = env2.IG_ACCESS_TOKEN;
   const igUserId = env2.IG_USER_ID;
   const graphVersion = env2.IG_GRAPH_VERSION || "v19.0";
-  if (!storage) throw new Error("storage missing");
+  if (!storageClient) throw new Error("storage missing");
   if (!accessToken) throw new Error("IG_ACCESS_TOKEN missing");
   if (!igUserId) throw new Error("IG_USER_ID missing");
 
   const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
   const upload = await renderAndUploadCarouselSlides({
-    storage,
+    storage: storageClient,
     bucketName,
     dateLocal: eventDateLocal,
     carousel,

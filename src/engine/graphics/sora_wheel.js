@@ -7,6 +7,7 @@ const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { BACKGROUND_COLORS } = require("../shared/space_background/constants");
 const { FONT_FILES } = require("../shared/typography");
 const { formatDateLabel } = require("../../utils/time_utils");
+const { createStorageClient } = require("../../utils/gcs_storage");
 
 const SIGN_GLYPH = {
   aries: "♈",
@@ -505,13 +506,14 @@ function buildSoraWheelPath({ lineUserId, dateLocal } = {}) {
   return `sora_wheel/${id}/${date}.svg`;
 }
 
-async function saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, svg }) {
-  if (!storage) return { ok: false, error: "storage_missing" };
+async function saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, svg, env } = {}) {
+  const storageClient = await createStorageClient({ storage, env });
+  if (!storageClient) return { ok: false, error: "storage_missing" };
   if (!bucketName) return { ok: false, error: "bucket_missing" };
   const path = buildSoraWheelPath({ lineUserId, dateLocal });
   if (!path) return { ok: false, error: "path_missing" };
 
-  const bucket = storage.bucket(bucketName);
+  const bucket = storageClient.bucket(bucketName);
   const file = bucket.file(path);
   await file.save(svg, {
     contentType: "image/svg+xml",
@@ -522,12 +524,13 @@ async function saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, sv
   return { ok: true, path, file };
 }
 
-async function getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLocal, expiresDays = 2 }) {
-  if (!storage || !bucketName) return { ok: false, error: "storage_missing" };
+async function getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLocal, expiresDays = 2, env } = {}) {
+  const storageClient = await createStorageClient({ storage, env });
+  if (!storageClient || !bucketName) return { ok: false, error: "storage_missing" };
   const path = buildSoraWheelPath({ lineUserId, dateLocal });
   if (!path) return { ok: false, error: "path_missing" };
 
-  const bucket = storage.bucket(bucketName);
+  const bucket = storageClient.bucket(bucketName);
   const file = bucket.file(path);
   const [exists] = await file.exists();
   if (!exists) return { ok: false, error: "not_found" };
@@ -549,16 +552,17 @@ async function buildAndStoreSoraWheel({
   story,
   dateLabel,
   expiresDays = 2,
+  env,
 } = {}) {
   if (!storage || !bucketName || !lineUserId || !dateLocal || !story) {
     return { ok: false, error: "missing_inputs" };
   }
 
   const svg = buildSoraWheelSvg({ story, dateLabel });
-  const saved = await saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, svg });
+  const saved = await saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, svg, env });
   if (!saved?.ok) return saved;
 
-  const signed = await getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLocal, expiresDays });
+  const signed = await getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLocal, expiresDays, env });
   if (!signed?.ok) return signed;
 
   return { ok: true, url: signed.url, path: signed.path };

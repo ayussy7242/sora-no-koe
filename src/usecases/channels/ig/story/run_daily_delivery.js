@@ -2,8 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { Storage } = require("@google-cloud/storage");
-const { GoogleAuth, Impersonated } = require("google-auth-library");
+const { createStorageClient } = require("../../../../utils/gcs_storage");
 const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time_utils");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/ig/story/render_backgrounds");
@@ -89,27 +88,6 @@ async function uploadStoryImages({
   return { ok: true, urls, paths, bucket: bucketName };
 }
 
-async function createImpersonatedStorage({ targetPrincipal, projectId }) {
-  if (!targetPrincipal) throw new Error("targetPrincipal missing");
-
-  const scopes = ["https://www.googleapis.com/auth/cloud-platform"];
-  const baseAuth = new GoogleAuth({ scopes, projectId });
-  const sourceClient = await baseAuth.getClient();
-  const impersonatedClient = new Impersonated({
-    sourceClient,
-    targetPrincipal,
-    targetScopes: scopes,
-  });
-
-  const authClient = new GoogleAuth({
-    authClient: impersonatedClient,
-    scopes,
-    projectId,
-  });
-
-  return new Storage({ authClient, projectId });
-}
-
 async function runDailyIgStoryDelivery(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = { ...(env || {}), ...(process.env || {}) };
@@ -124,21 +102,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
 
   const textOnly = opts.textOnly === true || opts.text_only === true;
   const localOnly = opts.local === true || opts.local_only === true || opts.localOnly === true || env2.IG_STORY_LOCAL_ONLY === true;
-  const impersonate =
-    env2.GOOGLE_IMPERSONATE_SERVICE_ACCOUNT || process.env.GOOGLE_IMPERSONATE_SERVICE_ACCOUNT || null;
-  const projectId =
-    env2.GOOGLE_CLOUD_PROJECT ||
-    env2.GCLOUD_PROJECT ||
-    env2.GCP_PROJECT_ID ||
-    env2.PROJECT ||
-    process.env.GOOGLE_CLOUD_PROJECT ||
-    process.env.GCLOUD_PROJECT ||
-    process.env.GCP_PROJECT_ID ||
-    null;
-
-  const storageClient = impersonate
-    ? await createImpersonatedStorage({ targetPrincipal: impersonate, projectId })
-    : storage;
+  const storageClient = await createStorageClient({ storage, env: env2 });
 
   if (!textOnly && !storageClient && !localOnly) throw new Error("storage missing");
 
