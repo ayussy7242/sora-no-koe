@@ -119,7 +119,7 @@ function truncateForX(text, maxChars) {
     return { text: withTrimmedTags, truncated: withTrimmedTags !== raw };
   }
   const chars = Array.from(withTrimmedTags);
-  const trimmed = chars.slice(0, Math.max(0, maxChars - 3)).join("") + "...";
+  const trimmed = chars.slice(0, Math.max(0, maxChars)).join("");
   return { text: trimmed, truncated: true };
 }
 
