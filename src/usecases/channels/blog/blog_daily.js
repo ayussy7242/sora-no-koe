@@ -7,7 +7,6 @@ const dict = require("../../../content/dict");
 const { createChatCompletion } = require("../../../integrations/openai/openai_client");
 const { buildBlogBlocks, blocksToInput, buildMoonBlockHtml } = require("../../../presenters/blog/story_blocks");
 const { buildSoraWheelSvg } = require("../../../engine/graphics/sora_wheel");
-const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../../domain/astro/constants");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
@@ -27,7 +26,6 @@ const {
 } = require("../../../content/prompts/blog/blog_blocks");
 const { BLOG_MOON_EVENT_GUIDE } = require("../../../content/prompts/blog/blog_moon_event");
 const { SPEC } = require("../../../config/sora_spec");
-const { resolveProximityConfig } = require("../../../config/aspect_channel_config");
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../domain/touch_point_scoring");
 const {
@@ -56,46 +54,23 @@ const {
   softenText,
   enforceSingleClosing,
 } = require("./blog_daily_text");
-
-const BLOG_BANNED_TERMS = [
-  "あなた",
-  "あなたは",
-  "あなたが",
-  "必ず",
-  "確実",
-  "逃れられない",
-  "絶対",
-  "運命",
-  "使命",
-  "すべき",
-  "した方がいい",
-  "したほうがいい",
-  "しよう",
-  "求められる",
-  "必要",
-  "べき",
-  "これその配置のまま",
-  "日本語校正フェーズ",
-  "校正フェーズ",
-  "日本語校正",
-  "内部処理",
-  "処理しました",
-  "実行しました",
-];
-
-const BLOG_TITLE_EXCLUDE_BODIES = new Set(DEEP_BODIES);
+const {
+  BLOG_BANNED_TERMS,
+  BLOG_TITLE_EXCLUDE_BODIES,
+  BLOG_TITLE_BODY_ORDER,
+  BLOG_TITLE_BODY_RANK,
+  BLOG_STRUCT_BODY_ORDER,
+  BLOG_STRUCT_SIGN_ORDER,
+  BLOG_STRUCT_TSUKIJI_MIN_DAYS,
+  BLOG_STRUCT_TSUKIJI_MAX,
+  BLOG_PROXIMITY_CFG,
+} = require("./blog_daily_constants");
 
 function isResonanceBodyExcluded(row) {
   const aKey = normalizeBodyKey(row?.a || "");
   const bKey = normalizeBodyKey(row?.b || "");
   return BLOG_TITLE_EXCLUDE_BODIES.has(aKey) || BLOG_TITLE_EXCLUDE_BODIES.has(bKey);
 }
-
-const BLOG_TITLE_BODY_ORDER = EXTENDED_PLANETS;
-const BLOG_TITLE_BODY_RANK = BLOG_TITLE_BODY_ORDER.reduce((acc, key, idx) => {
-  acc[key] = idx + 1;
-  return acc;
-}, {});
 
 function bodyTitleRank(key) {
   return BLOG_TITLE_BODY_RANK[normalizeBodyKey(key || "")] ?? 99;
@@ -1282,30 +1257,6 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
   return applyPremiumLayout(out, { story, dateLocal });
 }
 
-const BLOG_STRUCT_BODY_ORDER = [
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto",
-  "lilith",
-  "chiron",
-];
-
-const BLOG_STRUCT_SIGN_ORDER =
-  dict?.SIGNS_V2?.order ||
-  dict?.SIGNS?.order || [
-    "aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces",
-  ];
-
-const BLOG_STRUCT_TSUKIJI_MIN_DAYS = 30;
-const BLOG_STRUCT_TSUKIJI_MAX = 3;
-const BLOG_PROXIMITY_CFG = resolveProximityConfig("blog_daily", dict);
 
 function buildHouseRowsPublic(story, asOfISO) {
   const transitSigns = story?.public?.transit_signs || {};
