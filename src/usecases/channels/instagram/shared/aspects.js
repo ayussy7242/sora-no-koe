@@ -31,9 +31,9 @@ const ASPECT_CIRCUITS = {
   semi_sextile: "かすかな接点の回路",
   semisquare: "小さな引っかかりの回路",
   semi_square: "小さな引っかかりの回路",
-  sesquisquare: "蓄積の摩擦の回路",
-  quintile: "創造の回路",
-  biquintile: "創造の回路",
+  sesquisquare: "蓄積した摩擦の回路",
+  quintile: "創造が立ち上がる回路",
+  biquintile: "創造が拡張する回路",
   novile: "内側の熟成の回路",
   septile: "揺らぎの回路",
 };
