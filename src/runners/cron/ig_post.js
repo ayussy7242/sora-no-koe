@@ -5,6 +5,7 @@ const { renderInstagramCarousel } = require("../../engine/renderers/instagram/ig
 const { renderIGCaption } = require("../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
 const { pickPreferredResonanceAspect } = require("../../domain/resonance");
+const { generateIgDailyAiOutputs } = require("../../usecases/channels/instagram/ai/daily");
 const { generateIgMoonEventAiOutputs } = require("../../usecases/channels/instagram/ai/moon_event");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../usecases/cron/lock_utils");
@@ -18,7 +19,6 @@ const { createStorageClient } = require("../../utils/infra/gcs_storage");
 const {
   resolveBackgroundCache,
   buildAspectKey,
-  maybeGenerateIgOutputs,
   toBool,
   writeLocalCarousel,
   writeLocalJson,
@@ -102,7 +102,18 @@ async function runIgPost(deps, opts = {}) {
     }
 
     const tAi = Date.now();
-    story = await maybeGenerateIgOutputs({ story, dict, env: env2, asOfISO, useAi, forceAi: opts.forceAi });
+    story = await generateIgDailyAiOutputs({
+      story,
+      dict,
+      openai: {
+        apiKey: env2.OPENAI_API_KEY,
+        baseUrl: env2.OPENAI_BASE_URL,
+        model: env2.OPENAI_MODEL,
+      },
+      asOfISO,
+      useAi,
+      forceAi: opts.forceAi,
+    });
     console.log("[cron/ig/post] ai_done", { ms: Date.now() - tAi, useAi });
 
     const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
