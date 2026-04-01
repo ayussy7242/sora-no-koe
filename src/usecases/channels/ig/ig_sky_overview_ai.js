@@ -5,45 +5,10 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
 } = require("../../../content/prompts/sora/sora_ai_prompts");
-const { signJa } = require("../../../presenters/format/format/common");
 const { runAiTextPipeline } = require("../../ai_text");
 const { PRESETS } = require("../../ai_text/presets");
-const { resolveMaxRetries } = require("./ai_utils");
+const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./ai_utils");
 const { safeTrim } = require("../../../utils/text_normalize");
-
-
-function buildSignCountsLine({ story, dict }) {
-  const transit = story?.meta?.transit_signs || story?.public?.transit_signs || {};
-  const counts = {};
-  Object.values(transit).forEach((item) => {
-    const signKey = item?.sign_key;
-    const label = item?.sign_ja || signJa(dict, signKey || "");
-    if (!label) return;
-    counts[label] = (counts[label] || 0) + 1;
-  });
-  const entries = Object.entries(counts)
-    .map(([sign, count]) => `${sign}=${count}`)
-    .sort();
-  return entries.length ? entries.join(", ") : "none";
-}
-
-function buildElementCountsLine(story) {
-  const counts = story?.meta?.element_count || story?.meta?.sky_strata?.element_count || story?.public?.sky_strata?.element_count || {};
-  const labels = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合" };
-  const entries = Object.entries(counts)
-    .map(([key, count]) => `${labels[key] || key}=${Number(count || 0)}`)
-    .sort();
-  return entries.length ? entries.join(", ") : "none";
-}
-
-function buildHouseFocusLine(story) {
-  const focus = story?.public?.house_focus || {};
-  const top = focus?.top?.[0];
-  if (!top) return "none";
-  const total = Number(focus?.total || 0);
-  const count = Number(top?.count || 0);
-  return `第${top.house_no}ハウス（${count}/${total}）`;
-}
 
 function buildIgSkyOverviewPrompt({ story, dict }) {
   const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
