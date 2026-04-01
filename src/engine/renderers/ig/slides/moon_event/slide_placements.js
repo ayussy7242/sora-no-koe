@@ -36,27 +36,15 @@ function resolveBodyLayout({
   text,
   bodyStartY,
   bottomLimitY,
-  baseSize = 34,
-  baseLineHeight = 60,
-  maxChars = 30,
+  baseSize = 37,
+  baseLineHeight = 64,
+  maxChars = 24,
   maxLines = 999,
 } = {}) {
   if (!text) return { lines: [], size: baseSize, lineHeight: baseLineHeight };
-  let chars = maxChars;
-  let lines = wrapLines(text, chars, maxLines);
-  const availableHeight = Number.isFinite(Number(bottomLimitY)) && Number.isFinite(Number(bodyStartY))
-    ? Math.max(0, Number(bottomLimitY) - Number(bodyStartY))
-    : null;
-
-  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 32) {
-    chars = 32;
-    lines = wrapLines(text, chars, maxLines);
-  }
-  if (availableHeight && lines.length * baseLineHeight > availableHeight && chars < 34) {
-    chars = 34;
-    lines = wrapLines(text, chars, maxLines);
-  }
-
+  const maxWidthChars = Math.max(18, Math.floor((CANVAS.width - TOK.marginX * 2) / (baseSize * 0.82)));
+  const effectiveMaxChars = Math.min(maxChars, maxWidthChars);
+  const lines = wrapLines(text, effectiveMaxChars, maxLines);
   return { lines, size: baseSize, lineHeight: baseLineHeight };
 }
 
