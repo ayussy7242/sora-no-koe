@@ -8,8 +8,9 @@ const path = require("path");
 const swisseph = require("swisseph");
 const dict = require("../../src/content/dict");
 const { computeNatalCache } = require("../../src/runners/jobs/worker");
-const { norm360 } = require("../../src/domain/astro_compute");
-const { createNatalService } = require("../../src/usecases/story/story_natal");
+const { norm360 } = require("../../src/domain/astro");
+const { createNatalService } = require("../../src/usecases/story/natal");
+const { geocodePlace } = require("../../src/integrations/geocode");
 const {
   buildBlueprintLightRows,
   buildAiInput,
@@ -37,6 +38,45 @@ function parseTimeParts(timeStr) {
   const [h, mi] = String(timeStr || "").split(":").map((v) => Number(v));
   if (!Number.isFinite(h) || !Number.isFinite(mi)) return null;
   return { h, mi };
+}
+
+function getTimeZoneOffsetMinutes(timeZone, date) {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = fmt.formatToParts(date);
+  const out = {};
+  for (const p of parts) {
+    if (p.type !== "literal") out[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(
+    Number(out.year),
+    Number(out.month) - 1,
+    Number(out.day),
+    Number(out.hour),
+    Number(out.minute),
+    Number(out.second)
+  );
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+function computeTzOffsetMin({ dateLocal, timeLocal, timeZone }) {
+  const dp = parseDateParts(dateLocal);
+  const tp = parseTimeParts(timeLocal);
+  if (!dp || !tp || !timeZone) return null;
+  const baseUtcMs = Date.UTC(dp.y, dp.m - 1, dp.d, tp.h, tp.mi, 0, 0);
+  let offset = getTimeZoneOffsetMinutes(timeZone, new Date(baseUtcMs));
+  const adjustedUtcMs = Date.UTC(dp.y, dp.m - 1, dp.d, tp.h, tp.mi, 0, 0) - offset * 60000;
+  const offset2 = getTimeZoneOffsetMinutes(timeZone, new Date(adjustedUtcMs));
+  if (offset2 !== offset) offset = offset2;
+  return Number.isFinite(offset) ? offset : null;
 }
 
 function buildBirthUtcIso({ dateLocal, timeLocal, tzOffsetMin }) {
@@ -80,21 +120,46 @@ async function main() {
   const latArg = getArg("lat");
   const lonArg = getArg("lon");
   const name = getArg("name") || "テスト";
-  const tzOffset = Number(getArg("tz_offset_min", "540"));
+  const tzOffsetArg = getArg("tz_offset_min");
+  const timezone = getArg("timezone") || process.env.DEFAULT_TZ || "Asia/Tokyo";
   const outBase = getArg("out_base");
   const outHtmlArg = getArg("out_html");
   const outJsonArg = getArg("out_json");
 
   if (!dateLocal || !timeLocal || !place) {
     console.error("Missing args. Example:");
-    console.error("  --date=1994-02-18 --time=15:50 --place=札幌 --lat=43.0621 --lon=141.3544");
+    console.error("  --date=1994-02-18 --time=15:50 --place=札幌 --name=テスト");
     process.exit(1);
   }
 
-  const lat = Number(latArg);
-  const lon = Number(lonArg);
+  let lat = Number(latArg);
+  let lon = Number(lonArg);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    console.error("Missing or invalid lat/lon. Example: --lat=43.0621 --lon=141.3544");
+    const geo = await geocodePlace(place, process.env.GOOGLE_MAPS_API_KEY, {
+      language: "ja",
+      region: "jp",
+    });
+    if (!geo?.ok) {
+      console.error("Geocode failed:", geo?.status || "UNKNOWN", geo?.reason || "");
+      if (Array.isArray(geo?.candidates) && geo.candidates.length) {
+        console.error("Candidates:");
+        for (const c of geo.candidates) {
+          console.error("-", c?.formatted_address, `(${c?.lat}, ${c?.lon})`);
+        }
+      }
+      console.error("Hint: set GOOGLE_MAPS_API_KEY or pass --lat/--lon directly.");
+      process.exit(1);
+    }
+    lat = geo.lat;
+    lon = geo.lon;
+  }
+
+  let tzOffset = Number(tzOffsetArg);
+  if (!Number.isFinite(tzOffset)) {
+    tzOffset = computeTzOffsetMin({ dateLocal, timeLocal, timeZone: timezone });
+  }
+  if (!Number.isFinite(tzOffset)) {
+    console.error("Missing or invalid tz offset. Provide --tz_offset_min or --timezone.");
     process.exit(1);
   }
 
