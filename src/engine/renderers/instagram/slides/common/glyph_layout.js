@@ -1,6 +1,6 @@
 "use strict";
 
-const { createGlyphLayout, PATH_GLYPHS } = require("../../layout/layout");
+const { createGlyphLayout, PATH_GLYPHS } = require("../../layout");
 const { FONT_FILES, resolveFontPath } = require("../../assets/fonts");
 
 const glyphLayout = createGlyphLayout({ resolveFontPath, FONT_FILES });
