@@ -5,7 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
 } = require("../../../../content/prompts/sora/sora_core");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./utils");
 const { safeTrim } = require("../../../../utils/text/normalize");
@@ -50,53 +50,42 @@ async function generateIgObservationText({ story, dict, openai, maxRetries = 5 }
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildIgObservationPrompt({ story, dict }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    let text = "";
-    try {
-      text = await createChatCompletion({
-        apiKey,
-        baseUrl,
-        model,
-        messages: [
-          { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.4,
-        maxTokens: 120,
+  const result = await generateWithRetry({
+    buildPrompt: () => buildIgObservationPrompt({ story, dict }),
+    buildRetryNote: (reason) => buildRetryNote(reason),
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.observation,
       });
-    } catch (err) {
-      const message = err?.message || String(err || "openai_error");
-      console.error("[ig_observation_ai] OpenAI error", { message });
-      lastReason = `openai_error:${message}`;
-      lastText = "";
-      retryNote = buildRetryNote(lastReason);
-      continue;
-    }
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
+      apiKey,
+      baseUrl: openai?.baseUrl,
+      model,
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.4,
+    maxTokens: 120,
+    context: { story, dict },
+  });
 
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.observation,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = buildRetryNote(lastReason);
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
+  return {
+    ok: false,
+    error: result.error || "retry_exceeded",
+    reason: result.reason,
+    last_text: result.lastText ? String(result.lastText).trim() : "",
+    attempts: result.attempts,
+  };
 }
 
 module.exports = {

@@ -1,18 +1,18 @@
 "use strict";
 
 const { toBool } = require("../../../utils/data/bool");
-const { writeTextFile } = require("../shared/io");
+const { writeTextFiles } = require("../shared/io");
+const { resolveEnv } = require("../../../utils/env");
 
 function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
   if (!outDir) return [];
-  const paths = [];
-  posts.forEach((post, idx) => {
+  const items = posts.map((post, idx) => {
     const slot = post?.slot || `slot${idx + 1}`;
     const filename = `${prefix}_${slot}_${idx + 1}.txt`;
-    const full = writeTextFile({ outDir, filename, content: post?.text || "" });
-    if (full) paths.push(full);
+    return { filename, content: post?.text || "" };
   });
-  return paths;
+  const result = writeTextFiles({ outDir, items });
+  return result.paths;
 }
 
 async function saveXPostFailure({ db, dateLocal, asOfISO, kind, posts, results, errors, image, meta } = {}) {
@@ -36,7 +36,7 @@ async function saveXPostFailure({ db, dateLocal, asOfISO, kind, posts, results, 
 
 async function notifyXPostFailure({ env, dateLocal, kind, errors, results } = {}) {
   try {
-    const env2 = { ...(env || {}), ...(process.env || {}) };
+    const env2 = resolveEnv(env);
     const lineEnabled = toBool(env2.LINE_ENABLED, false);
     const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
     const ownerLineUserId = env2.OWNER_LINE_USER_ID;

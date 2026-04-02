@@ -12,7 +12,7 @@ const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { pickObservationLine } = require("../../../../presenters/format/ig_caption");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { safeTrim, normalizeInlineText } = require("../../../../utils/text/normalize");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
 
@@ -96,86 +96,101 @@ async function generateIgCarouselCaptionText({ story, dict, openai, maxRetries =
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
-  let retryNote = "";
-  let lastText = "";
-  let lastReason = "";
-
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildCaptionPrompt({ story, dict, asOfISO }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
+  const result = await generateWithRetry({
+    buildPrompt: () => buildCaptionPrompt({ story, dict, asOfISO }),
+    buildRetryNote: () => "条件外でした。長さと禁止事項を守り、自然な観測文で再出力してください。",
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.carousel_caption,
+      });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
       apiKey,
-      baseUrl,
+      baseUrl: openai?.baseUrl,
       model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      maxTokens: 240,
-    });
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.5,
+    maxTokens: 240,
+    context: { story, dict, asOfISO },
+  });
 
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.carousel_caption,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
+  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = "条件外でした。長さと禁止事項を守り、自然な観測文で再出力してください。";
+  if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
+    return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
   }
 
   const fallback = buildCaptionFallback({ story, dict, asOfISO });
-  return { ok: true, text: fallback, model, fallback: true, reason: lastReason };
+  return {
+    ok: true,
+    text: fallback,
+    model,
+    fallback: true,
+    reason: result.reason || "",
+    fallback_reason: result.reason || result.error || "",
+    attempts: result.attempts,
+    last_text: result.lastText,
+  };
 }
 
 async function generateIgCarouselObservationText({ story, dict, openai, maxRetries = 1 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
-  let retryNote = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildObservationPrompt({ story, dict }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
+  const result = await generateWithRetry({
+    buildPrompt: () => buildObservationPrompt({ story, dict }),
+    buildRetryNote: () => "条件外でした。短く、観測文として自然に整えて再出力してください。",
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.carousel_observation,
+      });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
       apiKey,
-      baseUrl,
+      baseUrl: openai?.baseUrl,
       model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      maxTokens: 120,
-    });
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.4,
+    maxTokens: 120,
+    context: { story, dict },
+  });
 
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.carousel_observation,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
+  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
-    lastText = String(text || "").trim();
-    retryNote = "条件外でした。短く、観測文として自然に整えて再出力してください。";
+  if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
+    return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
   }
 
   const fallback = buildObservationFallback({ story, dict });
-  return { ok: true, text: fallback, model, fallback: true };
+  return {
+    ok: true,
+    text: fallback,
+    model,
+    fallback: true,
+    fallback_reason: result.reason || result.error || "",
+    attempts: result.attempts,
+    last_text: result.lastText,
+  };
 }
 
 module.exports = {

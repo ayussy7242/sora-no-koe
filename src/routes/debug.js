@@ -1,13 +1,7 @@
 "use strict";
 
 const express = require("express");
-
-function pickBearerToken(req) {
-  const authz = req.header("authorization");
-  if (!authz) return null;
-  if (!authz.startsWith("Bearer ")) return null;
-  return String(authz.slice(7)).trim() || null;
-}
+const { pickBearerToken } = require("../utils/http");
 
 function pickToken(req) {
   return (

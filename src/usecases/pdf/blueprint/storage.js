@@ -2,15 +2,20 @@
 
 const { getBlueprintLightPaths, getBlueprintLightBgPaths } = require("./paths");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
+const { saveGcsFile, getGcsSignedUrl, fileExists } = require("../../../utils/infra/gcs_upload");
 
 function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays = 7 } = {}) {
   if (!bucketName) throw new Error("bucketName is required");
 
   let storageClientPromise = null;
-  const getBucket = async () => {
+  const getStorageClient = async () => {
     if (!storageClientPromise) storageClientPromise = createStorageClient({ storage, env });
     const storageClient = await storageClientPromise;
     if (!storageClient) throw new Error("storage missing");
+    return storageClient;
+  };
+  const getBucket = async () => {
+    const storageClient = await getStorageClient();
     return storageClient.bucket(bucketName);
   };
 
@@ -23,19 +28,17 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
   async function existsPdf(lineUserId, variant) {
     const { pdfPath } = getBlueprintLightPaths(lineUserId, normalizeVariantInput(variant));
     if (!pdfPath) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(pdfPath);
-    const [exists] = await file.exists();
-    return { ok: true, exists: !!exists, filePath: pdfPath, file };
+    const storageClient = await getStorageClient();
+    const exists = await fileExists({ storage: storageClient, bucketName, path: pdfPath });
+    return { ok: true, exists: !!exists.exists, filePath: pdfPath };
   }
 
   async function existsJson(lineUserId) {
     const { jsonPath } = getBlueprintLightPaths(lineUserId);
     if (!jsonPath) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(jsonPath);
-    const [exists] = await file.exists();
-    return { ok: true, exists: !!exists, filePath: jsonPath, file };
+    const storageClient = await getStorageClient();
+    const exists = await fileExists({ storage: storageClient, bucketName, path: jsonPath });
+    return { ok: true, exists: !!exists.exists, filePath: jsonPath };
   }
 
   async function downloadJson(lineUserId) {
@@ -50,11 +53,14 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
   async function saveJson(lineUserId, content) {
     const { jsonPath } = getBlueprintLightPaths(lineUserId);
     if (!jsonPath) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(jsonPath);
-    await file.save(content, {
+    const storageClient = await getStorageClient();
+    await saveGcsFile({
+      storage: storageClient,
+      bucketName,
+      path: jsonPath,
+      buffer: content,
       contentType: "application/json",
-      resumable: false,
+      cacheControl: "private, max-age=0, no-transform",
     });
     return { ok: true, filePath: jsonPath };
   }
@@ -62,12 +68,14 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
   async function savePdf(lineUserId, buffer, variant) {
     const { pdfPath } = getBlueprintLightPaths(lineUserId, normalizeVariantInput(variant));
     if (!pdfPath) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(pdfPath);
-    await file.save(buffer, {
+    const storageClient = await getStorageClient();
+    await saveGcsFile({
+      storage: storageClient,
+      bucketName,
+      path: pdfPath,
+      buffer,
       contentType: "application/pdf",
-      resumable: false,
-      metadata: { cacheControl: "private, max-age=0, no-transform" },
+      cacheControl: "private, max-age=0, no-transform",
     });
     return { ok: true, filePath: pdfPath };
   }
@@ -76,12 +84,14 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
     const { files } = getBlueprintLightBgPaths(lineUserId);
     const path = files?.[key];
     if (!path) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(path);
-    await file.save(buffer, {
+    const storageClient = await getStorageClient();
+    await saveGcsFile({
+      storage: storageClient,
+      bucketName,
+      path,
+      buffer,
       contentType: "image/png",
-      resumable: false,
-      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+      cacheControl: "public, max-age=31536000, immutable",
     });
     return { ok: true, filePath: path };
   }
@@ -108,13 +118,15 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
     const { bgDir } = getBlueprintLightBgPaths(lineUserId);
     if (!bgDir) return { ok: false, code: "missing_line_user" };
     const path = `${bgDir}/bg_meta.json`;
-    const bucket = await getBucket();
-    const file = bucket.file(path);
     const body = JSON.stringify(meta || {}, null, 2);
-    await file.save(body, {
+    const storageClient = await getStorageClient();
+    await saveGcsFile({
+      storage: storageClient,
+      bucketName,
+      path,
+      buffer: body,
       contentType: "application/json",
-      resumable: false,
-      metadata: { cacheControl: "public, max-age=31536000, immutable" },
+      cacheControl: "public, max-age=31536000, immutable",
     });
     return { ok: true, filePath: path };
   }
@@ -122,21 +134,15 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
   async function getBgSignedUrls(lineUserId) {
     const { files } = getBlueprintLightBgPaths(lineUserId);
     if (!files) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
+    const storageClient = await getStorageClient();
     const out = {};
     const entries = Object.entries(files);
     for (const [key, filePath] of entries) {
-      const file = bucket.file(filePath);
-      const [exists] = await file.exists();
-      if (!exists) continue;
+      const exists = await fileExists({ storage: storageClient, bucketName, path: filePath });
+      if (!exists.exists) continue;
       try {
-        const [url] = await file.getSignedUrl({
-          action: "read",
-          expires: Date.now() + expiresMs,
-          version: "v4",
-        });
-        out[key] = url;
+        const signed = await getGcsSignedUrl({ storage: storageClient, bucketName, path: filePath, expiresDays: urlExpireDays });
+        out[key] = signed.url;
       } catch (e) {
         return { ok: false, code: "signing_failed", error: String(e?.message || e) };
       }
@@ -147,18 +153,12 @@ function createBlueprintLightStorage({ bucketName, storage, env, urlExpireDays =
   async function getSignedUrl(lineUserId, variant) {
     const { pdfPath } = getBlueprintLightPaths(lineUserId, normalizeVariantInput(variant));
     if (!pdfPath) return { ok: false, code: "missing_line_user" };
-    const bucket = await getBucket();
-    const file = bucket.file(pdfPath);
-    const [exists] = await file.exists();
-    if (!exists) return { ok: false, code: "not_ready" };
-    const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
+    const storageClient = await getStorageClient();
+    const exists = await fileExists({ storage: storageClient, bucketName, path: pdfPath });
+    if (!exists.exists) return { ok: false, code: "not_ready" };
     try {
-      const [url] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + expiresMs,
-        version: "v4",
-      });
-      return { ok: true, url };
+      const signed = await getGcsSignedUrl({ storage: storageClient, bucketName, path: pdfPath, expiresDays: urlExpireDays });
+      return { ok: true, url: signed.url };
     } catch (e) {
       const message = String(e?.message || e || "signing_failed");
       return { ok: false, code: "signing_failed", error: message };

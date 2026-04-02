@@ -234,6 +234,83 @@ const dict = require("./src/content/dict");
 NODE
 ```
 
+## 5) Storage Smoke (GCS)
+
+These checks touch real buckets and will create small test objects. Use a staging bucket and credentials.
+
+### 5.1 GCS Core (save / exists / signed url)
+
+```bash
+BUCKET="your-test-bucket"
+DATE=$(date +%Y-%m-%d)
+DOTENV_CONFIG_PATH=config/.env BUCKET="$BUCKET" DATE="$DATE" \
+node -r dotenv/config <<'NODE'
+const { createStorageClient } = require("./src/utils/infra/gcs_storage");
+const { saveGcsFile, fileExists, getGcsSignedUrl } = require("./src/utils/infra/gcs_upload");
+
+(async()=>{
+  const bucketName = process.env.BUCKET;
+  const date = process.env.DATE || "unknown";
+  const storage = await createStorageClient({ env: process.env });
+  const path = `smoke/gcs_core/${date}/ping.txt`;
+  const body = `ok ${new Date().toISOString()}\n`;
+  await saveGcsFile({ storage, bucketName, path, buffer: body, contentType: "text/plain" });
+  const exists = await fileExists({ storage, bucketName, path });
+  const signed = await getGcsSignedUrl({ storage, bucketName, path, expiresDays: 1 });
+  console.log({ ok: true, exists: exists.exists, path, url: signed.url });
+})().catch(e=>{ console.error(e); process.exit(1); });
+NODE
+```
+
+### 5.2 Sora Wheel (save + signed url)
+
+```bash
+BUCKET="your-test-bucket"
+LINE_USER_ID="Uxxxxxxxx"
+DATE=$(date +%Y-%m-%d)
+DOTENV_CONFIG_PATH=config/.env BUCKET="$BUCKET" LINE_USER_ID="$LINE_USER_ID" DATE="$DATE" \
+node -r dotenv/config <<'NODE'
+const { saveSoraWheelSvg, getSoraWheelSignedUrl } = require("./src/engine/graphics/sora_wheel");
+
+(async()=>{
+  const bucketName = process.env.BUCKET;
+  const lineUserId = process.env.LINE_USER_ID;
+  const dateLocal = process.env.DATE;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="black"/></svg>`;
+  const saved = await saveSoraWheelSvg({ bucketName, lineUserId, dateLocal, svg, env: process.env });
+  const signed = await getSoraWheelSignedUrl({ bucketName, lineUserId, dateLocal, expiresDays: 1, env: process.env });
+  console.log({ saved, signed });
+})().catch(e=>{ console.error(e); process.exit(1); });
+NODE
+```
+
+### 5.3 Blueprint Light (pdf/json/bg + signed urls)
+
+```bash
+BUCKET="your-test-bucket"
+LINE_USER_ID="Uxxxxxxxx"
+DOTENV_CONFIG_PATH=config/.env BUCKET="$BUCKET" LINE_USER_ID="$LINE_USER_ID" \
+node -r dotenv/config <<'NODE'
+const { createBlueprintLightStorage } = require("./src/usecases/pdf/blueprint/storage");
+
+(async()=>{
+  const bucketName = process.env.BUCKET;
+  const lineUserId = process.env.LINE_USER_ID;
+  const storage = createBlueprintLightStorage({ bucketName, env: process.env });
+  await storage.saveJson(lineUserId, JSON.stringify({ ok: true, at: new Date().toISOString() }));
+  await storage.savePdf(lineUserId, Buffer.from("dummy pdf"));
+  await storage.saveBgImage(lineUserId, "sys", Buffer.from("dummy png"));
+  const signed = await storage.getSignedUrl(lineUserId);
+  const bgUrls = await storage.getBgSignedUrls(lineUserId);
+  console.log({ signed, bgUrls });
+})().catch(e=>{ console.error(e); process.exit(1); });
+NODE
+```
+
+### 5.4 Relation PDF (optional, requires Firestore + Admin)
+
+This check requires `db`, `admin`, and `dict` setup. Skip if not available locally.
+
 ## Notes
 
 - `local=1` saves outputs under `tmp/safe_prod_outputs/<DATE>/...` and avoids posting.

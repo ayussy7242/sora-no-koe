@@ -9,7 +9,7 @@ const { normalizeBodyKey, normalizeAspectKey } = require("../../../../domain/can
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic } = require("../../../../domain/tsukiji/public");
 const { signJa, aspectInfo } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
 const { safeTrim } = require("../../../../utils/text/normalize");
@@ -91,43 +91,42 @@ async function generateIgTsukijiStructureText({ story, dict, openai, maxRetries 
   const pick = pickTsukijiRow({ story });
   if (!pick?.row) return { ok: false, error: "tsukiji_not_found" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
 
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildPrompt({ story, dict, pick }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
+  const result = await generateWithRetry({
+    buildPrompt: () => buildPrompt({ story, dict, pick }),
+    buildRetryNote: () => "条件外でした。1文のみ・『構造：』で開始・10〜24文字・今日/本日/今/あなた禁止・説明/羅列なしで再出力。",
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.tsukiji_structure,
+      });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
       apiKey,
-      baseUrl,
+      baseUrl: openai?.baseUrl,
       model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      maxTokens: 160,
-    });
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.5,
+    maxTokens: 160,
+    context: { story, dict, pick },
+  });
 
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.tsukiji_structure,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model, pick };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = "条件外でした。1文のみ・『構造：』で開始・10〜24文字・今日/本日/今/あなた禁止・説明/羅列なしで再出力。";
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+  if (result.ok) return { ok: true, text: result.text, model, pick, attempts: result.attempts, last_text: result.lastText };
+  return {
+    ok: false,
+    error: result.error || "retry_exceeded",
+    reason: result.reason,
+    last_text: result.lastText ? String(result.lastText).trim() : "",
+    attempts: result.attempts,
+  };
 }
 
 module.exports = {

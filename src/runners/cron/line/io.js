@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { writeTextFile, writeJsonFile } = require("../shared/io");
+const { writeTextFiles, writeJsonFile } = require("../shared/io");
 
 function safeFilePart(value, fallback) {
   const s = String(value || "").trim();
@@ -12,14 +12,13 @@ function safeFilePart(value, fallback) {
 function writeLocalLineOutputs({ outDir, summary, items = [] } = {}) {
   const dir = outDir || path.join(process.cwd(), "tmp", "line", "output");
   const summaryPath = writeJsonFile({ outDir: dir, filename: "summary.json", data: summary || {}, space: 2 });
-  const textPaths = [];
-  (Array.isArray(items) ? items : []).forEach((item, idx) => {
+  const textItems = (Array.isArray(items) ? items : []).map((item, idx) => {
     const base = item?.app_user_id || item?.line_user_id || `item_${idx + 1}`;
     const name = safeFilePart(base, `item_${idx + 1}`);
-    const textPath = writeTextFile({ outDir: dir, filename: `${name}.txt`, content: item?.text || "" });
-    if (textPath) textPaths.push(textPath);
+    return { filename: `${name}.txt`, content: item?.text || "" };
   });
-  return { dir, summary_path: summaryPath, text_paths: textPaths };
+  const textResult = writeTextFiles({ outDir: dir, items: textItems });
+  return { dir, summary_path: summaryPath, text_paths: textResult.paths };
 }
 
 function buildOutboxItem({

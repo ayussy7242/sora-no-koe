@@ -2,6 +2,7 @@
 
 const { countChars, trimTrailingHashtagsToMaxChars } = require("../../../utils/text/hashtag");
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
+const { ensureXMeta } = require("../../../usecases/story/meta_helpers");
 const {
   nowIso,
   parseJsonSafe,
@@ -49,13 +50,6 @@ function normalizeXError(err) {
     v2: err?.v2 || null,
     v1: err?.v1 || null,
   };
-}
-
-function ensureXMeta(story) {
-  story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
-  story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
-  story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
-  return story.meta;
 }
 
 module.exports = {

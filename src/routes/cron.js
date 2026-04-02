@@ -36,6 +36,8 @@ const {
   pickNumberFlag,
 } = require("../usecases/cron/utils");
 const { memorySnapshot, logWithReq } = require("../utils/infra/logging");
+const { resolveEnv } = require("../utils/env");
+const { stripQuery } = require("../utils/http");
 
 
 // -------------------- router factory --------------------
@@ -46,7 +48,7 @@ function createCronRouter(deps = {}) {
   router.use(express.json({ limit: "1mb" }));
 
   const env = deps.env || {};
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const db = deps.db;
   const admin = deps.admin;
   const swisseph = deps.swisseph;
@@ -63,12 +65,6 @@ function createCronRouter(deps = {}) {
   }
   if (!renderers?.renderXMorning || !renderers?.renderXNight || !renderers?.renderXResonance) {
     throw new Error("deps.renderers (renderXMorning/renderXNight/renderXResonance) is missing");
-  }
-
-  function stripQuery(url) {
-    if (!url) return "";
-    const idx = url.indexOf("?");
-    return idx === -1 ? url : url.slice(0, idx);
   }
 
   function requireCronToken(req) {

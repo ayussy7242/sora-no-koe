@@ -4,6 +4,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const { safeEqual } = require("../utils/data/equal");
+const { stripQuery, pickBearerToken } = require("../utils/http");
 
 // routers（factory）
 const { createHealthRouter } = require("../routes/health");
@@ -34,19 +35,6 @@ function isRawBodyPath(req) {
     url.startsWith("/api/stripe/webhook") ||
     url.startsWith("/stripe/webhook")
   );
-}
-
-function stripQuery(url) {
-  if (!url) return "";
-  const idx = url.indexOf("?");
-  return idx === -1 ? url : url.slice(0, idx);
-}
-
-function pickBearerToken(req) {
-  const authz = req.header("authorization");
-  if (!authz) return null;
-  if (!authz.startsWith("Bearer ")) return null;
-  return String(authz.slice(7)).trim() || null;
 }
 
 function allowMetaAccess(req, env) {

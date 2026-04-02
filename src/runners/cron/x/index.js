@@ -5,6 +5,7 @@ const path = require("path");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { countChars } = require("../../../utils/text/hashtag");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const { SPEC } = require("../../../config/sora_spec");
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../../usecases/channels/x/ai/moon_event");
 const { generateXNightAiText } = require("../../../usecases/channels/x/ai/night");
@@ -43,7 +44,7 @@ async function runXMorningPost(deps, opts = {}) {
     throw new Error("renderers.renderXMorningMain/renderXMorningLog/renderXResonance missing");
   }
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
   const localOnly = toBool(
@@ -335,7 +336,7 @@ async function runXResonancePost(deps, opts = {}) {
     throw new Error("renderers.renderXResonance missing");
   }
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
   const localOnly = toBool(
@@ -557,7 +558,7 @@ async function runXNightPost(deps, opts = {}) {
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXNight) throw new Error("renderers.renderXNight missing");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
   const localOnly = toBool(
@@ -783,7 +784,7 @@ async function runXMoonEventPost(deps, opts = {}) {
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXMoonEvent) throw new Error("renderers.renderXMoonEvent missing");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
   const localOnly = toBool(
@@ -934,7 +935,7 @@ async function runXNext30DaysPost(deps, opts = {}) {
   if (!renderers?.renderXNext30Days) throw new Error("renderers.renderXNext30Days missing");
   if (!renderers?.renderXNext30DaysFlow) throw new Error("renderers.renderXNext30DaysFlow missing");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
   const localOnly = toBool(

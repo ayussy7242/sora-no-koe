@@ -2,17 +2,17 @@
 
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
-const { writeBufferFile, writeJsonFile } = require("../shared/io");
+const { writeBufferFiles, writeJsonFile } = require("../shared/io");
+const { uploadGcsFiles, uploadGcsFile } = require("../../../utils/infra/gcs_upload");
 
 function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
   if (!Array.isArray(buffers) || !buffers.length) return [];
-  const paths = [];
-  for (let i = 0; i < buffers.length; i++) {
-    const filename = `${prefix}-${i + 1}.png`;
-    const full = writeBufferFile({ outDir, filename, buffer: buffers[i] });
-    if (full) paths.push(full);
-  }
-  return paths;
+  const items = buffers.map((buffer, idx) => ({
+    filename: `${prefix}-${idx + 1}.png`,
+    buffer,
+  }));
+  const result = writeBufferFiles({ outDir, items });
+  return result.paths;
 }
 
 function writeLocalJson({ data, outDir, filename = "ig_post.json" } = {}) {
@@ -30,30 +30,26 @@ async function uploadCarouselSlides({
   if (!bucketName) throw new Error("bucket missing");
   if (!Array.isArray(buffers) || buffers.length === 0) throw new Error("buffers missing");
 
-  const bucket = storage.bucket(bucketName);
-  const urls = [];
-  const paths = [];
-  const expiresMs = Math.max(1, Number(expiresDays) || 7) * 24 * 60 * 60 * 1000;
+  const files = buffers.map((buffer, idx) => ({
+    key: `slide-${idx + 1}`,
+    index: idx + 1,
+    filename: `slide-${idx + 1}.png`,
+    buffer,
+    contentType: "image/png",
+  }));
 
-  for (let i = 0; i < buffers.length; i++) {
-    const index = i + 1;
-    const relPath = path.posix.join("ig", "carousel", String(dateLocal), `slide-${index}.png`);
-    const file = bucket.file(relPath);
-    await file.save(buffers[i], {
-      contentType: "image/png",
-      resumable: false,
-      metadata: { cacheControl: "private, max-age=0, no-transform" },
-    });
-    const [url] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + expiresMs,
-      version: "v4",
-    });
-    urls.push(url);
-    paths.push(relPath);
-  }
+  const upload = await uploadGcsFiles({
+    storage,
+    bucketName,
+    basePath: path.posix.join("ig", "carousel", String(dateLocal)),
+    files,
+    expiresDays,
+    defaultContentType: "image/png",
+  });
 
-  return { ok: true, urls, paths, bucket: bucketName };
+  const urls = upload.items.map((item) => item.url);
+  const paths = upload.items.map((item) => item.path);
+  return { ok: true, items: upload.items, urls, paths, bucket: bucketName };
 }
 
 async function uploadCarouselSlide({
@@ -68,26 +64,23 @@ async function uploadCarouselSlide({
   if (!storage) throw new Error("storage missing");
   if (!bucketName) throw new Error("bucket missing");
   if (!buffer) throw new Error("buffer missing");
-  const bucket = storage.bucket(bucketName);
-  const expiresMs = Math.max(1, Number(expiresDays) || 7) * 24 * 60 * 60 * 1000;
-  const relPath = path.posix.join("ig", "carousel", String(dateLocal), `slide-${index}.png`);
-  const file = bucket.file(relPath);
-  await file.save(buffer, {
+  const item = await uploadGcsFile({
+    storage,
+    bucketName,
+    basePath: path.posix.join("ig", "carousel", String(dateLocal)),
+    filename: `slide-${index}.png`,
+    buffer,
     contentType: "image/png",
-    resumable: false,
-    metadata: { cacheControl: "private, max-age=0, no-transform" },
-  });
-  const [url] = await file.getSignedUrl({
-    action: "read",
-    expires: Date.now() + expiresMs,
-    version: "v4",
+    index,
+    key: `slide-${index}`,
+    expiresDays,
   });
   console.log("[cron/ig/post] upload_slide", {
     index,
     ms: Date.now() - t0,
     bytes: buffer?.length || 0,
   });
-  return { url, path: relPath };
+  return item;
 }
 
 async function renderAndUploadCarouselSlides({
@@ -100,8 +93,7 @@ async function renderAndUploadCarouselSlides({
 } = {}) {
   if (!carousel) throw new Error("carousel missing");
   const t0 = Date.now();
-  const urls = [];
-  const paths = [];
+  const items = [];
   console.log("[cron/ig/post] render_start");
   await renderInstagramCarousel({
     ...carousel,
@@ -115,12 +107,17 @@ async function renderAndUploadCarouselSlides({
         index: index + 1,
         expiresDays,
       });
-      urls.push(uploaded.url);
-      paths.push(uploaded.path);
+      items.push(uploaded);
     },
   });
   console.log("[cron/ig/post] render_done", { ms: Date.now() - t0 });
-  return { ok: true, urls, paths, bucket: bucketName };
+  return {
+    ok: true,
+    items,
+    urls: items.map((item) => item.url),
+    paths: items.map((item) => item.path),
+    bucket: bucketName,
+  };
 }
 
 module.exports = {

@@ -2,6 +2,7 @@
 
 const path = require("path");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const { acquireCronLock, markCronLock } = require("../shared/locks");
 const { writeTextFile, writeJsonFile } = require("../shared/io");
 const { buildDailyPlan } = require("./planning");
@@ -56,7 +57,7 @@ async function runDailyBlog(
     }
   };
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const localOnlyFlag = toBool(local ?? local_only ?? localOnly ?? env2.BLOG_DAILY_LOCAL_ONLY, false);
   const localOutDir = String(
     localOutDirOpt ||

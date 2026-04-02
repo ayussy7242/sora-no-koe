@@ -2,6 +2,7 @@
 
 const { Storage } = require("@google-cloud/storage");
 const { GoogleAuth, Impersonated } = require("google-auth-library");
+const { resolveEnv } = require("../env");
 
 const DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"];
 
@@ -37,7 +38,7 @@ async function createImpersonatedStorage({ targetPrincipal, projectId, scopes = 
 }
 
 async function createStorageClient({ storage, env, impersonate, projectId, scopes = DEFAULT_SCOPES } = {}) {
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const target = impersonate || resolveImpersonate(env2);
   const project = projectId || resolveProjectId(env2);
   if (target) return createImpersonatedStorage({ targetPrincipal: target, projectId: project, scopes });

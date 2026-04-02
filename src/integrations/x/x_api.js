@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { resolveEnv } = require("../../utils/env");
 
 function percentEncode(value) {
   return encodeURIComponent(String(value == null ? "" : value))
@@ -97,7 +98,7 @@ async function oauth1Fetch({ url, method, body, contentType, extraParams, env })
   };
   if (contentType) headers["content-type"] = contentType;
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const timeoutMs = Number.isFinite(Number(env2.X_API_TIMEOUT_MS))
     ? Number(env2.X_API_TIMEOUT_MS)
     : 8000;

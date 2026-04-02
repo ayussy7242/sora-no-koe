@@ -10,7 +10,7 @@ const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domai
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { safeTrim } = require("../../../../utils/text/normalize");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
 
@@ -93,45 +93,45 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
   const hasAspect = !!story?.outputs?.ig?.source?.resonance_aspect;
   if (!hasAspect) return { ok: false, error: "resonance_aspect_missing" };
 
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildIgResonancePrompt({ story, dict }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
+  const result = await generateWithRetry({
+    buildPrompt: () => buildIgResonancePrompt({ story, dict }),
+    buildRetryNote: (reason) =>
+      `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`,
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.resonance,
+      });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
       apiKey,
-      baseUrl,
+      baseUrl: openai?.baseUrl,
       model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.5,
-      maxTokens: 520,
-    });
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.5,
+    maxTokens: 520,
+    context: { story, dict },
+  });
 
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.resonance,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = `前回は条件外でした（${lastReason}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`;
-  }
-
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
+  return {
+    ok: false,
+    error: result.error || "retry_exceeded",
+    reason: result.reason,
+    last_text: result.lastText ? String(result.lastText).trim() : "",
+    attempts: result.attempts,
+  };
 }
 
 module.exports = {

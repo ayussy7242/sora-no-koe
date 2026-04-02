@@ -5,6 +5,7 @@ const { renderInstagramCarousel } = require("../../../engine/renderers/instagram
 const { renderIGCaption } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const { pickPreferredResonanceAspect } = require("../../../domain/resonance");
 const { moonEventFlags } = require("../../../domain/moon");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
@@ -58,7 +59,7 @@ function buildAspectKey(aspect, { includeOrb = false } = {}) {
 
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const storyService = deps?.storyService;
   const storage = deps?.storage;
   const storageClient = await createStorageClient({ storage, env: env2 });
@@ -291,7 +292,7 @@ async function runIgPost(deps, opts = {}) {
 
 async function runIgMoonEventPost(deps, opts = {}) {
   const env = deps?.env || {};
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const storyService = deps?.storyService;
   const dict = deps?.dict || require("../../../content/dict");
 

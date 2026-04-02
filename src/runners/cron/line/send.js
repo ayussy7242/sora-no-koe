@@ -23,6 +23,7 @@ const path = require("path");
 const { isYYYYMMDD, toDateLocalJST } = require("../../../utils/time");
 const { normLower } = require("../../../utils/data/parse");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const { isNonEmptyText } = require("../cron_utils");
 const { writeLocalLineOutputs } = require("./io");
 const { linePushText, linePushImage } = require("./publish");
@@ -50,7 +51,7 @@ async function sendDaily8(deps, opts = {}) {
   if (!admin) throw new Error("admin required");
   if (!env) throw new Error("env required");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   // Temporary: disable sending any LINE images in daily 08:00
   const DISABLE_DAILY8_IMAGES = true;
 

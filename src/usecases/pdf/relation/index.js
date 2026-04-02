@@ -12,6 +12,7 @@ const { generateRelationAiTexts } = require("./ai_generate");
 const { resolveDisplayNameFromUserDoc } = require("../../../utils/text/display_name");
 const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
+const { saveGcsFile, getGcsSignedUrl, fileExists } = require("../../../utils/infra/gcs_upload");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",
@@ -975,17 +976,11 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     if (!storageClient || !bucketName) return { ok: false, code: "storage_missing" };
     const path = getRelationPdfPath(pairKey, viewerId);
     if (!path) return { ok: false, code: "path_invalid" };
-    const file = storageClient.bucket(bucketName).file(path);
-    const [exists] = await file.exists();
-    if (!exists) return { ok: false, code: "not_ready" };
-    const expiresMs = urlExpireDays * 24 * 60 * 60 * 1000;
+    const exists = await fileExists({ storage: storageClient, bucketName, path });
+    if (!exists.exists) return { ok: false, code: "not_ready" };
     try {
-      const [url] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + expiresMs,
-        version: "v4",
-      });
-      return { ok: true, url };
+      const signed = await getGcsSignedUrl({ storage: storageClient, bucketName, path, expiresDays: urlExpireDays });
+      return { ok: true, url: signed.url };
     } catch (e) {
       return { ok: false, code: "signing_failed", error: String(e?.message || e) };
     }
@@ -996,11 +991,13 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     if (!storageClient || !bucketName) return { ok: false, code: "storage_missing" };
     const path = getRelationPdfPath(pairKey, viewerId);
     if (!path) return { ok: false, code: "path_invalid" };
-    const file = storageClient.bucket(bucketName).file(path);
-    await file.save(buffer, {
+    await saveGcsFile({
+      storage: storageClient,
+      bucketName,
+      path,
+      buffer,
       contentType: "application/pdf",
-      resumable: false,
-      metadata: { cacheControl: "private, max-age=0, no-transform" },
+      cacheControl: "private, max-age=0, no-transform",
     });
     return { ok: true, filePath: path };
   }

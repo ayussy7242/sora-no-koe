@@ -27,6 +27,7 @@ const {
   getLineUserIdFromUserDoc,
 } = require("../cron_utils");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const dict = require("../../../content/dict");
 const { buildDailyLinePayload } = require("./planning");
 const { linePushText, linePushImage, writeDeliverySummary, writePerUserResult } = require("./publish");
@@ -88,7 +89,7 @@ async function runDaily8(deps, opts = {}) {
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   opts = normalizeOpts(opts);
 
   const LINE_ENABLED = envFlag(env2.LINE_ENABLED, true);

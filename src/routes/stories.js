@@ -6,6 +6,7 @@ const { buildStoryOutputs } = require("../usecases/story/outputs");
 const { createStoriesAiHelpers } = require("../usecases/story/ai");
 const { parseStoriesRequest } = require("../usecases/story/request");
 const { buildStoryContext } = require("../usecases/story/build");
+const { resolveEnv } = require("../utils/env");
 
 // -------------------- helpers --------------------
 // -------------------- router factory --------------------
@@ -16,7 +17,7 @@ function createStoriesRouter(deps = {}) {
   const storyService = deps.storyService;
   const renderers = deps.renderers;
   const env = deps.env || {};
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dict = deps.dict || require("../content/dict");
 
   if (!db) throw new Error("deps.db is required for stories router");

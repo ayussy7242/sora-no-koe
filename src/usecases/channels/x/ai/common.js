@@ -2,7 +2,7 @@
 
 const { signJa } = require("../../../../presenters/format/format/common");
 const { CORE_PLANETS } = require("../../../../domain/astro/constants");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { formatXAiText } = require("../../../ai_text/normalizers");
 
@@ -183,7 +183,6 @@ async function generateXAiWithRetry(opts = {}) {
 
   const openai = opts.openai || {};
   const apiKey = openai.apiKey || process.env.OPENAI_API_KEY;
-  const baseUrl = openai.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai.model || process.env.OPENAI_MODEL || "gpt-4o";
   const systemPrompt = opts.systemPrompt || "";
   const create = opts.createChatCompletion;
@@ -229,75 +228,64 @@ async function generateXAiWithRetry(opts = {}) {
     return { ok: false, error: "prompt empty" };
   }
 
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const userPrompt = prompt +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    let text = "";
-    try {
-      text = await create({
-        apiKey,
-        baseUrl,
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature,
-        maxTokens,
-      });
-    } catch (err) {
-      const message = err?.message || String(err || "openai_error");
-      console.error("[x_ai_common] OpenAI error", { channel, message });
-      lastReason = `openai_error:${message}`;
-      lastText = "";
-      retryNote = buildRetryNote({
-        reason: lastReason,
+  const result = await generateWithRetry({
+    prompt,
+    buildRetryNote: (reason) => {
+      if (String(reason || "").startsWith("openai_error:")) {
+        const message = String(reason || "").replace(/^openai_error:/, "");
+        console.error("[x_ai_common] OpenAI error", { channel, message });
+      }
+      return buildRetryNote({
+        reason,
         template: opts.retryNoteTemplate,
         minChars,
         maxChars,
         channel,
       });
-      continue;
-    }
+    },
+    validate: ({ raw }) => {
+      const verdict = validateXAiText(raw, { minChars, maxChars });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion: create,
+    openai: {
+      apiKey,
+      baseUrl: openai.baseUrl,
+      model,
+      maxRetries: openai.maxRetries,
+    },
+    maxRetries,
+    systemPrompt,
+    temperature,
+    maxTokens,
+    context: { channel, story, dict, minChars, maxChars },
+  });
 
-    const verdict = validateXAiText(text, { minChars, maxChars });
-    if (verdict.ok) return { ok: true, text: verdict.text, model, len: verdict.len };
-
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = buildRetryNote({
-      reason: lastReason,
-      template: opts.retryNoteTemplate,
-      minChars,
-      maxChars,
-      channel,
-    });
+  if (result.ok) {
+    const len = Array.from(String(result.text || "")).length;
+    return { ok: true, text: result.text, model, len, attempts: result.attempts, last_text: result.lastText };
   }
 
   if (fallbackFn) {
-    return finalizeFallback(
+    const fallbackResult = finalizeFallback(
       fallbackFn({
         channel,
         story,
         dict,
         maxChars,
-        error: "retry_exceeded",
-        errorReason: lastReason,
-        lastText,
+        error: result.error || "retry_exceeded",
+        errorReason: result.reason,
+        lastText: result.lastText,
         minChars,
         ...fallbackContext,
       }),
-      lastReason || "retry_exceeded"
+      result.reason || "retry_exceeded"
     );
+    return { ...fallbackResult, attempts: result.attempts, last_text: result.lastText };
   }
 
-  return { ok: false, error: "retry_exceeded", reason: lastReason, last_text: lastText };
+  return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, last_text: result.lastText, attempts: result.attempts };
 }
 
 module.exports = {

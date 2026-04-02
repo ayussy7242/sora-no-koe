@@ -36,6 +36,7 @@ const {
   getLineUserIdFromUserDoc,
 } = require("../cron_utils");
 const { toBool } = require("../../../utils/data/bool");
+const { resolveEnv } = require("../../../utils/env");
 const dict = require("../../../content/dict");
 const { buildDailyLinePayload } = require("./planning");
 const { writeLocalLineOutputs, buildOutboxItem } = require("./io");
@@ -64,7 +65,7 @@ async function rebuildDaily8(deps, opts = {}) {
   if (!env) throw new Error("env required");
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const mode = pickMode(opts.mode);
   const target = pickTarget(opts.target);

@@ -13,13 +13,8 @@ const { generateXMoonEventAiText, detectMoonEvent } = require("../channels/x/ai/
 const { generateXMonthlyAiText, buildMonthlyContext } = require("../channels/x/ai/monthly");
 const { SPEC } = require("../../config/sora_spec");
 const { ensureIgOutputs } = require("./output_helpers");
-
-function ensureXMeta(story) {
-  story.meta = story.meta || {};
-  story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
-  story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
-  return story.meta;
-}
+const { ensureXMeta } = require("./meta_helpers");
+const { logAiGeneration } = require("../../utils/infra/logging");
 
 function isMonthStartDateLocal(dateLocal) {
   const parts = String(dateLocal || "").split("-");
@@ -28,34 +23,62 @@ function isMonthStartDateLocal(dateLocal) {
 
 function createStoriesAiHelpers({ db, env, dict }) {
   const env2 = env || {};
+  const openaiConfig = {
+    apiKey: String(env2.OPENAI_API_KEY || "").trim(),
+    baseUrl: env2.OPENAI_BASE_URL,
+    model: env2.OPENAI_MODEL,
+  };
 
-  async function maybeAttachIgResonanceText({ story, wantAi, appUserId, dateLocal }) {
+  const savedStoryCache = new Map();
+  async function loadSavedStory(appUserId, dateLocal) {
+    if (!db || !appUserId || !dateLocal) return null;
+    const key = `${appUserId}-${dateLocal}`;
+    if (savedStoryCache.has(key)) return savedStoryCache.get(key);
+    const promise = db.collection("stories").doc(key).get()
+      .then((snap) => (snap.exists ? snap.data() : null))
+      .catch(() => null);
+    savedStoryCache.set(key, promise);
+    return promise;
+  }
+
+  function ensureStoryMeta(story) {
+    story.meta = story.meta || {};
+    return story.meta;
+  }
+
+  function getByPath(obj, path) {
+    if (!obj || !path) return undefined;
+    return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+  }
+
+  function pickFirstValue(obj, paths = []) {
+    for (const path of paths) {
+      const value = getByPath(obj, path);
+      if (value) return value;
+    }
+    return null;
+  }
+
+  async function maybeAttachIgPart(config, { story, wantAi, appUserId, dateLocal }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    if (story.outputs?.ig?.parts?.resonance) return;
+    if (config.partKey && story.outputs?.ig?.parts?.[config.partKey]) return;
 
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    const canGenerate = !!apiKey;
+    const canGenerate = !!openaiConfig.apiKey;
 
-    // If saved story exists, reuse stored IG outputs first
     try {
       if (db && appUserId && dateLocal) {
-        const docId = `${appUserId}-${dateLocal}`;
-        const snap = await db.collection("stories").doc(docId).get();
-        const saved = snap.exists ? snap.data() : null;
+        const saved = await loadSavedStory(appUserId, dateLocal);
         const savedIg = saved?.outputs?.ig || null;
-        const savedText =
-          savedIg?.parts?.resonance ||
-          savedIg?.rendered?.carousel?.slide3_text ||
-          savedIg?.resonance_text ||
-          savedIg?.carousel?.slide3_text ||
-          null;
+        const savedText = config.pickSavedText ? config.pickSavedText(savedIg) : null;
         if (savedText) {
           const igOut = ensureIgOutputs(story);
-          igOut.parts.resonance = savedText;
-          igOut.rendered.carousel.slide3_text = savedIg?.rendered?.carousel?.slide3_text || savedIg?.carousel?.slide3_text || savedText;
-          story.meta = story.meta || {};
-          story.meta.ig_resonance_source = "saved";
+          const renderedText = config.pickRenderedText ? config.pickRenderedText(savedIg) : null;
+          if (typeof config.applySaved === "function") {
+            config.applySaved({ igOut, story, savedIg, savedText, renderedText });
+          }
+          const meta = ensureStoryMeta(story);
+          if (config.sourceKey) meta[config.sourceKey] = "saved";
           return;
         }
       }
@@ -66,517 +89,327 @@ function createStoriesAiHelpers({ db, env, dict }) {
     if (!canGenerate) return;
 
     try {
-      const result = await generateIgResonanceText({
-        story,
-        dict,
-        openai: {
-          apiKey,
-          baseUrl: env2.OPENAI_BASE_URL,
-          model: env2.OPENAI_MODEL,
-        },
+      const result = await config.generate({ story, dict, openai: openaiConfig });
+      logAiGeneration({
+        channel: "instagram",
+        kind: config.kind || config.partKey || "",
+        ok: !!result?.ok,
+        attempts: result?.attempts,
+        fallback: !!result?.fallback,
+        reason: result?.fallback_reason || result?.reason || result?.error || "",
+        model: result?.model || null,
+        lastText: result?.last_text || result?.lastText || "",
       });
-
       if (result?.ok && result?.text) {
         const igOut = ensureIgOutputs(story);
+        if (typeof config.applyGenerated === "function") {
+          config.applyGenerated({ igOut, story, result });
+        }
+        const meta = ensureStoryMeta(story);
+        if (config.aiKey) {
+          meta[config.aiKey] = {
+            model: result.model || env2.OPENAI_MODEL || null,
+            chars: result.text.length,
+            generated_at_utc: new Date().toISOString(),
+          };
+        }
+        if (config.sourceKey) meta[config.sourceKey] = "generated";
+      } else {
+        const meta = ensureStoryMeta(story);
+        if (config.errorKey) meta[config.errorKey] = result?.error || "unknown";
+      }
+    } catch (e) {
+      const meta = ensureStoryMeta(story);
+      if (config.errorKey) meta[config.errorKey] = e?.message || String(e);
+    }
+  }
+
+  const igAttachConfigs = {
+    resonance: {
+      kind: "resonance",
+      partKey: "resonance",
+      sourceKey: "ig_resonance_source",
+      aiKey: "ig_resonance_ai",
+      errorKey: "ig_resonance_ai_error",
+      pickSavedText: (savedIg) => pickFirstValue(savedIg, [
+        "parts.resonance",
+        "rendered.carousel.slide3_text",
+        "resonance_text",
+        "carousel.slide3_text",
+      ]),
+      pickRenderedText: (savedIg) => pickFirstValue(savedIg, [
+        "rendered.carousel.slide3_text",
+        "carousel.slide3_text",
+      ]),
+      applySaved: ({ igOut, savedText, renderedText }) => {
+        igOut.parts.resonance = savedText;
+        igOut.rendered.carousel.slide3_text = renderedText || savedText;
+      },
+      applyGenerated: ({ igOut, result }) => {
         igOut.parts.resonance = result.text;
         igOut.rendered.carousel.slide3_text = result.text;
-        story.meta = story.meta || {};
-        story.meta.ig_resonance_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        story.meta.ig_resonance_source = "generated";
-      } else {
-        story.meta = story.meta || {};
-        story.meta.ig_resonance_ai_error = result?.error || "unknown";
-      }
-    } catch (e) {
-      story.meta = story.meta || {};
-      story.meta.ig_resonance_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachIgTsukijiStructure({ story, wantAi, appUserId, dateLocal }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    if (story.outputs?.ig?.parts?.structure_label) return;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    const canGenerate = !!apiKey;
-
-    try {
-      if (db && appUserId && dateLocal) {
-        const docId = `${appUserId}-${dateLocal}`;
-        const snap = await db.collection("stories").doc(docId).get();
-        const saved = snap.exists ? snap.data() : null;
-        const savedIg = saved?.outputs?.ig || null;
-        const savedText =
-          savedIg?.parts?.structure_label ||
-          savedIg?.rendered?.carousel?.slide4_label ||
-          savedIg?.carousel?.slide4_structure ||
-          savedIg?.tsukiji_structure_text ||
-          null;
-        if (savedText) {
-          const igOut = ensureIgOutputs(story);
-          igOut.parts.structure_label = savedText;
-          igOut.rendered.carousel.slide4_label = savedIg?.rendered?.carousel?.slide4_label || savedIg?.carousel?.slide4_structure || savedText;
-          story.meta = story.meta || {};
-          story.meta.ig_tsukiji_source = "saved";
-          return;
-        }
-      }
-    } catch (_) {
-      // ignore saved lookup failure
-    }
-
-    if (!canGenerate) return;
-
-    try {
-      const result = await generateIgTsukijiStructureText({
-        story,
-        dict,
-        openai: {
-          apiKey,
-          baseUrl: env2.OPENAI_BASE_URL,
-          model: env2.OPENAI_MODEL,
-        },
-      });
-
-      if (result?.ok && result?.text) {
-        const igOut = ensureIgOutputs(story);
+      },
+      generate: ({ story, dict, openai }) => generateIgResonanceText({ story, dict, openai }),
+    },
+    tsukiji_structure: {
+      kind: "tsukiji_structure",
+      partKey: "structure_label",
+      sourceKey: "ig_tsukiji_source",
+      aiKey: "ig_tsukiji_ai",
+      errorKey: "ig_tsukiji_ai_error",
+      pickSavedText: (savedIg) => pickFirstValue(savedIg, [
+        "parts.structure_label",
+        "rendered.carousel.slide4_label",
+        "carousel.slide4_structure",
+        "tsukiji_structure_text",
+      ]),
+      pickRenderedText: (savedIg) => pickFirstValue(savedIg, [
+        "rendered.carousel.slide4_label",
+        "carousel.slide4_structure",
+      ]),
+      applySaved: ({ igOut, savedText, renderedText }) => {
+        igOut.parts.structure_label = savedText;
+        igOut.rendered.carousel.slide4_label = renderedText || savedText;
+      },
+      applyGenerated: ({ igOut, result }) => {
         igOut.parts.structure_label = result.text;
         igOut.rendered.carousel.slide4_label = result.text;
-        story.meta = story.meta || {};
-        story.meta.ig_tsukiji_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        story.meta.ig_tsukiji_source = "generated";
-      } else {
-        story.meta = story.meta || {};
-        story.meta.ig_tsukiji_ai_error = result?.error || "unknown";
-      }
-    } catch (e) {
-      story.meta = story.meta || {};
-      story.meta.ig_tsukiji_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachIgMoonText({ story, wantAi, appUserId, dateLocal }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    if (story.outputs?.ig?.parts?.moon) return;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    const canGenerate = !!apiKey;
-
-    try {
-      if (db && appUserId && dateLocal) {
-        const docId = `${appUserId}-${dateLocal}`;
-        const snap = await db.collection("stories").doc(docId).get();
-        const saved = snap.exists ? snap.data() : null;
-        const savedIg = saved?.outputs?.ig || null;
-        const savedText =
-          savedIg?.parts?.moon ||
-          savedIg?.rendered?.carousel?.slide2_text ||
-          savedIg?.moon_text ||
-          savedIg?.carousel?.slide2_text ||
-          null;
-        if (savedText) {
-          const igOut = ensureIgOutputs(story);
-          igOut.parts.moon = savedText;
-          igOut.rendered.carousel.slide2_text = savedIg?.rendered?.carousel?.slide2_text || savedIg?.carousel?.slide2_text || savedText;
-          story.meta = story.meta || {};
-          story.meta.ig_moon_source = "saved";
-          return;
-        }
-      }
-    } catch (_) {
-      // ignore saved lookup failure
-    }
-
-    if (!canGenerate) return;
-
-    try {
-      const result = await generateIgMoonText({
-        story,
-        dict,
-        openai: {
-          apiKey,
-          baseUrl: env2.OPENAI_BASE_URL,
-          model: env2.OPENAI_MODEL,
-        },
-      });
-
-      if (result?.ok && result?.text) {
-        const igOut = ensureIgOutputs(story);
+      },
+      generate: ({ story, dict, openai }) => generateIgTsukijiStructureText({ story, dict, openai }),
+    },
+    moon: {
+      kind: "moon",
+      partKey: "moon",
+      sourceKey: "ig_moon_source",
+      aiKey: "ig_moon_ai",
+      errorKey: "ig_moon_ai_error",
+      pickSavedText: (savedIg) => pickFirstValue(savedIg, [
+        "parts.moon",
+        "rendered.carousel.slide2_text",
+        "moon_text",
+        "carousel.slide2_text",
+      ]),
+      pickRenderedText: (savedIg) => pickFirstValue(savedIg, [
+        "rendered.carousel.slide2_text",
+        "carousel.slide2_text",
+      ]),
+      applySaved: ({ igOut, savedText, renderedText }) => {
+        igOut.parts.moon = savedText;
+        igOut.rendered.carousel.slide2_text = renderedText || savedText;
+      },
+      applyGenerated: ({ igOut, result }) => {
         igOut.parts.moon = result.text;
         igOut.rendered.carousel.slide2_text = result.text;
-        story.meta = story.meta || {};
-        story.meta.ig_moon_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        story.meta.ig_moon_source = "generated";
-      } else {
-        story.meta = story.meta || {};
-        story.meta.ig_moon_ai_error = result?.error || "unknown";
-      }
-    } catch (e) {
-      story.meta = story.meta || {};
-      story.meta.ig_moon_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachIgObservationText({ story, wantAi, appUserId, dateLocal }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    if (story.outputs?.ig?.parts?.observation) return;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    const canGenerate = !!apiKey;
-
-    // If saved story exists, reuse stored IG outputs first
-    try {
-      if (db && appUserId && dateLocal) {
-        const docId = `${appUserId}-${dateLocal}`;
-        const snap = await db.collection("stories").doc(docId).get();
-        const saved = snap.exists ? snap.data() : null;
-        const savedIg = saved?.outputs?.ig || null;
-        const savedText =
-          savedIg?.parts?.observation ||
-          savedIg?.rendered?.carousel?.slide1_observation ||
-          savedIg?.carousel?.slide1_observation ||
-          savedIg?.observation_text ||
-          null;
-        if (savedText) {
-          const igOut = ensureIgOutputs(story);
-          igOut.parts.observation = savedText;
-          igOut.rendered.carousel.slide1_observation = savedIg?.rendered?.carousel?.slide1_observation || savedIg?.carousel?.slide1_observation || savedText;
-          story.meta = story.meta || {};
-          story.meta.ig_observation_source = "saved";
-          return;
-        }
-      }
-    } catch (_) {
-      // ignore saved lookup failure
-    }
-
-    if (!canGenerate) return;
-
-    try {
-      const result = await generateIgObservationText({
-        story,
-        dict,
-        openai: {
-          apiKey,
-          baseUrl: env2.OPENAI_BASE_URL,
-          model: env2.OPENAI_MODEL,
-        },
-      });
-
-      if (result?.ok && result?.text) {
-        const igOut = ensureIgOutputs(story);
+      },
+      generate: ({ story, dict, openai }) => generateIgMoonText({ story, dict, openai }),
+    },
+    observation: {
+      kind: "observation",
+      partKey: "observation",
+      sourceKey: "ig_observation_source",
+      aiKey: "ig_observation_ai",
+      errorKey: "ig_observation_ai_error",
+      pickSavedText: (savedIg) => pickFirstValue(savedIg, [
+        "parts.observation",
+        "rendered.carousel.slide1_observation",
+        "carousel.slide1_observation",
+        "observation_text",
+      ]),
+      pickRenderedText: (savedIg) => pickFirstValue(savedIg, [
+        "rendered.carousel.slide1_observation",
+        "carousel.slide1_observation",
+      ]),
+      applySaved: ({ igOut, savedText, renderedText }) => {
+        igOut.parts.observation = savedText;
+        igOut.rendered.carousel.slide1_observation = renderedText || savedText;
+      },
+      applyGenerated: ({ igOut, result }) => {
         igOut.parts.observation = result.text;
         igOut.rendered.carousel.slide1_observation = result.text;
-        story.meta = story.meta || {};
-        story.meta.ig_observation_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        story.meta.ig_observation_source = "generated";
-      } else {
-        story.meta = story.meta || {};
-        story.meta.ig_observation_ai_error = result?.error || "unknown";
-      }
-    } catch (e) {
-      story.meta = story.meta || {};
-      story.meta.ig_observation_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachIgSkyOverviewText({ story, wantAi, appUserId, dateLocal }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    if (story.outputs?.ig?.parts?.sky_overview) return;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    const canGenerate = !!apiKey;
-
-    try {
-      if (db && appUserId && dateLocal) {
-        const docId = `${appUserId}-${dateLocal}`;
-        const snap = await db.collection("stories").doc(docId).get();
-        const saved = snap.exists ? snap.data() : null;
-        const savedIg = saved?.outputs?.ig || null;
-        const savedText =
-          savedIg?.parts?.sky_overview ||
-          savedIg?.sky_overview_text ||
-          savedIg?.caption_sky_overview ||
-          null;
-        if (savedText) {
-          const igOut = ensureIgOutputs(story);
-          igOut.parts.sky_overview = savedText;
-          story.meta = story.meta || {};
-          story.meta.ig_sky_overview_source = "saved";
-          return;
-        }
-      }
-    } catch (_) {
-      // ignore saved lookup failure
-    }
-
-    if (!canGenerate) return;
-
-    try {
-      const result = await generateIgSkyOverviewText({
-        story,
-        dict,
-        openai: {
-          apiKey,
-          baseUrl: env2.OPENAI_BASE_URL,
-          model: env2.OPENAI_MODEL,
-        },
-      });
-
-      if (result?.ok && result?.text) {
-        const igOut = ensureIgOutputs(story);
+      },
+      generate: ({ story, dict, openai }) => generateIgObservationText({ story, dict, openai }),
+    },
+    sky_overview: {
+      kind: "sky_overview",
+      partKey: "sky_overview",
+      sourceKey: "ig_sky_overview_source",
+      aiKey: "ig_sky_overview_ai",
+      errorKey: "ig_sky_overview_ai_error",
+      pickSavedText: (savedIg) => pickFirstValue(savedIg, [
+        "parts.sky_overview",
+        "sky_overview_text",
+        "caption_sky_overview",
+      ]),
+      applySaved: ({ igOut, savedText }) => {
+        igOut.parts.sky_overview = savedText;
+      },
+      applyGenerated: ({ igOut, result }) => {
         igOut.parts.sky_overview = result.text;
-        story.meta = story.meta || {};
-        story.meta.ig_sky_overview_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        story.meta.ig_sky_overview_source = "generated";
-      } else {
-        story.meta = story.meta || {};
-        story.meta.ig_sky_overview_ai_error = result?.error || "unknown";
-      }
-    } catch (e) {
-      story.meta = story.meta || {};
-      story.meta.ig_sky_overview_ai_error = e?.message || String(e);
+      },
+      generate: ({ story, dict, openai }) => generateIgSkyOverviewText({ story, dict, openai }),
+    },
+  };
+
+  const maybeAttachIgResonanceText = (args) => maybeAttachIgPart(igAttachConfigs.resonance, args);
+  const maybeAttachIgTsukijiStructure = (args) => maybeAttachIgPart(igAttachConfigs.tsukiji_structure, args);
+  const maybeAttachIgMoonText = (args) => maybeAttachIgPart(igAttachConfigs.moon, args);
+  const maybeAttachIgObservationText = (args) => maybeAttachIgPart(igAttachConfigs.observation, args);
+  const maybeAttachIgSkyOverviewText = (args) => maybeAttachIgPart(igAttachConfigs.sky_overview, args);
+
+  function applyXAiResult(meta, { outputKey, metaKey, result }) {
+    meta.x_ai[outputKey] = result.text;
+    meta[metaKey] = {
+      ok: true,
+      source: result.fallback ? "fallback" : "ai",
+      fallback: !!result.fallback,
+      model: result.model || env2.OPENAI_MODEL || null,
+      chars: result.len || result.text.length,
+      generated_at_utc: new Date().toISOString(),
+    };
+    if (result.fallback && result.fallback_reason) {
+      meta[metaKey].fallback_reason = result.fallback_reason;
     }
   }
 
-  async function maybeAttachXSoraText({ story, wantAi, forceAi }) {
+  function applyXSimpleResult(meta, { outputKey, metaKey, result }) {
+    meta.x_ai[outputKey] = result.text;
+    meta[metaKey] = {
+      model: result.model || env2.OPENAI_MODEL || null,
+      chars: result.text.length,
+      generated_at_utc: new Date().toISOString(),
+    };
+  }
+
+  async function maybeAttachXPart(config, { story, wantAi, forceAi }) {
     if (!wantAi) return;
     if (!story || !story.public) return;
-    const meta = ensureXMeta(story);
-    if (!forceAi && meta.x_ai?.morning) return;
+    if (typeof config.shouldRun === "function" && !config.shouldRun({ story })) return;
 
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      meta.x_sora_ai_error = "OPENAI_API_KEY missing";
+    const meta = ensureXMeta(story);
+    if (!forceAi && typeof config.hasOutput === "function" && config.hasOutput(meta)) return;
+
+    const prep = typeof config.prepare === "function" ? config.prepare({ story, dict, meta }) : {};
+    if (prep?.skip) return;
+
+    if (!openaiConfig.apiKey) {
+      meta[config.errorKey] = "OPENAI_API_KEY missing";
       return;
     }
 
     try {
-      const result = await generateXSoraAiText({
+      const result = await config.generate({
         story,
         dict,
-        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+        openai: openaiConfig,
+        ...(prep?.args || {}),
       });
-
+      logAiGeneration({
+        channel: "x",
+        kind: config.kind || config.outputKey || "",
+        ok: !!result?.ok,
+        attempts: result?.attempts,
+        fallback: !!result?.fallback,
+        reason: result?.fallback_reason || result?.reason || result?.error || "",
+        model: result?.model || null,
+        lastText: result?.last_text || result?.lastText || "",
+      });
       if (result?.ok && result?.text) {
-        meta.x_ai.morning = result.text;
-        meta.x_sora_ai = {
-          ok: true,
-          source: result.fallback ? "fallback" : "ai",
-          fallback: !!result.fallback,
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.len || result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        if (result.fallback && result.fallback_reason) {
-          meta.x_sora_ai.fallback_reason = result.fallback_reason;
-        }
+        config.applySuccess({ meta, result, story });
       } else {
-        meta.x_sora_ai_error = result?.error || "unknown";
-        if (result?.reason) meta.x_sora_ai_error_reason = result.reason;
+        meta[config.errorKey] = result?.error || "unknown";
+        if (config.reasonKey && result?.reason) meta[config.reasonKey] = result.reason;
       }
     } catch (e) {
-      meta.x_sora_ai_error = e?.message || String(e);
+      meta[config.errorKey] = e?.message || String(e);
     }
   }
 
-  async function maybeAttachXNightText({ story, wantAi, forceAi }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    const meta = ensureXMeta(story);
-    if (!forceAi && meta.x_ai?.night) return;
+  const xAttachConfigs = {
+    sora: {
+      kind: "daily",
+      outputKey: "morning",
+      metaKey: "x_sora_ai",
+      errorKey: "x_sora_ai_error",
+      reasonKey: "x_sora_ai_error_reason",
+      hasOutput: (meta) => !!meta.x_ai?.morning,
+      generate: ({ story, dict, openai }) => generateXSoraAiText({ story, dict, openai }),
+      applySuccess: ({ meta, result }) => applyXAiResult(meta, { outputKey: "morning", metaKey: "x_sora_ai", result }),
+    },
+    night: {
+      kind: "night",
+      outputKey: "night",
+      metaKey: "x_night_ai",
+      errorKey: "x_night_ai_error",
+      reasonKey: "x_night_ai_error_reason",
+      hasOutput: (meta) => !!meta.x_ai?.night,
+      prepare: ({ story, dict, meta }) => {
+        const picked = pickPrimaryResonanceAspect({ story, dict });
+        if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
+        return {};
+      },
+      generate: ({ story, dict, openai }) => generateXNightAiText({ story, dict, openai }),
+      applySuccess: ({ meta, result }) => applyXAiResult(meta, { outputKey: "night", metaKey: "x_night_ai", result }),
+    },
+    resonance: {
+      kind: "resonance",
+      outputKey: "resonance",
+      metaKey: "x_resonance_ai",
+      errorKey: "x_resonance_ai_error",
+      reasonKey: "x_resonance_ai_error_reason",
+      hasOutput: (meta) => !!meta.x_ai?.resonance,
+      prepare: ({ story, dict, meta }) => {
+        const maxOrb = Number(SPEC?.orb?.free ?? 1.5);
+        const picked = pickPrimaryResonanceAspect({ story, dict, maxOrbDeg: maxOrb });
+        if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
+        if (!picked) return { skip: true };
+        return { args: { aspect: picked } };
+      },
+      generate: ({ story, dict, openai, aspect }) => generateXResonanceAiText({ story, dict, aspect, openai }),
+      applySuccess: ({ meta, result }) => applyXAiResult(meta, { outputKey: "resonance", metaKey: "x_resonance_ai", result }),
+    },
+    moon_event: {
+      kind: "moon_event",
+      outputKey: "moon_event",
+      metaKey: "x_moon_event_ai",
+      errorKey: "x_moon_event_ai_error",
+      reasonKey: "x_moon_event_ai_error_reason",
+      hasOutput: (meta) => !!meta.x_ai?.moon_event,
+      prepare: ({ story, dict, meta }) => {
+        const event = detectMoonEvent({ story, dict, asOfISO: story?.meta?.as_of });
+        if (!event) return { skip: true };
+        meta.x_source.moon_event = event;
+        return { args: { event } };
+      },
+      generate: ({ story, dict, openai, event }) => generateXMoonEventAiText({ story, dict, event, openai }),
+      applySuccess: ({ meta, result }) => applyXSimpleResult(meta, { outputKey: "moon_event", metaKey: "x_moon_event_ai", result }),
+    },
+    monthly: {
+      kind: "monthly",
+      outputKey: "monthly",
+      metaKey: "x_monthly_ai",
+      errorKey: "x_monthly_ai_error",
+      reasonKey: "x_monthly_ai_error_reason",
+      shouldRun: ({ story }) => {
+        const dateLocal = story?.meta?.date_local || story?.public?.date_local || "";
+        return isMonthStartDateLocal(dateLocal);
+      },
+      hasOutput: (meta) => !!meta.x_ai?.monthly,
+      prepare: ({ story, dict, meta }) => {
+        const resonanceMode = story?.meta?.resonance_mode || null;
+        const context = buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
+        meta.x_source.monthly_context = context;
+        return { args: { context } };
+      },
+      generate: ({ story, dict, openai, context }) => generateXMonthlyAiText({ story, dict, context, openai }),
+      applySuccess: ({ meta, result }) => applyXSimpleResult(meta, { outputKey: "monthly", metaKey: "x_monthly_ai", result }),
+    },
+  };
 
-    const picked = pickPrimaryResonanceAspect({ story, dict });
-    if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      meta.x_night_ai_error = "OPENAI_API_KEY missing";
-      return;
-    }
-
-    try {
-      const result = await generateXNightAiText({
-        story,
-        dict,
-        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
-      });
-
-      if (result?.ok && result?.text) {
-        meta.x_ai.night = result.text;
-        meta.x_night_ai = {
-          ok: true,
-          source: result.fallback ? "fallback" : "ai",
-          fallback: !!result.fallback,
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.len || result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        if (result.fallback && result.fallback_reason) {
-          meta.x_night_ai.fallback_reason = result.fallback_reason;
-        }
-      } else {
-        meta.x_night_ai_error = result?.error || "unknown";
-        if (result?.reason) meta.x_night_ai_error_reason = result.reason;
-      }
-    } catch (e) {
-      meta.x_night_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachXResonanceText({ story, wantAi, forceAi }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    const meta = ensureXMeta(story);
-    if (!forceAi && meta.x_ai?.resonance) return;
-
-    const maxOrb = Number(SPEC?.orb?.free ?? 1.5);
-    const picked = pickPrimaryResonanceAspect({ story, dict, maxOrbDeg: maxOrb });
-    if (picked?.raw) meta.x_source.resonance_aspect = picked.raw;
-    if (!picked) return;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      meta.x_resonance_ai_error = "OPENAI_API_KEY missing";
-      return;
-    }
-
-    try {
-      const result = await generateXResonanceAiText({
-        story,
-        dict,
-        aspect: picked,
-        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
-      });
-
-      if (result?.ok && result?.text) {
-        meta.x_ai.resonance = result.text;
-        meta.x_resonance_ai = {
-          ok: true,
-          source: result.fallback ? "fallback" : "ai",
-          fallback: !!result.fallback,
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.len || result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-        if (result.fallback && result.fallback_reason) {
-          meta.x_resonance_ai.fallback_reason = result.fallback_reason;
-        }
-      } else {
-        meta.x_resonance_ai_error = result?.error || "unknown";
-        if (result?.reason) meta.x_resonance_ai_error_reason = result.reason;
-      }
-    } catch (e) {
-      meta.x_resonance_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachXMoonEventText({ story, wantAi, forceAi }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    const meta = ensureXMeta(story);
-    if (!forceAi && meta.x_ai?.moon_event) return;
-
-    const event = detectMoonEvent({ story, dict, asOfISO: story?.meta?.as_of });
-    if (!event) return;
-    meta.x_source.moon_event = event;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      meta.x_moon_event_ai_error = "OPENAI_API_KEY missing";
-      return;
-    }
-
-    try {
-      const result = await generateXMoonEventAiText({
-        story,
-        dict,
-        event,
-        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
-      });
-
-      if (result?.ok && result?.text) {
-        meta.x_ai.moon_event = result.text;
-        meta.x_moon_event_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-      } else {
-        meta.x_moon_event_ai_error = result?.error || "unknown";
-        if (result?.reason) meta.x_moon_event_ai_error_reason = result.reason;
-      }
-    } catch (e) {
-      meta.x_moon_event_ai_error = e?.message || String(e);
-    }
-  }
-
-  async function maybeAttachXMonthlyText({ story, wantAi, forceAi }) {
-    if (!wantAi) return;
-    if (!story || !story.public) return;
-    const dateLocal = story?.meta?.date_local || story?.public?.date_local || "";
-    if (!isMonthStartDateLocal(dateLocal)) return;
-
-    const meta = ensureXMeta(story);
-    if (!forceAi && meta.x_ai?.monthly) return;
-
-    const resonanceMode = story?.meta?.resonance_mode || null;
-    const context = buildMonthlyContext({ story, dict, asOfISO: story?.meta?.as_of, resonanceMode });
-    meta.x_source.monthly_context = context;
-
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      meta.x_monthly_ai_error = "OPENAI_API_KEY missing";
-      return;
-    }
-
-    try {
-      const result = await generateXMonthlyAiText({
-        story,
-        dict,
-        context,
-        openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
-      });
-
-      if (result?.ok && result?.text) {
-        meta.x_ai.monthly = result.text;
-        meta.x_monthly_ai = {
-          model: result.model || env2.OPENAI_MODEL || null,
-          chars: result.text.length,
-          generated_at_utc: new Date().toISOString(),
-        };
-      } else {
-        meta.x_monthly_ai_error = result?.error || "unknown";
-        if (result?.reason) meta.x_monthly_ai_error_reason = result.reason;
-      }
-    } catch (e) {
-      meta.x_monthly_ai_error = e?.message || String(e);
-    }
-  }
+  const maybeAttachXSoraText = (args) => maybeAttachXPart(xAttachConfigs.sora, args);
+  const maybeAttachXNightText = (args) => maybeAttachXPart(xAttachConfigs.night, args);
+  const maybeAttachXResonanceText = (args) => maybeAttachXPart(xAttachConfigs.resonance, args);
+  const maybeAttachXMoonEventText = (args) => maybeAttachXPart(xAttachConfigs.moon_event, args);
+  const maybeAttachXMonthlyText = (args) => maybeAttachXPart(xAttachConfigs.monthly, args);
 
   return {
     maybeAttachIgResonanceText,

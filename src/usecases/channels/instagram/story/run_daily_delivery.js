@@ -1,9 +1,11 @@
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const { createStorageClient } = require("../../../../utils/infra/gcs_storage");
 const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time");
+const { resolveEnv } = require("../../../../utils/env");
+const { writeBufferFiles, writeJsonFile } = require("../../../../utils/infra/local_io");
+const { uploadGcsFiles } = require("../../../../utils/infra/gcs_upload");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/instagram/story/render_backgrounds");
 const { formatIgStoryLinePayload } = require("./format_message");
@@ -11,7 +13,6 @@ const { sendIgStoryToLine } = require("./send_to_line");
 const { runDailyBlog } = require("../../../../runners/cron/blog");
 const { buildPublicStorySnapshot } = require("../../../story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../cron/lock_utils");
-const { ensureDir } = require("../../../../utils/infra/fs");
 
 function addDays(dateLocal, days = 1) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -25,25 +26,28 @@ function addDays(dateLocal, days = 1) {
 
 function writeLocalStoryImages({ outDir, dateLocal, buffers }) {
   if (!Array.isArray(buffers) || buffers.length !== 3) throw new Error("buffers missing");
-  ensureDir(outDir);
   const names = ["today", "resonance", "tomorrow"];
-  const paths = {};
-  for (let i = 0; i < buffers.length; i++) {
-    const key = names[i];
-    const filename = `sora_story_${key}_${dateLocal}.png`;
-    const filePath = path.join(outDir, filename);
-    fs.writeFileSync(filePath, buffers[i]);
-    paths[key] = filePath;
-  }
-  return paths;
+  const items = buffers.map((buffer, idx) => {
+    const key = names[idx];
+    return { key, filename: `sora_story_${key}_${dateLocal}.png`, buffer };
+  });
+  const result = writeBufferFiles({ outDir, items });
+  return result.byKey;
 }
 
 function writeLocalStoryPayload({ outDir, dateLocal, storyTexts, payload }) {
-  ensureDir(outDir);
-  const storyTextsPath = path.join(outDir, `story_texts_${dateLocal}.json`);
-  const payloadPath = path.join(outDir, `payload_${dateLocal}.json`);
-  fs.writeFileSync(storyTextsPath, JSON.stringify(storyTexts || {}, null, 2));
-  fs.writeFileSync(payloadPath, JSON.stringify(payload || {}, null, 2));
+  const storyTextsPath = writeJsonFile({
+    outDir,
+    filename: `story_texts_${dateLocal}.json`,
+    data: storyTexts || {},
+    space: 2,
+  });
+  const payloadPath = writeJsonFile({
+    outDir,
+    filename: `payload_${dateLocal}.json`,
+    data: payload || {},
+    space: 2,
+  });
   return { story_texts_path: storyTextsPath, payload_path: payloadPath };
 }
 
@@ -58,36 +62,42 @@ async function uploadStoryImages({
   if (!bucketName) throw new Error("bucket missing");
   if (!Array.isArray(buffers) || buffers.length !== 3) throw new Error("buffers missing");
 
-  const bucket = storage.bucket(bucketName);
+  const names = ["today", "resonance", "tomorrow"];
+  const files = buffers.map((buffer, idx) => {
+    const key = names[idx];
+    return {
+      key,
+      index: idx + 1,
+      filename: `sora_story_${key}_${dateLocal}.png`,
+      buffer,
+      contentType: "image/png",
+    };
+  });
+
+  const upload = await uploadGcsFiles({
+    storage,
+    bucketName,
+    basePath: path.posix.join("ig", "story", String(dateLocal)),
+    files,
+    expiresDays,
+    defaultContentType: "image/png",
+  });
+
   const urls = {};
   const paths = {};
-  const expiresMs = Math.max(1, Number(expiresDays) || 3) * 24 * 60 * 60 * 1000;
-  const names = ["today", "resonance", "tomorrow"];
+  upload.items.forEach((item) => {
+    if (item.key) {
+      urls[item.key] = item.url;
+      paths[item.key] = item.path;
+    }
+  });
 
-  for (let i = 0; i < buffers.length; i++) {
-    const key = names[i];
-    const relPath = path.posix.join("ig", "story", String(dateLocal), `sora_story_${key}_${dateLocal}.png`);
-    const file = bucket.file(relPath);
-    await file.save(buffers[i], {
-      contentType: "image/png",
-      resumable: false,
-      metadata: { cacheControl: "private, max-age=0, no-transform" },
-    });
-    const [url] = await file.getSignedUrl({
-      action: "read",
-      expires: Date.now() + expiresMs,
-      version: "v4",
-    });
-    urls[key] = url;
-    paths[key] = relPath;
-  }
-
-  return { ok: true, urls, paths, bucket: bucketName };
+  return { ok: true, items: upload.items, urls, paths, bucket: bucketName };
 }
 
 async function runDailyIgStoryDelivery(deps, opts = {}) {
   const env = deps?.env || {};
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const storyService = deps?.storyService;
   const storage = deps?.storage;
   const db = deps?.db;

@@ -21,6 +21,7 @@
 
 const express = require("express");
 const rawBody = require("../middleware/rawBody");
+const { stripQuery, pickBearerToken } = require("../utils/http");
 
 // modules
 const intent = require("../integrations/line/intent");
@@ -51,21 +52,8 @@ function pickFactory(mod, name) {
   return null;
 }
 
-function pickBearerToken(req) {
-  const authz = req.header("authorization");
-  if (!authz) return null;
-  if (!authz.startsWith("Bearer ")) return null;
-  return String(authz.slice(7)).trim() || null;
-}
-
 function isDebugEnabled(env) {
   return envFlag(env?.DEBUG, false);
-}
-
-function stripQuery(url) {
-  if (!url) return "";
-  const idx = url.indexOf("?");
-  return idx === -1 ? url : url.slice(0, idx);
 }
 
 const createLineUser = pickFactory(userMod, "createLineUser");

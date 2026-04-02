@@ -3,6 +3,7 @@
 const express = require("express");
 const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
+const { resolveEnv } = require("../utils/env");
 
 function createJobsRouter(deps = {}) {
   const router = express.Router();
@@ -12,7 +13,7 @@ function createJobsRouter(deps = {}) {
   if (!admin) throw new Error("deps.admin is required");
   if (!swisseph) throw new Error("deps.swisseph is required");
 
-  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const env2 = resolveEnv(env);
   const allowDebug = String(env2.DEBUG || "0") === "1";
 
   const workerHandler = async (req, res) => {

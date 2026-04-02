@@ -8,6 +8,7 @@ const { BACKGROUND_COLORS } = require("../shared/space_background/constants");
 const { FONT_FILES } = require("../shared/typography");
 const { formatDateLabel } = require("../../utils/time");
 const { createStorageClient } = require("../../utils/infra/gcs_storage");
+const { saveGcsFile, getGcsSignedUrl, fileExists } = require("../../utils/infra/gcs_upload");
 
 const SIGN_GLYPH = {
   aries: "♈",
@@ -603,16 +604,15 @@ async function saveSoraWheelSvg({ storage, bucketName, lineUserId, dateLocal, sv
   if (!bucketName) return { ok: false, error: "bucket_missing" };
   const path = buildSoraWheelPath({ lineUserId, dateLocal });
   if (!path) return { ok: false, error: "path_missing" };
-
-  const bucket = storageClient.bucket(bucketName);
-  const file = bucket.file(path);
-  await file.save(svg, {
+  const saved = await saveGcsFile({
+    storage: storageClient,
+    bucketName,
+    path,
+    buffer: svg,
     contentType: "image/svg+xml",
-    resumable: false,
-    metadata: { cacheControl: "private, max-age=0, no-transform" },
+    cacheControl: "private, max-age=0, no-transform",
   });
-
-  return { ok: true, path, file };
+  return { ok: true, path: saved.path };
 }
 
 async function getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLocal, expiresDays = 2, env } = {}) {
@@ -620,19 +620,10 @@ async function getSoraWheelSignedUrl({ storage, bucketName, lineUserId, dateLoca
   if (!storageClient || !bucketName) return { ok: false, error: "storage_missing" };
   const path = buildSoraWheelPath({ lineUserId, dateLocal });
   if (!path) return { ok: false, error: "path_missing" };
-
-  const bucket = storageClient.bucket(bucketName);
-  const file = bucket.file(path);
-  const [exists] = await file.exists();
-  if (!exists) return { ok: false, error: "not_found" };
-
-  const expiresMs = Math.max(1, Number(expiresDays) || 2) * 24 * 60 * 60 * 1000;
-  const [url] = await file.getSignedUrl({
-    action: "read",
-    expires: Date.now() + expiresMs,
-    version: "v4",
-  });
-  return { ok: true, url, path };
+  const exists = await fileExists({ storage: storageClient, bucketName, path });
+  if (!exists.exists) return { ok: false, error: "not_found" };
+  const signed = await getGcsSignedUrl({ storage: storageClient, bucketName, path, expiresDays });
+  return { ok: true, url: signed.url, path };
 }
 
 async function buildAndStoreSoraWheel({

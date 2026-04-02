@@ -7,7 +7,7 @@ const {
 } = require("../../../../content/prompts/sora/sora_core");
 const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
-const { runAiTextPipeline } = require("../../../ai_text");
+const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
 const { safeTrim } = require("../../../../utils/text/normalize");
@@ -77,50 +77,54 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
-  const baseUrl = openai?.baseUrl || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
-
-  let retryNote = "";
-  let lastReason = "";
-  let lastText = "";
 
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const moonSign = safeTrim(info?.moonSign || "");
   const phaseLabel = safeTrim(resolveMoonPhaseLabel(info));
 
-  for (let attempt = 0; attempt <= resolvedMaxRetries; attempt++) {
-    const userPrompt = buildIgMoonPrompt({ story, dict, asOfISO }) +
-      (retryNote ? `\n\nRETRY_NOTE: ${retryNote}` : "") +
-      (lastText ? `\n\nPREV_OUTPUT:\n${lastText}\n\n上の出力を条件に合わせて整えて再出力。` : "");
-
-    const text = await createChatCompletion({
+  const result = await generateWithRetry({
+    buildPrompt: () => buildIgMoonPrompt({ story, dict, asOfISO }),
+    buildRetryNote: () => "前回は条件外でした。「あなた」を避け、短すぎず長すぎない範囲で整えて再出力。",
+    validate: ({ raw }) => {
+      const verdict = runAiTextPipeline({
+        rawText: raw,
+        preset: PRESETS.ig.moon,
+      });
+      if (verdict.ok) return { ok: true, text: verdict.text };
+      return { ok: false, reason: verdict.reason || "" };
+    },
+    createChatCompletion,
+    openai: {
       apiKey,
-      baseUrl,
+      baseUrl: openai?.baseUrl,
       model,
-      messages: [
-        { role: "system", content: SORA_AI_SYSTEM_PROMPT_COMMON },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      maxTokens: 160,
-    });
+      maxRetries: openai?.maxRetries,
+    },
+    maxRetries: resolvedMaxRetries,
+    systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
+    temperature: 0.4,
+    maxTokens: 160,
+    context: { story, dict, asOfISO },
+  });
 
-    const overrides = {};
-    const verdict = runAiTextPipeline({
-      rawText: text,
-      preset: PRESETS.ig.moon,
-      overrides,
-    });
-    if (verdict.ok) return { ok: true, text: verdict.text, model };
+  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
-    lastReason = verdict.reason || "";
-    lastText = String(text || "").trim();
-    retryNote = "前回は条件外でした。「あなた」を避け、短すぎず長すぎない範囲で整えて再出力。";
+  if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
+    return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
   }
 
   const fallback = buildMoonFallback({ moonSign, phaseLabel });
-  return { ok: true, text: fallback, model, fallback: true };
+  return {
+    ok: true,
+    text: fallback,
+    model,
+    fallback: true,
+    fallback_reason: result.reason || result.error || "",
+    attempts: result.attempts,
+    last_text: result.lastText,
+  };
 }
 
 module.exports = {
