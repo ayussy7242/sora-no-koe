@@ -1,7 +1,7 @@
 "use strict";
 
-const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
-const { CORE_PLANETS } = require("../../../domain/astro/constants");
+const { buildSoraWheelSvg } = require("../../../graphics/sora_wheel");
+const { CORE_PLANETS } = require("../../../../domain/astro/constants");
 const {
   BODY_GLYPH,
   BODY_LABEL_JA,
@@ -15,13 +15,33 @@ const {
   SIGN_JA_TO_KEY,
   SIGN_EN,
   SIGN_SYMBOL,
-} = require("./constants");
+} = require("../constants");
 const {
   toNumber,
   resolveSignKey,
   formatSignJa,
-} = require("./utils");
-const { buildStructureLinesFromPlanets } = require("../../../utils/data/chart_type");
+} = require("../utils");
+const {
+  formatSignWithGlyph,
+  formatAxisNode,
+  formatAxisSummary,
+  formatNodeWithGlyph,
+  formatAngleMeta,
+  pickHouseNo,
+  formatKeyPoint,
+  formatBodyLine,
+} = require("./formatters");
+const {
+  buildDominantSignsFromKernel,
+  buildHouseSorted,
+  parseElementCounts,
+  buildElementBars,
+  parseModalityCounts,
+  buildModalityBars,
+  buildDominanceLines,
+  buildDominantSignsFromAggregate,
+} = require("./counts");
+const { buildStructureLinesFromPlanets } = require("../../../../utils/data/chart_type");
 
 function extractFromKernel({ kernel, input, p }) {
   const story = input?.story || input?.kernel?.story;
@@ -54,11 +74,6 @@ function extractFromKernel({ kernel, input, p }) {
   const baseSymbols = uniqueSymbols.length ? uniqueSymbols : ["♌︎"];
   p.signatureLineSymbols = Array.from({ length: 10 }, (_, i) => baseSymbols[i % baseSymbols.length]).join(" ");
 
-  const formatJaDeg = (signJa, deg, houseNo) => {
-    const degText = Number.isFinite(Number(deg)) ? ` ${Number(deg)}°` : "";
-    const houseText = Number.isFinite(Number(houseNo)) ? `｜${Number(houseNo)}H` : "";
-    return `${signJa || ""}${degText}${houseText}`.trim();
-  };
   const northNodeMeta = kernel?.nodes?.north?.kernel?.meta || {};
   const southNodeMeta = kernel?.nodes?.south?.kernel?.meta || {};
   const chironMeta = kernel?.chiron?.kernel?.meta || {};
@@ -89,44 +104,6 @@ function extractFromKernel({ kernel, input, p }) {
     p.nodeSigns = nodeSigns;
   }
 
-  const formatSignWithGlyph = (meta) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    if (!sign) return "";
-    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
-    const signGlyph = SIGN_SYMBOL[signKey] || "";
-    return `${signGlyph ? `${signGlyph} ` : ""}${formatJaDeg(sign, meta.deg, meta.house_no)}`.trim();
-  };
-
-  const formatAxisNode = (meta) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    if (!sign) return "";
-    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
-    const signGlyph = SIGN_SYMBOL[signKey] || "";
-    const degText = Number.isFinite(Number(meta.deg)) ? ` ${Number(meta.deg)}°` : "";
-    const houseText = Number.isFinite(Number(meta.house_no)) ? `｜${Number(meta.house_no)}H` : "";
-    return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
-  };
-
-  const formatAxisSummary = (meta) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    const house = Number.isFinite(Number(meta.house_no)) ? Number(meta.house_no) : null;
-    if (sign && house) return `${sign}${house}H`;
-    if (sign) return sign;
-    if (house) return `${house}H`;
-    return "";
-  };
-
-  const formatNodeWithGlyph = (meta, label) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    if (!sign) return "";
-    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
-    const signGlyph = SIGN_SYMBOL[signKey] || "";
-    return `${label}　${signGlyph ? `${signGlyph} ` : ""}${formatJaDeg(sign, meta.deg, meta.house_no)}`.trim();
-  };
 
   p.deepAxisMeta = {
     north: (northNodeMeta.sign_ja || northNodeMeta.sign)
@@ -163,17 +140,6 @@ function extractFromKernel({ kernel, input, p }) {
       : "",
   };
 
-  const formatAngleMeta = (meta, label) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    if (!sign) return "";
-    const signKey = meta.sign_key || SIGN_JA_TO_KEY[sign] || SIGN_NAME_TO_KEY[String(sign || "").toLowerCase()];
-    const signGlyph = SIGN_SYMBOL[signKey] || "";
-    const degText = Number.isFinite(Number(meta.deg)) ? ` ${Number(meta.deg)}°` : "";
-    const axisHouseMap = { ASC: 1, MC: 10, IC: 4, DC: 7 };
-    const houseText = axisHouseMap[label] ? `｜${axisHouseMap[label]}H` : "";
-    return `${signGlyph ? `${signGlyph} ` : ""}${sign}${degText}${houseText}`.trim();
-  };
   p.angleMeta = {
     asc: formatAngleMeta(angleMetaMap.get("asc"), "ASC"),
     mc: formatAngleMeta(angleMetaMap.get("mc"), "MC"),
@@ -181,27 +147,6 @@ function extractFromKernel({ kernel, input, p }) {
     dc: formatAngleMeta(angleMetaMap.get("dc"), "DC"),
   };
 
-  const normalizeHouseNo = (v) => {
-    const n = Number(v);
-    if (!Number.isFinite(n)) return null;
-    const i = Math.round(n);
-    if (i < 1 || i > 12) return null;
-    return i;
-  };
-
-  const pickHouseNo = (key, meta) => {
-    const direct = normalizeHouseNo(meta?.house_no);
-    if (direct) return direct;
-    return normalizeHouseNo(houseByKey.get(key));
-  };
-
-  const formatKeyPoint = (label, meta, houseFallback = null) => {
-    if (!meta) return "";
-    const sign = formatSignJa(meta.sign_ja || meta.sign || "");
-    if (!sign) return "";
-    const houseNo = normalizeHouseNo(meta.house_no) || normalizeHouseNo(houseFallback);
-    return `${label} ${formatJaDeg(sign, meta.deg, houseNo)}`.trim();
-  };
 
   const keyPoints = [];
   const ascMeta = angleMetaMap.get("asc");
@@ -209,29 +154,20 @@ function extractFromKernel({ kernel, input, p }) {
   if (ascMeta?.sign_ja || ascMeta?.sign) keyPoints.push(formatKeyPoint("ASC", ascMeta, 1));
   if (mcMeta?.sign_ja || mcMeta?.sign) keyPoints.push(formatKeyPoint("MC", mcMeta, 10));
   if (northNodeMeta?.sign_ja || northNodeMeta?.sign) {
-    keyPoints.push(formatKeyPoint("☊ ノード", { ...northNodeMeta, house_no: pickHouseNo("north_node", northNodeMeta) }));
+    keyPoints.push(formatKeyPoint("☊ ノード", { ...northNodeMeta, house_no: pickHouseNo("north_node", northNodeMeta, houseByKey) }));
   }
   if (chironMeta?.sign_ja || chironMeta?.sign) {
-    keyPoints.push(formatKeyPoint("⚷ キロン", { ...chironMeta, house_no: pickHouseNo("chiron", chironMeta) }));
+    keyPoints.push(formatKeyPoint("⚷ キロン", { ...chironMeta, house_no: pickHouseNo("chiron", chironMeta, houseByKey) }));
   }
   if (lilithMeta?.sign_ja || lilithMeta?.sign) {
-    keyPoints.push(formatKeyPoint("⚸ リリス", { ...lilithMeta, house_no: pickHouseNo("lilith", lilithMeta) }));
+    keyPoints.push(formatKeyPoint("⚸ リリス", { ...lilithMeta, house_no: pickHouseNo("lilith", lilithMeta, houseByKey) }));
   }
   if (keyPoints.length) p.keyPointsList = keyPoints;
 
-  const signCounts = new Map();
-  (kernel.bodies || []).forEach((row) => {
-    const sign = row?.kernel?.meta?.sign_ja || "";
-    if (!sign) return;
-    signCounts.set(sign, (signCounts.get(sign) || 0) + 1);
-  });
-  const sortedSigns = [...signCounts.entries()].sort((a, b) => b[1] - a[1]).map(([sign]) => sign);
-  if (sortedSigns.length) p.dominantSigns = sortedSigns.slice(0, 3);
+  const dominantSigns = buildDominantSignsFromKernel(kernel);
+  if (dominantSigns.length) p.dominantSigns = dominantSigns;
 
-  const houseCounts = kernel?.houses?.counts || {};
-  const houseSorted = Object.entries(houseCounts)
-    .map(([house, count]) => ({ house: Number(house), count: toNumber(count) }))
-    .sort((a, b) => (b.count - a.count) || (a.house - b.house));
+  const houseSorted = buildHouseSorted(kernel?.houses?.counts || {});
   if (houseSorted.length) p.dominantHouses = houseSorted.slice(0, 3).map((row) => `${row.house}H`);
   const planetEntriesForStructure = (kernel?.bodies || []).map((row) => {
     const meta = row?.kernel?.meta || {};
@@ -260,31 +196,11 @@ function extractFromKernel({ kernel, input, p }) {
     if (rows.length) p.planetDistribution = rows;
   }
 
-  let elementCounts = null;
   const elementSummary = kernel?.summary?.element || {};
-  if (elementSummary.counts) {
-    elementCounts = {
-      fire: toNumber(elementSummary.counts.fire),
-      earth: toNumber(elementSummary.counts.earth),
-      air: toNumber(elementSummary.counts.air),
-      water: toNumber(elementSummary.counts.water),
-    };
-  } else {
-    const countsLine = (elementSummary.counts_line || "").match(/\d+/g) || [];
-    if (countsLine.length >= 4) {
-      const [fire, earth, air, water] = countsLine.map((v) => toNumber(v));
-      elementCounts = { fire, earth, air, water };
-    }
-  }
+  const elementCounts = parseElementCounts(elementSummary);
   if (elementCounts) {
     p.elementCounts = elementCounts;
-    const total = elementCounts.fire + elementCounts.earth + elementCounts.air + elementCounts.water || 1;
-    p.elementBars = {
-      fire: Math.round((elementCounts.fire / total) * 100),
-      earth: Math.round((elementCounts.earth / total) * 100),
-      air: Math.round((elementCounts.air / total) * 100),
-      water: Math.round((elementCounts.water / total) * 100),
-    };
+    p.elementBars = buildElementBars(elementCounts);
     const yang = elementCounts.fire + elementCounts.air;
     const yin = elementCounts.earth + elementCounts.water;
     if (!p.polarityText) {
@@ -300,51 +216,21 @@ function extractFromKernel({ kernel, input, p }) {
   }
 
   const modalitySummary = kernel?.summary?.modality || {};
-  if (modalitySummary.counts) {
-    const counts = {
-      cardinal: toNumber(modalitySummary.counts.cardinal),
-      fixed: toNumber(modalitySummary.counts.fixed),
-      mutable: toNumber(modalitySummary.counts.mutable),
-    };
-    p.modalityCounts = counts;
-    const total = counts.cardinal + counts.fixed + counts.mutable || 1;
-    p.modalityBars = {
-      cardinal: Math.round((counts.cardinal / total) * 100),
-      fixed: Math.round((counts.fixed / total) * 100),
-      mutable: Math.round((counts.mutable / total) * 100),
-    };
+  const modalityCounts = parseModalityCounts(modalitySummary);
+  if (modalityCounts) {
+    p.modalityCounts = modalityCounts;
+    p.modalityBars = buildModalityBars(modalityCounts);
   }
 
   const elementDominant = kernel?.summary?.element?.dominant?.[0];
   const modalityDominant = kernel?.summary?.modality?.dominant?.[0];
-  const elementJaMap = {
-    Fire: "火",
-    Earth: "地",
-    Air: "風",
-    Water: "水",
-    fire: "火",
-    earth: "地",
-    air: "風",
-    water: "水",
-  };
-  const modalityJaMap = {
-    Cardinal: "活動",
-    Fixed: "不動",
-    Mutable: "柔軟",
-    cardinal: "活動",
-    fixed: "不動",
-    mutable: "柔軟",
-  };
   const topHouse = houseSorted[0]?.house;
-  if (elementDominant || modalityDominant || topHouse) {
-    const elementText = elementJaMap[elementDominant] || elementDominant;
-    const modalityText = modalityJaMap[modalityDominant] || modalityDominant;
-    p.dominanceLines = [
-      elementText ? `エレメント　${elementText}` : p.dominanceLines[0],
-      modalityText ? `モード　　　${modalityText}宮` : p.dominanceLines[1],
-      topHouse ? `強調ハウス　${topHouse}H` : p.dominanceLines[2],
-    ];
-  }
+  p.dominanceLines = buildDominanceLines({
+    elementDominant,
+    modalityDominant,
+    topHouse,
+    currentLines: p.dominanceLines,
+  });
 
   const signByKey = new Map((kernel.bodies || []).map((row) => [row.key, row?.kernel?.meta?.sign_ja || ""]));
   const degByKey = new Map((kernel.bodies || []).map((row) => [row.key, row?.kernel?.meta?.deg ?? null]));
@@ -364,33 +250,25 @@ function extractFromKernel({ kernel, input, p }) {
     ascLine || p.coreAxisLines[2],
   ];
 
-  const formatBodyLine = (key) => {
-    const sign = signByKey.get(key);
-    const house = houseByKey.get(key);
-    if (!sign) return "";
-    const label = BODY_LABEL_JA[key] || key;
-    const glyph = BODY_GLYPH[key] || "";
-    const houseText = house ? `｜${house}H` : "";
-    return `${glyph}${label}${sign}${houseText}`.trim();
-  };
+  const formatBodyLineForKey = (key) => formatBodyLine(key, signByKey, houseByKey);
 
   p.systemLayerLines = {
     core: [
-      formatBodyLine("sun"),
-      formatBodyLine("moon"),
+      formatBodyLineForKey("sun"),
+      formatBodyLineForKey("moon"),
       ascLine,
     ].filter(Boolean),
     personal: [
-      formatBodyLine("mercury"),
-      formatBodyLine("venus"),
-      formatBodyLine("mars"),
+      formatBodyLineForKey("mercury"),
+      formatBodyLineForKey("venus"),
+      formatBodyLineForKey("mars"),
     ].filter(Boolean),
     collective: [
-      formatBodyLine("jupiter"),
-      formatBodyLine("saturn"),
-      formatBodyLine("uranus"),
-      formatBodyLine("neptune"),
-      formatBodyLine("pluto"),
+      formatBodyLineForKey("jupiter"),
+      formatBodyLineForKey("saturn"),
+      formatBodyLineForKey("uranus"),
+      formatBodyLineForKey("neptune"),
+      formatBodyLineForKey("pluto"),
     ].filter(Boolean),
   };
 
@@ -811,10 +689,7 @@ function extractFromMasterChart({ masterChart, p }) {
   })();
 
   if (aggregateForDominance?.sortedSigns?.length) {
-    p.dominantSigns = aggregateForDominance.sortedSigns
-      .slice(0, 3)
-      .map(([key]) => SIGN_JA[key] || SIGN_EN[key] || key)
-      .filter(Boolean);
+    p.dominantSigns = buildDominantSignsFromAggregate(aggregateForDominance);
   } else if (Array.isArray(masterChart.dominant_signs) && masterChart.dominant_signs.length) {
     p.dominantSigns = masterChart.dominant_signs
       .map((row) => {
