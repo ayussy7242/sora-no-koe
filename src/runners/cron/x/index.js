@@ -7,6 +7,7 @@ const { countChars } = require("../../../utils/text/hashtag");
 const { toBool } = require("../../../utils/data/bool");
 const { SPEC } = require("../../../config/sora_spec");
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../../usecases/channels/x/ai/moon_event");
+const { generateXNightAiText } = require("../../../usecases/channels/x/ai/night");
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../../usecases/channels/x/ai/next_30_days");
 const { uploadMedia } = require("../../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../../engine/renderers/x/morning_wheel");
