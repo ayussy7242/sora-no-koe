@@ -107,18 +107,14 @@ function buildMoonPlacementObservation({ houseNo, dict }) {
 
 const PLANET_META = BODY_META;
 
-function buildMoonEventCarouselSlides({
+function buildMoonEventPlacementBlock({
   story,
   event,
   dateLocal,
-  withCta,
   dict,
   summaryText,
   moonPlacementText,
-  sunMoonText,
-  moonResonanceText,
-  moonResonanceAspect,
-}) {
+} = {}) {
   const dateLabel = formatDateLabel(dateLocal);
   const transit = story?.public?.transit_signs || {};
   const skyStrata = story?.public?.sky_strata || {};
@@ -168,7 +164,7 @@ function buildMoonEventCarouselSlides({
     moonNameEn: event?.moonNameEn,
   });
 
-  const slide1 = {
+  const coverSlide = {
     dateLabel,
     brand: "ソラのこえ",
     tagline: "",
@@ -183,7 +179,7 @@ function buildMoonEventCarouselSlides({
 
   const degreeLabel = moonDegLabel ? `度数 ${moonDegLabel}` : "";
   const houseInfoLabel = houseLabel ? `ハウス ${houseLabel}` : "";
-  const slide3 = {
+  const placementSlide = {
     dateLabel,
     header: "月の配置",
     subLabel: "moon placement",
@@ -203,12 +199,49 @@ function buildMoonEventCarouselSlides({
     moonSize: 160,
   };
 
+  const climateSlide = {
+    dateLabel,
+    header: "月の空気",
+    subLabel: "moon climate",
+    lines: [
+      { label: summaryText || buildMoonAirSummary(elementCount, modeCount) },
+    ],
+    brand: "sora-no-koe",
+  };
+
+  const ctaSlide = {
+    ornament: "☉     ☽",
+    timeText: "明日は",
+    title: event?.phaseName ? `${event.phaseName}の空` : "月相の空",
+    subtitle: "",
+    cta: "星の配置を記録しています",
+    link: "Keep this sky",
+    brand: "sora-no-koe",
+    dateLabel,
+  };
+
+  return {
+    dateLabel,
+    transit,
+    elementCount,
+    modeCount,
+    sunSign,
+    moonSign,
+    moonKey,
+    coverSlide,
+    placementSlide,
+    climateSlide,
+    ctaSlide,
+  };
+}
+
+function buildMoonEventRelationBlock({ dateLabel, event, sunSign, moonSign, sunMoonText } = {}) {
   const relationInfo = moonEventRelationInfo(event);
   const relationLabel = relationInfo.labelJa || "";
   const relationDeg = Number.isFinite(Number(relationInfo.deg)) ? Number(relationInfo.deg) : 0;
   const relationLine = relationLabel ? `${relationLabel} ${relationDeg}°` : `${relationDeg}°`;
   const relationStructure = relationInfo.structureJa || "";
-  const slide4 = {
+  return {
     dateLabel,
     header: "月と太陽",
     subLabel: "sun & moon",
@@ -220,79 +253,110 @@ function buildMoonEventCarouselSlides({
     bodyAKey: "moon",
     bodyBKey: "sun",
   };
+}
 
+function buildMoonEventResonanceBlock({
+  story,
+  dateLabel,
+  transit,
+  moonSign,
+  dict,
+  moonResonanceText,
+  moonResonanceAspect,
+} = {}) {
   const moonAspect = moonResonanceAspect || pickMoonResonanceAspect(story);
-  const slide5 = (() => {
-    if (!moonAspect) {
-      return {
-        dateLabel,
-        header: "月の共鳴",
-        subLabel: "moon resonance",
-        lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
-        lineB: "—",
-        aspectLine: "該当なし",
-        deepLine: "",
-        structure: "月の共鳴は今回はなし。",
-        bodyAKey: "moon",
-        bodyBKey: "",
-      };
-    }
-
-    const aKey = String(moonAspect?.a || "").toLowerCase();
-    const bKey = String(moonAspect?.b || "").toLowerCase();
-    const aMeta = PLANET_META[aKey] || { name: aKey, glyph: "" };
-    const bMeta = PLANET_META[bKey] || { name: bKey, glyph: "" };
-    const aSign = transit?.[aKey]?.sign_ja || "—";
-    const bSign = transit?.[bKey]?.sign_ja || "—";
-
-    const info = aspectInfo(dict, moonAspect?.type || moonAspect?.aspect, moonAspect?.aspect_deg);
-    const label = info?.label_ja || aspectLabelJa(moonAspect?.type, moonAspect?.aspect_deg);
-    const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(moonAspect?.aspect_deg);
-    const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
-    const orb = Number(moonAspect?.orb_deg);
-    const orbLabel = Number.isFinite(orb) ? `orb ${orb.toFixed(2)}°` : "";
-    const aspectLine = [label, degLabel].filter(Boolean).join(" ").trim();
-    const aspectLineFull = [aspectLine, orbLabel].filter(Boolean).join("　").trim();
-
-    const otherKey = aKey === "moon" ? bKey : aKey;
-    const otherMeta = PLANET_META[otherKey] || { name: otherKey, glyph: "" };
-    const circuit = aspectCircuitLabel(moonAspect?.type || moonAspect?.aspect);
-    const structure = moonResonanceText || `月と${otherMeta.name}が${label}でつながり、${circuit}が動く。`;
-
+  if (!moonAspect) {
     return {
       dateLabel,
       header: "月の共鳴",
       subLabel: "moon resonance",
-      lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
-      lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
-      aspectLine: aspectLineFull || aspectLine || label,
+      lineA: planetLine({ glyph: PLANET_META.moon.glyph, name: PLANET_META.moon.name, sign: moonSign }),
+      lineB: "—",
+      aspectLine: "該当なし",
       deepLine: "",
-      structure,
-      bodyAKey: aKey,
-      bodyBKey: bKey,
+      structure: "月の共鳴は今回はなし。",
+      bodyAKey: "moon",
+      bodyBKey: "",
     };
-  })();
+  }
 
-  const slide6 = {
-    dateLabel,
-    header: "月の空気",
-    subLabel: "moon climate",
-    lines: [
-      { label: summaryText || buildMoonAirSummary(elementCount, modeCount) },
-    ],
-    brand: "sora-no-koe",
-  };
+  const aKey = String(moonAspect?.a || "").toLowerCase();
+  const bKey = String(moonAspect?.b || "").toLowerCase();
+  const aMeta = PLANET_META[aKey] || { name: aKey, glyph: "" };
+  const bMeta = PLANET_META[bKey] || { name: bKey, glyph: "" };
+  const aSign = transit?.[aKey]?.sign_ja || "—";
+  const bSign = transit?.[bKey]?.sign_ja || "—";
 
-  const slide7 = {
-    ornament: "☉     ☽",
-    timeText: "明日は",
-    title: event?.phaseName ? `${event.phaseName}の空` : "月相の空",
-    subtitle: "",
-    cta: "星の配置を記録しています",
-    link: "Keep this sky",
-    brand: "sora-no-koe",
+  const info = aspectInfo(dict, moonAspect?.type || moonAspect?.aspect, moonAspect?.aspect_deg);
+  const label = info?.label_ja || aspectLabelJa(moonAspect?.type, moonAspect?.aspect_deg);
+  const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : Number(moonAspect?.aspect_deg);
+  const degLabel = Number.isFinite(deg) ? `${deg}°` : "";
+  const orb = Number(moonAspect?.orb_deg);
+  const orbLabel = Number.isFinite(orb) ? `orb ${orb.toFixed(2)}°` : "";
+  const aspectLine = [label, degLabel].filter(Boolean).join(" ").trim();
+  const aspectLineFull = [aspectLine, orbLabel].filter(Boolean).join("　").trim();
+
+  const otherKey = aKey === "moon" ? bKey : aKey;
+  const otherMeta = PLANET_META[otherKey] || { name: otherKey, glyph: "" };
+  const circuit = aspectCircuitLabel(moonAspect?.type || moonAspect?.aspect);
+  const structure = moonResonanceText || `月と${otherMeta.name}が${label}でつながり、${circuit}が動く。`;
+
+  return {
     dateLabel,
+    header: "月の共鳴",
+    subLabel: "moon resonance",
+    lineA: planetLine({ glyph: aMeta.glyph, name: aMeta.name, sign: aSign }),
+    lineB: planetLine({ glyph: bMeta.glyph, name: bMeta.name, sign: bSign }),
+    aspectLine: aspectLineFull || aspectLine || label,
+    deepLine: "",
+    structure,
+    bodyAKey: aKey,
+    bodyBKey: bKey,
   };
+}
+
+function buildMoonEventCarouselSlides({
+  story,
+  event,
+  dateLocal,
+  withCta,
+  dict,
+  summaryText,
+  moonPlacementText,
+  sunMoonText,
+  moonResonanceText,
+  moonResonanceAspect,
+}) {
+  const placement = buildMoonEventPlacementBlock({
+    story,
+    event,
+    dateLocal,
+    dict,
+    summaryText,
+    moonPlacementText,
+  });
+  const slide1 = placement.coverSlide;
+  const slide3 = placement.placementSlide;
+  const slide6 = placement.climateSlide;
+  const slide7 = placement.ctaSlide;
+
+  const slide4 = buildMoonEventRelationBlock({
+    dateLabel: placement.dateLabel,
+    event,
+    sunSign: placement.sunSign,
+    moonSign: placement.moonSign,
+    sunMoonText,
+  });
+
+  const slide5 = buildMoonEventResonanceBlock({
+    story,
+    dateLabel: placement.dateLabel,
+    transit: placement.transit,
+    moonSign: placement.moonSign,
+    dict,
+    moonResonanceText,
+    moonResonanceAspect,
+  });
 
   return {
     slides: [
