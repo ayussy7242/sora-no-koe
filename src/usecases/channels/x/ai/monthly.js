@@ -3,19 +3,29 @@
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MONTHLY_USER_GUIDE } = require("../../../../content/prompts/sns/x/monthly");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon");
+const {
+  buildMoonEventsInMonth,
+  listMoonSignChangesInMonth,
+} = require("../../../../domain/moon");
 const { listWithOrb } = require("../../../../domain/aspect/selection");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
 const { CORE_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { toDateLocalJST } = require("../../../../utils/time");
+const { formatDateYmdHm } = require("../../../../domain/astro/compute");
 const { validateXAiText } = require("./common");
 
-function formatMonthLabel(dateLocal) {
-  const [y, m] = String(dateLocal || "").split("-");
-  if (!y || !m) return "";
-  return `${Number(y)}年${Number(m)}月`;
+function formatSignChanges(signChanges = []) {
+  if (!Array.isArray(signChanges) || !signChanges.length) return "—";
+  const items = signChanges
+    .map((row) => {
+      const label = row?.to?.label || "";
+      const when = row?.date instanceof Date ? formatDateYmdHm(row.date) : "";
+      return [when, label].filter(Boolean).join(" ");
+    })
+    .filter(Boolean);
+  return items.length ? items.join(" / ") : "—";
 }
 
 function buildMonthlyPoints({ story, dict, max = 3, resonanceMode }) {
@@ -55,15 +65,27 @@ function buildMonthlyPoints({ story, dict, max = 3, resonanceMode }) {
   });
 }
 
-function buildMonthlyContext({ story, dict, asOfISO, resonanceMode }) {
+function resolveXMonthlyPromptInput({ story, dict, asOfISO, resonanceMode } = {}) {
   const dateLocal = story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
-  const monthLabel = formatMonthLabel(dateLocal);
   const points = buildMonthlyPoints({ story, dict, max: 3, resonanceMode });
-  const events = buildNextMoonEvents(asOfISO || story?.meta?.as_of, dict);
-  const newEvent = events?.new ? formatMoonEventDisplay(events.new) : null;
-  const fullEvent = events?.full ? formatMoonEventDisplay(events.full) : null;
+  const moonEvents = buildMoonEventsInMonth({ dateLocal, asOfISO: asOfISO || story?.meta?.as_of, dict });
+  const signChanges = listMoonSignChangesInMonth({ dateLocal, asOfISO: asOfISO || story?.meta?.as_of, dict });
+  const signChangesLine = formatSignChanges(signChanges);
 
-  return { dateLocal, monthLabel, points, newEvent, fullEvent };
+  return {
+    dateLocal,
+    monthLabel: moonEvents?.monthLabel || "",
+    monthKey: moonEvents?.monthKey || "",
+    points,
+    newEvent: moonEvents?.newEvent || null,
+    fullEvent: moonEvents?.fullEvent || null,
+    signChanges,
+    signChangesLine,
+  };
+}
+
+function buildMonthlyContext({ story, dict, asOfISO, resonanceMode }) {
+  return resolveXMonthlyPromptInput({ story, dict, asOfISO, resonanceMode });
 }
 
 function buildMonthlyPrompt({ story, dict, context }) {
@@ -71,6 +93,7 @@ function buildMonthlyPrompt({ story, dict, context }) {
   const points = ctx.points && ctx.points.length ? ctx.points.join(" / ") : "none";
   const newLine = ctx.newEvent?.label ? `${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "—";
   const fullLine = ctx.fullEvent?.label ? `${ctx.fullEvent.label} ${ctx.fullEvent.dateLabel || ""}`.trim() : "—";
+  const signChanges = ctx.signChangesLine || "—";
 
   return [
     X_MONTHLY_USER_GUIDE,
@@ -80,6 +103,7 @@ function buildMonthlyPrompt({ story, dict, context }) {
     `POINTS: ${points}`,
     `NEW_MOON: ${newLine}`,
     `FULL_MOON: ${fullLine}`,
+    `MOON_SIGN_CHANGES: ${signChanges}`,
   ].join("\n");
 }
 
@@ -133,4 +157,5 @@ module.exports = {
   buildMonthlyContext,
   buildMonthlyPrompt,
   generateXMonthlyAiText,
+  resolveXMonthlyPromptInput,
 };

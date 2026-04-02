@@ -16,7 +16,7 @@ function monthKeyFromDateLocal(dateLocal) {
 function buildNext30DaysContext({ story, dict, asOfISO }) {
   const base = buildMonthlyContext({ story, dict, asOfISO });
   const dateLocal = base?.dateLocal || story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
-  const monthKey = monthKeyFromDateLocal(dateLocal);
+  const monthKey = base?.monthKey || monthKeyFromDateLocal(dateLocal);
   const filterInMonth = (ev) => {
     if (!ev?.date || !(ev.date instanceof Date)) return null;
     const evKey = toDateLocalJST(ev.date).slice(0, 7);

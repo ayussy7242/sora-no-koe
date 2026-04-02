@@ -40,6 +40,12 @@ const {
   isBlueMoon,
 } = require("./events");
 const {
+  monthRangeFromDateLocal,
+  resolveMonthlyDateLocal,
+  buildMoonEventsInMonth,
+  listMoonSignChangesInMonth,
+} = require("./monthly");
+const {
   buildTodayMoonInfo,
   buildMoonStatus,
   formatTodayMoonLines,
@@ -76,6 +82,10 @@ module.exports = {
   moonEventSpaceConfig,
   formatMoonEventDisplay,
   detectMoonEventLocal,
+  monthRangeFromDateLocal,
+  resolveMonthlyDateLocal,
+  buildMoonEventsInMonth,
+  listMoonSignChangesInMonth,
   formatMoonPhaseLabel,
   waNameFromMoonAge,
   isBlackMoon,
