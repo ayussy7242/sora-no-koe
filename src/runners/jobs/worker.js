@@ -20,119 +20,30 @@
  * - processOneNatalJob(deps, opts): 内部呼び出し用（LINE側で1回だけ叩く用途にも使える）
  */
 
-const crypto = require("crypto");
 const { createRenderers } = require("../../presenters/shared/text");
 const dict = require("../../content/dict");
 const { enqueueBlueprintGenerate } = require("../../integrations/cloudtasks/tasks_queue");
 const { setLineUserState } = require("../../integrations/line/state");
 const { norm360 } = require("../../domain/astro/angles");
+const {
+  minutes,
+  nowMs,
+  nowDate,
+  randomId,
+  toFixedPrecision,
+  isFiniteNumber,
+  sha256Hex,
+  deepClone,
+  birthUtcIsoFromJob,
+} = require("./worker/utils");
+const { linePush } = require("./worker/notify");
+const {
+  resetStaleRunningJobs,
+  lockOneQueuedJob,
+  finalizeJobDone,
+  finalizeJobFailed,
+} = require("./worker/lease");
 const { renderNatalListFromcache } = createRenderers({ dict });
-
-// --------------------
-// small utils
-// --------------------
-function minutes(n) { return n * 60 * 1000; }
-function nowMs() { return Date.now(); }
-function nowDate() { return new Date(); }
-
-function randomId(len = 8) {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let s = "";
-  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
-}
-
-async function getFetch() {
-  if (typeof fetch === "function") return fetch;
-  // Node18未満などの保険（入ってなければエラーになるが、その場合は push だけスキップされる）
-  const mod = await import("node-fetch");
-  return mod.default;
-}
-
-function toFixedPrecision(n, precisionDeg = 0.01) {
-  const x = Number(n);
-  const p = 1 / precisionDeg;
-  return Math.round(x * p) / p;
-}
-
-function isFiniteNumber(x) {
-  return typeof x === "number" && Number.isFinite(x);
-}
-
-function sha256Hex(str) {
-  return crypto.createHash("sha256").update(String(str ?? ""), "utf8").digest("hex");
-}
-
-// deep clone（Firestoreの既存オブジェクトを破壊しないため）
-function deepClone(v) {
-  if (v === null || v === undefined) return v;
-  if (typeof v !== "object") return v;
-  try {
-    return JSON.parse(JSON.stringify(v));
-  } catch {
-    // stringifyできない型が混じっても落とさない（最終防衛）
-    return v;
-  }
-}
-
-/**
- * 超軽量TZ対応（現要件：Asia/Tokyo を確実に通す）
- * - job.birth_utc_iso があればそれを優先
- * - 無ければ date_local + time_hm + tz から生成
- */
-function birthUtcIsoFromJob(job) {
-  if (job?.birth_utc_iso) return String(job.birth_utc_iso);
-
-  const b = job?.birth || {};
-  const dateLocal = b?.date_local || job?.date_local || null;
-  const timeHm = b?.time_hm || job?.time_hm || null;
-  const tz = b?.timezone || job?.timezone || null;
-
-  if (!dateLocal || !timeHm) return null;
-
-  if (tz === "Asia/Tokyo" || !tz) {
-    const iso = `${dateLocal}T${timeHm}:00+09:00`;
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toISOString();
-  }
-
-  // 将来拡張するならここ
-  return null;
-}
-
-/**
- * 
- * LINE PUSJ
- * 
- */
-
-async function linePush(accessToken, to, text) {
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
-  if (!to) throw new Error("line user id missing");
-  const msg = String(text || "").trim();
-  if (!msg) throw new Error("push text empty");
-
-  const f = await getFetch();
-  const res = await f("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to,
-      messages: [{ type: "text", text: msg.slice(0, 4800) }],
-    }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`LINE push error ${res.status} ${t}`);
-  }
-  return true;
-}
-
 
 /**
  * swe_houses の返り値吸収
@@ -388,123 +299,6 @@ function minAnglesLooksValid(a) {
   if (Math.abs(asc - mc) < 1e-9) return false;
 
   return true;
-}
-
-// --------------------
-// job flow (reusable core)
-// --------------------
-async function resetStaleRunningJobs({ db, admin, jobsCol, limit = 10 }) {
-  const staleQ = await jobsCol
-    .where("status", "==", "running")
-    .where("lease_expires_at", "<", nowDate())
-    .limit(limit)
-    .get();
-
-  if (staleQ.empty) return { reset: 0 };
-
-  const batch = db.batch();
-  staleQ.docs.forEach((d) => {
-    batch.set(
-      d.ref,
-      {
-        status: "queued",
-        last_error: "stale lease reset",
-        worker_id: null,
-        lease_expires_at: null,
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-  });
-  await batch.commit();
-  return { reset: staleQ.docs.length };
-}
-
-/**
- * queued を1件だけロックして返す
- * @returns { lockedRef, lockedId, lockedJob } or null
- */
-async function lockOneQueuedJob({ db, admin, jobsCol, maxAttempts, leaseMinutes, workerId }) {
-  let lockedRef = null;
-  let lockedId = null;
-  let lockedJob = null;
-
-  await db.runTransaction(async (tx) => {
-    const q = await tx.get(
-      jobsCol.where("status", "==", "queued").orderBy("created_at", "asc").limit(1)
-    );
-    if (q.empty) return;
-
-    const doc = q.docs[0];
-    const ref = doc.ref;
-    const job = doc.data() || {};
-    const attempts = Number(job.attempts || 0);
-
-    if (attempts >= maxAttempts) {
-      tx.set(
-        ref,
-        {
-          status: "failed",
-          last_error: `max attempts reached (${attempts})`,
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-      return;
-    }
-
-    if (job.status !== "queued") return;
-
-    const leaseExpiresAt = new Date(nowMs() + minutes(leaseMinutes));
-
-    tx.set(
-      ref,
-      {
-        status: "running",
-        attempts: attempts + 1,
-        worker_id: workerId,
-        lease_expires_at: leaseExpiresAt,
-        started_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    lockedRef = ref;
-    lockedId = doc.id;
-    lockedJob = job;
-  });
-
-  if (!lockedRef) return null;
-  return { lockedRef, lockedId, lockedJob };
-}
-
-async function finalizeJobDone({ admin, lockedRef, workerId }) {
-  await lockedRef.set(
-    {
-      status: "done",
-      last_error: null,
-      worker_id: workerId,
-      finished_at: admin.firestore.FieldValue.serverTimestamp(),
-      lease_expires_at: null,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-}
-
-async function finalizeJobFailed({ admin, lockedRef, workerId, error }) {
-  await lockedRef.set(
-    {
-      status: "failed",
-      last_error: error?.message ? String(error.message) : String(error),
-      worker_id: workerId,
-      finished_at: admin.firestore.FieldValue.serverTimestamp(),
-      lease_expires_at: null,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
 }
 
 /**
