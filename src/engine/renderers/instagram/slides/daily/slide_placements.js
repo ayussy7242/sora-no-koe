@@ -1,7 +1,7 @@
 "use strict";
 
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter, buildSectionHeader, renderSvgToPng } = require("../common/shared");
-const { resolveColors } = require("../../theme/theme");
+const { resolveColors } = require("../../theme");
 const { buildGlyphLine, measureTextWidth } = require("../common/glyph_layout");
 
 function estimateTextWidth(line, size) {

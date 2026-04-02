@@ -1,7 +1,7 @@
 "use strict";
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
-const { resolveColors, BODY_GLOW_COLORS } = require("../../theme/theme");
+const { resolveColors, BODY_GLOW_COLORS } = require("../../theme");
 const {
   PATH_GLYPHS,
   extractGlyph,

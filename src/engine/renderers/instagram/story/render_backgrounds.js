@@ -3,7 +3,7 @@
 const sharp = require("sharp");
 const { buildSpaceBackground } = require("../../../shared/space_background");
 const { fontFaceCss } = require("../assets/fonts");
-const { resolveColors } = require("../theme/theme");
+const { resolveColors } = require("../theme");
 const { escapeXml } = require("../../../../utils/data/xml");
 
 const CANVAS = {
