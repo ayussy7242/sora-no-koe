@@ -321,7 +321,8 @@ async function postTweet({ text, replyToId, mediaIds, env }) {
         return await postTweetV1({ text, replyToId, mediaIds, env });
       } catch (err2) {
         const v1Info = normalizeXApiError(err2);
-        const combined = new Error(`X post failed after v2 forbidden + v1.1 error: ${v1Info.message}`);
+        const v2Msg = v2Info?.message ? `v2=${v2Info.message}` : "v2=unknown";
+        const combined = new Error(`X post failed after v2 forbidden (${v2Msg}) + v1.1 error: ${v1Info.message}`);
         combined.status = v1Info.status;
         combined.code = v1Info.code;
         combined.body = v1Info.body;
