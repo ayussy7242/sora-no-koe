@@ -247,6 +247,12 @@ function createCronRouter(deps = {}) {
         keys: ["resonance_orb_max", "resonanceOrbMax"],
         defaultValue: undefined,
       });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
@@ -266,6 +272,7 @@ function createCronRouter(deps = {}) {
           orbMaxDeg,
           precisionDeg,
           resonanceOrbMax,
+          force,
           local,
           localOutDir,
         }
@@ -302,6 +309,12 @@ function createCronRouter(deps = {}) {
         keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"],
         defaultValue: undefined,
       });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
@@ -313,7 +326,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXResonancePost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/resonance] done", { ok: result?.ok, ms: Date.now() - t0 });
@@ -337,6 +350,12 @@ function createCronRouter(deps = {}) {
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
       const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
       const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
@@ -348,7 +367,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXNightPost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/night] done", { ok: result?.ok, ms: Date.now() - t0 });
@@ -376,6 +395,12 @@ function createCronRouter(deps = {}) {
         keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"],
         defaultValue: undefined,
       });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
@@ -388,7 +413,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXMoonEventPost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, dateOffsetDays, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, dateOffsetDays, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/moon_event] done", { ok: result?.ok, ms: Date.now() - t0 });
@@ -410,6 +435,12 @@ function createCronRouter(deps = {}) {
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
       const dryRun = pickDryRun({ q, b });
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
@@ -421,7 +452,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXNext30DaysPost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/next_30_days] done", { ok: result?.ok, ms: Date.now() - t0 });
