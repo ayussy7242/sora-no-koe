@@ -5,8 +5,7 @@ const path = require("path");
 const sharp = require("sharp");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const dict = require("../../../content/dict");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
-const { toDateLocalJST } = require("../../../utils/time");
+const { detectMoonEventLocal } = require("../../../domain/moon");
 const { clamp } = require("../../../utils/data/math");
 const { wrapByChars } = require("../../../utils/text/wrap");
 const { FONT_FILES } = require("../../shared/typography");
@@ -369,17 +368,6 @@ function buildEyecatchSvg({ width, height, line1, line2, line3, preset, space = 
     `</g>`,
     `</svg>`,
   ].join("");
-}
-
-function detectMoonEventLocal({ dateLocal, asOfISO, dict }) {
-  if (!dateLocal) return null;
-  const events = buildNextMoonEvents(asOfISO, dict);
-  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
-  for (const ev of candidates) {
-    const evDateLocal = toDateLocalJST(ev.date);
-    if (evDateLocal === dateLocal) return formatMoonEventDisplay(ev);
-  }
-  return null;
 }
 
 function resolveMoonEventSpaceConfig(event) {

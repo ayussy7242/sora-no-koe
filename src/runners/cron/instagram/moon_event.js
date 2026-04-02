@@ -1,6 +1,6 @@
 "use strict";
 
-const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
+const { detectMoonEventLocal: detectMoonEventLocalFromDomain } = require("../../../domain/moon");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { normalizeAspectType } = require("../../../utils/data/normalize");
 
@@ -50,33 +50,13 @@ function resolveMoonEventKind(opts = {}) {
 }
 
 function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eventKind = "" }) {
-  const events = buildNextMoonEvents(asOfISO, dict);
-  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
-  const normalizedKind = String(eventKind || "").toLowerCase();
-
-  if (normalizedKind === "new" || normalizedKind === "full") {
-    const picked = events?.[normalizedKind];
-    if (!picked?.date) return null;
-    if (forceNext) return formatMoonEventDisplay(picked);
-    if (!dateLocal) return null;
-    return toDateLocalJST(picked.date) === dateLocal ? formatMoonEventDisplay(picked) : null;
-  }
-
-  if (dateLocal) {
-    for (const ev of candidates) {
-      const evDateLocal = toDateLocalJST(ev.date);
-      if (evDateLocal === dateLocal) {
-        return formatMoonEventDisplay(ev);
-      }
-    }
-  }
-
-  if (forceNext) {
-    const ordered = orderedMoonEvents(events);
-    if (ordered.length) return formatMoonEventDisplay(ordered[0]);
-  }
-
-  return null;
+  return detectMoonEventLocalFromDomain({
+    dateLocal,
+    asOfISO,
+    dict,
+    forceNext,
+    eventKind,
+  });
 }
 
 function resolveMoonEventSpaceConfig(event) {

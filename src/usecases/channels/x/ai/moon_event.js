@@ -3,24 +3,13 @@
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MOON_EVENT_USER_GUIDE } = require("../../../../content/prompts/sns/x/moon_event");
-const { buildNextMoonEvents, formatMoonEventDisplay } = require("../../../../domain/moon");
-const { toDateLocalJST } = require("../../../../utils/time");
+const { detectMoonEventLocal } = require("../../../../domain/moon");
 const { validateXAiText } = require("./common");
 
 function detectMoonEvent({ story, dict, asOfISO }) {
   const baseISO = asOfISO || story?.meta?.as_of || new Date().toISOString();
   const dateLocal = story?.meta?.date_local || story?.public?.date_local || "";
-  const events = buildNextMoonEvents(baseISO, dict);
-  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
-
-  for (const ev of candidates) {
-    const evDateLocal = toDateLocalJST(ev.date);
-    if (evDateLocal === dateLocal) {
-      return formatMoonEventDisplay(ev);
-    }
-  }
-
-  return null;
+  return detectMoonEventLocal({ dateLocal, asOfISO: baseISO, dict });
 }
 
 function buildMoonEventPrompt({ story, event }) {

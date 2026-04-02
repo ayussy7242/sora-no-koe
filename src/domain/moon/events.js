@@ -249,6 +249,36 @@ function formatNextMoonLines({ asOfISO, dict }) {
   return { lines, items, events };
 }
 
+function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eventKind = "" }) {
+  const events = buildNextMoonEvents(asOfISO, dict);
+  const candidates = [events?.new, events?.full].filter((ev) => ev?.date instanceof Date);
+  const normalizedKind = String(eventKind || "").toLowerCase();
+
+  if (normalizedKind === "new" || normalizedKind === "full") {
+    const picked = events?.[normalizedKind];
+    if (!picked?.date) return null;
+    if (forceNext) return formatMoonEventDisplay(picked);
+    if (!dateLocal) return null;
+    return toDateLocalJST(picked.date) === dateLocal ? formatMoonEventDisplay(picked) : null;
+  }
+
+  if (dateLocal) {
+    for (const ev of candidates) {
+      const evDateLocal = toDateLocalJST(ev.date);
+      if (evDateLocal === dateLocal) {
+        return formatMoonEventDisplay(ev);
+      }
+    }
+  }
+
+  if (forceNext) {
+    const ordered = orderedMoonEvents(events);
+    if (ordered.length) return formatMoonEventDisplay(ordered[0]);
+  }
+
+  return null;
+}
+
 module.exports = {
   fullMoonNameJaFromDate,
   getFullMoonForDate,
@@ -261,6 +291,7 @@ module.exports = {
   orderedMoonEvents,
   formatNextMoonLines,
   formatMoonEventDisplay,
+  detectMoonEventLocal,
   isSecondMoonInMonth,
   isBlackMoon,
   isBlueMoon,
