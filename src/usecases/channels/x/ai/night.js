@@ -93,7 +93,7 @@ function buildNextTransitHints(story, dict) {
   return "";
 }
 
-function buildXNightPrompt({ story, dict }) {
+function resolveXNightPromptInput({ story, dict }) {
   const transitSigns = buildTransitSigns({ story, dict });
   const elementCount = buildElementCount(story);
   const modalityCount = buildModalityCount(story);
@@ -126,34 +126,56 @@ function buildXNightPrompt({ story, dict }) {
   const moonDegInSign = Number.isFinite(Number(change?.degInSign)) ? Number(change.degInSign).toFixed(1) : "";
   const moonPhaseStage = change?.phase || "";
 
+  return {
+    sun,
+    moon,
+    transitSigns,
+    elementCount,
+    modalityCount,
+    nextHints,
+    lastChangeText,
+    nextChangeText,
+    nextChangeIso,
+    nextChangeHours,
+    tomorrowText,
+    moonChangeHint,
+    moonDegInSign,
+    moonPhaseStage,
+  };
+}
+
+function buildXNightPrompt({ story, dict, input } = {}) {
+  const data = input || resolveXNightPromptInput({ story, dict });
+
   return [
     X_NIGHT_USER_GUIDE,
     "",
     "INPUT:",
-    `SUN_SIGN: ${safeTrim(sun)}`,
-    `MOON_SIGN: ${safeTrim(moon)}`,
-    `TRANSIT_SIGNS: ${JSON.stringify(transitSigns)}`,
-    `SKY_STRATA.element_count: ${JSON.stringify(elementCount)}`,
-    `SKY_STRATA.modality_count: ${JSON.stringify(modalityCount)}`,
-    `NEXT_TRANSIT_HINTS: ${safeTrim(nextHints)}`,
-    `LAST_MOON_SIGN_CHANGE: ${safeTrim(lastChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE: ${safeTrim(nextChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE_ISO: ${safeTrim(nextChangeIso)}`,
-    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeTrim(nextChangeHours)}`,
-    `TOMORROW_MOON_SIGN: ${safeTrim(tomorrowText)}`,
+    `SUN_SIGN: ${safeTrim(data.sun)}`,
+    `MOON_SIGN: ${safeTrim(data.moon)}`,
+    `TRANSIT_SIGNS: ${JSON.stringify(data.transitSigns)}`,
+    `SKY_STRATA.element_count: ${JSON.stringify(data.elementCount)}`,
+    `SKY_STRATA.modality_count: ${JSON.stringify(data.modalityCount)}`,
+    `NEXT_TRANSIT_HINTS: ${safeTrim(data.nextHints)}`,
+    `LAST_MOON_SIGN_CHANGE: ${safeTrim(data.lastChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE: ${safeTrim(data.nextChangeText)}`,
+    `NEXT_MOON_SIGN_CHANGE_ISO: ${safeTrim(data.nextChangeIso)}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeTrim(data.nextChangeHours)}`,
+    `TOMORROW_MOON_SIGN: ${safeTrim(data.tomorrowText)}`,
     `TOMORROW_MOON_SIGN_BASIS: JST 12:00`,
-    `MOON_CHANGE_HINT: ${safeTrim(moonChangeHint)}`,
-    `MOON_SIGN_DEG: ${safeTrim(moonDegInSign)}`,
-    `MOON_SIGN_PHASE: ${safeTrim(moonPhaseStage)}`,
+    `MOON_CHANGE_HINT: ${safeTrim(data.moonChangeHint)}`,
+    `MOON_SIGN_DEG: ${safeTrim(data.moonDegInSign)}`,
+    `MOON_SIGN_PHASE: ${safeTrim(data.moonPhaseStage)}`,
   ].join("\n");
 }
 
 async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars }) {
-  const nextHints = buildNextTransitHints(story, dict);
+  const input = resolveXNightPromptInput({ story, dict });
+  const nextHints = input.nextHints;
   const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180;
   return generateXAiWithRetry({
     channel: "x_night",
-    prompt: buildXNightPrompt({ story, dict }),
+    prompt: buildXNightPrompt({ input }),
     minChars: 0,
     maxChars: resolvedMaxChars,
     maxTokens: 180,
@@ -171,6 +193,7 @@ async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars 
 }
 
 module.exports = {
+  resolveXNightPromptInput,
   buildXNightPrompt,
   generateXNightAiText,
 };
