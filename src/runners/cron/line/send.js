@@ -25,15 +25,9 @@ const { isYYYYMMDD, toDateLocalJST } = require("../../../utils/time");
 const { normLower } = require("../../../utils/data/parse");
 const { toBool } = require("../../../utils/data/bool");
 const { ensureDir } = require("../../../utils/infra/fs");
+const { isNonEmptyText } = require("../cron_utils");
+const { linePushText, linePushImage } = require("./publish");
 
-function toSafeText(x, maxLen = 4800) {
-  const s = x == null ? "" : String(x);
-  return s.length > maxLen ? s.slice(0, maxLen) : s;
-}
-function isNonEmptyText(x) {
-  const s = x == null ? "" : String(x);
-  return s.trim().length > 0;
-}
 function pickTarget(x) {
   const t = normLower(x, "all");
   return t === "owner" ? "owner" : "all";
@@ -65,52 +59,7 @@ function writeLocalSendOutputs({ outDir, dateLocal, target, items, summary }) {
   return { dir, summary_path: summaryPath, text_paths: textPaths };
 }
 
-// LINE push
-async function linePushText({ accessToken, to, text }) {
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
-  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
-  if (!to) throw new Error("line_user_id missing");
-
-  const safe = toSafeText(text, 4800);
-  if (!isNonEmptyText(safe)) throw new Error("text empty");
-
-  const res = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ to, messages: [{ type: "text", text: safe }] }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`LINE push error ${res.status} ${t}`);
-  }
-  return true;
-}
-
-async function linePushImage({ accessToken, to, imageUrl, previewUrl }) {
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
-  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
-  if (!to) throw new Error("line_user_id missing");
-  if (!imageUrl) throw new Error("image_url missing");
-
-  const originalContentUrl = String(imageUrl);
-  const previewImageUrl = String(previewUrl || imageUrl);
-
-  const res = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      to,
-      messages: [{ type: "image", originalContentUrl, previewImageUrl }],
-    }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`LINE push image error ${res.status} ${t}`);
-  }
-  return true;
-}
+// LINE push moved to publish.js
 
 async function sendDaily8(deps, opts = {}) {
   const { db, admin, env } = deps || {};

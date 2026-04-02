@@ -26,11 +26,9 @@
 
 const fs = require("fs");
 const path = require("path");
-const { normalizeStoryArgs } = require("../../../usecases/story/args");
 const {
   isYYYYMMDD,
   toDateLocalJST,
-  toSafeText,
   isNonEmptyText,
   pickMode,
   pickTarget,
@@ -41,9 +39,7 @@ const {
 const { toBool } = require("../../../utils/data/bool");
 const { ensureDir } = require("../../../utils/infra/fs");
 const dict = require("../../../content/dict");
-const { buildDailyLineMessage } = require("../../../usecases/channels/line/daily_message");
-const { getLineSubscription, isPaidLine500 } = require("../../../integrations/firebase/subscription");
-const { buildAndStoreSoraWheel } = require("../../../engine/graphics/sora_wheel");
+const { buildDailyLinePayload } = require("./planning");
 
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
@@ -78,18 +74,6 @@ function writeLocalRebuildOutputs({ outDir, dateLocal, mode, target, items, summ
   return { dir, summary_path: summaryPath, text_paths: textPaths };
 }
 
-async function getLineUserDeepMode(db, lineUserId) {
-  if (!db || !lineUserId) return false;
-  try {
-    const snap = await db.collection("line_users").doc(lineUserId).get();
-    if (!snap.exists) return false;
-    const d = snap.data() || {};
-    return d?.membership?.deep_mode === true;
-  } catch (_) {
-    return false;
-  }
-}
-
 async function rebuildDaily8(deps, opts = {}) {
   const { db, admin, env, storyService, storage } = deps || {};
   if (!db) throw new Error("db required");
@@ -121,71 +105,28 @@ async function rebuildDaily8(deps, opts = {}) {
   const bucketName = env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS || null;
   const wheelExpireDays = Number(env2.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
-  function isPaidAllowed({ appUserId, lineUserId }) {
-    if (!env.PAID_MODE_ENABLED) return true;
-    if (env.PAID_ALLOW_OWNER) {
-      if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
-      if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
-    }
-    if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
-    if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
-    return false;
-  }
-
   // outbox root
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
   const localItems = [];
 
   async function buildMessageFor({ appUserId, lineUserId }) {
-    // mode=today (fixed: daily combines sky + personal)
-    const story = await storyService.buildStoryForUser(
-      normalizeStoryArgs({
-        appUserId,
-        mode: "auto",
-        dateLocal,
-        asOfISO,
-        orbMaxDeg,
-        precisionDeg,
-      })
-    );
-
-    let paid = false;
-    try {
-      const sub = await getLineSubscription(db, lineUserId);
-      paid = isPaidLine500(sub);
-    } catch (_) {
-      paid = false;
-    }
-    const allow = isPaidAllowed({ appUserId, lineUserId });
-    const isPaid500 = paid || allow;
-
-    const deepMode = await getLineUserDeepMode(db, lineUserId);
-    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500, deepMode }));
-
-    let imageUrl = null;
-    let imagePath = null;
-    if (!localOnly && isPaid500 && storage && bucketName) {
-      try {
-        const wheel = await buildAndStoreSoraWheel({
-          storage,
-          bucketName,
-          lineUserId,
-          dateLocal,
-          story,
-          dateLabel: String(dateLocal || "").replace(/-/g, "."),
-          expiresDays: wheelExpireDays,
-        });
-        if (wheel?.ok && wheel?.url) {
-          imageUrl = wheel.url;
-          imagePath = wheel.path || null;
-        }
-      } catch (_) {
-        imageUrl = null;
-        imagePath = null;
-      }
-    }
-
-    return { text, isPaid500, imageUrl, imagePath };
+    return buildDailyLinePayload({
+      db,
+      env: env2,
+      storyService,
+      storage,
+      dict,
+      dateLocal,
+      appUserId,
+      lineUserId,
+      asOfISO,
+      orbMaxDeg,
+      precisionDeg,
+      wheelExpireDays,
+      allowWheel: true,
+      allowWheelWhenLocal: false,
+      localOnly,
+    });
   }
 
   // 共通: outbox に書くペイロード生成

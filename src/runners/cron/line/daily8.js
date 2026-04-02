@@ -19,11 +19,9 @@
 
 const fs = require("fs");
 const path = require("path");
-const { normalizeStoryArgs } = require("../../../usecases/story/args");
 const {
   isYYYYMMDD,
   toDateLocalJST,
-  toSafeText,
   isNonEmptyText,
   pickNum,
   clamp,
@@ -31,9 +29,8 @@ const {
 } = require("../cron_utils");
 const { toBool } = require("../../../utils/data/bool");
 const dict = require("../../../content/dict");
-const { buildDailyLineMessage } = require("../../../usecases/channels/line/daily_message");
-const { getLineSubscription, isPaidLine500 } = require("../../../integrations/firebase/subscription");
-const { buildAndStoreSoraWheel } = require("../../../engine/graphics/sora_wheel");
+const { buildDailyLinePayload } = require("./planning");
+const { linePushText, linePushImage, writeDeliverySummary, writePerUserResult } = require("./publish");
 const { ensureDir } = require("../../../utils/infra/fs");
 
 // Temporary: disable sorazu image push in daily 08:00
@@ -89,105 +86,11 @@ function writeLocalDaily8Outputs({ outDir, dateLocal, mode, target, items, summa
   return { dir, summary_path: summaryPath, text_paths: textPaths };
 }
 
-async function getLineUserDeepMode(db, lineUserId) {
-  if (!db || !lineUserId) return false;
-  try {
-    const snap = await db.collection("line_users").doc(lineUserId).get();
-    if (!snap.exists) return false;
-    const d = snap.data() || {};
-    return d?.membership?.deep_mode === true;
-  } catch (_) {
-    return false;
-  }
-}
-
-// -------------------- LINE --------------------
-async function linePushText({ accessToken, to, text }) {
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
-  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
-  if (!to) throw new Error("line_user_id missing");
-
-  const safe = toSafeText(text, 4800);
-  if (!isNonEmptyText(safe)) throw new Error("text empty");
-
-  const res = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ to, messages: [{ type: "text", text: safe }] }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`LINE push error ${res.status} ${t}`);
-  }
-  return (await res.text().catch(() => "")) || null;
-}
-
-async function linePushImage({ accessToken, to, imageUrl, previewUrl }) {
-  if (!accessToken) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
-  if (typeof fetch !== "function") throw new Error("fetch not available (Node18+ required)");
-  if (!to) throw new Error("line_user_id missing");
-  if (!imageUrl) throw new Error("image_url missing");
-
-  const originalContentUrl = String(imageUrl);
-  const previewImageUrl = String(previewUrl || imageUrl);
-
-  const res = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ to, messages: [{ type: "image", originalContentUrl, previewImageUrl }] }),
-  });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`LINE push image error ${res.status} ${t}`);
-  }
-  return true;
-}
-
 function isTargetUser(user) {
   const active = String(user?.status || "active") === "active";
   const natalEnabled = user?.natal?.enabled === true;
   const daily8 = user?.natal?.delivery?.daily_8 === true;
   return { active, natalEnabled, daily8, ok: active && natalEnabled && daily8 };
-}
-
-// -------------------- logs --------------------
-async function writeDeliverySummary({ db, admin, env, dateLocal, runId, summary, mode, target }) {
-  const ref = db.collection("posts_daily_delivery").doc(dateLocal);
-  await ref.set(
-    {
-      meta: {
-        project: env.PROJECT || null,
-        timezone: env.DEFAULT_TZ || "Asia/Tokyo",
-        schema_version: env.SCHEMA_VERSION || null,
-        date_local: dateLocal,
-        generated_at_utc: new Date().toISOString(),
-        run_id: runId,
-        job: "daily8",
-        delivery_mode: mode, // today | sky
-        target: target,      // all | owner
-      },
-      targets: summary.targets,
-      last_error: summary.last_error || null,
-      updated_at: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
-}
-
-async function writePerUserResult({ db, admin, dateLocal, appUserId, payload }) {
-  const ref = db.collection("posts_daily_delivery").doc(dateLocal).collection("deliveries").doc(appUserId);
-  await ref.set(
-    { app_user_id: appUserId, channel: "line", ...payload, updated_at: admin.firestore.FieldValue.serverTimestamp() },
-    { merge: true }
-  );
 }
 
 /**
@@ -228,7 +131,6 @@ async function runDaily8(deps, opts = {}) {
   const target = targetRaw === "owner" ? "owner" : "all";
 
   const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
-  const bucketName = env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS || null;
   const wheelExpireDays = Number(env2.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
   if (!LINE_ENABLED && !localOnly) {
@@ -238,64 +140,26 @@ async function runDaily8(deps, opts = {}) {
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
   const precisionDeg = clamp(pickNum(opts.precisionDeg, 0.01), 0.001, 1);
 
-  function isPaidAllowed({ appUserId, lineUserId }) {
-    if (!env.PAID_MODE_ENABLED) return true;
-    if (env.PAID_ALLOW_OWNER) {
-      if (env.OWNER_LINE_USER_ID && lineUserId === env.OWNER_LINE_USER_ID) return true;
-      if (env.OWNER_APP_USER_ID && appUserId === env.OWNER_APP_USER_ID) return true;
-    }
-    if (appUserId && env.PAID_ALLOW_APP_USER_IDS?.includes(appUserId)) return true;
-    if (lineUserId && env.PAID_ALLOW_LINE_USER_IDS?.includes(lineUserId)) return true;
-    return false;
-  }
-
   const localItems = [];
 
   async function buildPayloadFor({ appUserId, lineUserId }) {
-    const asOfISO = new Date().toISOString();
-    const story = await storyService.buildStoryForUser(
-      normalizeStoryArgs({
-        appUserId,
-        mode: "auto",
-        dateLocal,
-        asOfISO,
-        orbMaxDeg,
-        precisionDeg,
-      })
-    );
-
-    let paid = false;
-    try {
-      const sub = await getLineSubscription(db, lineUserId);
-      paid = isPaidLine500(sub);
-    } catch (_) {
-      paid = false;
-    }
-    const allow = isPaidAllowed({ appUserId, lineUserId });
-    const isPaid500 = paid || allow;
-
-    const deepMode = await getLineUserDeepMode(db, lineUserId);
-    const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500, deepMode }));
-
-    let imageUrl = null;
-    if (!DISABLE_DAILY8_SORA_IMAGE && isPaid500 && storage && bucketName) {
-      try {
-        const wheel = await buildAndStoreSoraWheel({
-          storage,
-          bucketName,
-          lineUserId,
-          dateLocal,
-          story,
-          dateLabel: String(dateLocal || "").replace(/-/g, "."),
-          expiresDays: wheelExpireDays,
-        });
-        if (wheel?.ok && wheel?.url) imageUrl = wheel.url;
-      } catch (_) {
-        imageUrl = null;
-      }
-    }
-
-    return { text, imageUrl, isPaid500 };
+    return buildDailyLinePayload({
+      db,
+      env: env2,
+      storyService,
+      storage,
+      dict,
+      dateLocal,
+      appUserId,
+      lineUserId,
+      orbMaxDeg,
+      precisionDeg,
+      wheelExpireDays,
+      allowWheel: !DISABLE_DAILY8_SORA_IMAGE,
+      allowWheelWhenLocal: true,
+      localOnly,
+      asOfISO: new Date().toISOString(),
+    });
   }
 
   async function deliverOne({ appUserId, lineUserId }) {
