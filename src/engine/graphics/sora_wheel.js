@@ -226,9 +226,7 @@ function buildSoraWheelSvg({
   const dimOpacityValue = Number.isFinite(Number(dimOpacity))
     ? Number(dimOpacity)
     : (hasHighlight ? 0.25 : 1);
-  const zodiacOpacityValue = Number.isFinite(Number(zodiacOpacity))
-    ? Number(zodiacOpacity)
-    : (hasHighlight ? 0.4 : 1);
+  const zodiacOpacityValue = 1;
 
   const points = [];
   bodyOrder.forEach((key) => {
@@ -354,6 +352,12 @@ function buildSoraWheelSvg({
     ringLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
   }
 
+  const zodiacPoints = Object.keys(SIGN_GLYPH).map((_key, i) => {
+    const deg = applyRotation(i * 30);
+    const pos = polarToCartesian(cx, cy, zodiacR, deg);
+    return { x: pos.x, y: pos.y };
+  });
+
   const houseLines = [];
   const houseLabels = [];
   if (showHouses && Number.isFinite(Number(ascLon))) {
@@ -378,9 +382,67 @@ function buildSoraWheelSvg({
       angles.push({ key: "MC", lon: Number(mcLon) });
       angles.push({ key: "IC", lon: Number(mcLon) + 180 });
     }
+    const avoidPoints = [
+      ...points.map((p) => ({ x: p.lx, y: p.ly, r: 22 })),
+      ...zodiacPoints.map((p) => ({ x: p.x, y: p.y, r: 28 })),
+    ];
+    const isClear = (x, y) => {
+      const minBase = 28;
+      for (const ap of avoidPoints) {
+        const dx = x - ap.x;
+        const dy = y - ap.y;
+        const dist = Math.hypot(dx, dy);
+        const limit = minBase + (ap.r || 0);
+        if (dist < limit) return false;
+      }
+      return true;
+    };
     angles.forEach((a) => {
-      const pos = polarToCartesian(cx, cy, outerR + 18, applyRotation(a.lon));
-      angleLabels.push({ x: pos.x, y: pos.y, text: a.key });
+      const baseR = zodiacR + 18;
+      const candidates = [
+        { r: baseR, t: 0 },
+        { r: baseR + 12, t: 0 },
+        { r: baseR + 24, t: 0 },
+        { r: baseR + 12, t: 12 },
+        { r: baseR + 12, t: -12 },
+        { r: baseR + 24, t: 18 },
+        { r: baseR + 24, t: -18 },
+        { r: baseR + 34, t: 22 },
+        { r: baseR + 34, t: -22 },
+      ];
+      let chosen = null;
+      for (const c of candidates) {
+        const pos = polarToCartesian(cx, cy, c.r, applyRotation(a.lon));
+        const shifted = c.t ? addTangentialOffset(pos.x, pos.y, a.lon, c.t) : pos;
+        if (isClear(shifted.x, shifted.y)) {
+          chosen = shifted;
+          break;
+        }
+      }
+      let fallback = chosen || polarToCartesian(cx, cy, baseR, applyRotation(a.lon));
+      if (a.key === "ASC") {
+        fallback = { x: fallback.x - 2, y: fallback.y };
+      } else if (a.key === "DC") {
+        fallback = { x: fallback.x + 6, y: fallback.y };
+      } else if (a.key === "MC") {
+        fallback = { x: fallback.x, y: fallback.y - 8 };
+      } else if (a.key === "IC") {
+        fallback = { x: fallback.x, y: fallback.y + 8 };
+      }
+      const fontSize = 12;
+      const labelWidth = String(a.key || "").length * fontSize * 0.6;
+      const halfW = labelWidth / 2;
+      const halfH = fontSize / 2;
+      const pad = 8;
+      const minX = pad + halfW;
+      const maxX = w - pad - halfW;
+      const minY = pad + halfH;
+      const maxY = h - pad - halfH;
+      fallback = {
+        x: Math.min(maxX, Math.max(minX, fallback.x)),
+        y: Math.min(maxY, Math.max(minY, fallback.y)),
+      };
+      angleLabels.push({ x: fallback.x, y: fallback.y, text: a.key });
     });
   }
 
@@ -414,8 +476,7 @@ function buildSoraWheelSvg({
       const deg = applyRotation(i * 30);
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
-      const base = glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, "#B3B7E6");
-      return zodiacOpacityValue < 1 ? base.replace("/>", ` opacity="${zodiacOpacityValue}"/>`) : base;
+      return glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, "#B3B7E6");
     })
     .join("");
   const zodiacGlowEls = Object.keys(SIGN_GLYPH)
@@ -424,9 +485,7 @@ function buildSoraWheelSvg({
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
       const glow = glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, glowStrong);
-      if (!glow) return "";
-      const opacity = zodiacOpacityValue < 1 ? Math.max(0.1, zodiacOpacityValue * 0.6) : 0.55;
-      return glow.replace("/>", ` opacity="${opacity}" filter="url(#wheelGlowStrong)"/>`);
+      return glow ? glow.replace("/>", ` opacity="0.55" filter="url(#wheelGlowStrong)"/>`) : "";
     })
     .join("");
 

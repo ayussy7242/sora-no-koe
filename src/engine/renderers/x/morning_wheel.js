@@ -96,7 +96,9 @@ async function renderXMorningWheelPng({
   });
   const cx = left + wheel / 2;
   const cy = top + wheel / 2;
-  const r = wheel * 0.46;
+  const zodiacR = wheel * 0.4 + 28;
+  const margin = wheel * 0.08;
+  const r = Math.min(wheel * 0.6, zodiacR + margin);
   const avoidRegions = [{
     shape: "circle",
     kind: "wheel",
@@ -176,7 +178,9 @@ async function renderXResonanceWheelPng({
   });
   const cx = left + wheel / 2;
   const cy = top + wheel / 2;
-  const r = wheel * 0.46;
+  const zodiacR = wheel * 0.4 + 28;
+  const margin = wheel * 0.08;
+  const r = Math.min(wheel * 0.6, zodiacR + margin);
   const avoidRegions = [{
     shape: "circle",
     kind: "wheel",
@@ -230,7 +234,6 @@ async function renderXResonanceWheelPng({
     highlightBodies,
     highlightAspect: aspect,
     dimOpacity: 0.22,
-    zodiacOpacity: 0.35,
   });
 
   const base = sharp(Buffer.from(baseSvg));
