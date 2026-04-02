@@ -12,15 +12,21 @@ const { toDateLocalJST } = require("../../../../utils/time");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
 const { validateXAiText } = require("./common");
 
-function formatSignChanges(signChanges = []) {
+function formatSignChangeItem(row) {
+  if (!row || !(row.date instanceof Date) || Number.isNaN(row.date.getTime())) return "";
+  const when = formatDateYmdHm(row.date).replace(/^\\d{4}\\./, "");
+  const fromLabel = row?.from?.label || "";
+  const toLabel = row?.to?.label || "";
+  const dir = fromLabel && toLabel ? `${fromLabel}→${toLabel}` : (toLabel || fromLabel);
+  return [when, dir].filter(Boolean).join(" ");
+}
+
+function formatSignChanges(signChanges = [], { maxItems = 6 } = {}) {
   if (!Array.isArray(signChanges) || !signChanges.length) return "—";
   const items = signChanges
-    .map((row) => {
-      const label = row?.to?.label || "";
-      const when = row?.date instanceof Date ? formatDateYmdHm(row.date) : "";
-      return [when, label].filter(Boolean).join(" ");
-    })
-    .filter(Boolean);
+    .map(formatSignChangeItem)
+    .filter(Boolean)
+    .slice(0, maxItems);
   return items.length ? items.join(" / ") : "—";
 }
 
