@@ -65,7 +65,7 @@ const {
   normalizeAspectType,
   uniqList,
 } = require("./resonance");
-const { getMoonEventPhaseLabel } = require("./selection");
+const { getMoonEventInfo } = require("./selection");
 const {
   formatDateJaFromLocal,
   formatDateDotsFromLocal,
@@ -197,9 +197,9 @@ function aspectVoice(typeRaw) {
   return pickList(parts, 4);
 }
 
-async function generateMoonEventDraft({ story, dateLocal, phaseLabel, runWithRetry, model }) {
-  if (!phaseLabel) return "";
-  const prompt = buildMoonEventPrompt({ story, dateLocal, phaseLabel });
+async function generateMoonEventDraft({ story, dateLocal, event, runWithRetry, model }) {
+  if (!event) return "";
+  const prompt = buildMoonEventPrompt({ story, dateLocal, event });
   const text = await runWithRetry({ userContent: prompt, model, maxTokens: 1200 });
   return stripAiLogs(text);
 }
@@ -479,19 +479,19 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
     return stripAiLogs(enforceSingleClosing(merged, closing));
   };
 
-  const moonEventPhase = getMoonEventPhaseLabel({ dateLocal, asOfISO: story?.meta?.as_of });
+  const moonEvent = getMoonEventInfo({ dateLocal, asOfISO: story?.meta?.as_of });
   const moonEventEnabled = String(
     openai?.moonEventEnabled ?? process.env.BLOG_MOON_EVENT_ENABLED ?? "1"
   ) !== "0";
   const shouldMoonEvent =
     moonEventEnabled &&
-    moonEventPhase &&
+    moonEvent &&
     (mode === "single" || mode === "auto" || mode === "moon_event");
   if (shouldMoonEvent) {
     const html = await generateMoonEventDraft({
       story,
       dateLocal,
-      phaseLabel: moonEventPhase,
+      event: moonEvent,
       runWithRetry,
       model: modelMain,
     });

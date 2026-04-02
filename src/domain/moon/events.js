@@ -90,6 +90,7 @@ function moonEventRelationInfo(input) {
   const flags = moonEventFlags(input);
   if (flags.isFull) {
     return {
+      aspectKey: "opposition",
       labelJa: "オポジション",
       deg: 180,
       structureJa: "太陽と月が向かい合い、配置が二極で立ち上がる。",
@@ -97,16 +98,25 @@ function moonEventRelationInfo(input) {
   }
   if (flags.isNew) {
     return {
+      aspectKey: "conjunction",
       labelJa: "コンジャンクション",
       deg: 0,
       structureJa: "太陽と月が重なり、配置の核が一点に集まる。",
     };
   }
   return {
+    aspectKey: "",
     labelJa: "",
     deg: null,
     structureJa: "",
   };
+}
+
+function moonEventAxisWordsJa(input) {
+  const flags = moonEventFlags(input);
+  if (flags.isNew) return "重なり / 収束 / 密度";
+  if (flags.isFull) return "向かい合い / 張力 / 対向";
+  return "";
 }
 
 function moonEventNameLineEn({ kind, signEn, specialNameEn, moonNameEn } = {}) {
@@ -393,6 +403,7 @@ module.exports = {
   moonEventFlags,
   moonEventIlluminationDefaults,
   moonEventRelationInfo,
+  moonEventAxisWordsJa,
   moonEventNameLineEn,
   moonEventSpaceConfig,
   getFullMoonForDate,

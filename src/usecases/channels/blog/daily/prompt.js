@@ -6,6 +6,7 @@ const { BLOG_MOON_EVENT_GUIDE } = require("../../../../content/prompts/blog/moon
 const { formatDateYmd } = require("../../../../domain/astro/compute");
 const { normalizeSignKey } = require("../../../../domain/canonical");
 const { BLOG_STRUCT_BODY_ORDER } = require("./constants");
+const { moonEventRelationInfo, moonEventAxisWordsJa, moonEventKindLabelJa } = require("../../../../domain/moon");
 const {
   formatDateDotsFromLocal,
   formatElementCount,
@@ -31,7 +32,8 @@ function userPrompt({ dateLocal, dataBlock }) {
   ].join("\n");
 }
 
-function buildMoonEventPrompt({ story, dateLocal, phaseLabel }) {
+function resolveMoonEventPromptInput({ story, dateLocal, event }) {
+  if (!event) return null;
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
   const dateDots = formatDateDotsFromLocal(dateLocal)
     || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");
@@ -41,13 +43,12 @@ function buildMoonEventPrompt({ story, dateLocal, phaseLabel }) {
   const sunSignDeg = sun.signKey ? formatSignDegree(sun.signKey, sun.lonDeg) : (sun.signJa || "—");
   const moonSignDeg = moon.signKey ? formatSignDegree(moon.signKey, moon.lonDeg) : (moon.signJa || "—");
 
-  const aspectDeg = phaseLabel === "新月" ? 0 : 180;
-  const aspectKey = phaseLabel === "新月" ? "conjunction" : "opposition";
+  const phaseLabel = event?.phaseName || moonEventKindLabelJa(event?.kind) || "";
+  const relationInfo = moonEventRelationInfo(event);
+  const aspectKey = relationInfo?.aspectKey || "";
+  const aspectDeg = Number.isFinite(Number(relationInfo?.deg)) ? Number(relationInfo.deg) : null;
   const aspectLabel = aspectLabelForLong(aspectKey, aspectDeg);
-
-  const axisWords = phaseLabel === "新月"
-    ? "重なり / 収束 / 密度"
-    : "向かい合い / 張力 / 対向";
+  const axisWords = moonEventAxisWordsJa(event) || "";
 
   const strata = story?.public?.sky_strata || {};
   const elements = formatElementCount(strata.element_count || {});
@@ -62,18 +63,38 @@ function buildMoonEventPrompt({ story, dateLocal, phaseLabel }) {
   });
   const distribution = formatSignConcentration(signCounts);
 
+  return {
+    dateDots,
+    phaseLabel,
+    sun,
+    moon,
+    sunSignDeg,
+    moonSignDeg,
+    aspectLabel,
+    aspectDeg,
+    axisWords,
+    elements,
+    modalities,
+    distribution,
+  };
+}
+
+function buildMoonEventPrompt({ story, dateLocal, event }) {
+  const input = resolveMoonEventPromptInput({ story, dateLocal, event });
+  if (!input) return "";
+
   const inputLines = [
-    `DATE_DOTS: ${dateDots}`,
-    `PHASE: ${phaseLabel}`,
-    `SUN_SIGN: ${sun.signJa || "—"}`,
-    `MOON_SIGN: ${moon.signJa || "—"}`,
-    `SUN_SIGN_DEG: ${sunSignDeg}`,
-    `MOON_SIGN_DEG: ${moonSignDeg}`,
-    `ASPECT: ${aspectLabel} ${aspectDeg}°`,
-    `AXIS_WORDS: ${axisWords}`,
-    `ELEMENTS: ${elements}`,
-    `MODALITIES: ${modalities}`,
-    `DISTRIBUTION: ${distribution || "—"}`,
+    `DATE_DOTS: ${input.dateDots}`,
+    `PHASE: ${input.phaseLabel}`,
+    `SUN_SIGN: ${input.sun.signJa || "—"}`,
+    `MOON_SIGN: ${input.moon.signJa || "—"}`,
+    `SUN_SIGN_DEG: ${input.sunSignDeg}`,
+    `MOON_SIGN_DEG: ${input.moonSignDeg}`,
+    `ASPECT: ${input.aspectLabel} ${Number.isFinite(Number(input.aspectDeg)) ? `${input.aspectDeg}°` : ""}`.trim(),
+    `AXIS_WORDS: ${input.axisWords || "—"}`,
+    `ELEMENTS: ${input.elements}`,
+    `MODALITIES: ${input.modalities}`,
+    `DISTRIBUTION: ${input.distribution || "—"}`,
   ];
 
   return [
@@ -111,5 +132,6 @@ module.exports = {
   systemPrompt,
   userPrompt,
   buildMoonEventPrompt,
+  resolveMoonEventPromptInput,
   stripAiLogs,
 };

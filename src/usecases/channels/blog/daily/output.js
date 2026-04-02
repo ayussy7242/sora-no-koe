@@ -8,7 +8,7 @@ const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../.
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { leadAspectFromResonancePool, bodyTitleRank } = require("./resonance");
-const { getMoonEventPhaseLabel, moonPhaseTitleLabel } = require("./selection");
+const { getMoonEventInfo, moonPhaseTitleLabel } = require("./selection");
 
 function formatDateJaFromLocal(dateLocal) {
   const parts = String(dateLocal || "").trim().split("-");
@@ -94,8 +94,9 @@ function aspectLabelForLong(aspectKey, aspectDeg) {
 
 function buildMoonEventTitle(story, dateLocal) {
   const asOfISO = story?.meta?.as_of || new Date().toISOString();
-  const phaseLabel = getMoonEventPhaseLabel({ dateLocal, asOfISO });
-  if (!phaseLabel) return "";
+  const event = getMoonEventInfo({ dateLocal, asOfISO });
+  const phaseLabel = event?.phaseName || "";
+  if (!event || !phaseLabel) return "";
 
   const dateDots = formatDateDotsFromLocal(dateLocal)
     || formatDateYmd(new Date(asOfISO)).replace(/-/g, ".");

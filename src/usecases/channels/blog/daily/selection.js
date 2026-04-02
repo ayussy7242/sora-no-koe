@@ -2,7 +2,7 @@
 
 const dict = require("../../../../content/dict");
 const { findNextMoonPhase } = require("../../../../domain/astro/compute");
-const { formatTodayMoonLines } = require("../../../../domain/moon");
+const { formatTodayMoonLines, detectMoonEventLocal } = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
 
 function findMoonPhaseInJstDate(dateLocal, phaseDeg) {
@@ -61,13 +61,15 @@ function moonPhaseTitleLabel({ dateLocal, asOfISO }) {
   return "";
 }
 
-function isMoonEventPhaseLabel(label) {
-  return label === "新月" || label === "満月";
+function getMoonEventInfo({ dateLocal, asOfISO, dictOverride } = {}) {
+  const useDict = dictOverride || dict;
+  const baseISO = asOfISO || new Date().toISOString();
+  return detectMoonEventLocal({ dateLocal, asOfISO: baseISO, dict: useDict });
 }
 
-function getMoonEventPhaseLabel({ dateLocal, asOfISO }) {
-  const label = moonPhaseTitleLabel({ dateLocal, asOfISO });
-  return isMoonEventPhaseLabel(label) ? label : "";
+function getMoonEventPhaseLabel({ dateLocal, asOfISO } = {}) {
+  const event = getMoonEventInfo({ dateLocal, asOfISO });
+  return event?.phaseName || "";
 }
 
 function extractMoonPhaseLabel({ asOfISO, story }) {
@@ -108,7 +110,7 @@ module.exports = {
   lastFullMoonDate,
   diffDaysJst,
   moonPhaseTitleLabel,
-  isMoonEventPhaseLabel,
+  getMoonEventInfo,
   getMoonEventPhaseLabel,
   extractMoonPhaseLabel,
   dominantLabel,
