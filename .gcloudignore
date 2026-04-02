@@ -23,3 +23,4 @@ scripts/ops
 relation_pdf
 coverage
 .nyc_output
+public
