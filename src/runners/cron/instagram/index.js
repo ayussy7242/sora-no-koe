@@ -10,6 +10,7 @@ const { moonEventFlags } = require("../../../domain/moon");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { generateIgMoonEventAiOutputs } = require("../../../usecases/channels/instagram/ai/moon_event");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { ensureIgOutputs } = require("../../../usecases/story/output_helpers");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const {
   createImageContainer,
