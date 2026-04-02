@@ -21,60 +21,24 @@ const path = require("path");
 const puppeteer = require("puppeteer");
 const { buildBlueprintV25WireframeHtml, PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/wireframe");
 const { buildBlueprintV25BgImages, buildStoryStub } = require("../blueprint_v25/backgrounds");
-
-function normalizeSymbol(glyph) {
-  return String(glyph || "").replace(/\uFE0E|\uFE0F/g, "");
-}
-
-function calcAscLon(rowsAngles = []) {
-  const ascRow = Array.isArray(rowsAngles) ? rowsAngles.find((row) => row?.key === "asc") : null;
-  const meta = ascRow?.meta;
-  const signKey = meta?.sign_key;
-  const idx = SIGN_KEYS.indexOf(String(signKey || ""));
-  if (idx < 0) return null;
-  const deg = Number(meta?.deg);
-  if (!Number.isFinite(deg)) return null;
-  const min = Number(meta?.min);
-  const minPart = Number.isFinite(min) ? min / 60 : 0;
-  return idx * 30 + deg + minPart;
-}
-
-function calcMcLon(rowsAngles = []) {
-  const mcRow = Array.isArray(rowsAngles) ? rowsAngles.find((row) => row?.key === "mc") : null;
-  const meta = mcRow?.meta;
-  const signKey = meta?.sign_key;
-  const idx = SIGN_KEYS.indexOf(String(signKey || ""));
-  if (idx < 0) return null;
-  const deg = Number(meta?.deg);
-  if (!Number.isFinite(deg)) return null;
-  const min = Number(meta?.min);
-  const minPart = Number.isFinite(min) ? min / 60 : 0;
-  return idx * 30 + deg + minPart;
-}
-
-const SPACE = Object.freeze({
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 40,
-});
-
-const TYPE = Object.freeze({
-  title: 28,
-  h1: 20,
-  h2: 16,
-  body: 14.5,
-  meta: 12,
-  glyph: 40,
-});
-
-const FONT_BUMP = 1;
-const bumpFont = (size) => size + FONT_BUMP;
-
-const V25_SCALE = 1.1;
-const V25_TITLE_SCALE = 1.2;
+const {
+  SPACE,
+  TYPE,
+  bumpFont,
+  V25_SCALE,
+  V25_TITLE_SCALE,
+} = require("./mobile/constants");
+const {
+  normalizeSymbol,
+  calcAscLon,
+  calcMcLon,
+  splitSentences,
+  stripStructureSymbols,
+  summarizeSentences,
+  collectElementCounts,
+  collectModalityCounts,
+  buildParagraphs,
+} = require("./mobile/formatters");
 
 function drawShapeSymbol(doc, { x, y, size, kind, filled }) {
   const half = size / 2;
@@ -112,38 +76,6 @@ function drawShapeSymbol(doc, { x, y, size, kind, filled }) {
   doc.restore();
 }
 
-function splitSentences(text) {
-  return String(text || "")
-    .replace(/([。！？])/g, "$1\n")
-    .split(/\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function stripStructureSymbols(text) {
-  return String(text || "")
-    .replace(/[\u0000-\u001f\u007f\uFEFF\uFFFD]/g, "")
-    .replace(/[▲■◆●△□◇○☒]/g, "")
-    .replace(
-      /(?:火|地|風|水)\s*\d+\s*[/／]\s*(?:火|地|風|水)\s*\d+\s*[/／]\s*(?:火|地|風|水)\s*\d+\s*[/／]\s*(?:火|地|風|水)\s*\d+/g,
-      ""
-    )
-    .replace(
-      /(?:火|地|風|水)\s*\d+\s*(?:火|地|風|水)\s*\d+\s*(?:火|地|風|水)\s*\d+\s*(?:火|地|風|水)\s*\d+/g,
-      ""
-    )
-    .replace(
-      /(?:活動|不動|柔軟)\s*\d+\s*[/／]\s*(?:活動|不動|柔軟)\s*\d+\s*[/／]\s*(?:活動|不動|柔軟)\s*\d+/g,
-      ""
-    )
-    .replace(
-      /(?:活動|不動|柔軟)\s*\d+\s*(?:活動|不動|柔軟)\s*\d+\s*(?:活動|不動|柔軟)\s*\d+/g,
-      ""
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function drawStructureInlineLine(doc, layout, items, { symbolSize = 14, textSize = 14, gap = 6 } = {}) {
   const safeItems = (items || []).filter(Boolean);
   if (!safeItems.length) return;
@@ -175,48 +107,6 @@ function drawStructureInlineLine(doc, layout, items, { symbolSize = 14, textSize
     }
   });
   layout.y = y + doc.currentLineHeight(true);
-}
-
-function summarizeSentences(text, limit) {
-  const sentences = splitSentences(text);
-  if (!sentences.length) return "";
-  return sentences.slice(0, Math.max(1, limit)).join("");
-}
-
-function collectElementCounts(rowsMain = []) {
-  const counts = { fire: 0, earth: 0, air: 0, water: 0 };
-  rowsMain.forEach((row) => {
-    const element = row?.meta?.element;
-    if (element && counts[element] !== undefined) counts[element] += 1;
-  });
-  return counts;
-}
-
-function collectModalityCounts(rowsMain = []) {
-  const counts = { cardinal: 0, fixed: 0, mutable: 0 };
-  rowsMain.forEach((row) => {
-    const modality = row?.meta?.modality;
-    if (modality && counts[modality] !== undefined) counts[modality] += 1;
-  });
-  return counts;
-}
-
-function buildParagraphs(text) {
-  const raw = String(text || "").replace(/\r/g, "").trim();
-  if (!raw) return [];
-  const blocks = raw
-    .split(/\n{2,}/)
-    .map((block) => block.replace(/\n+/g, " ").trim())
-    .filter(Boolean);
-  if (blocks.length > 1) return blocks;
-  const sentences = splitSentences(raw);
-  return sentences.map((sentence) => {
-    const first = sentence.indexOf("、");
-    if (first < 0) return sentence;
-    const second = sentence.indexOf("、", first + 1);
-    if (second < 0) return sentence;
-    return `${sentence.slice(0, first + 1)}\n${sentence.slice(first + 1).trim()}`;
-  });
 }
 
 function drawMobileHoroscopeCircle({ doc, centerX, centerY, radius, rowsMain }) {
