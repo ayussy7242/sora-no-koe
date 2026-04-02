@@ -9,3 +9,12 @@ dist
 tmp
 logs
 *.log
+docs
+tests
+scripts/preview
+scripts/test
+scripts/export
+scripts/ops
+relation_pdf
+coverage
+.nyc_output

@@ -12,3 +12,14 @@ node_modules
 # Build artifacts (built in Cloud Build)
 dist
 tmp
+
+# Dev-only / bulky artifacts
+docs
+tests
+scripts/preview
+scripts/test
+scripts/export
+scripts/ops
+relation_pdf
+coverage
+.nyc_output
