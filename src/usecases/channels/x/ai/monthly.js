@@ -7,11 +7,7 @@ const {
   buildMoonEventsInMonth,
   listMoonSignChangesInMonth,
 } = require("../../../../domain/moon");
-const { listWithOrb } = require("../../../../domain/aspect/selection");
-const { normalizeBodyKey } = require("../../../../domain/canonical");
-const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
-const { CORE_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
-const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
+const { buildMonthlyHighlights } = require("../../../../domain/monthly");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
 const { validateXAiText } = require("./common");
@@ -28,46 +24,9 @@ function formatSignChanges(signChanges = []) {
   return items.length ? items.join(" / ") : "—";
 }
 
-function buildMonthlyPoints({ story, dict, max = 3, resonanceMode }) {
-  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const coreBodies = new Set(CORE_PLANETS);
-  const deepBodies = new Set(DEEP_BODIES);
-  const mode = resonanceMode || story?.meta?.resonance_mode || "core";
-  const all = listWithOrb(skyAll);
-  const corePool = all.filter((row) => {
-    const aKey = normalizeBodyKey(row?.a || "");
-    const bKey = normalizeBodyKey(row?.b || "");
-    return coreBodies.has(aKey) && coreBodies.has(bKey);
-  });
-  const deepPool = all.filter((row) => {
-    const aKey = normalizeBodyKey(row?.a || "");
-    const bKey = normalizeBodyKey(row?.b || "");
-    return deepBodies.has(aKey) || deepBodies.has(bKey);
-  });
-  const useDeep = mode === "deep";
-  const pool = useDeep
-    ? (deepPool.length ? deepPool : corePool)
-    : (corePool.length ? corePool : deepPool);
-  const picked = pool
-    .sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg))
-    .slice(0, max);
-
-  return picked.map((row) => {
-    const aKey = normalizeBodyKey(row?.a || "");
-    const bKey = normalizeBodyKey(row?.b || "");
-    const aLabel = bodyLabelJa(dict, aKey);
-    const bLabel = bodyLabelJa(dict, bKey);
-    const aSign = row?.a_sign_ja || signJa(dict, row?.a_sign_key || "");
-    const bSign = row?.b_sign_ja || signJa(dict, row?.b_sign_key || "");
-    const aspect = aspectInfo(dict, row?.type || row?.aspect || row?.aspT, row?.aspect_deg);
-    const aspectLabel = aspect?.label_ja || String(row?.type || row?.aspect || "");
-    return `${aLabel}（${aSign}）×${bLabel}（${bSign}）｜${aspectLabel}`;
-  });
-}
-
 function resolveXMonthlyPromptInput({ story, dict, asOfISO, resonanceMode } = {}) {
   const dateLocal = story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date());
-  const points = buildMonthlyPoints({ story, dict, max: 3, resonanceMode });
+  const points = buildMonthlyHighlights({ story, dict, max: 3, resonanceMode });
   const moonEvents = buildMoonEventsInMonth({ dateLocal, asOfISO: asOfISO || story?.meta?.as_of, dict });
   const signChanges = listMoonSignChangesInMonth({ dateLocal, asOfISO: asOfISO || story?.meta?.as_of, dict });
   const signChangesLine = formatSignChanges(signChanges);
