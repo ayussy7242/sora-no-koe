@@ -30,10 +30,8 @@ ENV npm_config_registry=https://registry.npmjs.org/ \
 
 COPY package*.json ./
 
-# キャッシュを毎回捨てて、オンライン優先で ci
-RUN rm -rf /root/.npm /tmp/npm-cache \
- && npm cache clean --force \
- && npm ci --omit=dev --no-audit --no-fund --prefer-online --cache /tmp/npm-cache
+# npm ci
+RUN npm ci --omit=dev --no-audit --no-fund --prefer-online --cache /tmp/npm-cache
 
 COPY . .
 
