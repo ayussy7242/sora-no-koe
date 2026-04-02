@@ -20,7 +20,7 @@ const {
   housesStructLooksValid,
   minBodiesLooksValid,
   minAnglesLooksValid,
-} = require("../natal/cache");
+} = require("../natal");
 
 const { renderNatalListFromcache } = createRenderers({ dict });
 

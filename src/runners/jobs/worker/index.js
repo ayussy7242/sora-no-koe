@@ -29,7 +29,7 @@ const {
   buildLockErrorResult,
   buildJobFailedResult,
 } = require("./result");
-const { computeNatalCache } = require("./natal/cache");
+const { computeNatalCache } = require("./natal");
 const { processOneNatalJob } = require("./handlers/natal_calc");
 
 // --------------------
