@@ -47,6 +47,27 @@ function fullMoonNameEnFromDate(date) {
   return names[month] || "";
 }
 
+function moonEventKindLabelJa(kind) {
+  const k = String(kind || "").toLowerCase();
+  if (k === "new") return "新月";
+  if (k === "full") return "満月";
+  return "";
+}
+
+function moonEventKindLabelEn(kind) {
+  const k = String(kind || "").toLowerCase();
+  if (k === "new") return "New Moon";
+  if (k === "full") return "Full Moon";
+  return "";
+}
+
+function moonEventKindSymbol(kind) {
+  const k = String(kind || "").toLowerCase();
+  if (k === "new") return "🌑";
+  if (k === "full") return "🌕";
+  return "🌙";
+}
+
 function getFullMoonForDate(asOfISO) {
   const base = asOfISO ? new Date(asOfISO) : new Date();
   if (Number.isNaN(base.getTime())) return null;
@@ -153,8 +174,8 @@ function formatMoonEventDisplay(ev = {}) {
   const dict = ev?.dict || dictDefault;
   if (!date || (kind !== "new" && kind !== "full")) return null;
 
-  const phaseSymbol = kind === "new" ? "🌑" : "🌕";
-  const phaseName = kind === "new" ? "新月" : "満月";
+  const phaseSymbol = moonEventKindSymbol(kind);
+  const phaseName = moonEventKindLabelJa(kind);
   const signJa = ev?.signJa || signLabelFromLon(dict, calcTransitLon("moon", date.toISOString()));
   const moonName = fullMoonNameJaFromDate(date);
   const moonNameEn = fullMoonNameEnFromDate(date);
@@ -281,6 +302,10 @@ function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eve
 
 module.exports = {
   fullMoonNameJaFromDate,
+  fullMoonNameEnFromDate,
+  moonEventKindLabelJa,
+  moonEventKindLabelEn,
+  moonEventKindSymbol,
   getFullMoonForDate,
   lastFullMoonDate,
   lastNewMoonDate,

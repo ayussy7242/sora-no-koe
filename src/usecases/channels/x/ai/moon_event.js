@@ -3,7 +3,7 @@
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MOON_EVENT_USER_GUIDE } = require("../../../../content/prompts/sns/x/moon_event");
-const { detectMoonEventLocal } = require("../../../../domain/moon");
+const { detectMoonEventLocal, moonEventKindLabelJa } = require("../../../../domain/moon");
 const { validateXAiText } = require("./common");
 
 function detectMoonEvent({ story, dict, asOfISO }) {
@@ -15,8 +15,8 @@ function detectMoonEvent({ story, dict, asOfISO }) {
 function buildMoonEventPrompt({ story, event }) {
   if (!event) return "";
   const date = String(story?.meta?.date_local || story?.public?.date_local || "").trim();
-  const kind = event.kind === "new" ? "新月" : "満月";
-  const label = event.label || `${event.signJa || "—"}${kind}`;
+  const kind = event.phaseName || moonEventKindLabelJa(event.kind);
+  const label = event.label || `${event.signJa || "—"}${kind || ""}`;
   const when = event.dateLabel || "";
 
   return [

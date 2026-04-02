@@ -3,7 +3,7 @@
 const { formatDateLabel } = require("../../../engine/renderers/instagram/ig_carousel");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../../presenters/format/format/common");
-const { buildMoonStatus, moonSignAtIso } = require("../../../domain/moon");
+const { buildMoonStatus, moonSignAtIso, moonEventKindLabelJa } = require("../../../domain/moon");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
 const { pickMoonResonanceAspect } = require("./moon_event");
 const { aspectLabelJa, aspectCircuitLabel } = require("./shared/aspects");
@@ -169,7 +169,7 @@ function buildMoonEventCarouselSlides({
     brand: "ソラのこえ",
     tagline: "",
     subLabel: event?.dateLabel || "",
-    sunLine: event?.phaseName || (event?.kind === "full" ? "満月" : "新月"),
+    sunLine: event?.phaseName || moonEventKindLabelJa(event?.kind),
     midLine: moonNameLine,
     moonLine: moonSign,
     observation: pressureLines.length ? "" : coverObservation,
