@@ -431,6 +431,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   const colorDefs = world.colorDefs || "";
 
   const localAvoidRegions = sliceAvoidRegions(avoidRegions, offsetX, width);
+  const softOnly = localAvoidRegions.some((r) => r?.softOnly);
   const palette = world.theme?.todayPalette || {};
   const tintSource = palette.baseBias || palette.glowColor || palette.gasColorA || BACKGROUND_COLORS.bgDeep;
   const veilColor = mixColor(BACKGROUND_COLORS.bgDeep, tintSource, 0.1);
@@ -472,7 +473,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   if (isStory && world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
-    const safeRegion = localAvoidRegions[0] || storySafe;
+    const safeRegion = softOnly ? null : (localAvoidRegions[0] || storySafe);
     const storyMilky = buildMilkyBandLayer({
       rand: mulberry32(hashString(`${slideId}-story-milky`)),
       width,

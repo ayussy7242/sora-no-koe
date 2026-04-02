@@ -23,7 +23,7 @@ const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8, rebuildDaily8, sendDaily8 } = require("../runners/cron/line");
 const { runDailyBlog } = require("../runners/cron/blog");
 const { runIgPost, runIgMoonEventPost } = require("../runners/cron/instagram");
-const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
+const { runXMorningPost, runXResonancePost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
 const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
 const {
   getRequestParts,
@@ -227,7 +227,7 @@ function createCronRouter(deps = {}) {
     }
   });
 
-  // ✅ POST /cron/x/morning : X朝投稿（2本 + 共鳴があれば3本）
+  // ✅ POST /cron/x/morning : X朝投稿（2本のみ）
   router.post("/x/morning", async (req, res) => {
     const gate = requireCronToken(req);
     if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/morning" });
@@ -258,13 +258,68 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXMorningPost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, resonanceOrbMax, local, localOutDir }
+        {
+          dateLocal,
+          asOfISO,
+          dryRun,
+          useAi,
+          orbMaxDeg,
+          precisionDeg,
+          resonanceOrbMax,
+          local,
+          localOutDir,
+        }
       );
 
       logCronPhase(req, "[cron/x/morning] done", { ok: result?.ok, ms: Date.now() - t0 });
       return res.json(result);
     } catch (e) {
       return cronError(res, req, "/cron/x/morning", e);
+    }
+  });
+
+  // ✅ POST /cron/x/resonance : X共鳴（単発）
+  router.post("/x/resonance", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/x/resonance" });
+
+    try {
+      const t0 = Date.now();
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const resonanceOrbMax = pickNumberFlag({
+        q,
+        b,
+        keys: ["resonance_orb_max", "resonanceOrbMax"],
+        defaultValue: undefined,
+      });
+      const resonanceTriggerOrbMax = pickNumberFlag({
+        q,
+        b,
+        keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"],
+        defaultValue: undefined,
+      });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+
+      logCronPhase(req, "[cron/x/resonance] start", {
+        date_local: dateLocal,
+        as_of: asOfISO,
+        dry_run: dryRun,
+        use_ai: useAi,
+      });
+      const result = await runXResonancePost(
+        { env, storyService, renderers, dict, db },
+        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, local, localOutDir }
+      );
+
+      logCronPhase(req, "[cron/x/resonance] done", { ok: result?.ok, ms: Date.now() - t0 });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/x/resonance", e);
     }
   });
 

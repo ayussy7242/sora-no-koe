@@ -175,6 +175,16 @@ function normalizeMediaIds(input) {
   return [];
 }
 
+function normalizeXApiError(err) {
+  return {
+    message: err?.message || String(err),
+    status: err?.status || null,
+    code: err?.code || null,
+    body: err?.body || null,
+    name: err?.name || null,
+  };
+}
+
 async function postTweetV2({ text, replyToId, mediaIds, env }) {
   const url = "https://api.x.com/2/tweets";
   const payload = replyToId
@@ -306,7 +316,20 @@ async function postTweet({ text, replyToId, mediaIds, env }) {
     const status = err?.status;
     if (status === 403) {
       console.warn("[x_api] v2 post forbidden, fallback to v1.1");
-      return await postTweetV1({ text, replyToId, mediaIds, env });
+      const v2Info = normalizeXApiError(err);
+      try {
+        return await postTweetV1({ text, replyToId, mediaIds, env });
+      } catch (err2) {
+        const v1Info = normalizeXApiError(err2);
+        const combined = new Error(`X post failed after v2 forbidden + v1.1 error: ${v1Info.message}`);
+        combined.status = v1Info.status;
+        combined.code = v1Info.code;
+        combined.body = v1Info.body;
+        combined.name = v1Info.name || "Error";
+        combined.v2 = v2Info;
+        combined.v1 = v1Info;
+        throw combined;
+      }
     }
     throw err;
   }

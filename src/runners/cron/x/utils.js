@@ -46,6 +46,8 @@ function normalizeXError(err) {
     code: err?.code || null,
     body: err?.body || null,
     name: err?.name || null,
+    v2: err?.v2 || null,
+    v1: err?.v1 || null,
   };
 }
 

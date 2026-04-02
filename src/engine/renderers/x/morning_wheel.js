@@ -94,14 +94,22 @@ async function renderXMorningWheelPng({
     variant: String(variant || "story_today"),
     prefixChannel: true,
   });
-  const pad = Math.round(wheel * 0.08);
+  const cx = left + wheel / 2;
+  const cy = top + wheel / 2;
+  const r = wheel * 0.46;
   const avoidRegions = [{
-    x: left - pad,
-    y: top - pad,
-    w: wheel + pad * 2,
-    h: wheel + pad * 2,
-    weight: 1,
-    feather: Math.round(wheel * 0.22),
+    shape: "circle",
+    kind: "wheel",
+    softOnly: true,
+    cx,
+    cy,
+    r,
+    x: cx - r,
+    y: cy - r,
+    w: r * 2,
+    h: r * 2,
+    weight: 0.55,
+    feather: Math.round(wheel * 0.28),
   }];
 
   const underlay = buildWheelUnderlay({
@@ -138,7 +146,100 @@ async function renderXMorningWheelPng({
   return composed.png({ compressionLevel: 9 }).toBuffer();
 }
 
+async function renderXResonanceWheelPng({
+  story,
+  dateLabel,
+  width = DEFAULT_X_CANVAS.width,
+  height = DEFAULT_X_CANVAS.height,
+  variant = "resonance",
+  wheelSize,
+  resonanceAspect = null,
+} = {}) {
+  if (!story) throw new Error("renderXResonanceWheelPng: story required");
+
+  const w = Number.isFinite(Number(width)) ? Number(width) : DEFAULT_X_CANVAS.width;
+  const h = Number.isFinite(Number(height)) ? Number(height) : DEFAULT_X_CANVAS.height;
+  const minSide = Math.min(w, h);
+  const rawWheel = Number.isFinite(Number(wheelSize)) ? Number(wheelSize) : minSide * 0.88;
+  const wheel = clamp(Math.round(rawWheel), Math.round(minSide * 0.62), Math.round(minSide * 0.94));
+  const left = Math.round((w - wheel) / 2);
+  const top = Math.round((h - wheel) / 2);
+
+  const dateLabelSafe = dateLabel || formatDateLabel(story?.meta?.date_local || story?.public?.date_local);
+  const seedDate = story?.meta?.date_local || story?.public?.date_local || dateLabel || "";
+  const seedLabel = buildSpaceSeedLabel({
+    seedVersion: "v2",
+    channel: "x",
+    date: seedDate,
+    variant: String(variant || "resonance"),
+    prefixChannel: true,
+  });
+  const cx = left + wheel / 2;
+  const cy = top + wheel / 2;
+  const r = wheel * 0.46;
+  const avoidRegions = [{
+    shape: "circle",
+    kind: "wheel",
+    softOnly: true,
+    cx,
+    cy,
+    r,
+    x: cx - r,
+    y: cy - r,
+    w: r * 2,
+    h: r * 2,
+    weight: 0.55,
+    feather: Math.round(wheel * 0.28),
+  }];
+
+  const underlay = buildWheelUnderlay({
+    cx: left + wheel / 2,
+    cy: top + wheel / 2,
+    r: wheel * 0.6,
+  });
+
+  const baseSvg = buildBaseSvg({
+    story,
+    dateLabel: dateLabelSafe,
+    seedLabel,
+    width: w,
+    height: h,
+    variant,
+    avoidRegions,
+    underlay,
+    footer: buildFooterSvg({
+      width: w,
+      height: h,
+      brand: "sora-no-koe",
+      dateLabel: formatDateLabel(dateLabelSafe),
+    }),
+  });
+
+  const aspect = resonanceAspect || story?.meta?.x_source?.resonance_aspect || null;
+  if (!aspect || !aspect.a || !aspect.b) {
+    throw new Error("renderXResonanceWheelPng: resonance aspect missing");
+  }
+
+  const highlightBodies = [String(aspect.a || "").toLowerCase(), String(aspect.b || "").toLowerCase()];
+  const chartSvg = buildSoraWheelSvg({
+    story,
+    dateLabel: dateLabelSafe,
+    size: wheel,
+    showAspects: true,
+    aspects: [aspect],
+    highlightBodies,
+    highlightAspect: aspect,
+    dimOpacity: 0.22,
+    zodiacOpacity: 0.35,
+  });
+
+  const base = sharp(Buffer.from(baseSvg));
+  const composed = base.composite([{ input: Buffer.from(chartSvg), top, left }]);
+  return composed.png({ compressionLevel: 9 }).toBuffer();
+}
+
 module.exports = {
   DEFAULT_X_CANVAS,
   renderXMorningWheelPng,
+  renderXResonanceWheelPng,
 };

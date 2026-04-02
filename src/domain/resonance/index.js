@@ -1,7 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../canonical");
-const { listWithOrb } = require("../aspect/selection");
+const { listWithOrb, filterWithinOrb, sortByOrb } = require("../aspect/selection");
 const { CORE_PLANETS, DEEP_BODIES } = require("../astro/constants");
 const { aspectInfo, signJa } = require("../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../presenters/shared/text/tokens");
@@ -118,8 +118,42 @@ function pickPrimaryResonanceAspect({ story, dict, maxOrbDeg, resonanceMode } = 
   };
 }
 
+function buildResonanceKey(raw) {
+  if (!raw) return "";
+  const aKey = normalizeBodyKey(raw?.a || "");
+  const bKey = normalizeBodyKey(raw?.b || "");
+  const pair = [aKey, bKey].filter(Boolean).sort().join("|");
+  const type = String(raw?.type || raw?.aspect || raw?.aspT || "").trim();
+  const deg = Number.isFinite(Number(raw?.aspect_deg)) ? Math.round(Number(raw.aspect_deg)) : "";
+  const aSign = String(raw?.a_sign_key || "").trim();
+  const bSign = String(raw?.b_sign_key || "").trim();
+  const signPair = [aSign, bSign].filter(Boolean).sort().join("|");
+  return [pair, type, deg, signPair].filter((v) => v !== "").join("|");
+}
+
+function listResonanceCandidates({ story, maxOrbDeg, resonanceMode } = {}) {
+  const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const mode = resolveResonanceMode(story, resonanceMode);
+  const list = listWithOrb(skyAll);
+  if (!list.length) return [];
+
+  const { corePool, deepPool } = splitResonancePools(list);
+  const targetPool = mode === "deep"
+    ? (deepPool.length ? deepPool : corePool)
+    : (corePool.length ? corePool : deepPool);
+  if (!targetPool.length) return [];
+
+  const withinMax = Number.isFinite(Number(maxOrbDeg))
+    ? filterWithinOrb(targetPool, Number(maxOrbDeg))
+    : targetPool;
+
+  return sortByOrb(withinMax);
+}
+
 module.exports = {
   pickResonanceAspectFromPool,
   pickPreferredResonanceAspect,
   pickPrimaryResonanceAspect,
+  listResonanceCandidates,
+  buildResonanceKey,
 };

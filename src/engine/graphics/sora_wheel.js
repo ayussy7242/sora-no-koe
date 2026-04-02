@@ -162,6 +162,10 @@ function buildSoraWheelSvg({
   aspects = null,
   ascLonDeg = null,
   mcLonDeg = null,
+  highlightBodies = null,
+  highlightAspect = null,
+  dimOpacity = null,
+  zodiacOpacity = null,
 } = {}) {
   if (!story) throw new Error("buildSoraWheelSvg: story required");
 
@@ -215,6 +219,16 @@ function buildSoraWheelSvg({
   const retroMap = buildRetrogradeMap(story?.meta?.as_of || null, bodyOrder);
   const astroFonts = loadAstroFonts();
   const astroFontCount = astroFonts.length;
+  const highlightSet = Array.isArray(highlightBodies)
+    ? new Set(highlightBodies.map((k) => String(k || "").toLowerCase()))
+    : null;
+  const hasHighlight = !!(highlightSet && highlightSet.size);
+  const dimOpacityValue = Number.isFinite(Number(dimOpacity))
+    ? Number(dimOpacity)
+    : (hasHighlight ? 0.25 : 1);
+  const zodiacOpacityValue = Number.isFinite(Number(zodiacOpacity))
+    ? Number(zodiacOpacity)
+    : (hasHighlight ? 0.4 : 1);
 
   const points = [];
   bodyOrder.forEach((key) => {
@@ -306,9 +320,11 @@ function buildSoraWheelSvg({
 
   // aspect lines (all)
   const aspectLines = [];
-  const aspectSource = Array.isArray(aspects)
-    ? aspects
-    : (Array.isArray(pub.sky_all) ? pub.sky_all : []);
+  const aspectSource = highlightAspect
+    ? [highlightAspect]
+    : (Array.isArray(aspects)
+      ? aspects
+      : (Array.isArray(pub.sky_all) ? pub.sky_all : []));
   if (showAspects) {
     aspectSource.forEach((a) => {
       const aKey = String(a?.a || a?.a_key || "").toLowerCase();
@@ -320,9 +336,10 @@ function buildSoraWheelSvg({
       const hard = ["square", "opposition"].includes(type);
       const soft = ["trine", "sextile"].includes(type);
       const isConjunction = type === "conjunction";
-      const color = isConjunction ? "#6B7FE0" : hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F";
-      const width = isConjunction ? 1.2 : hard ? 0.8 : soft ? 0.7 : 0.6;
-      const opacity = isConjunction ? 0.68 : hard ? 0.42 : soft ? 0.36 : 0.3;
+      const isHighlight = !!highlightAspect;
+      const color = isHighlight ? "#C6D6FF" : (isConjunction ? "#6B7FE0" : hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F");
+      const width = isHighlight ? 1.6 : (isConjunction ? 1.2 : hard ? 0.8 : soft ? 0.7 : 0.6);
+      const opacity = isHighlight ? 0.9 : (isConjunction ? 0.68 : hard ? 0.42 : soft ? 0.36 : 0.3);
       const aPos = polarToCartesian(cx, cy, aspectDotR, p1.lonAdj);
       const bPos = polarToCartesian(cx, cy, aspectDotR, p2.lonAdj);
       aspectLines.push({ x1: aPos.x, y1: aPos.y, x2: bPos.x, y2: bPos.y, color, width, opacity });
@@ -397,7 +414,8 @@ function buildSoraWheelSvg({
       const deg = applyRotation(i * 30);
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
-      return glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, "#B3B7E6");
+      const base = glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, "#B3B7E6");
+      return zodiacOpacityValue < 1 ? base.replace("/>", ` opacity="${zodiacOpacityValue}"/>`) : base;
     })
     .join("");
   const zodiacGlowEls = Object.keys(SIGN_GLYPH)
@@ -406,7 +424,9 @@ function buildSoraWheelSvg({
       const pos = polarToCartesian(cx, cy, zodiacR, deg);
       const glyph = SIGN_GLYPH[key] || "";
       const glow = glyphPathForChar(astroFonts, glyph, pos.x, pos.y, zodiacSize, glowStrong);
-      return glow ? glow.replace("/>", ` opacity="0.55" filter="url(#wheelGlowStrong)"/>`) : "";
+      if (!glow) return "";
+      const opacity = zodiacOpacityValue < 1 ? Math.max(0.1, zodiacOpacityValue * 0.6) : 0.55;
+      return glow.replace("/>", ` opacity="${opacity}" filter="url(#wheelGlowStrong)"/>`);
     })
     .join("");
 
@@ -425,9 +445,14 @@ function buildSoraWheelSvg({
 
   const pointEls = points
     .map((p) => {
-      const dot = `<circle cx="${p.x}" cy="${p.y}" r="${dotSize}" fill="#E8E9F3" stroke="#14162B" stroke-width="${dotStroke}"/>`;
+      const isHighlight = hasHighlight ? highlightSet.has(p.key) : true;
+      const opacity = isHighlight ? 1 : dimOpacityValue;
+      const dotFill = isHighlight ? "#F2F4FF" : "#E8E9F3";
+      const dotStrokeColor = isHighlight ? "#1A1D34" : "#14162B";
+      const dot = `<circle cx="${p.x}" cy="${p.y}" r="${dotSize}" fill="${dotFill}" stroke="${dotStrokeColor}" stroke-width="${dotStroke}" opacity="${opacity}"/>`;
       const miniGlyph = glyphPathForChar(astroFonts, p.glyph, p.x, p.y, dotGlyphSize, "#14162B");
-      return `${dot}${miniGlyph}`;
+      const glyph = opacity < 1 ? miniGlyph.replace("/>", ` opacity="${opacity}"/>`) : miniGlyph;
+      return `${dot}${glyph}`;
     })
     .join("");
 
@@ -437,21 +462,28 @@ function buildSoraWheelSvg({
       const dy = p.ly - p.y;
       const dist = Math.hypot(dx, dy);
       if (dist < 12) return "";
-      return `<line x1="${p.x}" y1="${p.y}" x2="${p.lx}" y2="${p.ly}" stroke="#2A2D4A" stroke-width="0.5" opacity="0.2"/>`;
+      const isHighlight = hasHighlight ? highlightSet.has(p.key) : true;
+      const opacity = (isHighlight ? 0.2 : 0.2 * dimOpacityValue);
+      return `<line x1="${p.x}" y1="${p.y}" x2="${p.lx}" y2="${p.ly}" stroke="#2A2D4A" stroke-width="0.5" opacity="${opacity}"/>`;
     })
     .join("");
 
   const labelEls = points
     .map((p) => {
-      const glyphPath = glyphPathForChar(astroFonts, p.glyph, p.lx, p.ly, planetSize, "#C8CBF2");
+      const isHighlight = hasHighlight ? highlightSet.has(p.key) : true;
+      const opacity = isHighlight ? 1 : dimOpacityValue;
+      const fill = isHighlight ? "#C8CBF2" : "#8C93C6";
+      const glyphPath = glyphPathForChar(astroFonts, p.glyph, p.lx, p.ly, planetSize, fill);
       const retroText = p.retro
-        ? `<text x="${p.lx + planetSize * 0.9}" y="${p.ly}" text-anchor="start" dominant-baseline="middle" fill="#C8CBF2" font-size="${retroSize}" font-family="SoraBody,serif">${p.retro}</text>`
+        ? `<text x="${p.lx + planetSize * 0.9}" y="${p.ly}" text-anchor="start" dominant-baseline="middle" fill="${fill}" font-size="${retroSize}" font-family="SoraBody,serif" opacity="${opacity}">${p.retro}</text>`
         : "";
-      return `${glyphPath}${retroText}`;
+      const glyph = opacity < 1 ? glyphPath.replace("/>", ` opacity="${opacity}"/>`) : glyphPath;
+      return `${glyph}${retroText}`;
     })
     .join("");
   const labelGlowEls = points
     .map((p) => {
+      if (hasHighlight && !highlightSet.has(p.key)) return "";
       const glyphPath = glyphPathForChar(astroFonts, p.glyph, p.lx, p.ly, planetSize, glowStrong);
       if (!glyphPath) return "";
       const glowPath = glyphPath.replace("/>", ` opacity="0.55" filter="url(#wheelGlowStrong)"/>`);

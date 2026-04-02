@@ -11,8 +11,13 @@ const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../../
 const { uploadMedia } = require("../../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../../engine/renderers/x/morning_wheel");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
-const { acquireXPostLock, markXPostLock } = require("./locks");
-const { buildMorningPosts, buildNightPosts } = require("./planning");
+const {
+  acquireXPostLock,
+  markXPostLock,
+  getXResonanceRecentKeys,
+  pushXResonanceRecentKey,
+} = require("./locks");
+const { buildMorningPosts, buildResonancePost, buildNightPosts } = require("./planning");
 const {
   parseJsonSafe,
   addDaysToDateLocalJST,
@@ -44,6 +49,7 @@ async function runXMorningPost(deps, opts = {}) {
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
     false
   );
+  const includeResonance = false;
 
   const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
   const dateLocal = isYYYYMMDD(opts.dateLocal)
@@ -105,6 +111,7 @@ async function runXMorningPost(deps, opts = {}) {
     useAi,
     maxOrbDeg: maxOrb,
     maxMainChars,
+    includeResonance,
   });
 
   if (Array.isArray(posts) && posts.length === 0 && useAi) {
@@ -310,6 +317,230 @@ async function runXMorningPost(deps, opts = {}) {
   } catch (err) {
     if (!dryRun && !localOnly) {
       await markXPostLock(db, "morning", dateLocal, {
+        status: "failed",
+        reason: err?.message || String(err),
+        runId: lockInfo?.runId || null,
+      }).catch(() => {});
+    }
+    throw err;
+  }
+}
+
+async function runXResonancePost(deps, opts = {}) {
+  const { env, storyService, renderers, dict, db } = deps || {};
+  if (!env) throw new Error("env required");
+  if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
+  if (!renderers?.renderXResonance) {
+    throw new Error("renderers.renderXResonance missing");
+  }
+
+  const env2 = { ...(env || {}), ...(process.env || {}) };
+  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
+  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const localOnly = toBool(
+    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
+    false
+  );
+
+  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
+  const dateLocal = isYYYYMMDD(opts.dateLocal)
+    ? String(opts.dateLocal)
+    : toDateLocalJST(new Date(asOfISO));
+  const localOutDir = String(
+    opts.localOutDir ||
+    opts.local_out_dir ||
+    env2.X_POST_LOCAL_OUT_DIR ||
+    path.join(process.cwd(), "tmp", "x", "resonance", dateLocal || "unknown")
+  );
+
+  if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
+    throw new Error("OPENAI_API_KEY missing");
+  }
+
+  let lockInfo = null;
+  if (!dryRun && !localOnly) {
+    lockInfo = await acquireXPostLock(db, "resonance", dateLocal, { force: !!opts.force });
+    if (!lockInfo.ok) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: lockInfo.reason,
+        date_local: dateLocal,
+        as_of: asOfISO,
+      };
+    }
+  }
+
+  try {
+    const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+
+    const openai = {
+      apiKey: env2.OPENAI_API_KEY,
+      baseUrl: env2.OPENAI_BASE_URL,
+      model: env2.OPENAI_MODEL,
+    };
+
+    const maxResonanceChars = resolveXMaxChars(
+      Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS))
+        ? Number(env2.X_POST_RESONANCE_MAX_CHARS)
+        : env2.X_POST_MAX_CHARS,
+      180
+    );
+
+    const maxOrb = Number.isFinite(Number(opts.resonanceOrbMax))
+      ? Number(opts.resonanceOrbMax)
+      : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
+        ? Number(env2.X_RESONANCE_ORB_MAX)
+        : Number(SPEC?.orb?.free ?? 1.5);
+
+    const triggerOrbMax = Number.isFinite(Number(opts.resonanceTriggerOrbMax))
+      ? Number(opts.resonanceTriggerOrbMax)
+      : Number.isFinite(Number(env2.X_RESONANCE_TRIGGER_ORB_MAX))
+        ? Number(env2.X_RESONANCE_TRIGGER_ORB_MAX)
+        : 0.5;
+
+    const excludeKeys = db ? await getXResonanceRecentKeys(db).catch(() => []) : [];
+
+    const {
+      post,
+      hasResonance,
+      errors: buildErrors,
+      skipReason,
+      skipMeta,
+      picked,
+      pickedKey,
+    } = await buildResonancePost({
+      story,
+      dict,
+      renderers,
+      openai,
+      useAi,
+      maxOrbDeg: maxOrb,
+      triggerOrbMax,
+      excludeKeys,
+      maxTotalChars: maxResonanceChars,
+    });
+
+    if (!post && useAi && Array.isArray(buildErrors) && buildErrors.length) {
+      console.error("[x:post] ai_generation_failed", {
+        date_local: dateLocal,
+        as_of: asOfISO,
+        errors: buildErrors,
+      });
+      await saveXPostFailure({
+        db,
+        dateLocal,
+        asOfISO,
+        kind: "resonance",
+        posts: [],
+        results: [],
+        errors: buildErrors,
+        meta: { reason: "ai_generation_failed", has_resonance: hasResonance },
+      }).catch((err) => console.error("[x:outbox] save failed", err?.message || String(err)));
+      await notifyXPostFailure({ env: env2, dateLocal, kind: "resonance", errors: buildErrors });
+
+      const result = {
+        ok: false,
+        dry_run: dryRun,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        error: "ai_generation_failed",
+        details: Array.isArray(buildErrors) ? buildErrors : [],
+      };
+      if (!dryRun && !localOnly) {
+        await markXPostLock(db, "resonance", dateLocal, {
+          status: "failed",
+          reason: "ai_generation_failed",
+          runId: lockInfo?.runId || null,
+        }).catch(() => {});
+      }
+      return result;
+    }
+
+    if (!post || !String(post.text || "").trim()) {
+      const reason = skipReason || "no_resonance";
+      if (!dryRun && !localOnly) {
+        await markXPostLock(db, "resonance", dateLocal, {
+          status: "skipped",
+          reason,
+          runId: lockInfo?.runId || null,
+          meta: skipMeta || null,
+        }).catch(() => {});
+      }
+      return {
+        ok: true,
+        skipped: true,
+        reason,
+        meta: skipMeta || null,
+        dry_run: dryRun,
+        date_local: dateLocal,
+        as_of: asOfISO,
+      };
+    }
+
+    const trimmed = (() => {
+      const res = truncateForX(post.text, maxResonanceChars);
+      return {
+        ...post,
+        text: res.text,
+        truncated: res.truncated,
+        text_len: countChars(res.text),
+      };
+    })();
+
+    if (localOnly) {
+      const localPaths = writeLocalPosts({ posts: [trimmed], outDir: localOutDir, prefix: "x_resonance" });
+      return {
+        ok: true,
+        dry_run: true,
+        local_only: true,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        post: trimmed,
+        local_dir: localOutDir,
+        local_paths: localPaths,
+      };
+    }
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dry_run: true,
+        date_local: dateLocal,
+        as_of: asOfISO,
+        post: trimmed,
+      };
+    }
+
+    const res = await postSingleToX({ text: trimmed.text, env: env2 });
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "resonance", dateLocal, {
+        status: "done",
+        runId: lockInfo?.runId || null,
+        tweet_ids: res?.id ? [res.id] : [],
+        ok_count: res?.id ? 1 : 0,
+        error_count: 0,
+        partial: false,
+        meta: pickedKey ? { resonance_key: pickedKey } : null,
+      }).catch(() => {});
+      if (pickedKey) {
+        await pushXResonanceRecentKey(db, pickedKey).catch(() => {});
+      }
+    }
+    return {
+      ok: true,
+      dry_run: false,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      post: trimmed,
+      tweet_ids: res?.id ? [res.id] : [],
+      has_resonance: hasResonance,
+      resonance_key: pickedKey || "",
+      resonance: picked || null,
+    };
+  } catch (err) {
+    if (!dryRun && !localOnly) {
+      await markXPostLock(db, "resonance", dateLocal, {
         status: "failed",
         reason: err?.message || String(err),
         runId: lockInfo?.runId || null,
@@ -811,6 +1042,7 @@ async function runXNext30DaysPost(deps, opts = {}) {
 
 module.exports = {
   runXMorningPost,
+  runXResonancePost,
   runXNightPost,
   runXMoonEventPost,
   runXNext30DaysPost,
