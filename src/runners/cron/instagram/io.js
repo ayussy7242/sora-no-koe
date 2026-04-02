@@ -1,29 +1,22 @@
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
-const { ensureDir } = require("../../../utils/infra/fs");
+const { writeBufferFile, writeJsonFile } = require("../shared/io");
 
 function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
   if (!Array.isArray(buffers) || !buffers.length) return [];
-  ensureDir(outDir);
   const paths = [];
   for (let i = 0; i < buffers.length; i++) {
     const filename = `${prefix}-${i + 1}.png`;
-    const full = path.join(outDir, filename);
-    fs.writeFileSync(full, buffers[i]);
-    paths.push(full);
+    const full = writeBufferFile({ outDir, filename, buffer: buffers[i] });
+    if (full) paths.push(full);
   }
   return paths;
 }
 
 function writeLocalJson({ data, outDir, filename = "ig_post.json" } = {}) {
-  if (!outDir) return null;
-  ensureDir(outDir);
-  const full = path.join(outDir, filename);
-  fs.writeFileSync(full, JSON.stringify(data, null, 2), "utf8");
-  return full;
+  return writeJsonFile({ outDir, filename, data, space: 2 });
 }
 
 async function uploadCarouselSlides({

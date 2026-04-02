@@ -1,18 +1,16 @@
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
 const { toBool } = require("../../../utils/data/bool");
+const { writeTextFile } = require("../shared/io");
 
 function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
   if (!outDir) return [];
-  fs.mkdirSync(outDir, { recursive: true });
   const paths = [];
   posts.forEach((post, idx) => {
     const slot = post?.slot || `slot${idx + 1}`;
-    const file = path.join(outDir, `${prefix}_${slot}_${idx + 1}.txt`);
-    fs.writeFileSync(file, String(post?.text || ""), "utf8");
-    paths.push(file);
+    const filename = `${prefix}_${slot}_${idx + 1}.txt`;
+    const full = writeTextFile({ outDir, filename, content: post?.text || "" });
+    if (full) paths.push(full);
   });
   return paths;
 }

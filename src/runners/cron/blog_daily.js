@@ -1,6 +1,5 @@
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const { createWpClient } = require("../../integrations/wordpress/client");
@@ -17,6 +16,7 @@ const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { toBool } = require("../../utils/data/bool");
 const { ensureDir } = require("../../utils/infra/fs");
 const { acquireCronLock, markCronLock } = require("./shared/locks");
+const { writeTextFile, writeJsonFile } = require("./shared/io");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -26,10 +26,18 @@ function requiredEnv(name, value) {
 function writeLocalBlogOutput({ outDir, dateLocal, title, content }) {
   const dir = outDir || path.join(process.cwd(), "tmp", "blog", "daily", dateLocal || "unknown");
   ensureDir(dir);
-  const htmlPath = path.join(dir, `daily_${dateLocal || "unknown"}.html`);
-  const jsonPath = path.join(dir, `daily_${dateLocal || "unknown"}.json`);
-  fs.writeFileSync(htmlPath, String(content || ""), "utf8");
-  fs.writeFileSync(jsonPath, JSON.stringify({ date_local: dateLocal || null, title: title || "", content: content || "" }, null, 2));
+  const htmlPath = writeTextFile({
+    outDir: dir,
+    filename: `daily_${dateLocal || "unknown"}.html`,
+    content: content || "",
+    encoding: "utf8",
+  });
+  const jsonPath = writeJsonFile({
+    outDir: dir,
+    filename: `daily_${dateLocal || "unknown"}.json`,
+    data: { date_local: dateLocal || null, title: title || "", content: content || "" },
+    space: 2,
+  });
   return { dir, html_path: htmlPath, json_path: jsonPath };
 }
 
