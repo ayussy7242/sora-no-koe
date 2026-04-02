@@ -20,9 +20,7 @@
 const express = require("express");
 const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
-const { runDaily8 } = require("../runners/cron/daily8");
-const { rebuildDaily8 } = require("../runners/cron/rebuild");
-const { sendDaily8 } = require("../runners/cron/send");
+const { runDaily8, rebuildDaily8, sendDaily8 } = require("../runners/cron/line");
 const { runDailyBlog } = require("../runners/cron/blog");
 const { runIgPost, runIgMoonEventPost } = require("../runners/cron/instagram");
 const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
