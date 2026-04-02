@@ -1,7 +1,7 @@
 "use strict";
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, renderSvgToPng } = require("../common/shared");
-const { resolveColors } = require("../../theme/ig_theme");
+const { resolveColors } = require("../../theme/theme");
 const {
   measureTextWidth,
   normalizeSymbol,

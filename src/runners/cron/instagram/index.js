@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
+const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
 const { renderIGCaption } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");

@@ -3,7 +3,7 @@
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
-const { resolveColors } = require("../../theme/ig_theme");
+const { resolveColors } = require("../../theme/theme");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");

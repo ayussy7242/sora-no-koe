@@ -1,6 +1,6 @@
 "use strict";
 
-const base = require("../../common");
+const base = require("../common");
 
 const PDF_ABSOLUTE_COMMON = `
 #全体の絶対原則

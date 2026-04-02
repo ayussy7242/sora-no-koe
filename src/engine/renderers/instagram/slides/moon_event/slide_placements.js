@@ -1,7 +1,7 @@
 "use strict";
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, buildSectionHeader, renderSvgToPng } = require("../common/shared");
-const { resolveColors } = require("../../theme/ig_theme");
+const { resolveColors } = require("../../theme/theme");
 const { clamp } = require("../../../../../utils/data/math");
 
 function estimateTextWidth(line, size) {

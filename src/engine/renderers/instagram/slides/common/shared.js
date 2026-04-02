@@ -1,10 +1,10 @@
 "use strict";
 
 const sharp = require("sharp");
-const { IG_TOKENS } = require("../../tokens/ig_tokens");
+const { IG_TOKENS } = require("../../tokens/tokens");
 const { fontFaceCss } = require("../../assets/fonts");
 const { buildSpaceBackground } = require("../../../../shared/space_background");
-const { resolveColors } = require("../../theme/ig_theme");
+const { resolveColors } = require("../../theme/theme");
 const { formatDateLabel } = require("../../../../../utils/time");
 const { escapeXml } = require("../../../../../utils/data/xml");
 const { wrapLines } = require("../../../../../utils/text/wrap");

@@ -1,6 +1,6 @@
 "use strict";
 
-const { formatDateLabel } = require("../../../engine/renderers/instagram/ig_carousel");
+const { formatDateLabel } = require("../../../engine/renderers/instagram/carousel");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../../presenters/format/format/common");
 const {

@@ -10,7 +10,7 @@ const {
   POLITE_TONE_COMMON,
   PDF_ABSOLUTE_COMMON,
   PDF_WRITING_COMMON,
-} = require("../common/common");
+} = require("../common");
 
 /**
  * Relation Prompt Set (PDF)

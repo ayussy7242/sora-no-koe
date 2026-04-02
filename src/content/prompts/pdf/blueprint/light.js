@@ -8,7 +8,7 @@ const {
   SENTENCE_COMMON,
   REPETITION_COMMON,
   POLITE_TONE_COMMON,
-} = require("../common/common");
+} = require("../common");
 
 /**
  * Blueprint Light v2 - 最終スッキリ版（エラー完全修正）

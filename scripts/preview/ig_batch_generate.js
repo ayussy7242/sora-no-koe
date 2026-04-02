@@ -6,7 +6,7 @@ const path = require("path");
 const {
   renderInstagramCarousel,
   formatDateLabel,
-} = require("../../src/engine/renderers/ig/ig_carousel");
+} = require("../../src/engine/renderers/instagram/carousel");
 const dict = require("../../src/content/dict");
 const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic, buildTsukijiThemeLine } = require("../../src/domain/tsukiji_public");
 const { findNextMoonSignChangeDetailed } = require("../../src/domain/moon_info");
@@ -28,7 +28,7 @@ const { signGlyph } = require("../../src/presenters/shared/text/tokens");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
-} = require("../../src/usecases/channels/ig/ig_carousel_caption_ai");
+} = require("../../src/usecases/channels/instagram/ai/carousel_caption");
 
 function parseArgs(argv) {
   const out = {};

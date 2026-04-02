@@ -4,7 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { renderStoryBackground, renderStoryBackgroundSet } = require("../../src/engine/renderers/ig/story/render_backgrounds");
-const { resolveColors } = require("../../src/engine/renderers/ig/theme/ig_theme");
+const { resolveColors } = require("../../src/engine/renderers/instagram/theme/theme");
 const { DEFAULT_COLORS } = require("../../src/engine/renderers/ig/tokens/common/colors");
 
 function argValue(name, fallback = null) {

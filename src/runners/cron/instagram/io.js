@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require("path");
-const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/ig_carousel");
+const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
 const { writeBufferFile, writeJsonFile } = require("../shared/io");
 
 function writeLocalCarousel({ buffers, outDir, prefix = "slide" } = {}) {
