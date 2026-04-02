@@ -14,7 +14,7 @@ const { validateXAiText } = require("./common");
 
 function formatSignChangeItem(row) {
   if (!row || !(row.date instanceof Date) || Number.isNaN(row.date.getTime())) return "";
-  const when = formatDateYmdHm(row.date).replace(/^\\d{4}\\./, "");
+  const when = formatDateYmdHm(row.date);
   const fromLabel = row?.from?.label || "";
   const toLabel = row?.to?.label || "";
   const dir = fromLabel && toLabel ? `${fromLabel}→${toLabel}` : (toLabel || fromLabel);
