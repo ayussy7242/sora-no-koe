@@ -10,6 +10,7 @@ const {
   lastMajorMoonEvent,
   buildMoonSignChangeState,
   moonSignAtIso,
+  moonEventKindLabelJa,
 } = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
@@ -28,7 +29,8 @@ function tomorrowNoonJstIso(asOfISO) {
 }
 
 function buildPhaseLabel({ kind, signLabel }) {
-  const phaseName = kind === "new" ? "新月" : "満月";
+  const phaseName = moonEventKindLabelJa(kind);
+  if (!phaseName) return signLabel || "";
   return signLabel ? `${signLabel}${phaseName}` : phaseName;
 }
 

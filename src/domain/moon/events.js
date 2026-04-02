@@ -68,6 +68,90 @@ function moonEventKindSymbol(kind) {
   return "🌙";
 }
 
+function moonEventFlags(input) {
+  const kind = typeof input === "string" ? input : input?.kind;
+  const k = String(kind || "").toLowerCase();
+  return {
+    kind: k || "",
+    isFull: k === "full",
+    isNew: k === "new",
+  };
+}
+
+function moonEventIlluminationDefaults(input) {
+  const flags = moonEventFlags(input);
+  return {
+    illumination: flags.isFull ? 1 : 0.03,
+    waxing: !flags.isFull,
+  };
+}
+
+function moonEventRelationInfo(input) {
+  const flags = moonEventFlags(input);
+  if (flags.isFull) {
+    return {
+      labelJa: "オポジション",
+      deg: 180,
+      structureJa: "太陽と月が向かい合い、配置が二極で立ち上がる。",
+    };
+  }
+  if (flags.isNew) {
+    return {
+      labelJa: "コンジャンクション",
+      deg: 0,
+      structureJa: "太陽と月が重なり、配置の核が一点に集まる。",
+    };
+  }
+  return {
+    labelJa: "",
+    deg: null,
+    structureJa: "",
+  };
+}
+
+function moonEventNameLineEn({ kind, signEn, specialNameEn, moonNameEn } = {}) {
+  const flags = moonEventFlags(kind);
+  if (flags.isFull) {
+    return String(specialNameEn || moonNameEn || "").trim();
+  }
+  if (flags.isNew) {
+    const sign = String(signEn || "").trim();
+    return sign ? `New Moon in ${sign}` : "New Moon";
+  }
+  return "";
+}
+
+function moonEventSpaceConfig(input) {
+  const flags = moonEventFlags(input);
+  if (flags.isFull) {
+    return {
+      starDensityScale: 0.38,
+      milkyIntensityScale: 0.6,
+      milkyThicknessScale: 0.75,
+      milkyDustScale: 0.6,
+      whiteMix: 0.45,
+      moonEventKind: "full",
+      moonEventStyle: "halo",
+      moonEventCenter: "center",
+      moonEventIntensity: 1.35,
+    };
+  }
+  if (flags.isNew) {
+    return {
+      starDensityScale: 2.1,
+      milkyIntensityScale: 1.55,
+      milkyThicknessScale: 1.25,
+      milkyDustScale: 1.6,
+      whiteMix: 0.45,
+      moonEventKind: "new",
+      moonEventStyle: "eclipse",
+      moonEventCenter: "center",
+      moonEventIntensity: 1.15,
+    };
+  }
+  return null;
+}
+
 function getFullMoonForDate(asOfISO) {
   const base = asOfISO ? new Date(asOfISO) : new Date();
   if (Number.isNaN(base.getTime())) return null;
@@ -306,6 +390,11 @@ module.exports = {
   moonEventKindLabelJa,
   moonEventKindLabelEn,
   moonEventKindSymbol,
+  moonEventFlags,
+  moonEventIlluminationDefaults,
+  moonEventRelationInfo,
+  moonEventNameLineEn,
+  moonEventSpaceConfig,
   getFullMoonForDate,
   lastFullMoonDate,
   lastNewMoonDate,

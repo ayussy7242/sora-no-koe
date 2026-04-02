@@ -3,7 +3,14 @@
 const { formatDateLabel } = require("../../../engine/renderers/instagram/ig_carousel");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../../presenters/format/format/common");
-const { buildMoonStatus, moonSignAtIso, moonEventKindLabelJa } = require("../../../domain/moon");
+const {
+  buildMoonStatus,
+  moonSignAtIso,
+  moonEventKindLabelJa,
+  moonEventIlluminationDefaults,
+  moonEventRelationInfo,
+  moonEventNameLineEn,
+} = require("../../../domain/moon");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
 const { pickMoonResonanceAspect } = require("./moon_event");
 const { aspectLabelJa, aspectCircuitLabel } = require("./shared/aspects");
@@ -142,27 +149,24 @@ function buildMoonEventCarouselSlides({
   const houseLabel = Number.isFinite(Number(houseNo)) ? `${houseNo}H` : "";
 
   const moonStatus = buildMoonStatus({ asOfISO: eventIso || story?.meta?.as_of, story, dict });
+  const illuminationDefaults = moonEventIlluminationDefaults(event);
   const moonIllumination = Number.isFinite(Number(moonStatus?.illumination))
     ? Number(moonStatus.illumination)
-    : (event?.kind === "full" ? 1 : 0.03);
+    : illuminationDefaults.illumination;
   const moonWaxing = typeof moonStatus?.waxing === "boolean"
     ? moonStatus.waxing
-    : event?.kind !== "full";
+    : illuminationDefaults.waxing;
 
   const pressureLines = [
     formatElementCounts(elementCount),
     formatModeCounts(modeCount),
   ].filter(Boolean);
-  const moonNameLine = (() => {
-    if (event?.kind === "full") {
-      return (event?.specialNameEn || event?.moonNameEn || "").trim();
-    }
-    if (event?.kind === "new") {
-      const signEn = signLabelEnFromKey(moonKey);
-      return signEn ? `New Moon in ${signEn}` : "New Moon";
-    }
-    return "";
-  })();
+  const moonNameLine = moonEventNameLineEn({
+    kind: event?.kind,
+    signEn: signLabelEnFromKey(moonKey),
+    specialNameEn: event?.specialNameEn,
+    moonNameEn: event?.moonNameEn,
+  });
 
   const slide1 = {
     dateLabel,
@@ -199,12 +203,11 @@ function buildMoonEventCarouselSlides({
     moonSize: 160,
   };
 
-  const relationLabel = event?.kind === "full" ? "オポジション" : "コンジャンクション";
-  const relationDeg = event?.kind === "full" ? 180 : 0;
-  const relationLine = `${relationLabel} ${relationDeg}°`;
-  const relationStructure = event?.kind === "full"
-    ? "太陽と月が向かい合い、配置が二極で立ち上がる。"
-    : "太陽と月が重なり、配置の核が一点に集まる。";
+  const relationInfo = moonEventRelationInfo(event);
+  const relationLabel = relationInfo.labelJa || "";
+  const relationDeg = Number.isFinite(Number(relationInfo.deg)) ? Number(relationInfo.deg) : 0;
+  const relationLine = relationLabel ? `${relationLabel} ${relationDeg}°` : `${relationDeg}°`;
+  const relationStructure = relationInfo.structureJa || "";
   const slide4 = {
     dateLabel,
     header: "月と太陽",

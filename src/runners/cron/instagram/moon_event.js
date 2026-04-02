@@ -1,6 +1,9 @@
 "use strict";
 
-const { detectMoonEventLocal: detectMoonEventLocalFromDomain } = require("../../../domain/moon");
+const {
+  detectMoonEventLocal: detectMoonEventLocalFromDomain,
+  moonEventSpaceConfig,
+} = require("../../../domain/moon");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { normalizeAspectType } = require("../../../utils/data/normalize");
 
@@ -60,34 +63,7 @@ function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eve
 }
 
 function resolveMoonEventSpaceConfig(event) {
-  if (!event || !event.kind) return null;
-  if (event.kind === "full") {
-    return {
-      starDensityScale: 0.38,
-      milkyIntensityScale: 0.6,
-      milkyThicknessScale: 0.75,
-      milkyDustScale: 0.6,
-      whiteMix: 0.45,
-      moonEventKind: "full",
-      moonEventStyle: "halo",
-      moonEventCenter: "center",
-      moonEventIntensity: 1.35,
-    };
-  }
-  if (event.kind === "new") {
-    return {
-      starDensityScale: 2.1,
-      milkyIntensityScale: 1.55,
-      milkyThicknessScale: 1.25,
-      milkyDustScale: 1.6,
-      whiteMix: 0.45,
-      moonEventKind: "new",
-      moonEventStyle: "eclipse",
-      moonEventCenter: "center",
-      moonEventIntensity: 1.15,
-    };
-  }
-  return null;
+  return moonEventSpaceConfig(event);
 }
 
 function buildMoonEventCaption(event) {

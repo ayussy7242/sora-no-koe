@@ -6,6 +6,7 @@ const { renderIGCaption } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
 const { pickPreferredResonanceAspect } = require("../../../domain/resonance");
+const { moonEventFlags } = require("../../../domain/moon");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { generateIgMoonEventAiOutputs } = require("../../../usecases/channels/instagram/ai/moon_event");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
@@ -335,8 +336,9 @@ async function runIgMoonEventPost(deps, opts = {}) {
     };
   }
 
-  const isFullMoonEvent = event?.kind === "full";
-  const isNewMoonEvent = event?.kind === "new";
+  const moonFlags = moonEventFlags(event);
+  const isFullMoonEvent = moonFlags.isFull;
+  const isNewMoonEvent = moonFlags.isNew;
   const eventDateLocal = toDateLocalJST(event.date);
   const eventAsOfISO = event?.date instanceof Date ? event.date.toISOString() : asOfISO;
 
