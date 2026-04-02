@@ -24,7 +24,6 @@
 
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const {
   isYYYYMMDD,
@@ -37,24 +36,17 @@ const {
   getLineUserIdFromUserDoc,
 } = require("../cron_utils");
 const { toBool } = require("../../../utils/data/bool");
-const { ensureDir } = require("../../../utils/infra/fs");
 const dict = require("../../../content/dict");
 const { buildDailyLinePayload } = require("./planning");
+const { writeLocalLineOutputs, buildOutboxItem } = require("./io");
 
 function makeRunId(dateLocal) {
   const r = Math.random().toString(16).slice(2);
   return `rebuild8:${dateLocal}:${r}`;
 }
 
-function safeFilePart(value, fallback) {
-  const s = String(value || "").trim();
-  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return cleaned || fallback;
-}
-
 function writeLocalRebuildOutputs({ outDir, dateLocal, mode, target, items, summary }) {
   const dir = outDir || path.join(process.cwd(), "tmp", "line", "rebuild8", dateLocal || "unknown");
-  ensureDir(dir);
   const payload = {
     date_local: dateLocal,
     mode,
@@ -62,16 +54,7 @@ function writeLocalRebuildOutputs({ outDir, dateLocal, mode, target, items, summ
     summary: summary || null,
     items: Array.isArray(items) ? items : [],
   };
-  const summaryPath = path.join(dir, "summary.json");
-  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
-  const textPaths = [];
-  (Array.isArray(items) ? items : []).forEach((item, idx) => {
-    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
-    const textPath = path.join(dir, `${name}.txt`);
-    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
-    textPaths.push(textPath);
-  });
-  return { dir, summary_path: summaryPath, text_paths: textPaths };
+  return writeLocalLineOutputs({ outDir: dir, summary: payload, items });
 }
 
 async function rebuildDaily8(deps, opts = {}) {
@@ -102,7 +85,6 @@ async function rebuildDaily8(deps, opts = {}) {
   const orbMaxDeg = clamp(pickNum(opts.orbMaxDeg, 6), 0.1, 12);
   const precisionDeg = clamp(pickNum(opts.precisionDeg, 0.01), 0.001, 1);
 
-  const bucketName = env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS || null;
   const wheelExpireDays = Number(env2.SORA_WHEEL_URL_EXPIRES_DAYS ?? 2);
 
   // outbox root
@@ -129,30 +111,7 @@ async function rebuildDaily8(deps, opts = {}) {
     });
   }
 
-  // 共通: outbox に書くペイロード生成
-  function makeOutboxPayload({ appUserId, lineUserId, text, isPaid500, imageUrl, imagePath }) {
-    return {
-      app_user_id: appUserId,
-      line_user_id: lineUserId,
-      mode,
-      text,
-      text_len: text.length,
-      is_paid_500: !!isPaid500,
-      image_url: imageUrl || null,
-      image_path: imagePath || null,
-      prepared_at: admin.firestore.FieldValue.serverTimestamp(),
-      // 運用・デバッグ用
-      run_id: runId,
-      meta: {
-        job: "rebuild8",
-        date_local: dateLocal,
-        as_of_iso: asOfISO,
-        orb_max_deg: orbMaxDeg,
-        precision_deg: precisionDeg,
-        schema_version: env.SCHEMA_VERSION || null,
-      },
-    };
-  }
+  // outbox item builder moved to line/io.js
 
   // ---- target=owner ----
   if (target === "owner") {
@@ -165,13 +124,21 @@ async function rebuildDaily8(deps, opts = {}) {
     const text = payload?.text || "";
     if (!isNonEmptyText(text)) throw new Error("text empty");
 
-    const item = makeOutboxPayload({
+    const item = buildOutboxItem({
+      admin,
+      env: env2,
+      dateLocal,
+      runId,
+      mode,
       appUserId: ownerAppUserId,
       lineUserId: ownerLineUserId,
       text,
       isPaid500: payload?.isPaid500,
       imageUrl: payload?.imageUrl,
       imagePath: payload?.imagePath,
+      asOfISO,
+      orbMaxDeg,
+      precisionDeg,
     });
 
     if (localOnly) {
@@ -236,13 +203,21 @@ async function rebuildDaily8(deps, opts = {}) {
         continue;
       }
 
-      const item = makeOutboxPayload({
+      const item = buildOutboxItem({
+        admin,
+        env: env2,
+        dateLocal,
+        runId,
+        mode,
         appUserId,
         lineUserId,
         text,
         isPaid500: payload?.isPaid500,
         imageUrl: payload?.imageUrl,
         imagePath: payload?.imagePath,
+        asOfISO,
+        orbMaxDeg,
+        precisionDeg,
       });
       if (localOnly) {
         localItems.push(item);

@@ -19,44 +19,27 @@
 
 "use strict";
 
-const fs = require("fs");
 const path = require("path");
 const { isYYYYMMDD, toDateLocalJST } = require("../../../utils/time");
 const { normLower } = require("../../../utils/data/parse");
 const { toBool } = require("../../../utils/data/bool");
-const { ensureDir } = require("../../../utils/infra/fs");
 const { isNonEmptyText } = require("../cron_utils");
+const { writeLocalLineOutputs } = require("./io");
 const { linePushText, linePushImage } = require("./publish");
 
 function pickTarget(x) {
   const t = normLower(x, "all");
   return t === "owner" ? "owner" : "all";
 }
-function safeFilePart(value, fallback) {
-  const s = String(value || "").trim();
-  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return cleaned || fallback;
-}
-
 function writeLocalSendOutputs({ outDir, dateLocal, target, items, summary }) {
   const dir = outDir || path.join(process.cwd(), "tmp", "line", "send8", dateLocal || "unknown");
-  ensureDir(dir);
   const payload = {
     date_local: dateLocal,
     target,
     summary: summary || null,
     items: Array.isArray(items) ? items : [],
   };
-  const summaryPath = path.join(dir, "summary.json");
-  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
-  const textPaths = [];
-  (Array.isArray(items) ? items : []).forEach((item, idx) => {
-    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
-    const textPath = path.join(dir, `${name}.txt`);
-    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
-    textPaths.push(textPath);
-  });
-  return { dir, summary_path: summaryPath, text_paths: textPaths };
+  return writeLocalLineOutputs({ outDir: dir, summary: payload, items });
 }
 
 // LINE push moved to publish.js

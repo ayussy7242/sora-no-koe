@@ -17,7 +17,6 @@
  * - posts_daily_delivery/{dateLocal}/deliveries/{appUserId} に送信結果を記録
  */
 
-const fs = require("fs");
 const path = require("path");
 const {
   isYYYYMMDD,
@@ -31,7 +30,7 @@ const { toBool } = require("../../../utils/data/bool");
 const dict = require("../../../content/dict");
 const { buildDailyLinePayload } = require("./planning");
 const { linePushText, linePushImage, writeDeliverySummary, writePerUserResult } = require("./publish");
-const { ensureDir } = require("../../../utils/infra/fs");
+const { writeLocalLineOutputs } = require("./io");
 
 // Temporary: disable sorazu image push in daily 08:00
 const DISABLE_DAILY8_SORA_IMAGE = true;
@@ -58,15 +57,8 @@ function makeRunId(dateLocal) {
   return `daily8:${dateLocal}:${r}`;
 }
 
-function safeFilePart(value, fallback) {
-  const s = String(value || "").trim();
-  const cleaned = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
-  return cleaned || fallback;
-}
-
 function writeLocalDaily8Outputs({ outDir, dateLocal, mode, target, items, summary }) {
   const dir = outDir || path.join(process.cwd(), "tmp", "line", "daily8", dateLocal || "unknown");
-  ensureDir(dir);
   const payload = {
     date_local: dateLocal,
     mode,
@@ -74,16 +66,7 @@ function writeLocalDaily8Outputs({ outDir, dateLocal, mode, target, items, summa
     summary: summary || null,
     items: Array.isArray(items) ? items : [],
   };
-  const summaryPath = path.join(dir, "summary.json");
-  fs.writeFileSync(summaryPath, JSON.stringify(payload, null, 2));
-  const textPaths = [];
-  (Array.isArray(items) ? items : []).forEach((item, idx) => {
-    const name = safeFilePart(item?.app_user_id || item?.line_user_id || `item_${idx + 1}`, `item_${idx + 1}`);
-    const textPath = path.join(dir, `${name}.txt`);
-    fs.writeFileSync(textPath, String(item?.text || ""), "utf8");
-    textPaths.push(textPath);
-  });
-  return { dir, summary_path: summaryPath, text_paths: textPaths };
+  return writeLocalLineOutputs({ outDir: dir, summary: payload, items });
 }
 
 function isTargetUser(user) {
