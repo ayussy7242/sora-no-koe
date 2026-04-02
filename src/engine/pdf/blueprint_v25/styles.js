@@ -341,7 +341,7 @@ body {
   line-height: 2;
   margin-bottom: 48px;
   letter-spacing: 0.08em;
-  font-size: calc(var(--fs-body) + 4px + var(--fs-bump));
+  font-size: calc(var(--fs-body) + 0px + var(--fs-bump));
 }
 
 .sys-signline {
