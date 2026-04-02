@@ -17,6 +17,7 @@ const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eye
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { toBool } = require("../../utils/data/bool");
 const { ensureDir } = require("../../utils/infra/fs");
+const { nowIso } = require("./shared/utils");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -35,10 +36,6 @@ function writeLocalBlogOutput({ outDir, dateLocal, title, content }) {
 
 const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
 const WHEEL_MARKER = "<!--SORA_WHEEL_MEDIA-->";
-
-function nowIso(ms = Date.now()) {
-  return new Date(ms).toISOString();
-}
 
 async function acquireBlogLock(db, slug, { force = false } = {}) {
   const runId = typeof crypto.randomUUID === "function"

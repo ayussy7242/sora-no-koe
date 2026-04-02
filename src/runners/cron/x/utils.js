@@ -1,32 +1,15 @@
 "use strict";
 
 const { countChars, trimTrailingHashtagsToMaxChars } = require("../../../utils/text/hashtag");
-const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
+const {
+  nowIso,
+  parseJsonSafe,
+  addDaysToDateLocalJST,
+  safePreview,
+} = require("../shared/utils");
 
 const X_HARD_MAX_CHARS = 180;
-
-function nowIso(ms = Date.now()) {
-  return new Date(ms).toISOString();
-}
-
-function parseJsonSafe(raw) {
-  try {
-    return JSON.parse(String(raw || ""));
-  } catch (_) {
-    return null;
-  }
-}
-
-function addDaysToDateLocalJST(dateLocal, offsetDays) {
-  if (!isYYYYMMDD(dateLocal)) return dateLocal;
-  const base = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(base.getTime())) return dateLocal;
-  const shiftMs = Number(offsetDays) * 86400000;
-  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
-  const shifted = new Date(base.getTime() + shiftMs);
-  return toDateLocalJST(shifted);
-}
 
 function pickPreviewMoonEvent({ dict, asOfISO }) {
   const events = buildNextMoonEvents(asOfISO, dict);
@@ -54,14 +37,6 @@ function truncateForX(text, maxChars) {
 function resolveXMaxChars(value, fallback = X_HARD_MAX_CHARS) {
   const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
   return Math.min(resolved, X_HARD_MAX_CHARS);
-}
-
-function safePreview(text, maxLen = 80) {
-  const raw = String(text || "").replace(/\s+/g, " ").trim();
-  if (!raw) return "";
-  const chars = Array.from(raw);
-  if (chars.length <= maxLen) return raw;
-  return chars.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
 }
 
 function normalizeXError(err) {

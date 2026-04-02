@@ -6,6 +6,7 @@ const {
 } = require("../../../domain/moon");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { normalizeAspectType } = require("../../../utils/data/normalize");
+const { addDaysToDateLocalJST } = require("../shared/utils");
 
 function parseBool(v, fallback = false) {
   if (v === true) return true;
@@ -14,16 +15,6 @@ function parseBool(v, fallback = false) {
   const t = v.trim().toLowerCase();
   if (!t) return fallback;
   return ["1", "true", "yes", "on"].includes(t);
-}
-
-function addDaysToDateLocalJST(dateLocal, offsetDays) {
-  if (!isYYYYMMDD(dateLocal)) return dateLocal;
-  const base = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(base.getTime())) return dateLocal;
-  const shiftMs = Number(offsetDays) * 86400000;
-  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
-  const shifted = new Date(base.getTime() + shiftMs);
-  return toDateLocalJST(shifted);
 }
 
 function resolveMoonEventTargetDateLocal({ now, opts = {}, env = {} } = {}) {
