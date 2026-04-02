@@ -4,6 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const { SORA_AI_SYSTEM_PROMPT_COMMON } = require("../../../../content/prompts/sora/sora_core");
 const { X_MOON_EVENT_USER_GUIDE } = require("../../../../content/prompts/sns/x/moon_event");
 const { detectMoonEventLocal, moonEventKindLabelJa } = require("../../../../domain/moon");
+const { toDateLocalJST } = require("../../../../utils/time");
 const { validateXAiText } = require("./common");
 
 function detectMoonEvent({ story, dict, asOfISO }) {
@@ -12,12 +13,23 @@ function detectMoonEvent({ story, dict, asOfISO }) {
   return detectMoonEventLocal({ dateLocal, asOfISO: baseISO, dict });
 }
 
+function resolveMoonEventPromptInput({ story, event }) {
+  const storyDate = String(story?.meta?.date_local || story?.public?.date_local || "").trim();
+  const eventDateLocal = event?.date instanceof Date ? toDateLocalJST(event.date) : "";
+  const dateLocal = storyDate || eventDateLocal || "";
+  const kindLabel = event?.phaseName || moonEventKindLabelJa(event?.kind);
+  const fallbackLabel = event?.signJa && kindLabel ? `${event.signJa}${kindLabel}` : kindLabel || "";
+  const eventLabel = String(event?.label || event?.line1 || fallbackLabel || "").trim();
+  const when = String(event?.dateLabel || event?.line2 || "").trim();
+  return { dateLocal, eventLabel, when };
+}
+
 function buildMoonEventPrompt({ story, event }) {
   if (!event) return "";
-  const date = String(story?.meta?.date_local || story?.public?.date_local || "").trim();
-  const kind = event.phaseName || moonEventKindLabelJa(event.kind);
-  const label = event.label || `${event.signJa || "—"}${kind || ""}`;
-  const when = event.dateLabel || "";
+  const input = resolveMoonEventPromptInput({ story, event });
+  const date = input.dateLocal;
+  const label = input.eventLabel;
+  const when = input.when;
 
   return [
     X_MOON_EVENT_USER_GUIDE,
