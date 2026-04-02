@@ -10,10 +10,8 @@ const { drawTextBlock, sanitizeText } = require("./core/components");
 const { BODY_GLYPH } = require("./shared");
 const { COLORS } = require("./assets");
 const { pickSymbolFontName } = require("./symbols");
-const path = require("path");
 const puppeteer = require("puppeteer");
 const { buildBlueprintV25WireframeHtml, PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/wireframe");
-const { buildBlueprintV25BgImages, buildStoryStub } = require("../blueprint_v25/backgrounds");
 const {
   SPACE,
   TYPE,
@@ -21,7 +19,7 @@ const {
   V25_SCALE,
   V25_TITLE_SCALE,
 } = require("./mobile/constants");
-const { calcAscLon, calcMcLon, collectElementCounts, collectModalityCounts } = require("./mobile/formatters");
+const { buildMobileViewModel, buildMobileV25ViewModel } = require("./mobile/view_model");
 const { renderMobileCover } = require("./mobile/sections/cover");
 const { renderMobileQuickMap } = require("./mobile/sections/quick_map");
 const { renderMobileStructure } = require("./mobile/sections/structure");
@@ -174,12 +172,6 @@ function renderV25AspectNetwork(doc, layout, aspects, { size = 340 } = {}) {
   layout.y = centerY + radius + SPACE.lg;
 }
 
-function buildBgCacheDir({ displayName = "", birthText = "" } = {}) {
-  const raw = `${displayName}|${birthText}`;
-  const safe = raw.replace(/[^a-z0-9]+/gi, "_").slice(0, 60) || "anon";
-  return path.join(process.cwd(), "tmp", "blueprint_bg", safe);
-}
-
 async function renderPdfBufferMobileV25({
   manifest,
   displayName,
@@ -191,40 +183,18 @@ async function renderPdfBufferMobileV25({
   bgImages: bgImagesInput,
   story: storyInput,
 }) {
-  const ascLon = calcAscLon(rowsAngles);
-  const mcLon = calcMcLon(rowsAngles);
-  const wheelRotationDeg = Number.isFinite(Number(ascLon)) ? 270 - Number(ascLon) : 0;
-  const elementCounts = blueprintText?.master_chart?.element_balance || collectElementCounts(rowsMain || []);
-  const dateLabel = birthText || "";
-  const story = storyInput || buildStoryStub({
+  const view = await buildMobileV25ViewModel({
+    displayName,
+    birthText,
     rowsMain,
+    rowsAngles,
     rowsExtra,
-    elementCounts,
-    dateLabel,
-  });
-  const bgImages = bgImagesInput || await buildBlueprintV25BgImages({
-    blueprint: blueprintText,
-    rowsMain,
-    rowsExtra,
-    elementCounts,
-    dateLabel,
-    outDir: buildBgCacheDir({ displayName, birthText }),
-    inline: true,
+    blueprintText,
+    bgImages: bgImagesInput,
+    story: storyInput,
   });
   const html = buildBlueprintV25WireframeHtml({
-    data: {
-      blueprint: blueprintText || {},
-      displayName,
-      ownerName: displayName,
-      birthText,
-      story,
-      bg_images: bgImages,
-      elementCounts,
-      modalityCounts: blueprintText?.master_chart?.modality_balance || collectModalityCounts(rowsMain || []),
-      wheelRotationDeg,
-      wheelAscLon: Number.isFinite(Number(ascLon)) ? Number(ascLon) : null,
-      wheelMcLon: Number.isFinite(Number(mcLon)) ? Number(mcLon) : null,
-    },
+    data: view.data,
     useSpace: true,
   });
 
@@ -287,6 +257,22 @@ async function renderPdfBufferMobile({
   chironText,
   lilithText,
 }) {
+  const view = buildMobileViewModel({
+    displayName,
+    birthText,
+    rowsMain,
+    rowsAngles,
+    rowsExtra,
+    summary,
+    element,
+    modality,
+    bodyTextByKey,
+    closingText,
+    angleTextByKey,
+    nodeText,
+    chironText,
+    lilithText,
+  });
   const layoutConfig = getLayoutConfig(manifest?.layout || "mobile_9x16");
   const doc = new PDFDocument({ size: layoutConfig.pageSize, margin: layoutConfig.padX, autoFirstPage: false });
   applyLayoutConfig(doc, layoutConfig);
@@ -297,22 +283,12 @@ async function renderPdfBufferMobile({
   const chunks = [];
   doc.on("data", (d) => chunks.push(d));
 
-  renderMobileCover({ doc, displayName, birthText, rowsMain });
-  renderMobileQuickMap({ doc, rowsMain, rowsExtra, rowsAngles });
-  renderMobileStructure({ doc, element, modality, summary });
-  renderMobilePlanetsIntro({ doc });
-  renderMobilePlanets({
-    doc,
-    rowsMain,
-    rowsExtra,
-    rowsAngles,
-    bodyTextByKey,
-    nodeText,
-    chironText,
-    lilithText,
-    angleTextByKey,
-  });
-  renderMobileClosing({ doc, closingText: closingText || "", rowsMain });
+  renderMobileCover({ doc, ...view.cover });
+  renderMobileQuickMap({ doc, ...view.quickMap });
+  renderMobileStructure({ doc, ...view.structure });
+  renderMobilePlanetsIntro({ doc, ...view.planetsIntro });
+  renderMobilePlanets({ doc, ...view.planets });
+  renderMobileClosing({ doc, ...view.closing });
 
   doc.end();
   await new Promise((resolve, reject) => {
