@@ -13,6 +13,7 @@ const {
   moonEventKindLabelJa,
 } = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
+const { buildMoonStatus } = require("../../../../domain/moon/summary");
 const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
 const { safeTrim } = require("../../../../utils/text/normalize");
 
@@ -125,6 +126,12 @@ function resolveXNightPromptInput({ story, dict }) {
       : "";
   const moonDegInSign = Number.isFinite(Number(change?.degInSign)) ? Number(change.degInSign).toFixed(1) : "";
   const moonPhaseStage = change?.phase || "";
+  const moonStatus = buildMoonStatus({ asOfISO, story, dict });
+  const moonPhaseLabel = moonStatus?.phaseLabel || moonStatus?.phaseName || "";
+  const moonIlluminationPct = Number.isFinite(Number(moonStatus?.illumination))
+    ? Math.round(Number(moonStatus.illumination) * 100)
+    : "";
+  const moonAge = Number.isFinite(Number(moonStatus?.moonAge)) ? Number(moonStatus.moonAge).toFixed(1) : "";
 
   return {
     sun,
@@ -141,6 +148,9 @@ function resolveXNightPromptInput({ story, dict }) {
     moonChangeHint,
     moonDegInSign,
     moonPhaseStage,
+    moonPhaseLabel,
+    moonIlluminationPct,
+    moonAge,
   };
 }
 
@@ -166,6 +176,9 @@ function buildXNightPrompt({ story, dict, input } = {}) {
     `MOON_CHANGE_HINT: ${safeTrim(data.moonChangeHint)}`,
     `MOON_SIGN_DEG: ${safeTrim(data.moonDegInSign)}`,
     `MOON_SIGN_PHASE: ${safeTrim(data.moonPhaseStage)}`,
+    `MOON_PHASE_LABEL: ${safeTrim(data.moonPhaseLabel)}`,
+    `MOON_ILLUMINATION: ${safeTrim(data.moonIlluminationPct)}`,
+    `MOON_AGE: ${safeTrim(data.moonAge)}`,
   ].join("\n");
 }
 
