@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const sharp = require("sharp");
 const { createWpClient } = require("../../integrations/wordpress/client");
 const { buildSoraWheelSvg } = require("../../engine/graphics/sora_wheel");
@@ -17,7 +16,7 @@ const { renderBlogEyecatchJpeg } = require("../../engine/renderers/blog/blog_eye
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { toBool } = require("../../utils/data/bool");
 const { ensureDir } = require("../../utils/infra/fs");
-const { nowIso } = require("./shared/utils");
+const { acquireCronLock, markCronLock } = require("./shared/locks");
 
 function requiredEnv(name, value) {
   if (!value) throw new Error(`${name} is required`);
@@ -36,51 +35,6 @@ function writeLocalBlogOutput({ outDir, dateLocal, title, content }) {
 
 const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
 const WHEEL_MARKER = "<!--SORA_WHEEL_MEDIA-->";
-
-async function acquireBlogLock(db, slug, { force = false } = {}) {
-  const runId = typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-
-  const ref = db.collection("cronLocks").doc(`blog_daily_${slug}`);
-  const now = Date.now();
-
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists) {
-      const data = snap.data() || {};
-      const status = String(data.status || "");
-      const startedAtMs = Number(data.startedAtMs || 0);
-      const isStale = startedAtMs > 0 && (now - startedAtMs) > BLOG_LOCK_TTL_MS;
-
-      if (status === "done" && !force) {
-        return { ok: false, reason: "done", data };
-      }
-      if (status === "running" && !isStale) {
-        return { ok: false, reason: "running", data };
-      }
-    }
-
-    tx.set(ref, {
-      status: "running",
-      slug,
-      runId,
-      startedAtMs: now,
-      startedAt: nowIso(now),
-    }, { merge: true });
-
-    return { ok: true, runId };
-  });
-}
-
-async function markBlogLock(ref, patch) {
-  const now = Date.now();
-  await ref.set({
-    ...patch,
-    finishedAtMs: now,
-    finishedAt: nowIso(now),
-  }, { merge: true });
-}
 
 async function runDailyBlog(
   { env, storyService, db },
@@ -138,17 +92,22 @@ async function runDailyBlog(
 
   const slug = String(dateLocal);
 
-  let lockRef = null;
+  let lockId = null;
   let lockRunId = null;
   if (!runDry) {
-    const lock = await acquireBlogLock(db, slug, { force });
+    const id = `blog_daily_${slug}`;
+    const lock = await acquireCronLock(db, id, {
+      force,
+      ttlMs: BLOG_LOCK_TTL_MS,
+      meta: { slug },
+    });
     if (!lock.ok) {
       mark("lock_skip", { reason: lock.reason, slug });
       mark("end", { ok: true, skipped: true, reason: lock.reason, slug });
       return { ok: true, skipped: true, reason: lock.reason, slug };
     }
     lockRunId = lock.runId;
-    lockRef = db.collection("cronLocks").doc(`blog_daily_${slug}`);
+    lockId = id;
     mark("lock_acquired", { slug, runId: lockRunId });
   }
 
@@ -322,7 +281,7 @@ async function runDailyBlog(
       const updated = await wp.updatePost(existing.id, payload);
       mark("wp_update_post_after", { id: updated?.id });
       mark("wp_after", { updated: true, id: updated?.id });
-      if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: updated?.id });
+      if (lockId) await markCronLock(db, lockId, { status: "done", runId: lockRunId, wpPostId: updated?.id });
       mark("end", { ok: true, updated: true, id: updated?.id });
       return { ok: true, updated: true, id: updated.id, link: updated.link };
     }
@@ -332,7 +291,7 @@ async function runDailyBlog(
       const created = await wp.createPost(payload);
       mark("wp_create_post_after", { id: created?.id });
       mark("wp_after", { created: true, id: created?.id });
-      if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: created?.id });
+      if (lockId) await markCronLock(db, lockId, { status: "done", runId: lockRunId, wpPostId: created?.id });
       mark("end", { ok: true, created: true, id: created?.id });
       return { ok: true, created: true, id: created.id, link: created.link };
     } catch (e) {
@@ -351,7 +310,7 @@ async function runDailyBlog(
           const updated = await wp.updatePost(existingAfter.id, payload);
           mark("wp_update_post_after", { id: updated?.id, fallback: true });
           mark("wp_after", { updated: true, id: updated?.id, fallback: true });
-          if (lockRef) await markBlogLock(lockRef, { status: "done", runId: lockRunId, wpPostId: updated?.id });
+          if (lockId) await markCronLock(db, lockId, { status: "done", runId: lockRunId, wpPostId: updated?.id });
           mark("end", { ok: true, updated: true, id: updated?.id, fallback: true });
           return { ok: true, updated: true, id: updated.id, link: updated.link, fallback: true };
         }
@@ -364,8 +323,8 @@ async function runDailyBlog(
   } catch (e) {
     console.error("[cron/blog/daily] failed:", e?.message || String(e));
     if (e?.stack) console.error(e.stack);
-    if (lockRef) {
-      await markBlogLock(lockRef, { status: "failed", runId: lockRunId, error: e?.message || String(e) });
+    if (lockId) {
+      await markCronLock(db, lockId, { status: "failed", runId: lockRunId, error: e?.message || String(e) });
     }
     throw e;
   }
