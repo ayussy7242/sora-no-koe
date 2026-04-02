@@ -1,10 +1,9 @@
 "use strict";
 
-const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
-const { countChars, trimTrailingHashtagsToMaxChars } = require("../../utils/text/hashtag");
+const { countChars } = require("../../utils/text/hashtag");
 const { toBool } = require("../../utils/data/bool");
 const { SPEC } = require("../../config/sora_spec");
 const { generateXSoraAiText } = require("../../usecases/channels/x/ai/daily");
@@ -12,150 +11,26 @@ const { generateXNightAiText } = require("../../usecases/channels/x/ai/night");
 const { generateXResonanceAiText } = require("../../usecases/channels/x/ai/resonance");
 const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
 const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/ai/moon_event");
-const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/ai/next_30_days");
-const { postTweet, uploadMedia } = require("../../integrations/x/x_api");
+const { uploadMedia } = require("../../integrations/x/x_api");
 const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+const { acquireXPostLock, markXPostLock } = require("./x_post/locks");
+const {
+  parseJsonSafe,
+  addDaysToDateLocalJST,
+  pickPreviewMoonEvent,
+  truncateForX,
+  resolveXMaxChars,
+  ensureXMeta,
+} = require("./x_post/utils");
+const {
+  writeLocalPosts,
+  postThreadToX,
+  saveXPostFailure,
+  notifyXPostFailure,
+} = require("./x_post/io");
 
-const X_POST_LOCK_TTL_MS = 35 * 60 * 1000;
-
-function nowIso(ms = Date.now()) {
-  return new Date(ms).toISOString();
-}
-
-function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
-  if (!outDir) return [];
-  fs.mkdirSync(outDir, { recursive: true });
-  const paths = [];
-  posts.forEach((post, idx) => {
-    const slot = post?.slot || `slot${idx + 1}`;
-    const file = path.join(outDir, `${prefix}_${slot}_${idx + 1}.txt`);
-    fs.writeFileSync(file, String(post?.text || ""), "utf8");
-    paths.push(file);
-  });
-  return paths;
-}
-
-async function acquireXPostLock(db, kind, dateLocal, { force = false } = {}) {
-  if (!db) return { ok: true, skipped: true, reason: "db_missing" };
-  const runId = typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-  const ref = db.collection("cronLocks").doc(`x_post_${kind}_${dateLocal}`);
-  const now = Date.now();
-
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists) {
-      const data = snap.data() || {};
-      const status = String(data.status || "");
-      const startedAtMs = Number(data.startedAtMs || 0);
-      const isStale = startedAtMs > 0 && (now - startedAtMs) > X_POST_LOCK_TTL_MS;
-      if (status === "done" && !force) {
-        return { ok: false, reason: "done", data };
-      }
-      if (status === "running" && !isStale) {
-        return { ok: false, reason: "running", data };
-      }
-    }
-
-    tx.set(ref, {
-      status: "running",
-      kind,
-      date_local: dateLocal,
-      runId,
-      startedAtMs: now,
-      startedAt: nowIso(now),
-    }, { merge: true });
-
-    return { ok: true, runId };
-  });
-}
-
-async function markXPostLock(db, kind, dateLocal, patch) {
-  if (!db) return;
-  const ref = db.collection("cronLocks").doc(`x_post_${kind}_${dateLocal}`);
-  const now = Date.now();
-  await ref.set({
-    ...patch,
-    finishedAtMs: now,
-    finishedAt: nowIso(now),
-  }, { merge: true });
-}
-
-function parseJsonSafe(raw) {
-  try {
-    return JSON.parse(String(raw || ""));
-  } catch (_) {
-    return null;
-  }
-}
-
-function addDaysToDateLocalJST(dateLocal, offsetDays) {
-  if (!isYYYYMMDD(dateLocal)) return dateLocal;
-  const base = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(base.getTime())) return dateLocal;
-  const shiftMs = Number(offsetDays) * 86400000;
-  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
-  const shifted = new Date(base.getTime() + shiftMs);
-  return toDateLocalJST(shifted);
-}
-
-function pickPreviewMoonEvent({ dict, asOfISO }) {
-  const events = buildNextMoonEvents(asOfISO, dict);
-  const ordered = orderedMoonEvents(events);
-  const next = ordered[0];
-  if (!next) return null;
-  const display = formatMoonEventDisplay(next);
-  return display ? { ...next, ...display } : next;
-}
-
-function truncateForX(text, maxChars) {
-  const raw = String(text || "");
-  if (!Number.isFinite(Number(maxChars)) || maxChars <= 0) {
-    return { text: raw, truncated: false };
-  }
-  const withTrimmedTags = trimTrailingHashtagsToMaxChars(raw, maxChars);
-  if (countChars(withTrimmedTags) <= maxChars) {
-    return { text: withTrimmedTags, truncated: withTrimmedTags !== raw };
-  }
-  const chars = Array.from(withTrimmedTags);
-  const trimmed = chars.slice(0, Math.max(0, maxChars)).join("");
-  return { text: trimmed, truncated: true };
-}
-
-const X_HARD_MAX_CHARS = 180;
-
-function resolveXMaxChars(value, fallback = X_HARD_MAX_CHARS) {
-  const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
-  return Math.min(resolved, X_HARD_MAX_CHARS);
-}
-
-function safePreview(text, maxLen = 80) {
-  const raw = String(text || "").replace(/\s+/g, " ").trim();
-  if (!raw) return "";
-  const chars = Array.from(raw);
-  if (chars.length <= maxLen) return raw;
-  return chars.slice(0, Math.max(0, maxLen - 1)).join("") + "…";
-}
-
-function normalizeXError(err) {
-  return {
-    message: err?.message || String(err),
-    status: err?.status || null,
-    code: err?.code || null,
-    body: err?.body || null,
-    name: err?.name || null,
-  };
-}
-
-function ensureXMeta(story) {
-  story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
-  story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
-  story.meta.x_source = story.meta.x_source && typeof story.meta.x_source === "object" ? story.meta.x_source : {};
-  return story.meta;
-}
 
 async function buildMorningPosts({ story, dict, renderers, openai, useAi, maxOrbDeg, maxMainChars }) {
   const meta = ensureXMeta(story);
@@ -231,118 +106,6 @@ async function buildNightPosts({ story, dict, renderers, openai, useAi }) {
 
   const text = await renderers.renderXNight(story);
   return { posts: [String(text || "").trim()].filter(Boolean) };
-}
-
-async function postThreadToX({ posts, env }) {
-  const ids = [];
-  const results = [];
-  let replyTo = null;
-  for (let idx = 0; idx < posts.length; idx += 1) {
-    const item = posts[idx];
-    const text = typeof item === "string" ? item : item?.text;
-    const mediaIds = typeof item === "string" ? null : item?.mediaIds;
-    const slot = typeof item === "string" ? `post_${idx + 1}` : (item?.slot || `post_${idx + 1}`);
-    const textLen = countChars(text);
-
-    try {
-      const res = await postTweet({ text, replyToId: replyTo, mediaIds, env });
-      const id = res?.id || "";
-      if (!id) {
-        const err = new Error("X post missing id");
-        err.code = "X_POST_ID_MISSING";
-        throw err;
-      }
-      ids.push(id);
-      results.push({
-        ok: true,
-        slot,
-        id,
-        reply_to: replyTo,
-        text_len: textLen,
-      });
-      replyTo = id;
-    } catch (err) {
-      const info = normalizeXError(err);
-      results.push({
-        ok: false,
-        slot,
-        error: info,
-        reply_to: replyTo,
-        text_len: textLen,
-        text_preview: safePreview(text),
-      });
-      console.error("[x:post] failed", {
-        slot,
-        reply_to: replyTo,
-        text_len: textLen,
-        text_preview: safePreview(text),
-        ...info,
-      });
-      // continue: keep replyTo as last successful
-    }
-  }
-  return {
-    ids,
-    results,
-    errors: results.filter((r) => !r.ok),
-  };
-}
-
-async function saveXPostFailure({ db, dateLocal, asOfISO, kind, posts, results, errors, image, meta } = {}) {
-  if (!db) return { ok: false, skipped: true, reason: "db_missing" };
-  const outboxRoot = db.collection("posts_x_outbox").doc(dateLocal).collection("items");
-  const ref = outboxRoot.doc();
-  const payload = {
-    kind: kind || "x",
-    date_local: dateLocal,
-    as_of: asOfISO,
-    created_at: new Date().toISOString(),
-    posts: Array.isArray(posts) ? posts : [],
-    results: Array.isArray(results) ? results : [],
-    errors: Array.isArray(errors) ? errors : [],
-    image: image || null,
-    meta: meta || null,
-  };
-  await ref.set(payload, { merge: true });
-  return { ok: true, id: ref.id };
-}
-
-async function notifyXPostFailure({ env, dateLocal, kind, errors, results } = {}) {
-  try {
-    const env2 = { ...(env || {}), ...(process.env || {}) };
-    const lineEnabled = toBool(env2.LINE_ENABLED, false);
-    const accessToken = env2.LINE_CHANNEL_ACCESS_TOKEN;
-    const ownerLineUserId = env2.OWNER_LINE_USER_ID;
-    if (!lineEnabled || !accessToken || !ownerLineUserId) {
-      return { ok: false, skipped: true, reason: "line_disabled_or_missing" };
-    }
-
-    const { createLineApi } = require("../../integrations/line/api");
-    const { pushLineMessage } = require("../../integrations/line/messaging");
-
-    const lineApiClient = createLineApi({ accessToken });
-    const failedSlots = (Array.isArray(errors) ? errors : [])
-      .map((e) => e?.slot)
-      .filter(Boolean)
-      .join(", ") || "unknown";
-    const message = [
-      "【X投稿エラー】",
-      `種別: ${kind || "x"}`,
-      `日付: ${dateLocal || "-"}`,
-      `失敗: ${failedSlots}`,
-      `件数: 成功${(Array.isArray(results) ? results.filter((r) => r.ok).length : 0)} / 失敗${Array.isArray(errors) ? errors.length : 0}`,
-    ].join("\n");
-
-    return await pushLineMessage({
-      lineApiClient,
-      to: ownerLineUserId,
-      payload: message,
-      meta: { kind, dateLocal },
-    });
-  } catch (err) {
-    console.error("[x:notify] failed", err?.message || String(err));
-    return { ok: false, error: err };
-  }
 }
 
 async function runXMorningPost(deps, opts = {}) {
