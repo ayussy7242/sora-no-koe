@@ -20,13 +20,15 @@
  * - processOneNatalJob(deps, opts): 内部呼び出し用（LINE側で1回だけ叩く用途にも使える）
  */
 
-const { randomId } = require("./worker/utils");
+const { buildWorkerContext } = require("./worker/context");
+const { lockNextJob } = require("./worker/router");
+const { finalizeJobDone, finalizeJobFailed } = require("./worker/lease");
 const {
-  resetStaleRunningJobs,
-  lockOneQueuedJob,
-  finalizeJobDone,
-  finalizeJobFailed,
-} = require("./worker/lease");
+  buildNoJobResult,
+  buildOkResult,
+  buildLockErrorResult,
+  buildJobFailedResult,
+} = require("./worker/result");
 const { computeNatalCache } = require("./worker/natal/cache");
 const { processOneNatalJob } = require("./worker/handlers/natal_calc");
 
@@ -34,81 +36,38 @@ const { processOneNatalJob } = require("./worker/handlers/natal_calc");
 // main worker (HTTP handler)
 // --------------------
 async function handleJobsWorker(req, res, deps = {}) {
-  const { db, admin, ok, bad, swisseph } = deps;
+  const ctx = buildWorkerContext(deps);
+  const { db, admin, ok, bad, swisseph, env, workerId } = ctx;
 
-  if (!db) throw new Error("deps.db required");
-  if (!admin) throw new Error("deps.admin required");
-  if (!ok || !bad) throw new Error("deps.ok/bad required");
-  if (!swisseph) throw new Error("deps.swisseph required");
-
-  // env参照はここに統一
-  const env2 = { ...(deps.env || {}), ...(process.env || {}) };
-
-  const MAX_ATTEMPTS = Number(env2.JOBS_MAX_ATTEMPTS || 5);
-  const LEASE_MINUTES = Number(env2.JOBS_LEASE_MINUTES || 10);
-  const RESET_STALE = String(env2.JOBS_RESET_STALE || "1") === "1";
-  const STALE_LIMIT = Number(env2.JOBS_STALE_LIMIT || 10);
-
-  const WORKER_ID = String(env2.K_REVISION || "")
-    ? `cr-${env2.K_REVISION}-${randomId(6)}`
-    : `local-${randomId(6)}`;
-
-  const jobsCol = db.collection("jobs_natal_calc");
-
-  // 1) stale reset
-  if (RESET_STALE) {
-    try {
-      await resetStaleRunningJobs({ db, admin, jobsCol, limit: STALE_LIMIT });
-    } catch (e) {
-      console.log("[worker] stale reset skipped:", e?.message || String(e));
-    }
-  }
-
-  // 2) lock one queued job
   let locked = null;
   try {
-    locked = await lockOneQueuedJob({
-      db,
-      admin,
-      jobsCol,
-      maxAttempts: MAX_ATTEMPTS,
-      leaseMinutes: LEASE_MINUTES,
-      workerId: WORKER_ID,
-    });
+    locked = await lockNextJob(ctx);
   } catch (e) {
-    return bad(res, 500, "failed to lock job", { error: e?.message || String(e), worker_id: WORKER_ID });
+    return bad(res, 500, "failed to lock job", buildLockErrorResult(workerId, e));
   }
 
-  if (!locked) return ok(res, { ran: true, processed: 0, worker_id: WORKER_ID });
+  if (!locked) return ok(res, buildNoJobResult(workerId));
 
   const { lockedRef, lockedId, lockedJob } = locked;
 
   // 3) process
   try {
     const result = await processOneNatalJob(
-      { db, admin, swisseph, env: env2 },
+      { db, admin, swisseph, env },
       { job: lockedJob, job_id: lockedId }
     );
 
-    await finalizeJobDone({ admin, lockedRef, workerId: WORKER_ID });
+    await finalizeJobDone({ admin, lockedRef, workerId });
 
-    return ok(res, {
-      ran: true,
-      ...result,
-      worker_id: WORKER_ID,
-    });
+    return ok(res, buildOkResult(workerId, result));
   } catch (e) {
     try {
-      await finalizeJobFailed({ admin, lockedRef, workerId: WORKER_ID, error: e });
+      await finalizeJobFailed({ admin, lockedRef, workerId, error: e });
     } catch (e2) {
       console.log("[worker] finalize failed:", e2?.message || String(e2));
     }
 
-    return bad(res, 500, "job failed", {
-      job_id: lockedId,
-      error: e?.message || String(e),
-      worker_id: WORKER_ID,
-    });
+    return bad(res, 500, "job failed", buildJobFailedResult(workerId, lockedId, e));
   }
 }
 
