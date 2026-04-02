@@ -25,7 +25,7 @@ const { rebuildDaily8 } = require("../runners/cron/rebuild");
 const { sendDaily8 } = require("../runners/cron/send");
 const { runDailyBlog } = require("../runners/cron/blog_daily");
 const { runIgPost, runIgMoonEventPost } = require("../runners/cron/instagram");
-const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x_post");
+const { runXMorningPost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
 const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
 const {
   getRequestParts,

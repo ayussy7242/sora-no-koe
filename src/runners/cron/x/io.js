@@ -2,10 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { countChars } = require("../../../utils/text/hashtag");
 const { toBool } = require("../../../utils/data/bool");
-const { postTweet } = require("../../../integrations/x/x_api");
-const { normalizeXError, safePreview } = require("./utils");
 
 function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
   if (!outDir) return [];
@@ -18,61 +15,6 @@ function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
     paths.push(file);
   });
   return paths;
-}
-
-async function postThreadToX({ posts, env }) {
-  const ids = [];
-  const results = [];
-  let replyTo = null;
-  for (let idx = 0; idx < posts.length; idx += 1) {
-    const item = posts[idx];
-    const text = typeof item === "string" ? item : item?.text;
-    const mediaIds = typeof item === "string" ? null : item?.mediaIds;
-    const slot = typeof item === "string" ? `post_${idx + 1}` : (item?.slot || `post_${idx + 1}`);
-    const textLen = countChars(text);
-
-    try {
-      const res = await postTweet({ text, replyToId: replyTo, mediaIds, env });
-      const id = res?.id || "";
-      if (!id) {
-        const err = new Error("X post missing id");
-        err.code = "X_POST_ID_MISSING";
-        throw err;
-      }
-      ids.push(id);
-      results.push({
-        ok: true,
-        slot,
-        id,
-        reply_to: replyTo,
-        text_len: textLen,
-      });
-      replyTo = id;
-    } catch (err) {
-      const info = normalizeXError(err);
-      results.push({
-        ok: false,
-        slot,
-        error: info,
-        reply_to: replyTo,
-        text_len: textLen,
-        text_preview: safePreview(text),
-      });
-      console.error("[x:post] failed", {
-        slot,
-        reply_to: replyTo,
-        text_len: textLen,
-        text_preview: safePreview(text),
-        ...info,
-      });
-      // continue: keep replyTo as last successful
-    }
-  }
-  return {
-    ids,
-    results,
-    errors: results.filter((r) => !r.ok),
-  };
 }
 
 async function saveXPostFailure({ db, dateLocal, asOfISO, kind, posts, results, errors, image, meta } = {}) {
@@ -134,7 +76,6 @@ async function notifyXPostFailure({ env, dateLocal, kind, errors, results } = {}
 
 module.exports = {
   writeLocalPosts,
-  postThreadToX,
   saveXPostFailure,
   notifyXPostFailure,
 };

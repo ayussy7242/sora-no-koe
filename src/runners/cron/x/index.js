@@ -2,17 +2,17 @@
 
 const fs = require("fs");
 const path = require("path");
-const { toDateLocalJST, isYYYYMMDD } = require("../../utils/time");
-const { countChars } = require("../../utils/text/hashtag");
-const { toBool } = require("../../utils/data/bool");
-const { SPEC } = require("../../config/sora_spec");
-const { generateXMoonEventAiText, detectMoonEvent } = require("../../usecases/channels/x/ai/moon_event");
-const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../usecases/channels/x/ai/next_30_days");
-const { uploadMedia } = require("../../integrations/x/x_api");
-const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../engine/renderers/x/morning_wheel");
-const { buildPublicStorySnapshot } = require("../../usecases/story/store");
-const { acquireXPostLock, markXPostLock } = require("./x_post/locks");
-const { buildMorningPosts, buildNightPosts } = require("./x_post/planning");
+const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
+const { countChars } = require("../../../utils/text/hashtag");
+const { toBool } = require("../../../utils/data/bool");
+const { SPEC } = require("../../../config/sora_spec");
+const { generateXMoonEventAiText, detectMoonEvent } = require("../../../usecases/channels/x/ai/moon_event");
+const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../../usecases/channels/x/ai/next_30_days");
+const { uploadMedia } = require("../../../integrations/x/x_api");
+const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../../engine/renderers/x/morning_wheel");
+const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { acquireXPostLock, markXPostLock } = require("./locks");
+const { buildMorningPosts, buildNightPosts } = require("./planning");
 const {
   parseJsonSafe,
   addDaysToDateLocalJST,
@@ -20,13 +20,13 @@ const {
   truncateForX,
   resolveXMaxChars,
   ensureXMeta,
-} = require("./x_post/utils");
+} = require("./utils");
 const {
   writeLocalPosts,
-  postThreadToX,
   saveXPostFailure,
   notifyXPostFailure,
-} = require("./x_post/io");
+} = require("./io");
+const { postThreadToX, postSingleToX } = require("./publish");
 
 
 async function runXMorningPost(deps, opts = {}) {
@@ -514,25 +514,25 @@ async function runXNightPost(deps, opts = {}) {
   }
 
   const text = trimmed[0]?.text || "";
-    const res = await postTweet({ text, mediaIds: nightMediaId ? [nightMediaId] : null, env: env2 });
+  const res = await postSingleToX({ text, mediaIds: nightMediaId ? [nightMediaId] : null, env: env2 });
 
-    if (!dryRun && !localOnly) {
-      await markXPostLock(db, "night", dateLocal, {
-        status: "done",
-        runId: lockInfo?.runId || null,
-        tweet_ids: [res?.id || ""],
-      }).catch(() => {});
-    }
-
-    return {
-      ok: true,
-      dry_run: false,
-      date_local: dateLocal,
-      as_of: asOfISO,
-      posts: trimmed,
+  if (!dryRun && !localOnly) {
+    await markXPostLock(db, "night", dateLocal, {
+      status: "done",
+      runId: lockInfo?.runId || null,
       tweet_ids: [res?.id || ""],
-      image: nightImageInfo,
-    };
+    }).catch(() => {});
+  }
+
+  return {
+    ok: true,
+    dry_run: false,
+    date_local: dateLocal,
+    as_of: asOfISO,
+    posts: trimmed,
+    tweet_ids: [res?.id || ""],
+    image: nightImageInfo,
+  };
   } catch (err) {
     if (!dryRun && !localOnly) {
       await markXPostLock(db, "night", dateLocal, {
@@ -682,7 +682,7 @@ async function runXMoonEventPost(deps, opts = {}) {
     };
   }
 
-  const res = await postTweet({ text: trimmed.text, env: env2 });
+  const res = await postSingleToX({ text: trimmed.text, env: env2 });
   return {
     ok: true,
     dry_run: false,
@@ -798,14 +798,14 @@ async function runXNext30DaysPost(deps, opts = {}) {
 
   const res = flowTrim
     ? await postThreadToX({ posts: [mainTrim, flowTrim], env: env2 })
-    : [await postTweet({ text: mainTrim.text, env: env2 })];
+    : await postSingleToX({ text: mainTrim.text, env: env2 });
   return {
     ok: true,
     dry_run: false,
     date_local: dateLocal,
     as_of: asOfISO,
     posts: flowTrim ? [mainTrim, flowTrim] : [mainTrim],
-    tweet_ids: Array.isArray(res) ? res : [res?.id || ""],
+    tweet_ids: flowTrim ? res.ids : [res?.id || ""],
   };
 }
 
