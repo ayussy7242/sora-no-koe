@@ -74,6 +74,7 @@ async function buildMorningPosts({
     { text: logText, slot: "log" },
     includeResonance ? { text: resonanceText, slot: "resonance" } : null,
   ]
+    .filter(Boolean)
     .map((it) => ({ ...it, text: String(it.text || "").trim() }))
     .filter((it) => it.text);
 
