@@ -182,8 +182,36 @@ function normalizeXApiError(err) {
     status: err?.status || null,
     code: err?.code || null,
     body: err?.body || null,
+    headers: err?.headers || null,
+    request_id: err?.request_id || err?.requestId || null,
+    url: err?.url || null,
+    method: err?.method || null,
     name: err?.name || null,
   };
+}
+
+function pickErrorHeaders(res) {
+  if (!res?.headers?.get) return null;
+  const keys = [
+    "x-request-id",
+    "x-response-time",
+    "x-connection-hash",
+    "x-transaction-id",
+    "x-error",
+    "x-error-code",
+    "x-access-level",
+    "x-rate-limit-limit",
+    "x-rate-limit-remaining",
+    "x-rate-limit-reset",
+    "date",
+    "content-type",
+  ];
+  const out = {};
+  for (const key of keys) {
+    const val = res.headers.get(key);
+    if (val) out[key] = val;
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 async function postTweetV2({ text, replyToId, mediaIds, env }) {
@@ -209,6 +237,10 @@ async function postTweetV2({ text, replyToId, mediaIds, env }) {
     const err = new Error(`X v2 post failed: ${res.status} / ${body}`);
     err.status = res.status;
     err.body = body;
+    err.headers = pickErrorHeaders(res);
+    err.request_id = res.headers.get("x-request-id") || null;
+    err.url = url;
+    err.method = "POST";
     throw err;
   }
 
@@ -246,6 +278,10 @@ async function postTweetV1({ text, replyToId, mediaIds, env }) {
     const err = new Error(`X v1.1 post failed: ${res.status} / ${resBody}`);
     err.status = res.status;
     err.body = resBody;
+    err.headers = pickErrorHeaders(res);
+    err.request_id = res.headers.get("x-request-id") || null;
+    err.url = url;
+    err.method = "POST";
     throw err;
   }
 
@@ -291,6 +327,10 @@ async function uploadMedia({ buffer, mediaType = "image/png", env }) {
     const err = new Error(`X media upload failed: ${res.status} / ${resBody}`);
     err.status = res.status;
     err.body = resBody;
+    err.headers = pickErrorHeaders(res);
+    err.request_id = res.headers.get("x-request-id") || null;
+    err.url = url;
+    err.method = "POST";
     throw err;
   }
 
