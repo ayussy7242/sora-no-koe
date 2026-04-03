@@ -11,7 +11,11 @@ const { generateXMoonEventAiText, detectMoonEvent } = require("../../../usecases
 const { generateXNightAiText } = require("../../../usecases/channels/x/ai/night");
 const { generateXNext30DaysAiText, buildNext30DaysContext } = require("../../../usecases/channels/x/ai/next_30_days");
 const { uploadMedia } = require("../../../integrations/x/x_api");
-const { DEFAULT_X_CANVAS, renderXMorningWheelPng } = require("../../../engine/renderers/x/morning_wheel");
+const {
+  DEFAULT_X_CANVAS,
+  renderXMorningWheelPng,
+  renderXResonanceWheelPng,
+} = require("../../../engine/renderers/x/morning_wheel");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
 const {
   acquireXPostLock,
@@ -204,7 +208,7 @@ async function runXMorningPost(deps, opts = {}) {
   }
 
   const imageEnabled = opts.image === undefined
-    ? toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+    ? toBool(env2.X_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
     : toBool(opts.image, false);
   const imageWidth = Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH))
     ? Number(env2.X_POST_IMAGE_WIDTH)
@@ -490,6 +494,53 @@ async function runXResonancePost(deps, opts = {}) {
       };
     })();
 
+    const resonanceImageEnabled = opts.image === undefined
+      ? toBool(
+        env2.X_RESONANCE_IMAGE_ENABLED ?? env2.X_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE,
+        false
+      )
+      : toBool(opts.image, false);
+    const resonanceImageWidth = Number.isFinite(Number(env2.X_RESONANCE_IMAGE_WIDTH))
+      ? Number(env2.X_RESONANCE_IMAGE_WIDTH)
+      : (Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH)) ? Number(env2.X_POST_IMAGE_WIDTH) : DEFAULT_X_CANVAS.width);
+    const resonanceImageHeight = Number.isFinite(Number(env2.X_RESONANCE_IMAGE_HEIGHT))
+      ? Number(env2.X_RESONANCE_IMAGE_HEIGHT)
+      : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
+    const resonanceImageVariant = String(env2.X_RESONANCE_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "resonance")
+      .trim() || "resonance";
+
+    let resonanceMediaId = null;
+    let resonanceImageInfo = null;
+    let resonanceImagePath = null;
+    if (resonanceImageEnabled) {
+      resonanceImageInfo = {
+        enabled: true,
+        width: resonanceImageWidth,
+        height: resonanceImageHeight,
+        variant: resonanceImageVariant,
+      };
+      const resonanceAspect = picked?.raw || story?.meta?.x_source?.resonance_aspect || null;
+      if (!resonanceAspect) {
+        resonanceImageInfo.error = "resonance_aspect_missing";
+      } else if (localOnly) {
+        try {
+          const png = await renderXResonanceWheelPng({
+            story,
+            dateLabel: dateLocal,
+            width: resonanceImageWidth,
+            height: resonanceImageHeight,
+            variant: resonanceImageVariant,
+            resonanceAspect,
+          });
+          fs.mkdirSync(localOutDir, { recursive: true });
+          resonanceImagePath = path.join(localOutDir, `x_resonance_wheel_${resonanceImageWidth}x${resonanceImageHeight}.png`);
+          fs.writeFileSync(resonanceImagePath, png);
+        } catch (err) {
+          resonanceImageInfo.error = err?.message || "image_render_failed";
+        }
+      }
+    }
+
     if (localOnly) {
       const localPaths = writeLocalPosts({ posts: [trimmed], outDir: localOutDir, prefix: "x_resonance" });
       return {
@@ -501,7 +552,32 @@ async function runXResonancePost(deps, opts = {}) {
         post: trimmed,
         local_dir: localOutDir,
         local_paths: localPaths,
+        local_image: resonanceImagePath,
+        image: resonanceImageInfo,
       };
+    }
+
+    if (resonanceImageEnabled && !dryRun) {
+      const resonanceAspect = picked?.raw || story?.meta?.x_source?.resonance_aspect || null;
+      if (resonanceAspect) {
+        try {
+          const png = await renderXResonanceWheelPng({
+            story,
+            dateLabel: dateLocal,
+            width: resonanceImageWidth,
+            height: resonanceImageHeight,
+            variant: resonanceImageVariant,
+            resonanceAspect,
+          });
+          const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
+          resonanceMediaId = uploaded?.id || "";
+          if (resonanceImageInfo) resonanceImageInfo.media_id = resonanceMediaId || null;
+        } catch (err) {
+          if (resonanceImageInfo) resonanceImageInfo.error = err?.message || "image_upload_failed";
+        }
+      } else if (resonanceImageInfo) {
+        resonanceImageInfo.error = "resonance_aspect_missing";
+      }
     }
 
     if (dryRun) {
@@ -511,10 +587,15 @@ async function runXResonancePost(deps, opts = {}) {
         date_local: dateLocal,
         as_of: asOfISO,
         post: trimmed,
+        image: resonanceImageInfo,
       };
     }
 
-    const res = await postSingleToX({ text: trimmed.text, env: env2 });
+    const res = await postSingleToX({
+      text: trimmed.text,
+      mediaIds: resonanceMediaId ? [resonanceMediaId] : null,
+      env: env2,
+    });
     if (!dryRun && !localOnly) {
       await markXPostLock(db, "resonance", dateLocal, {
         status: "done",
@@ -539,6 +620,7 @@ async function runXResonancePost(deps, opts = {}) {
       has_resonance: hasResonance,
       resonance_key: pickedKey || "",
       resonance: picked || null,
+      image: resonanceImageInfo,
     };
   } catch (err) {
     if (!dryRun && !localOnly) {
@@ -697,7 +779,10 @@ async function runXNightPost(deps, opts = {}) {
   }
 
   const nightImageEnabled = opts.image === undefined
-    ? toBool(env2.X_NIGHT_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+    ? toBool(
+      env2.X_NIGHT_IMAGE_ENABLED ?? env2.X_IMAGE_ENABLED ?? env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE,
+      false
+    )
     : toBool(opts.image, false);
   const nightImageWidth = Number.isFinite(Number(env2.X_NIGHT_IMAGE_WIDTH))
     ? Number(env2.X_NIGHT_IMAGE_WIDTH)
