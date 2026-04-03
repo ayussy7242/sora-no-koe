@@ -243,6 +243,7 @@ function createCronRouter(deps = {}) {
         keys: ["resonance_orb_max", "resonanceOrbMax"],
         defaultValue: undefined,
       });
+      const image = pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] });
       const force = pickBoolFlag({
         q,
         b,
@@ -268,6 +269,7 @@ function createCronRouter(deps = {}) {
           orbMaxDeg,
           precisionDeg,
           resonanceOrbMax,
+          image,
           force,
           local,
           localOutDir,
@@ -346,6 +348,7 @@ function createCronRouter(deps = {}) {
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
       const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
       const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
+      const image = pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] });
       const force = pickBoolFlag({
         q,
         b,
@@ -363,7 +366,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXNightPost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, force, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, orbMaxDeg, precisionDeg, image, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/night] done", { ok: result?.ok, ms: Date.now() - t0 });
