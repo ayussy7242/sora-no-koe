@@ -244,8 +244,6 @@ function createCronRouter(deps = {}) {
         defaultValue: undefined,
       });
       const image = pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] });
-      const slots = String(b?.slots ?? q?.slots ?? b?.slot ?? q?.slot ?? "").trim() || null;
-      const skipLog = pickBoolFlag({ q, b, keys: ["skip_log", "skipLog", "no_log", "noLog"] });
       const force = pickBoolFlag({
         q,
         b,
@@ -272,8 +270,6 @@ function createCronRouter(deps = {}) {
           precisionDeg,
           resonanceOrbMax,
           image,
-          slots,
-          skipLog,
           force,
           local,
           localOutDir,
