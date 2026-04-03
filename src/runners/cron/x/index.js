@@ -167,8 +167,28 @@ async function runXMorningPost(deps, opts = {}) {
     };
   });
 
+  let finalPosts = trimmed;
+  const slotsRaw = String(opts.slots ?? opts.slot ?? "").trim();
+  if (slotsRaw) {
+    const allowed = new Set(slotsRaw.split(",").map((s) => s.trim()).filter(Boolean));
+    finalPosts = finalPosts.filter((p) => allowed.has(p.slot));
+  }
+  if (toBool(opts.skipLog ?? opts.skip_log, false)) {
+    finalPosts = finalPosts.filter((p) => p.slot !== "log");
+  }
+
+  if (!finalPosts.length) {
+    return {
+      ok: false,
+      dry_run: dryRun,
+      date_local: dateLocal,
+      as_of: asOfISO,
+      error: "no_posts_selected",
+    };
+  }
+
   if (localOnly) {
-    const localPaths = writeLocalPosts({ posts: trimmed, outDir: localOutDir, prefix: "x_morning" });
+    const localPaths = writeLocalPosts({ posts: finalPosts, outDir: localOutDir, prefix: "x_morning" });
     let imagePath = null;
     if (toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)) {
       const imageWidth = Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH))
@@ -195,7 +215,7 @@ async function runXMorningPost(deps, opts = {}) {
       local_only: true,
       date_local: dateLocal,
       as_of: asOfISO,
-      posts: trimmed,
+      posts: finalPosts,
       has_resonance: hasResonance,
       local_dir: localOutDir,
       local_paths: localPaths,
@@ -253,7 +273,7 @@ async function runXMorningPost(deps, opts = {}) {
     };
   }
 
-  const payloads = trimmed
+  const payloads = finalPosts
     .map((p, idx) => ({
       text: p.text,
       slot: p.slot,
