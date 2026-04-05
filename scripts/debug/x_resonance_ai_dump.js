@@ -6,9 +6,10 @@ require("../_load_env");
 const fs = require("fs");
 const path = require("path");
 const {
-  buildIgObservationPrompt,
-  generateIgObservationText,
-} = require("../../src/usecases/channels/instagram/ai/observation");
+  buildXResonancePrompt,
+  generateXResonanceAiText,
+  pickPrimaryResonanceAspect,
+} = require("../../src/usecases/channels/x/ai/resonance");
 const dict = require("../../src/content/dict");
 
 function parseArgs(argv) {
@@ -43,27 +44,35 @@ async function main() {
   const outPath = args.out || "";
 
   if (!fs.existsSync(storyPath)) {
-    console.error(`[ig-ai] story not found: ${storyPath}`);
+    console.error(`[x-ai] story not found: ${storyPath}`);
     process.exit(1);
   }
 
   const apiKey = process.env.OPENAI_API_KEY || "";
   if (!apiKey) {
-    console.error("[ig-ai] OPENAI_API_KEY is not set");
+    console.error("[x-ai] OPENAI_API_KEY is not set");
     process.exit(1);
   }
 
   const payload = readJson(storyPath);
   const story = unwrapStory(payload);
-  if (args["dump-prompt"] || args["prompt"]) {
-    const prompt = buildIgObservationPrompt({ story, dict });
+  const resonanceMode = args["resonance-mode"] || args.resonance_mode || null;
+  const aspect = pickPrimaryResonanceAspect({ story, dict, resonanceMode }) || null;
+
+  if (args["dump-prompt"] || args.prompt) {
+    if (!aspect) {
+      console.error("[x-ai] resonance aspect missing");
+      process.exit(1);
+    }
+    const prompt = buildXResonancePrompt({ story, dict, aspect });
     console.log(prompt);
     return;
   }
 
-  const res = await generateIgObservationText({
+  const res = await generateXResonanceAiText({
     story,
     dict,
+    resonanceMode,
     openai: {
       apiKey,
       baseUrl: process.env.OPENAI_BASE_URL,
@@ -72,9 +81,9 @@ async function main() {
   });
 
   if (!res.ok) {
-    console.error("[ig-ai] error:", res.error, res.reason ? `(reason=${res.reason})` : "");
+    console.error("[x-ai] error:", res.error, res.reason ? `(reason=${res.reason})` : "");
     if (res.last_text) {
-      console.error("[ig-ai] last_output:\n" + res.last_text);
+      console.error("[x-ai] last_output:\n" + res.last_text);
     }
     process.exit(1);
   }
@@ -83,7 +92,7 @@ async function main() {
     const full = path.resolve(outPath);
     fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, res.text, "utf8");
-    console.log(`[ig-ai] saved: ${full} (len=${res.text.length})`);
+    console.log(`[x-ai] saved: ${full} (len=${res.text.length})`);
   } else {
     console.log(res.text);
   }

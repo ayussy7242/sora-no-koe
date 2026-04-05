@@ -3,6 +3,10 @@
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { bodyLabelJa } = require("../shared/text/tokens");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
+const {
+  buildObservationAxisSummary,
+  formatObservationFallback,
+} = require("./ig_observation");
 
 function safeNumber(x) {
   const n = Number(x);
@@ -28,51 +32,8 @@ function bodyWithSignLine(dict, key, signLabel) {
 }
 
 function pickObservationLine({ dict, transitSigns, skyStrata, houseFocus }) {
-  const signCounts = {};
-  Object.values(transitSigns || {}).forEach((item) => {
-    const signKey = item?.sign_key;
-    const signLabel = item?.sign_ja || signJa(dict, signKey || "");
-    if (!signLabel) return;
-    signCounts[signLabel] = (signCounts[signLabel] || 0) + 1;
-  });
-
-  const sortedSigns = Object.entries(signCounts)
-    .map(([sign, count]) => ({ sign, count }))
-    .sort((a, b) => (b.count - a.count) || a.sign.localeCompare(b.sign));
-
-  const signFocus = sortedSigns.filter((row) => Number(row.count) >= 2);
-  if (signFocus.length >= 2) {
-    return `${signFocus[0].sign}・${signFocus[1].sign}付近に天体が多い配置`;
-  }
-  if (signFocus.length === 1) {
-    return `${signFocus[0].sign}付近に天体が多い配置`;
-  }
-
-  const elementCount = skyStrata?.element_count || {};
-  const elementJa = { fire: "火", earth: "地", air: "風", water: "水", mixed: "混合" };
-  const sortedElements = Object.entries(elementCount)
-    .map(([key, count]) => ({ key, count: Number(count || 0) }))
-    .sort((a, b) => (b.count - a.count));
-
-  if (sortedElements.length) {
-    const top = sortedElements[0];
-    const second = sortedElements[1];
-    const topLabel = elementJa[top.key] || "";
-    const secondLabel = elementJa[second?.key] || "";
-    if (topLabel && secondLabel && top.count >= 3 && Number(second?.count || 0) >= 3) {
-      return `${topLabel}と${secondLabel}のあいだに重なりが見える配置`;
-    }
-    if (topLabel) {
-      return `${topLabel}の元素が強い配置`;
-    }
-  }
-
-  const topHouse = houseFocus?.top?.[0];
-  if (topHouse && Number(topHouse.house_no)) {
-    return `第${topHouse.house_no}ハウス付近に天体が多い配置`;
-  }
-
-  return "天体が全体に散る配置";
+  const summary = buildObservationAxisSummary({ dict, transitSigns, skyStrata, houseFocus });
+  return formatObservationFallback(summary);
 }
 
 function pickElementLine({ skyStrata }) {

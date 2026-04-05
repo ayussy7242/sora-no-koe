@@ -10,13 +10,14 @@ function buildAuthHeader(user, appPassword) {
   return `Basic ${token}`;
 }
 
-function createWpClient({ baseUrl, user, appPassword }) {
+function createWpClient({ baseUrl, user, appPassword, userAgent }) {
   const base = normalizeBaseUrl(baseUrl);
   if (!base) throw new Error("WP_BASE_URL is required");
   if (!user) throw new Error("WP_USER is required");
   if (!appPassword) throw new Error("WP_APP_PASSWORD is required");
 
   const auth = buildAuthHeader(user, appPassword);
+  const ua = String(userAgent || "sora-no-koe/1.0").trim();
 
   async function request(path, { method = "GET", body = null, headers: extraHeaders = null } = {}) {
     const url = `${base}${path}`;
@@ -25,6 +26,7 @@ function createWpClient({ baseUrl, user, appPassword }) {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
+    if (ua) headers["User-Agent"] = ua;
     if (extraHeaders && typeof extraHeaders === "object") {
       Object.assign(headers, extraHeaders);
     }
@@ -54,7 +56,8 @@ function createWpClient({ baseUrl, user, appPassword }) {
 
   async function getPostBySlug(slug) {
     const s = encodeURIComponent(String(slug || "").trim());
-    const path = `/wp-json/wp/v2/posts?slug=${s}&per_page=1`;
+    // include drafts/private posts so repeated runs update instead of creating duplicates
+    const path = `/wp-json/wp/v2/posts?slug=${s}&per_page=1&status=any&context=edit`;
     const list = await request(path, { method: "GET" });
     return Array.isArray(list) && list.length ? list[0] : null;
   }
@@ -73,9 +76,11 @@ function createWpClient({ baseUrl, user, appPassword }) {
     }
     const safeName = String(filename).replace(/[^\w.\-]/g, "_");
     const headers = {
+      Accept: "application/json",
       "Content-Type": mimeType,
       "Content-Disposition": `attachment; filename="${safeName}"`,
     };
+    if (ua) headers["User-Agent"] = ua;
     const url = `${base}/wp-json/wp/v2/media`;
     const res = await fetch(url, {
       method: "POST",

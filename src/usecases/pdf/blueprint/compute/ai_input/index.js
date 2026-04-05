@@ -1,11 +1,11 @@
 "use strict";
 
-const { buildNatalAspects } = require("./natal_aspects");
-const { buildElementKernel, buildModalityKernel, buildElementBiasTerms, buildModalityBiasTerms } = require("./ai_input/balance");
-const { buildKernelForItem } = require("./ai_input/kernel");
-const { buildHouseEmphasis, buildHouseEmphasisFromCusps, normalizeCuspsFromNatalCache } = require("./ai_input/house");
-const { applyFactLinesToAiData, buildFactLine, prependFactLine } = require("./ai_input/facts");
-const { mapAiContent } = require("./ai_input/map");
+const { buildNatalAspects } = require("../natal_aspects");
+const { buildElementKernel, buildModalityKernel, buildElementBiasTerms, buildModalityBiasTerms } = require("./balance");
+const { buildKernelForItem } = require("./kernel");
+const { buildHouseEmphasis, buildHouseEmphasisFromCusps, normalizeCuspsFromNatalCache } = require("./house");
+const { applyFactLinesToAiData, buildFactLine, prependFactLine } = require("./facts");
+const { mapAiContent } = require("./map");
 
 function buildAiInput({ displayName, rowsMain, rowsAngles, rowsExtra, element, modality, dict, longitudes, identity, cusps, houseSystem }) {
   const elementKernel = buildElementKernel(element || {});

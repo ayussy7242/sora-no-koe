@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require("path");
+const sharp = require("sharp");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
 const { writeBufferFiles, writeJsonFile } = require("../shared/io");
 const { uploadGcsFiles, uploadGcsFile } = require("../../../utils/infra/gcs_upload");
@@ -58,6 +59,7 @@ async function uploadCarouselSlide({
   dateLocal,
   buffer,
   index,
+  contentType = "image/png",
   expiresDays = 7,
 } = {}) {
   const t0 = Date.now();
@@ -70,7 +72,7 @@ async function uploadCarouselSlide({
     basePath: path.posix.join("ig", "carousel", String(dateLocal)),
     filename: `slide-${index}.png`,
     buffer,
-    contentType: "image/png",
+    contentType,
     index,
     key: `slide-${index}`,
     expiresDays,
@@ -83,6 +85,25 @@ async function uploadCarouselSlide({
   return item;
 }
 
+async function normalizeIgImage({
+  buffer,
+  format = "png",
+  flatten = false,
+  flattenBg = "#000000",
+} = {}) {
+  const fmt = String(format || "png").trim().toLowerCase();
+  let pipeline = sharp(buffer, { failOn: "none" });
+  if (flatten) {
+    pipeline = pipeline.flatten({ background: flattenBg });
+  }
+  if (fmt === "jpg" || fmt === "jpeg") {
+    const out = await pipeline.jpeg({ quality: 92, chromaSubsampling: "4:4:4" }).toBuffer();
+    return { buffer: out, contentType: "image/jpeg" };
+  }
+  const out = await pipeline.png({ compressionLevel: 9, adaptiveFiltering: false, palette: false }).toBuffer();
+  return { buffer: out, contentType: "image/png" };
+}
+
 async function renderAndUploadCarouselSlides({
   storage,
   bucketName,
@@ -90,6 +111,7 @@ async function renderAndUploadCarouselSlides({
   carousel,
   expiresDays = 7,
   backgroundCache = null,
+  normalize = null,
 } = {}) {
   if (!carousel) throw new Error("carousel missing");
   const t0 = Date.now();
@@ -99,11 +121,15 @@ async function renderAndUploadCarouselSlides({
     ...carousel,
     backgroundCache,
     onSlide: async ({ index, buffer }) => {
+      const normalized = normalize
+        ? await normalizeIgImage({ buffer, ...normalize })
+        : { buffer, contentType: "image/png" };
       const uploaded = await uploadCarouselSlide({
         storage,
         bucketName,
         dateLocal,
-        buffer,
+        buffer: normalized.buffer,
+        contentType: normalized.contentType,
         index: index + 1,
         expiresDays,
       });

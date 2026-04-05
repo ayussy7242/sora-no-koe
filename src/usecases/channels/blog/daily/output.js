@@ -1,7 +1,7 @@
 "use strict";
 
 const dict = require("../../../../content/dict");
-const { SPEC } = require("../../../../config/sora_spec");
+const { SPEC, resolveBlogResonanceOrbLimit } = require("../../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
 const { formatDateYmd } = require("../../../../domain/astro/compute");
 const { normalizeBodyKey, normalizeSignKey, normalizeAspectKey } = require("../../../../domain/canonical");
@@ -124,7 +124,7 @@ function buildLeadAspectTitle({ story, dateLocal }) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   if (!skyAll.length) return "";
 
-  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
+  const resonanceOrbLimit = resolveBlogResonanceOrbLimit();
   const lead = leadAspectFromResonancePool(skyAll, resonanceOrbLimit)
     || [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
   if (!lead) return "";
@@ -167,7 +167,7 @@ function buildDailyTitle(story, dateLocal) {
 function buildAioseoMeta({ story, dateLocal, title }) {
   const dateJa = formatDateJaFromLocal(dateLocal) || String(dateLocal || "").trim();
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
-  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
+  const resonanceOrbLimit = resolveBlogResonanceOrbLimit();
   const lead = leadAspectFromResonancePool(skyAll, resonanceOrbLimit)
     || [...skyAll].sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99))[0];
 

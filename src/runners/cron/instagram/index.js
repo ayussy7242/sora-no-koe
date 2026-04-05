@@ -57,6 +57,37 @@ function buildAspectKey(aspect, { includeOrb = false } = {}) {
   return [a, b, deg, orb].filter(Boolean).join("|");
 }
 
+function isIgTransientError(err) {
+  const code = String(err?.code || "");
+  if (code === "2") return true;
+  const message = String(err?.message || "");
+  if (message.includes("OAuthException 2") || message.includes("unexpected error")) return true;
+  const detail = String(err?.detail || "");
+  if (detail.includes("\"is_transient\":true")) return true;
+  return false;
+}
+
+async function withIgRetry(fn, { retries = 2, delayMs = 1500, label = "" } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isIgTransientError(err) || attempt >= retries) throw err;
+      const waitMs = delayMs * (attempt + 1);
+      console.warn("[ig] transient error; retrying", {
+        label,
+        attempt: attempt + 1,
+        wait_ms: waitMs,
+        code: err?.code,
+        message: err?.message,
+      });
+      await new Promise((r) => setTimeout(r, waitMs));
+      attempt += 1;
+    }
+  }
+}
+
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = resolveEnv(env);
@@ -76,6 +107,19 @@ async function runIgPost(deps, opts = {}) {
   const useAi = opts.useAi !== false;
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
+  const waitTimeoutMs = Number.isFinite(Number(env2.IG_CONTAINER_TIMEOUT_MS))
+    ? Number(env2.IG_CONTAINER_TIMEOUT_MS)
+    : 240000;
+  const mediaNormalize = toBool(env2.IG_MEDIA_NORMALIZE, false);
+  const mediaFormat = String(env2.IG_MEDIA_FORMAT || "png");
+  const mediaFlatten = toBool(env2.IG_MEDIA_FLATTEN, false);
+  const mediaFlattenBg = String(env2.IG_MEDIA_FLATTEN_BG || "#000000");
+  const mediaRetryCount = Number.isFinite(Number(env2.IG_MEDIA_RETRY_COUNT))
+    ? Number(env2.IG_MEDIA_RETRY_COUNT)
+    : 2;
+  const mediaRetryDelayMs = Number.isFinite(Number(env2.IG_MEDIA_RETRY_DELAY_MS))
+    ? Number(env2.IG_MEDIA_RETRY_DELAY_MS)
+    : 1500;
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_POST_LOCAL_ONLY,
     false
@@ -87,6 +131,8 @@ async function runIgPost(deps, opts = {}) {
     path.join(process.cwd(), "tmp", "ig", "post", dateLocal)
   );
   const backgroundCache = resolveBackgroundCache(env2);
+  const proxyBase = String(env2.IG_PROXY_BASE_URL || env2.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
+  const useProxy = toBool(env2.IG_PROXY_ENABLED, false) && !!proxyBase;
   const force =
     opts.force === true ||
     opts.force_lock === true ||
@@ -199,8 +245,15 @@ async function runIgPost(deps, opts = {}) {
       carousel,
       expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
       backgroundCache,
+      normalize: mediaNormalize
+        ? { format: mediaFormat, flatten: mediaFlatten, flattenBg: mediaFlattenBg }
+        : null,
     });
     console.log("[cron/ig/post] render_upload_done", { ms: Date.now() - tRender });
+
+    const imageUrls = useProxy
+      ? upload.paths.map((p) => `${proxyBase}/ig/proxy?path=${encodeURIComponent(p)}`)
+      : upload.urls;
 
     if (dryRun) {
       return {
@@ -214,47 +267,69 @@ async function runIgPost(deps, opts = {}) {
         slide3_display_aspect: topAspect || null,
         ai_input_aspect: story?.outputs?.ig?.source?.resonance_aspect || null,
         caption,
-        image_urls: upload.urls,
+        image_urls: imageUrls,
         gcs_paths: upload.paths,
       };
     }
 
     const childIds = [];
-    for (const imageUrl of upload.urls) {
-      const created = await createImageContainer({
-        igUserId,
-        imageUrl,
-        accessToken,
-        version: graphVersion,
-      });
+    for (const imageUrl of imageUrls) {
+      const created = await withIgRetry(
+        () =>
+          createImageContainer({
+            igUserId,
+            imageUrl,
+            accessToken,
+            version: graphVersion,
+          }),
+        { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "create_image_container" }
+      );
       const childId = created?.id;
       if (!childId) throw new Error("child container id missing");
-      const wait = await waitForContainer({ creationId: childId, accessToken, version: graphVersion });
+      const wait = await waitForContainer({
+        creationId: childId,
+        accessToken,
+        version: graphVersion,
+        timeoutMs: waitTimeoutMs,
+      });
       if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
       childIds.push(childId);
     }
 
-    const carouselContainer = await createCarouselContainer({
-      igUserId,
-      children: childIds,
-      caption,
-      accessToken,
-      version: graphVersion,
-    });
+    const carouselContainer = await withIgRetry(
+      () =>
+        createCarouselContainer({
+          igUserId,
+          children: childIds,
+          caption,
+          accessToken,
+          version: graphVersion,
+        }),
+      { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "create_carousel_container" }
+    );
     const creationId = carouselContainer?.id;
     if (!creationId) throw new Error("carousel container id missing");
 
     const tWait = Date.now();
-    const waitCarousel = await waitForContainer({ creationId, accessToken, version: graphVersion });
-    console.log("[cron/ig/post] wait_carousel_done", { ms: Date.now() - tWait, ok: waitCarousel?.ok });
-    if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
-
-    const published = await publishMedia({
-      igUserId,
+    const waitCarousel = await waitForContainer({
       creationId,
       accessToken,
       version: graphVersion,
+      timeoutMs: waitTimeoutMs,
     });
+    console.log("[cron/ig/post] wait_carousel_done", { ms: Date.now() - tWait, ok: waitCarousel?.ok });
+    if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
+
+    const published = await withIgRetry(
+      () =>
+        publishMedia({
+          igUserId,
+          creationId,
+          accessToken,
+          version: graphVersion,
+        }),
+      { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "publish_media" }
+    );
 
     const result = {
       ok: true,
@@ -305,9 +380,24 @@ async function runIgMoonEventPost(deps, opts = {}) {
   const { offsetDays, targetDateLocal } = resolveMoonEventTargetDateLocal({ now, opts, env: env2 });
   const withCta = opts.withCta !== false;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
+  const waitTimeoutMs = Number.isFinite(Number(env2.IG_CONTAINER_TIMEOUT_MS))
+    ? Number(env2.IG_CONTAINER_TIMEOUT_MS)
+    : 240000;
+  const mediaNormalize = toBool(env2.IG_MEDIA_NORMALIZE, false);
+  const mediaFormat = String(env2.IG_MEDIA_FORMAT || "png");
+  const mediaFlatten = toBool(env2.IG_MEDIA_FLATTEN, false);
+  const mediaFlattenBg = String(env2.IG_MEDIA_FLATTEN_BG || "#000000");
+  const mediaRetryCount = Number.isFinite(Number(env2.IG_MEDIA_RETRY_COUNT))
+    ? Number(env2.IG_MEDIA_RETRY_COUNT)
+    : 2;
+  const mediaRetryDelayMs = Number.isFinite(Number(env2.IG_MEDIA_RETRY_DELAY_MS))
+    ? Number(env2.IG_MEDIA_RETRY_DELAY_MS)
+    : 1500;
   const useAi = opts.useAi !== false;
   const forceAi = opts.forceAi === true;
   const backgroundCache = resolveBackgroundCache(env2);
+  const proxyBase = String(env2.IG_PROXY_BASE_URL || env2.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
+  const useProxy = toBool(env2.IG_PROXY_ENABLED, false) && !!proxyBase;
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_MOON_EVENT_LOCAL_ONLY,
     false
@@ -453,9 +543,16 @@ async function runIgMoonEventPost(deps, opts = {}) {
     carousel,
     expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
     backgroundCache,
+    normalize: mediaNormalize
+      ? { format: mediaFormat, flatten: mediaFlatten, flattenBg: mediaFlattenBg }
+      : null,
   });
 
   // caption already resolved (AI or fallback)
+
+  const imageUrls = useProxy
+    ? upload.paths.map((p) => `${proxyBase}/ig/proxy?path=${encodeURIComponent(p)}`)
+    : upload.urls;
 
   if (dryRun) {
     return {
@@ -471,45 +568,67 @@ async function runIgMoonEventPost(deps, opts = {}) {
         date_label: event.dateLabel,
       },
       caption,
-      image_urls: upload.urls,
+      image_urls: imageUrls,
       gcs_paths: upload.paths,
     };
   }
 
   const childIds = [];
-  for (const imageUrl of upload.urls) {
-    const created = await createImageContainer({
-      igUserId,
-      imageUrl,
-      accessToken,
-      version: graphVersion,
-    });
+  for (const imageUrl of imageUrls) {
+    const created = await withIgRetry(
+      () =>
+        createImageContainer({
+          igUserId,
+          imageUrl,
+          accessToken,
+          version: graphVersion,
+        }),
+      { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "create_image_container" }
+    );
     const childId = created?.id;
     if (!childId) throw new Error("child container id missing");
-    const wait = await waitForContainer({ creationId: childId, accessToken, version: graphVersion });
+    const wait = await waitForContainer({
+      creationId: childId,
+      accessToken,
+      version: graphVersion,
+      timeoutMs: waitTimeoutMs,
+    });
     if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
     childIds.push(childId);
   }
 
-  const carouselContainer = await createCarouselContainer({
-    igUserId,
-    children: childIds,
-    caption,
-    accessToken,
-    version: graphVersion,
-  });
+  const carouselContainer = await withIgRetry(
+    () =>
+      createCarouselContainer({
+        igUserId,
+        children: childIds,
+        caption,
+        accessToken,
+        version: graphVersion,
+      }),
+    { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "create_carousel_container" }
+  );
   const creationId = carouselContainer?.id;
   if (!creationId) throw new Error("carousel container id missing");
 
-  const waitCarousel = await waitForContainer({ creationId, accessToken, version: graphVersion });
-  if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
-
-  const published = await publishMedia({
-    igUserId,
+  const waitCarousel = await waitForContainer({
     creationId,
     accessToken,
     version: graphVersion,
+    timeoutMs: waitTimeoutMs,
   });
+  if (!waitCarousel.ok) throw new Error(`carousel container not ready: ${creationId}`);
+
+  const published = await withIgRetry(
+    () =>
+      publishMedia({
+        igUserId,
+        creationId,
+        accessToken,
+        version: graphVersion,
+      }),
+    { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "publish_media" }
+  );
 
   return {
     ok: true,

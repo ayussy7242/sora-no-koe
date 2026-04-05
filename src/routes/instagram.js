@@ -2,6 +2,8 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const { createStorageClient } = require("../utils/infra/gcs_storage");
+const { resolveEnv } = require("../utils/env");
 
 function base64UrlDecode(input) {
   const s = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
@@ -40,6 +42,27 @@ function buildBaseUrl(req, env) {
 function createIgRouter(deps = {}) {
   const router = express.Router();
   const env = deps.env || {};
+  const env2 = resolveEnv(env);
+
+  function parseProxyAllowPrefixes() {
+    const raw = String(env2.IG_PROXY_ALLOW_PREFIXES || "ig/carousel/,ig/story/,ig/moon_event/").trim();
+    return raw
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  function isAllowedProxyPath(filePath) {
+    if (!filePath) return { ok: false, error: "path_missing" };
+    const cleaned = String(filePath).replace(/^\/+/, "");
+    if (!cleaned) return { ok: false, error: "path_missing" };
+    if (cleaned.includes("..")) return { ok: false, error: "invalid_path" };
+    const allowPrefixes = parseProxyAllowPrefixes();
+    if (!allowPrefixes.some((prefix) => cleaned.startsWith(prefix))) return { ok: false, error: "path_not_allowed" };
+    const lower = cleaned.toLowerCase();
+    if (!/\.(png|jpe?g)$/.test(lower)) return { ok: false, error: "unsupported_ext" };
+    return { ok: true, cleaned };
+  }
 
   router.post("/data-deletion", (req, res) => {
     const appSecret = String(env.IG_APP_SECRET || "").trim();
@@ -77,6 +100,56 @@ function createIgRouter(deps = {}) {
     res.status(200).type("text/plain").send(code
       ? `Data deletion request received. Confirmation code: ${code}`
       : "Data deletion request received.");
+  });
+
+  // IG image proxy (secure-ish): only allow specific prefixes + png/jpg/jpeg
+  router.get("/proxy", async (req, res) => {
+    try {
+      const rawPath = String(req.query?.path || "").trim();
+      const allowed = isAllowedProxyPath(rawPath);
+      if (!allowed.ok) {
+        return res.status(400).json({ ok: false, error: allowed.error || "invalid_path" });
+      }
+      const cleaned = allowed.cleaned;
+
+      const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
+      if (!bucketName) {
+        return res.status(500).json({ ok: false, error: "IG_GCS_BUCKET missing" });
+      }
+
+      const storageClient = await createStorageClient({ storage: deps.storage, env: env2 });
+      const file = storageClient.bucket(bucketName).file(cleaned);
+
+      let metadata = null;
+      try {
+        [metadata] = await file.getMetadata();
+      } catch (err) {
+        if (err?.code === 404 || err?.code === 400) {
+          return res.status(404).json({ ok: false, error: "not_found" });
+        }
+      }
+
+      const lower = cleaned.toLowerCase();
+      const fallbackType = lower.endsWith(".png") ? "image/png" : "image/jpeg";
+      const contentType = metadata?.contentType || fallbackType;
+      const cacheControl = String(env2.IG_PROXY_CACHE_CONTROL || "public, max-age=3600");
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", cacheControl);
+      if (metadata?.size) res.setHeader("Content-Length", String(metadata.size));
+      res.setHeader("Content-Disposition", "inline");
+
+      const stream = file.createReadStream();
+      stream.on("error", (err) => {
+        if (!res.headersSent) {
+          return res.status(500).json({ ok: false, error: err?.message || "stream_error" });
+        }
+        res.end();
+      });
+      stream.pipe(res);
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: err?.message || String(err) });
+    }
   });
 
   return router;

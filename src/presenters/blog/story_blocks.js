@@ -1,7 +1,7 @@
 "use strict";
 
 const dict = require("../../content/dict");
-const { SPEC } = require("../../config/sora_spec");
+const { SPEC, resolveBlogResonanceOrbLimit } = require("../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const {
   bodyGlyph,
@@ -233,7 +233,7 @@ function buildBlogBlocks(story, opts = {}) {
   const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
 
-  const resonanceOrbLimit = SPEC?.orb?.paid ?? 3.0;
+  const resonanceOrbLimit = resolveBlogResonanceOrbLimit();
   const resonancePool = skyAll
     .filter((it) => Number(it?.orb_deg) <= resonanceOrbLimit)
     .filter((it) => !isResonanceExcluded(it));

@@ -5,7 +5,7 @@ require("../_load_env");
 
 const fs = require("fs");
 const path = require("path");
-const { generateIgObservationText } = require("../../src/usecases/channels/ig/ig_observation_ai");
+const { generateIgObservationText } = require("../../src/usecases/channels/instagram/ai/observation");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
 const dict = require("../../src/content/dict");
 

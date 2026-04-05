@@ -192,17 +192,18 @@ Instagramカルーセル1枚目の観測文を1文で生成する。
 1秒で読めて、少し気になる状態を作る。
 
 ■ INPUT
-- TRANSIT_SIGNS
-- SKY_STRATA.element_count
-- HOUSE_FOCUS.top
+- AXIS_TOP_SIGN
+- AXIS_TOP_ELEMENT
+- AXIS_TOP_HOUSE
+- AXIS_WINNER
+- AXIS_TIE_THRESHOLD
+- （参考）TRANSIT_SIGNS / SKY_STRATA.element_count / HOUSE_FOCUS.top
 
 ■ 書き方
--「どこに集まりがあるか」と
--「どんな空に見えるか」を自然に書く
-- 最初に「一番目立つもの」だけを見る
-- それ以外は無視してよい
-- 1つの空につき、1つの現象だけ書く
-- 複数の要素を混ぜない
+- AXIS_WINNER を主語にする
+- AXIS_WINNER が複数なら並列で1文にまとめる
+- 比率トップの軸だけを書く（補足は不要）
+- 1つの空につき、1文のみ
 
 ■ 表現
 - やわらかく自然な日本語で書く

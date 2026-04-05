@@ -8,19 +8,44 @@ const {
 const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries, buildSignCountsLine, buildElementCountsLine, buildHouseFocusLine } = require("./utils");
+const {
+  buildObservationAxisSummary,
+  formatAxisValue,
+  formatAxisWinner,
+} = require("../../../../presenters/format/ig_observation");
 const { safeTrim } = require("../../../../utils/text/normalize");
 
 function buildIgObservationPrompt({ story, dict }) {
   const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
+  const pickNonEmpty = (...candidates) => {
+    for (const item of candidates) {
+      if (item && typeof item === "object" && Object.keys(item).length) return item;
+    }
+    return candidates.find(Boolean) || {};
+  };
+  const transitSigns = pickNonEmpty(story?.public?.transit_signs, story?.meta?.transit_signs);
+  const skyStrata = pickNonEmpty(story?.public?.sky_strata, story?.meta?.sky_strata);
+  const houseFocusData = pickNonEmpty(story?.public?.house_focus, story?.meta?.house_focus);
   const signCounts = buildSignCountsLine({ story, dict });
   const elementCounts = buildElementCountsLine(story);
   const houseFocus = buildHouseFocusLine(story);
+  const axisSummary = buildObservationAxisSummary({
+    dict,
+    transitSigns,
+    skyStrata,
+    houseFocus: houseFocusData,
+  });
 
   return [
     SORA_AI_USER_GUIDE_IG_OBSERVATION,
     "",
     "INPUT:",
     `DATE: ${date}`,
+    `AXIS_TOP_SIGN: ${formatAxisValue(axisSummary.sign)}`,
+    `AXIS_TOP_ELEMENT: ${formatAxisValue(axisSummary.element)}`,
+    `AXIS_TOP_HOUSE: ${formatAxisValue(axisSummary.house)}`,
+    `AXIS_WINNER: ${formatAxisWinner(axisSummary)}`,
+    `AXIS_TIE_THRESHOLD: ${axisSummary.tieThreshold}`,
     `TRANSIT_SIGNS: ${signCounts}`,
     `SKY_STRATA.element_count: ${elementCounts}`,
     `HOUSE_FOCUS.top: ${houseFocus}`,

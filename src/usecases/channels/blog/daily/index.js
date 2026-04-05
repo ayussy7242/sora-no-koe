@@ -20,7 +20,7 @@ const {
   BLOG_LONG_RETRO_GUIDE,
   BLOG_LONG_AFTERTASTE_GUIDE,
 } = require("../../../../content/prompts/blog/blocks");
-const { SPEC } = require("../../../../config/sora_spec");
+const { SPEC, resolveBlogResonanceOrbLimit } = require("../../../../config/sora_spec");
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../../domain/touch_point/scoring");
 const {
@@ -66,6 +66,7 @@ const {
   uniqList,
 } = require("./resonance");
 const { getMoonEventInfo } = require("./selection");
+const { toBool } = require("../../../../utils/data/bool");
 const {
   formatDateJaFromLocal,
   formatDateDotsFromLocal,
@@ -335,7 +336,7 @@ function applyPremiumLayout(html, { story, dateLocal }) {
   if (positions?.html) freeParts.push(replaceH2Title(positions.html, "2｜配置"));
   if (moonHtml) freeParts.push(replaceH2Title(moonHtml, "3｜月"));
   if (resonance?.html) freeParts.push(replaceH2Title(resonance.html, "4｜共鳴"));
-  const hideAfterResonance = String(process.env.BLOG_HIDE_AFTER_RESONANCE || "0") === "1";
+  const hideAfterResonance = toBool(process.env.BLOG_HIDE_AFTER_RESONANCE, false);
   if (!hideAfterResonance) {
     if (houseHtml) freeParts.push(replaceH2Title(houseHtml, "5｜🏠 ハウス集中"));
     if (elements?.html) freeParts.push(replaceH2Title(elements.html, "6｜🔥 元素／三区分"));
@@ -389,25 +390,9 @@ function buildWheelHtml({ story, dateLocal } = {}) {
   if (!enabled) return "";
   if (!story) return "";
   const mode = String(process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
-  if (mode === "media") return "<!--SORA_WHEEL_MEDIA-->";
-  const dateLabel = String(dateLocal || story?.meta?.date_local || story?.public?.date_local || "")
-    .trim()
-    .replace(/-/g, ".");
-  try {
-    const svg = buildSoraWheelSvg({ story, dateLabel, size: 720 });
-    if (!svg) return "";
-    const responsiveSvg = String(svg).replace(
-      "<svg ",
-      "<svg style=\"width:100%;height:auto;display:block;\" "
-    );
-    return [
-      "<div style=\"max-width:720px;margin:28px auto 40px;\">",
-      responsiveSvg,
-      "</div>",
-    ].join("\n");
-  } catch (_e) {
-    return "";
-  }
+  if (["none", "off", "disabled"].includes(mode)) return "";
+  // Force PNG-only output via the media pipeline (no inline SVG).
+  return "<!--SORA_WHEEL_MEDIA-->";
 }
 
 async function generateDailyDraft({ story, dateLocal, openai }) {
@@ -900,7 +885,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const skyAll = Array.isArray(pub.sky_all) ? [...pub.sky_all] : [];
   skyAll.sort((a, b) => (a?.orb_deg ?? 99) - (b?.orb_deg ?? 99));
   const resonanceAll = skyAll
-    .filter((row) => Number(row?.orb_deg) <= (SPEC?.orb?.paid ?? 3.0))
+    .filter((row) => Number(row?.orb_deg) <= resolveBlogResonanceOrbLimit())
     .filter((row) => !isResonanceBodyExcluded(row));
   const resonancePool = [...resonanceAll];
   const strongest = resonancePool[0] || skyAll[0] || null;

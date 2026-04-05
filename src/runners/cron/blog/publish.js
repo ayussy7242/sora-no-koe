@@ -13,6 +13,7 @@ async function publishDailyPost({ env, plan, publish, mark = () => {} } = {}) {
     baseUrl: env?.WP_BASE_URL,
     user: env?.WP_USER,
     appPassword: env?.WP_APP_PASSWORD,
+    userAgent: env?.WP_USER_AGENT,
   });
 
   const shouldPublish = publish === undefined

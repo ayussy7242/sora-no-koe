@@ -38,8 +38,9 @@ async function buildDailyPlan({ env, storyService, dateLocal, asOfISO, runDry = 
   const hasHtmlHeadings = /<h[23][\s>]/i.test(String(content || ""));
   content = hasHtmlHeadings ? content : markdownToHtml(content, { h1: "" });
 
-  const wheelMode = String(env?.BLOG_WHEEL_MODE || process.env.BLOG_WHEEL_MODE || "media").toLowerCase();
-  if (wheelMode === "media" && content.includes(WHEEL_MARKER)) {
+  const wheelMode = String(env?.BLOG_WHEEL_MODE || process.env.BLOG_WHEEL_MODE || "media").trim().toLowerCase();
+  const hasWheelMarker = content.includes(WHEEL_MARKER);
+  if (hasWheelMarker) {
     if (runDry) {
       content = content.replace(WHEEL_MARKER, "");
     } else {
