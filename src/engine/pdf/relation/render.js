@@ -320,9 +320,9 @@ function getRelationMeta() {
       intro: "同じ天体の向かい方を比べます。",
     },
     {
-      ja: "サインの向かい合い",
-      en: "SIGN RELATION",
-      intro: "サイン同士の距離と関係を整理します。",
+      ja: "エレメントとモード",
+      en: "ELEMENT / MODE BALANCE",
+      intro: "構成要素と動き方の違いを観測します。",
     },
     {
       ja: "関係の核",
@@ -491,6 +491,12 @@ function buildRelationDocumentHtml(pages = []) {
 function buildRelationHtml(view, options = {}) {
   const aName = view?.people?.a?.name || "A";
   const bName = view?.people?.b?.name || "B";
+  const seedLabel = String(
+    view?.pair_key ||
+    view?.pair?.key ||
+    view?.meta?.pair_key ||
+    `${aName}-${bName}`
+  );
   const derived = deriveRelationData(view);
   const aFull = Array.isArray(derived?.aFull) ? derived.aFull : [];
   const bFull = Array.isArray(derived?.bFull) ? derived.bFull : [];
@@ -548,6 +554,56 @@ function buildRelationHtml(view, options = {}) {
     middleHtml: fullHtml,
     bottomSections: [],
     pageClass: "page-full-position",
+  });
+
+  const elementBalanceA = view?.element_balance?.a || {};
+  const elementBalanceB = view?.element_balance?.b || {};
+  const modalityBalanceA = view?.modality_balance?.a || {};
+  const modalityBalanceB = view?.modality_balance?.b || {};
+  const elementModalityBottom = [
+    {
+      label: "構造：",
+      text: topElementA && topElementB && topElementA !== "—" && topElementB !== "—"
+        ? (topElementA === topElementB ? `主成分は${topElementA}。` : `主成分は${topElementA}と${topElementB}。`)
+        : "主成分は更新中。",
+    },
+    {
+      label: "動き：",
+      text: topModalityA && topModalityB && topModalityA !== "—" && topModalityB !== "—"
+        ? (topModalityA === topModalityB ? `主動作は${topModalityA}。` : `主動作は${topModalityA}と${topModalityB}。`)
+        : "主動作は更新中。",
+    },
+    {
+      label: "体感：",
+      text: (() => {
+        if (!topElementA || !topElementB || !topModalityA || !topModalityB) {
+          return "体感の差はこれから見えてきます。";
+        }
+        const sameElement = topElementA === topElementB;
+        const sameModality = topModalityA === topModalityB;
+        if (sameElement && sameModality) return "リズムは揃いやすい構造。";
+        if (sameElement) return "温度は近く、動きに差が出ます。";
+        if (sameModality) return "速度は近く、温度に差が出ます。";
+        return "温度と速度の差が、関係のリズムとして残ります。";
+      })(),
+    },
+  ];
+
+  pageDefs.push({
+    type: "page",
+    meta: meta[4],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: `
+      <div class="relation-stack">
+        ${buildElementModalityColumns({
+          aBalance: { element_count: elementBalanceA.element_count || {}, modality_count: modalityBalanceA.modality_count || {} },
+          bBalance: { element_count: elementBalanceB.element_count || {}, modality_count: modalityBalanceB.modality_count || {} },
+        })}
+      </div>
+    `,
+    bottomSections: elementModalityBottom,
+    pageClass: "page-element-mode",
   });
 
   const dominantSignsA = Array.isArray(view?.dominant_signs?.a) ? view.dominant_signs.a : [];

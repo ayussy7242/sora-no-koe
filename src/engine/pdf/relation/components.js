@@ -511,12 +511,14 @@ function buildCompareLayerItem(row = {}) {
   const title = `${bodyGlyph} ${bodyJa}`.trim();
   const glyph = bodyGlyph ? buildGlyphImgTag(bodyGlyph, { className: "glyph-img glyph-img--body", size: 24, color: "#EDEEFF" }) : "";
   const metaHtml = buildCompareMetaHtml(row);
+  const aiText = row?.ai_text || row?.ai_line || "";
   return `
     <div class="compare-layer-item card">
       <div class="compare-row">
         <div class="card-title">${glyph}<span class="card-title-text">${escapeHtml(bodyJa)}</span></div>
         <div class="card-meta-inline compare-meta-line">${metaHtml}</div>
       </div>
+      ${aiText ? `<div class="compare-ai">${escapeHtml(aiText)}</div>` : ""}
     </div>
   `;
 }
@@ -534,20 +536,62 @@ function buildCompareLayer({ title = "", note = "", aiText = "", rows = [], clas
   `;
 }
 
-function buildCompareBlockDefs({ personal = [], social = [], transpersonal = [], axis = [], deep = [], aiTexts = {} } = {}) {
-  return [
+function buildCompareBlockDefs({
+  personal = [],
+  social = [],
+  transpersonal = [],
+  axis = [],
+  deep = [],
+  aiTexts = {},
+  includeAxisDeep = true,
+} = {}) {
+  const blocks = [
     { title: "PERSONAL", note: "内側の機能", aiText: aiTexts.personal_text || "", rows: personal },
     { title: "SOCIAL", note: "外との接点", aiText: aiTexts.social_text || "", rows: social },
     { title: "TRANSPERSONAL", note: "構造変化", aiText: aiTexts.transpersonal_text || "", rows: transpersonal },
-    { title: "AXIS", note: "構造の骨", aiText: aiTexts.axis_compare_text || "", rows: axis },
-    { title: "DEEP", note: "地下構造", aiText: aiTexts.deep_compare_text || "", rows: deep },
   ];
+  if (includeAxisDeep) {
+    blocks.push(
+      { title: "AXIS", note: "構造の骨", aiText: aiTexts.axis_compare_text || "", rows: axis },
+      { title: "DEEP", note: "地下構造", aiText: aiTexts.deep_compare_text || "", rows: deep },
+    );
+  }
+  return blocks;
 }
 
 function buildCompareBlockStack(blocks = []) {
   return `
     <div class="relation-stack">
       ${(Array.isArray(blocks) ? blocks : []).map((b) => buildCompareLayer(b)).join("")}
+    </div>
+  `;
+}
+
+function buildRelationTypeSection({ pattern, relationCore, aiText = "" } = {}) {
+  const name = pattern?.name || "—";
+  const key = pattern?.key || "—";
+  const evidence = Array.isArray(pattern?.evidence) ? pattern.evidence : [];
+  const tags = [
+    relationCore?.main_axis ? `主軸｜${relationCore.main_axis}` : "",
+    relationCore?.dominant_tension ? `優勢角度｜${relationCore.dominant_tension}` : "",
+    key ? `型｜${key}` : "",
+  ].filter(Boolean);
+  return `
+    <div class="relation-type">
+      <div class="chart-box relation-type-main">
+        <div class="card-head">関係タイプ</div>
+        <div class="card-sub">RELATION TYPE</div>
+        <div class="relation-type-name">${escapeHtml(name)}</div>
+        ${tags.length ? `<div class="relation-type-tags">${tags.map((t) => `<span class="relation-type-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+        ${aiText ? `<div class="relation-type-ai">${escapeHtml(aiText)}</div>` : ""}
+      </div>
+      <div class="chart-box relation-type-evidence">
+        <div class="card-head">根拠</div>
+        <div class="card-sub">EVIDENCE</div>
+        <div class="relation-type-evidence-list">
+          ${(evidence.length ? evidence : ["根拠は整理中です。"]).map((row) => `<div class="relation-row">${escapeHtml(row)}</div>`).join("")}
+        </div>
+      </div>
     </div>
   `;
 }
