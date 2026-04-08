@@ -3,7 +3,6 @@
 const { createChatCompletion } = require("../../../../integrations/openai/openai_client");
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
-  SORA_AI_USER_GUIDE_IG_RESONANCE,
   SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT,
   SORA_AI_USER_GUIDE_IG_RESONANCE_CAPTION,
 } = require("../../../../content/prompts/sora/sora_core");
@@ -70,8 +69,7 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 function resolveResonanceGuide(variant) {
   const key = String(variant || "").toLowerCase();
   if (key === "caption" || key === "cap") return SORA_AI_USER_GUIDE_IG_RESONANCE_CAPTION;
-  if (key === "split" || key === "short") return SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT;
-  return SORA_AI_USER_GUIDE_IG_RESONANCE;
+  return SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT;
 }
 
 function buildIgResonancePrompt({ story, dict, variant }) {
@@ -108,8 +106,8 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
   if (!hasAspect) return { ok: false, error: "resonance_aspect_missing" };
 
   const variantKey = String(variant || "").toLowerCase();
-  const isSplit = variantKey === "split" || variantKey === "short";
   const isCaption = variantKey === "caption" || variantKey === "cap";
+  const isSplit = !isCaption;
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgResonancePrompt({ story, dict, variant }),
@@ -122,9 +120,7 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
     validate: ({ raw }) => {
       const preset = isCaption
         ? PRESETS.ig.resonance_caption
-        : isSplit
-          ? PRESETS.ig.resonance_split
-          : PRESETS.ig.resonance;
+        : PRESETS.ig.resonance_split;
       const verdict = runAiTextPipeline({
         rawText: raw,
         preset,

@@ -62,7 +62,24 @@ function wrapLines(text, maxCharsOrOpts, maxLinesMaybe) {
   };
 
   segments.forEach(pushWrapped);
-  return lines.slice(0, maxLines);
+  let out = lines.slice(0, maxLines);
+  if (out.length > 1) {
+    let last = out[out.length - 1] || "";
+    const punctOnly = (value) => /^[。、．，…！？!?]+$/.test(String(value || "").trim());
+    if (punctOnly(last)) {
+      out[out.length - 2] = `${out[out.length - 2]}${last}`;
+      out = out.slice(0, -1);
+    } else if (/^[。、．，…！？!?]/.test(last)) {
+      out[out.length - 2] = `${out[out.length - 2]}${last[0]}`;
+      last = last.slice(1);
+      if (last.trim()) {
+        out[out.length - 1] = last;
+      } else {
+        out = out.slice(0, -1);
+      }
+    }
+  }
+  return out;
 }
 
 module.exports = {
