@@ -193,6 +193,7 @@ async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars 
     maxChars: resolvedMaxChars,
     maxTokens: 180,
     temperature: 0.5,
+    allowFallback: false,
     maxRetries,
     openai,
     story,

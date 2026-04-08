@@ -177,6 +177,7 @@ async function generateXAiWithRetry(opts = {}) {
       ? Number(opts.maxRetries)
       : 5;
   const fallbackFn = typeof opts.fallbackFactory === "function" ? opts.fallbackFactory : null;
+  const allowFallback = opts.allowFallback !== false;
   const fallbackContext = opts.fallbackContext || {};
   const story = opts.story;
   const dict = opts.dict;
@@ -201,7 +202,7 @@ async function generateXAiWithRetry(opts = {}) {
   };
 
   if (!apiKey) {
-    if (fallbackFn) {
+    if (fallbackFn && allowFallback) {
       return finalizeFallback(
         fallbackFn({ channel, story, dict, maxChars, error: "OPENAI_API_KEY missing", errorReason: "OPENAI_API_KEY missing", ...fallbackContext }),
         "OPENAI_API_KEY missing"
@@ -210,7 +211,7 @@ async function generateXAiWithRetry(opts = {}) {
     return { ok: false, error: "OPENAI_API_KEY missing" };
   }
   if (typeof create !== "function") {
-    if (fallbackFn) {
+    if (fallbackFn && allowFallback) {
       return finalizeFallback(
         fallbackFn({ channel, story, dict, maxChars, error: "createChatCompletion missing", errorReason: "createChatCompletion missing", ...fallbackContext }),
         "createChatCompletion missing"
@@ -219,7 +220,7 @@ async function generateXAiWithRetry(opts = {}) {
     return { ok: false, error: "createChatCompletion missing" };
   }
   if (!prompt) {
-    if (fallbackFn) {
+    if (fallbackFn && allowFallback) {
       return finalizeFallback(
         fallbackFn({ channel, story, dict, maxChars, error: "prompt empty", errorReason: "prompt empty", ...fallbackContext }),
         "prompt empty"
@@ -267,7 +268,7 @@ async function generateXAiWithRetry(opts = {}) {
     return { ok: true, text: result.text, model, len, attempts: result.attempts, last_text: result.lastText };
   }
 
-  if (fallbackFn) {
+  if (fallbackFn && allowFallback) {
     const fallbackResult = finalizeFallback(
       fallbackFn({
         channel,

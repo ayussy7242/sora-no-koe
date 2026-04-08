@@ -126,6 +126,7 @@ async function generateXResonanceAiText({
     maxChars: maxLen,
     maxTokens: maxTk,
     temperature: 0.5,
+    allowFallback: false,
     maxRetries,
     openai,
     story,
