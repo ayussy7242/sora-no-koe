@@ -36,9 +36,8 @@ const PRESETS = {
     },
     moon_night_caption: {
       outputType: "plain_text",
-      minChars: 180,
-      maxChars: 230,
-      lineCount: { min: 4, max: 6 },
+      minChars: 240,
+      maxChars: 320,
       forbiddenTerms: ["あなた"],
       forbiddenTermReasons: { "あなた": "has_you" },
       normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
@@ -71,8 +70,8 @@ const PRESETS = {
     },
     resonance_caption: {
       outputType: "plain_text",
-      minChars: 110,
-      maxChars: 200,
+      minChars: 240,
+      maxChars: 320,
       lineCount: { min: 3, max: 5 },
       forbiddenTerms: ["あなた"],
       forbiddenTermReasons: { "あなた": "has_you" },

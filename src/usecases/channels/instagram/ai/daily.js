@@ -59,6 +59,7 @@ async function generateIgDailyAiOutputs({
         openai: openaiClient,
         asOfISO,
         variant: "caption",
+        maxRetries: 2,
       });
       if (moonCaption?.ok && moonCaption.text) {
         igOut.parts.moon_caption = moonCaption.text;

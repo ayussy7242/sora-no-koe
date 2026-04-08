@@ -86,7 +86,7 @@ function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
   ].join("\n");
 }
 
-async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO, variant }) {
+async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO, variant }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -99,7 +99,13 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgMoonPrompt({ story, dict, asOfISO, variant }),
-    buildRetryNote: () => "前回は条件外でした。「あなた」を避け、短すぎず長すぎない範囲で整えて再出力。",
+    buildRetryNote: () => {
+      const key = String(variant || "").toLowerCase();
+      if (key === "caption" || key === "night_caption" || key === "night-caption") {
+        return "前回は条件外でした。4〜6行・180〜220文字・文末に絵文字1つを守り、余白ある改行で再出力。";
+      }
+      return "前回は条件外でした。「あなた」を避け、70〜100文字・2〜3文を目安に整えて再出力。";
+    },
     validate: ({ raw }) => {
       const key = String(variant || "").toLowerCase();
       const preset = key === "caption" || key === "night_caption" || key === "night-caption"
