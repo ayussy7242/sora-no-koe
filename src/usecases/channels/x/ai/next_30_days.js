@@ -45,11 +45,16 @@ function buildNext30DaysPrompt({ story, dict, context }) {
   ].join("\n");
 }
 
-function validateText(text) {
-  return validateXAiText(text, { minChars: 0, maxChars: 180, maxHashtags: 3, trimHashtags: true });
+function validateText(text, { maxChars } = {}) {
+  return validateXAiText(text, {
+    minChars: 0,
+    maxChars: Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180,
+    maxHashtags: 3,
+    trimHashtags: true,
+  });
 }
 
-async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, context }) {
+async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, context, maxChars }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -80,7 +85,7 @@ async function generateXNext30DaysAiText({ story, dict, openai, maxRetries = 1, 
       maxTokens: 200,
     });
 
-    const verdict = validateText(text);
+    const verdict = validateText(text, { maxChars });
     if (verdict.ok) return { ok: true, text: verdict.text, model, context: ctx };
 
     lastReason = verdict.reason || "";

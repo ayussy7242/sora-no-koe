@@ -928,16 +928,32 @@ async function runXMoonEventPost(deps, opts = {}) {
     };
   }
 
-  if (useAi) {
-    const apiKey = String(env2.OPENAI_API_KEY || "").trim();
-    if (apiKey) {
-      try {
-        const res = await generateXMoonEventAiText({
-          story,
-          dict,
-          event,
-          openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
-        });
+    if (useAi) {
+      const apiKey = String(env2.OPENAI_API_KEY || "").trim();
+      if (apiKey) {
+        try {
+          const maxChars = resolveXMaxChars(
+            Number.isFinite(Number(env2.X_POST_MOON_EVENT_MAX_CHARS)) ? Number(env2.X_POST_MOON_EVENT_MAX_CHARS) : env2.X_POST_MAX_CHARS
+          );
+          let moonEventAiMax = null;
+          if (Number.isFinite(Number(maxChars))) {
+            story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+            story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+            const prev = story.meta.x_ai.moon_event;
+            story.meta.x_ai.moon_event = "";
+            const headerText = await renderers.renderXMoonEvent(story);
+            story.meta.x_ai.moon_event = prev;
+            const headerLen = countChars(headerText || "");
+            const budget = Math.max(0, Number(maxChars) - headerLen - 2);
+            if (budget > 0) moonEventAiMax = budget;
+          }
+          const res = await generateXMoonEventAiText({
+            story,
+            dict,
+            event,
+            openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+            maxChars: moonEventAiMax ?? undefined,
+          });
         if (res?.ok && res.text) {
           story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
           story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
@@ -1051,10 +1067,26 @@ async function runXNext30DaysPost(deps, opts = {}) {
   const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   if (useAi) {
+    const maxChars = resolveXMaxChars(
+      Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS)) ? Number(env2.X_POST_MONTHLY_MAX_CHARS) : env2.X_POST_MAX_CHARS
+    );
+    let next30AiMax = null;
+    if (Number.isFinite(Number(maxChars))) {
+      story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
+      story.meta.x_ai = story.meta.x_ai && typeof story.meta.x_ai === "object" ? story.meta.x_ai : {};
+      const prev = story.meta.x_ai.next_30_days;
+      story.meta.x_ai.next_30_days = "";
+      const headerText = await renderers.renderXNext30Days(story);
+      story.meta.x_ai.next_30_days = prev;
+      const headerLen = countChars(headerText || "");
+      const budget = Math.max(0, Number(maxChars) - headerLen - 2);
+      if (budget > 0) next30AiMax = budget;
+    }
     const res = await generateXNext30DaysAiText({
       story,
       dict,
       openai: { apiKey: env2.OPENAI_API_KEY, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
+      maxChars: next30AiMax ?? undefined,
     });
     if (res?.ok && res.text) {
       story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};

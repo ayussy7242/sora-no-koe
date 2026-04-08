@@ -41,16 +41,16 @@ function buildMoonEventPrompt({ story, event }) {
   ].join("\n");
 }
 
-function validateText(text) {
+function validateText(text, { maxChars } = {}) {
   return validateXAiText(text, {
     minChars: 0,
-    maxChars: 180,
+    maxChars: Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180,
     maxHashtags: 3,
     trimHashtags: true,
   });
 }
 
-async function generateXMoonEventAiText({ story, dict, openai, maxRetries = 1, event }) {
+async function generateXMoonEventAiText({ story, dict, openai, maxRetries = 1, event, maxChars }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -82,7 +82,7 @@ async function generateXMoonEventAiText({ story, dict, openai, maxRetries = 1, e
       maxTokens: 120,
     });
 
-    const verdict = validateText(text);
+    const verdict = validateText(text, { maxChars });
     if (verdict.ok) return { ok: true, text: verdict.text, model, event: picked };
 
     lastReason = verdict.reason || "";

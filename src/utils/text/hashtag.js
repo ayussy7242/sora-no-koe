@@ -58,6 +58,12 @@ function trimTrailingHashtagsToMaxChars(text, maxChars, opts = {}) {
 
   const separator = opts.separator != null ? String(opts.separator) : split.separator;
   let tags = split.tags.slice();
+  const maxTags = Number.isFinite(Number(opts.maxTags)) ? Number(opts.maxTags) : null;
+  if (maxTags != null) {
+    while (tags.length > maxTags) {
+      tags.pop();
+    }
+  }
   let out = joinBodyAndTags(split.body, tags, { separator });
   while (tags.length && countChars(out) > maxChars) {
     tags.pop();
