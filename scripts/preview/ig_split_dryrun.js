@@ -9,7 +9,7 @@ const {
   buildMorningCarouselSlides,
   buildResonanceCarouselSlides,
   buildNightCarouselSlides,
-} = require("../../src/runners/cron/instagram/daily_slides");
+} = require("../../src/runners/cron/instagram/slot_slides");
 const { renderIGCaptionVariant } = require("../../src/presenters/format/ig_caption");
 const slide1 = require("../../src/engine/renderers/instagram/slides/daily/slide_1");
 const slideResonanceWheel = require("../../src/engine/renderers/instagram/slides/daily/slide_resonance_wheel");

@@ -3,6 +3,8 @@
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { bodyLabelJa } = require("../shared/text/tokens");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
+const { formatJstTimeLabel } = require("../../utils/time");
+const { refinePeakTime } = require("../../domain/aspect/proximity");
 const {
   buildObservationAxisSummary,
   formatObservationFallback,
@@ -128,6 +130,29 @@ function formatAspectBlockForCaption({ dict, aspect, transitSigns }) {
     `${aspectLabel} ${degLabel}`.trim(),
     orbLabel,
   ].filter((line) => line !== "");
+}
+
+function buildResonancePeakLabel({ dict, aspect, dateLocal, asOfISO }) {
+  if (!aspect) return { dateLabel: formatDateLabel(dateLocal || ""), timeLabel: "" };
+  const info = aspectInfo(dict, aspect?.type || aspect?.aspect, aspect?.aspect_deg);
+  const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : safeNumber(aspect?.aspect_deg);
+  const aKey = normalizeBodyKey(aspect?.a || "");
+  const bKey = normalizeBodyKey(aspect?.b || "");
+  const seedISO = aspect?.peak_at || aspect?.peak_at_iso || aspect?.peak_at_utc || null;
+  const fallbackISO = asOfISO || (dateLocal ? `${dateLocal}T12:00:00+09:00` : undefined);
+  const peakTime = Number.isFinite(Number(deg))
+    ? refinePeakTime({
+      kind: "transit-transit",
+      aKey,
+      bKey,
+      aspectDeg: deg,
+      seedISO,
+      fallbackISO,
+    })
+    : null;
+  const dateLabel = formatDateLabel(dateLocal || "");
+  const timeLabel = peakTime ? formatJstTimeLabel(peakTime, { fallback: "" }) : "";
+  return { dateLabel, timeLabel };
 }
 
 function formatLongThemeLines({ dict, longRow, fallbackLabel = "長期の構造は更新中です。" }) {
@@ -373,6 +398,7 @@ function normalizeHashtags(raw, fallback = []) {
 function renderIGCaptionResonance(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const asOfISO = story?.meta?.as_of || null;
   const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
   const transit = story?.public?.transit_signs || {};
   const igOut = story?.outputs?.ig || {};
@@ -385,18 +411,27 @@ function renderIGCaptionResonance(story, deps = {}) {
     "#astrology",
   ]);
   const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
-  const resonanceText = String(parts.resonance || "").trim();
+  const resonanceText = String(parts.resonance_caption || parts.resonance || "").trim();
   const fallback = resonanceText
     ? resonanceText
     : (resonanceLines.length ? "配置が重なることで、流れが一時的に揺れやすくなります。" : "共鳴の角度は、静かに輪郭を残します。");
+  const peak = buildResonancePeakLabel({
+    dict,
+    aspect: resonance,
+    dateLocal: story?.meta?.date_local || story?.public?.date_local || "",
+    asOfISO,
+  });
+  const peakHeader = [peak.dateLabel, peak.timeLabel].filter(Boolean).join(" ").trim();
 
   const lines = [];
-  lines.push(`🌌 ${dateLabel} 今日の星の共鳴`.trim());
+  lines.push(`🪐 今日の共鳴 ${peakHeader || dateLabel}`.trim());
   lines.push("");
   lines.push("【今日の共鳴】");
   resonanceLines.forEach((l) => lines.push(l));
   lines.push("");
   lines.push(resonanceText || fallback);
+  lines.push("");
+  lines.push("LINE登録であなたの星の設計図(PDF)プレゼント中🎁");
   lines.push("");
   tags.forEach((tag) => lines.push(tag));
 
@@ -408,7 +443,7 @@ function renderIGCaptionNight(story, deps = {}) {
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const moonText = String(parts.moon || "").trim();
+  const moonText = String(parts.moon_caption || parts.moon || "").trim();
   const tags = normalizeHashtags(parts.hashtags_night, [
     "#占星術",
     "#月",
@@ -418,9 +453,11 @@ function renderIGCaptionNight(story, deps = {}) {
   ]);
 
   const lines = [];
-  lines.push(`🌌 ${dateLabel} 今日の月`.trim());
+  lines.push(`🌌 ${dateLabel} 今日の夜の月`.trim());
   lines.push("");
   lines.push(moonText || "月の輪郭が静かに浮かびます。");
+  lines.push("");
+  lines.push("LINEで毎朝星の配置配信中");
   lines.push("");
   tags.forEach((tag) => lines.push(tag));
 

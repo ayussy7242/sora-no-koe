@@ -5,6 +5,7 @@ const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
   SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT,
+  SORA_AI_USER_GUIDE_IG_RESONANCE_CAPTION,
 } = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
@@ -68,6 +69,7 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
 
 function resolveResonanceGuide(variant) {
   const key = String(variant || "").toLowerCase();
+  if (key === "caption" || key === "cap") return SORA_AI_USER_GUIDE_IG_RESONANCE_CAPTION;
   if (key === "split" || key === "short") return SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT;
   return SORA_AI_USER_GUIDE_IG_RESONANCE;
 }
@@ -107,15 +109,22 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
 
   const variantKey = String(variant || "").toLowerCase();
   const isSplit = variantKey === "split" || variantKey === "short";
+  const isCaption = variantKey === "caption" || variantKey === "cap";
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgResonancePrompt({ story, dict, variant }),
     buildRetryNote: (reason) =>
-      isSplit
+      isCaption
+        ? `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、3〜5行・余白を保って再出力。`
+        : isSplit
         ? `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、2〜3文・短めで整えて再出力。`
         : `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`,
     validate: ({ raw }) => {
-      const preset = isSplit ? PRESETS.ig.resonance_split : PRESETS.ig.resonance;
+      const preset = isCaption
+        ? PRESETS.ig.resonance_caption
+        : isSplit
+          ? PRESETS.ig.resonance_split
+          : PRESETS.ig.resonance;
       const verdict = runAiTextPipeline({
         rawText: raw,
         preset,

@@ -50,6 +50,22 @@ async function generateIgDailyAiOutputs({
     }
   }
 
+  const slotKey = String(slot || "").toLowerCase();
+  if (slotKey === "night") {
+    if (forceAi || !igOut.parts.moon_caption) {
+      const moonCaption = await generateIgMoonText({
+        story,
+        dict,
+        openai: openaiClient,
+        asOfISO,
+        variant: "caption",
+      });
+      if (moonCaption?.ok && moonCaption.text) {
+        igOut.parts.moon_caption = moonCaption.text;
+      }
+    }
+  }
+
   const currentResonanceKey = igOut.source?.resonance_aspect_key || "";
   const usedResonanceKey = igOut.source?.resonance_aspect_key_used || "";
   const needsResonance =
@@ -65,6 +81,21 @@ async function generateIgDailyAiOutputs({
       igOut.rendered.carousel.slide3_text = res.text;
       igOut.source.resonance_aspect_key_used = currentResonanceKey || "";
       igOut.source.resonance_aspect_used = igOut.source?.resonance_aspect || null;
+    }
+  }
+
+  if (String(slot || "").toLowerCase() === "resonance") {
+    const needsCaption = forceAi || !igOut.parts.resonance_caption;
+    if (needsCaption) {
+      const resCaption = await generateIgResonanceText({
+        story,
+        dict,
+        openai: openaiClient,
+        variant: "caption",
+      });
+      if (resCaption?.ok && resCaption.text) {
+        igOut.parts.resonance_caption = resCaption.text;
+      }
     }
   }
 

@@ -2,6 +2,7 @@
 
 const IG_SPACING_TOKENS = Object.freeze({
   marginX: 96,
+  bodyPadX: 32,
   header: {
     y: 148,
     size: 44,
@@ -91,7 +92,7 @@ const IG_SPACING_TOKENS = Object.freeze({
     peakValueSize: 30,
     peakLineHeight: 56,
     peakOpacity: 1,
-    peakOffsetY: 0,
+    peakOffsetY: 10,
   },
   moon: {
     headerY: 148,
@@ -106,7 +107,7 @@ const IG_SPACING_TOKENS = Object.freeze({
     infoSize: 26,
     infoLineHeight: 44,
     observationY: 708,
-    observationSize: 36,
+    observationSize: 38,
     observationLineHeight: 60,
     nextLabelY: 996,
     nextLabelSize: 26,

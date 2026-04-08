@@ -34,6 +34,15 @@ const PRESETS = {
       forbiddenTermReasons: { "あなた": "has_you" },
       normalizeRules: ["collapse_spaces"],
     },
+    moon_night_caption: {
+      outputType: "plain_text",
+      minChars: 180,
+      maxChars: 230,
+      lineCount: { min: 4, max: 6 },
+      forbiddenTerms: ["あなた"],
+      forbiddenTermReasons: { "あなた": "has_you" },
+      normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
+    },
     hashtags: {
       outputType: "plain_text",
       minChars: 5,
@@ -59,6 +68,15 @@ const PRESETS = {
       forbiddenTerms: ["あなた"],
       forbiddenTermReasons: { "あなた": "has_you" },
       normalizeRules: ["collapse_spaces"],
+    },
+    resonance_caption: {
+      outputType: "plain_text",
+      minChars: 110,
+      maxChars: 200,
+      lineCount: { min: 3, max: 5 },
+      forbiddenTerms: ["あなた"],
+      forbiddenTermReasons: { "あなた": "has_you" },
+      normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },
     carousel_caption: {
       outputType: "plain_text",

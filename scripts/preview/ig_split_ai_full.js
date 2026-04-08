@@ -13,7 +13,7 @@ const {
   buildMorningCarouselSlides,
   buildResonanceCarouselSlides,
   buildNightCarouselSlides,
-} = require("../../src/runners/cron/instagram/daily_slides");
+} = require("../../src/runners/cron/instagram/slot_slides");
 const { renderIGCaptionVariant } = require("../../src/presenters/format/ig_caption");
 const { renderInstagramCarousel } = require("../../src/engine/renderers/instagram/carousel");
 
@@ -111,12 +111,14 @@ function listAiTypes(slot, story) {
   if (slot === "resonance") {
     return [
       { key: "resonance_split", present: !!parts.resonance },
+      { key: "resonance_caption", present: !!parts.resonance_caption },
       { key: "hashtags_resonance", present: !!parts.hashtags_resonance },
     ];
   }
   if (slot === "night") {
     return [
       { key: "moon_night", present: !!parts.moon },
+      { key: "moon_caption", present: !!parts.moon_caption },
       { key: "hashtags_night", present: !!parts.hashtags_night },
     ];
   }
@@ -194,6 +196,7 @@ async function main() {
   const morningPaths = await renderSlidesSet({ name: "morning", carousel: morning, outDir });
   const resonancePaths = await renderSlidesSet({ name: "resonance", carousel: resonance, outDir });
   const nightPaths = await renderSlidesSet({ name: "night", carousel: night, outDir });
+  const igParts = story?.outputs?.ig?.parts || {};
 
   const summary = {
     dateLocal,
@@ -205,6 +208,11 @@ async function main() {
         cover: morningPaths[0] || null,
         caption: renderIGCaptionVariant(story, { dict, variant: "morning" }) || "",
         ai_types: listAiTypes("morning", story),
+        ai_texts: {
+          caption_center: igParts.caption_center || "",
+          caption_observation: igParts.caption_observation || "",
+          observation: igParts.observation || "",
+        },
         slide_paths: morningPaths,
       },
       resonance: {
@@ -212,6 +220,10 @@ async function main() {
         cover: resonancePaths[0] || null,
         caption: renderIGCaptionVariant(story, { dict, variant: "resonance" }) || "",
         ai_types: listAiTypes("resonance", story),
+        ai_texts: {
+          resonance: igParts.resonance || "",
+          resonance_caption: igParts.resonance_caption || "",
+        },
         slide_paths: resonancePaths,
       },
       night: {
@@ -219,6 +231,10 @@ async function main() {
         cover: nightPaths[0] || null,
         caption: renderIGCaptionVariant(story, { dict, variant: "night" }) || "",
         ai_types: listAiTypes("night", story),
+        ai_texts: {
+          moon: igParts.moon || "",
+          moon_caption: igParts.moon_caption || "",
+        },
         slide_paths: nightPaths,
       },
     },

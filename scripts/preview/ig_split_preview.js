@@ -9,7 +9,7 @@ const {
   buildMorningCarouselSlides,
   buildResonanceCarouselSlides,
   buildNightCarouselSlides,
-} = require("../../src/runners/cron/instagram/daily_slides");
+} = require("../../src/runners/cron/instagram/slot_slides");
 const { writeBufferFiles, writeJsonFile } = require("../../src/utils/infra/local_io");
 const { renderInstagramCarousel } = require("../../src/engine/renderers/instagram/carousel");
 

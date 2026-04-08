@@ -18,7 +18,8 @@ function estimateTextWidth(line, size) {
 }
 
 function resolveBodyMaxChars(size) {
-  const available = CANVAS.width - TOK.marginX * 2;
+  const pad = Number.isFinite(Number(TOK.bodyPadX)) ? Number(TOK.bodyPadX) : 0;
+  const available = CANVAS.width - TOK.marginX * 2 - pad;
   const perChar = size * 0.95;
   return Math.max(16, Math.floor(available / perChar));
 }
@@ -149,7 +150,7 @@ function getAvoidRegions({
   }
   const peakLabelText = peakLabel || (peakTime ? "ピーク時刻" : "");
   if (peakLabelText || peakTime) {
-    const peakLines = String(peakTime || "").trim().split(/\s+/).filter(Boolean);
+    const peakLines = String(peakTime || "").trim().split(/\r?\n/).filter(Boolean);
     const { labelY, valueY } = resolvePeakLayout(peakLines.length || 1);
     if (peakLabelText) {
       const w = estimateTextWidth(peakLabelText, TOK.moon.nextLabelSize);
@@ -327,7 +328,7 @@ function buildSlide3Svg({
   ];
   const peakLabelText = peakLabel || (peakTime ? "ピーク時刻" : "");
   if (peakLabelText || peakTime) {
-    const peakLines = String(peakTime || "").trim().split(/\s+/).filter(Boolean);
+    const peakLines = String(peakTime || "").trim().split(/\r?\n/).filter(Boolean);
     const { labelY, valueY } = resolvePeakLayout(peakLines.length || 1);
     if (peakLabelText) {
       inner.push(

@@ -25,7 +25,7 @@ const {
   buildMorningCarouselSlides,
   buildResonanceCarouselSlides,
   buildNightCarouselSlides,
-} = require("./daily_slides");
+} = require("./slot_slides");
 const { buildMoonEventCarouselSlides } = require("./moon_event_slides");
 const {
   resolveMoonEventTargetDateLocal,

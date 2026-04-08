@@ -102,11 +102,11 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const asOfISO = `${dateLocal}T12:00:00+09:00`;
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const renderedCarousel = igOut?.rendered?.carousel || igOut?.carousel || {};
   const moonStatus = buildMoonStatus({ asOfISO, story, dict });
   const phaseLabelBase = String(moonStatus?.phaseLabel || "").trim();
   const phaseName = String(moonStatus?.phaseName || "").trim();
   const waName = String(moonStatus?.waName || "").trim();
+  const phaseLabelDisplay = (phaseName === "満月" || phaseName === "新月") ? phaseName : waName;
   const moonSign = String(moonStatus?.signJa || "").trim();
   const moonElement = elementFromSign(dict, story?.public?.moon?.sign_key || story?.public?.transit_signs?.moon?.sign_key || "");
   const phaseSymbol = moonStatus?.phaseSymbol || "🌙";
@@ -139,8 +139,6 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
 
   const observation =
     parts.moon ||
-    renderedCarousel.slide2_text ||
-    igOut.moon_text ||
     (phaseLabelBase || moonSign
       ? `${moonSign || "—"}の月が空にあり、${phaseLabelBase || "静かな月相"}の空気が広がります。`
       : "");
@@ -149,7 +147,7 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
     dateLabel,
     header: "今日の月",
     phaseSymbol,
-    phaseLabel: phaseLabelBase || "—",
+    phaseLabel: phaseLabelDisplay,
     moonSign: moonSign || "—",
     moonAgeLabel,
     illuminationLabel,
@@ -359,6 +357,7 @@ function buildResonanceCarouselSlides({ story, dateLocal, dict }) {
 function buildNightMoonSlide({ story, dateLocal, dict }) {
   const dateLabel = formatDateLabel(dateLocal);
   const moon = buildMoonSlide({ story, dateLabel, dateLocal, dict });
+  const cycleLabel = moon.moonWaxing ? "満ちゆく月のサイクル" : "欠けゆく月のサイクル";
   return {
     kind: "night_moon",
     data: {
@@ -370,6 +369,7 @@ function buildNightMoonSlide({ story, dateLocal, dict }) {
       moonIllumination: moon.moonIllumination,
       moonWaxing: moon.moonWaxing,
       moonSize: 520,
+      cycleLabel,
     },
   };
 }

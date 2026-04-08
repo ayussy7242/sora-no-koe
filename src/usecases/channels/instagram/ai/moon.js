@@ -4,7 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_MOON,
-  SORA_AI_USER_GUIDE_IG_MOON_NIGHT,
+  SORA_AI_USER_GUIDE_IG_MOON_NIGHT_CAPTION,
 } = require("../../../../content/prompts/sora/sora_core");
 const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
@@ -24,7 +24,8 @@ function countSentences(text) {
 function buildMoonFallback({ moonSign, phaseLabel, variant } = {}) {
   const sign = safeTrim(moonSign) || "—";
   const phase = safeTrim(phaseLabel) || "静かな月相";
-  if (String(variant || "").toLowerCase() === "night") {
+  const key = String(variant || "").toLowerCase();
+  if (key === "caption" || key === "night_caption" || key === "night-caption") {
     return `${sign}の${phase}。静かな輪郭のまま、次の位置へ向かいます。`;
   }
   return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
@@ -53,7 +54,9 @@ function resolveMoonPhaseLabel(info) {
 
 function resolveMoonGuide(variant) {
   const key = String(variant || "").toLowerCase();
-  if (key === "night" || key === "split" || key === "short") return SORA_AI_USER_GUIDE_IG_MOON_NIGHT;
+  if (key === "caption" || key === "night_caption" || key === "night-caption") {
+    return SORA_AI_USER_GUIDE_IG_MOON_NIGHT_CAPTION;
+  }
   return SORA_AI_USER_GUIDE_IG_MOON;
 }
 
@@ -99,8 +102,8 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 1, asOfISO
     buildRetryNote: () => "前回は条件外でした。「あなた」を避け、短すぎず長すぎない範囲で整えて再出力。",
     validate: ({ raw }) => {
       const key = String(variant || "").toLowerCase();
-      const preset = key === "night" || key === "split" || key === "short"
-        ? PRESETS.ig.moon_night
+      const preset = key === "caption" || key === "night_caption" || key === "night-caption"
+        ? PRESETS.ig.moon_night_caption
         : PRESETS.ig.moon;
       const verdict = runAiTextPipeline({
         rawText: raw,

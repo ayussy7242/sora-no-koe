@@ -35,6 +35,7 @@ function resolveMoonMetrics({ moonSize } = {}) {
 function getAvoidRegions({
   title = "今日の月",
   subLabel = "today's moon",
+  cycleLabel = "",
   brand = "ソラのこえ",
   dateLabel = "",
   swipeLabel = "Swipe →",
@@ -89,6 +90,19 @@ function getAvoidRegions({
       kind: "header",
     }));
   }
+  if (cycleLabel) {
+    const cycleSize = Math.round((TOK.cover.subLabelSize || TOK.subLabel.size) * 0.9) + 4;
+    const cycleY = lineY + 30;
+    fields.push(makeField({
+      x: centerX - 240,
+      y: cycleY - cycleSize,
+      w: 480,
+      h: 44,
+      pad: 10,
+      weight: 0.65,
+      kind: "header",
+    }));
+  }
   const footerY = TOK.footer.dateY;
   const metaSize = TOK.footer.dateSize || 28;
   if (dateLabel) {
@@ -120,6 +134,7 @@ function buildSlideNightMoonSvg({
   dateLabel,
   title = "今日の月",
   subLabel = "today's moon",
+  cycleLabel = "",
   brand = "ソラのこえ",
   moonIllumination = 0.5,
   moonWaxing = true,
@@ -133,7 +148,9 @@ function buildSlideNightMoonSvg({
   const taglineY = TOK.cover.taglineY;
   const subLabelY = taglineY + TOK.subLabel.offsetY;
   const subLabelSize = TOK.cover.subLabelSize || TOK.subLabel.size;
+  const cycleSize = Math.round(subLabelSize * 0.9) + 4;
   const { size, x, y, lineY } = resolveMoonMetrics({ moonSize });
+  const cycleY = lineY + 30;
   const footerY = TOK.footer.dateY;
   const footerSize = TOK.footer.dateSize || 28;
   const swipeSize = TOK.footer.swipeSize || 28;
@@ -142,6 +159,9 @@ function buildSlideNightMoonSvg({
     `<text x="${centerX}" y="${brandY}" text-anchor="middle" fill="${colors.textMain}" font-size="${TOK.cover.brandSize}" font-family="SoraTitle" letter-spacing="${TOK.cover.brandTracking}em">${escapeXml(brand)}</text>`,
     `<text x="${centerX}" y="${taglineY}" text-anchor="middle" fill="${colors.textSub}" font-size="${TOK.cover.taglineSize}" font-family="SoraTitle" letter-spacing="${TOK.cover.taglineTracking}em">${escapeXml(title)}</text>`,
     `<text x="${centerX}" y="${subLabelY}" text-anchor="middle" fill="${colors.textDim}" font-size="${subLabelSize}" font-family="SoraTitle" letter-spacing="${TOK.subLabel.tracking}em">${escapeXml(subLabel)}</text>`,
+    cycleLabel
+      ? `<text x="${centerX}" y="${cycleY}" text-anchor="middle" fill="${colors.textDim}" font-size="${cycleSize}" font-family="SoraTitle" letter-spacing="${TOK.subLabel.tracking}em">${escapeXml(cycleLabel)}</text>`
+      : "",
     buildMoonPhaseGlyph({
       id: "nightMoon",
       x,
