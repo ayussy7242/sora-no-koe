@@ -230,6 +230,7 @@ function buildMoonPhaseGlyph({
   const dx = offsetForIllumination(illum);
   const shift = waxing ? -dx : dx;
   const showShadow = illum < 0.995;
+  const isHalf = Math.abs(illum - 0.5) <= 0.045;
   const clipId = `moonClip-${id || "base"}`;
   const stroke = strokeColor ? ` stroke=\"${strokeColor}\" stroke-width=\"1\"` : "";
   const shadowR = r * 1.02;
@@ -261,10 +262,15 @@ function buildMoonPhaseGlyph({
     `<g filter=\"url(#${blurId})\">`,
     `<circle cx=\"${r}\" cy=\"${r}\" r=\"${r}\" fill=\"url(#${gradId})\"${stroke}/>`,
     showShadow
-      ? `<g clip-path=\"url(#${clipId})\">` +
-        `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR}\" fill=\"${darkColor}\"/>` +
-        `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR + 1.6}\" fill=\"${darkColor}\" opacity=\"0.35\"/>` +
-        `</g>`
+      ? (isHalf
+        ? `<g clip-path=\"url(#${clipId})\">` +
+          `<rect x=\"${waxing ? 0 : r}\" y=\"0\" width=\"${r}\" height=\"${(2 * r).toFixed(2)}\" fill=\"${darkColor}\"/>` +
+          `<rect x=\"${waxing ? 0 : r}\" y=\"0\" width=\"${r}\" height=\"${(2 * r).toFixed(2)}\" fill=\"${darkColor}\" opacity=\"0.25\"/>` +
+          `</g>`
+        : `<g clip-path=\"url(#${clipId})\">` +
+          `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR}\" fill=\"${darkColor}\"/>` +
+          `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR + 1.6}\" fill=\"${darkColor}\" opacity=\"0.35\"/>` +
+          `</g>`)
       : "",
     `</g>`,
     `</g>`,
