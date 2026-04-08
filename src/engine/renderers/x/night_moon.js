@@ -229,12 +229,16 @@ async function renderXNightMoonPng({
   width = DEFAULT_X_NIGHT_CANVAS.width,
   height = DEFAULT_X_NIGHT_CANVAS.height,
   variant = "night_moon",
+  supersample = 1,
 } = {}) {
   if (!story) throw new Error("renderXNightMoonPng: story required");
 
   const w = Number.isFinite(Number(width)) ? Number(width) : DEFAULT_X_NIGHT_CANVAS.width;
   const h = Number.isFinite(Number(height)) ? Number(height) : DEFAULT_X_NIGHT_CANVAS.height;
-  const scale = Math.min(w / DEFAULT_X_NIGHT_CANVAS.width, h / DEFAULT_X_NIGHT_CANVAS.height);
+  const sample = Number.isFinite(Number(supersample)) ? Math.max(1, Number(supersample)) : 1;
+  const renderW = Math.round(w * sample);
+  const renderH = Math.round(h * sample);
+  const scale = Math.min(renderW / DEFAULT_X_NIGHT_CANVAS.width, renderH / DEFAULT_X_NIGHT_CANVAS.height);
 
   const asOf = String(asOfISO || story?.meta?.as_of || "").trim() || new Date().toISOString();
   const dateLocal = String(dateLabel || story?.meta?.date_local || story?.public?.date_local || toDateLocalJST(new Date(asOf)));
@@ -254,14 +258,14 @@ async function renderXNightMoonPng({
   const marginX = Math.round(96 * scale);
   const moonSize = Math.round(220 * scale * sizeBoost);
   const moonX = marginX;
-  const moonY = Math.round((h - moonSize) / 2);
+  const moonY = Math.round((renderH - moonSize) / 2);
   const textX = moonX + moonSize + Math.round(80 * scale);
   const cycleSize = Math.round(22 * scale * sizeBoost);
   const baseLabelSize = Math.round(58 * scale * sizeBoost * 0.9);
   const infoSize = Math.round(24 * scale * sizeBoost);
   const infoLineHeight = Math.round(36 * scale * sizeBoost);
 
-  const maxLabelWidth = Math.max(0, w - textX - Math.round(80 * scale));
+  const maxLabelWidth = Math.max(0, renderW - textX - Math.round(80 * scale));
   let labelSize = baseLabelSize;
   if (maxLabelWidth > 0) {
     const measured = estimateTextWidth(moonText.mainLabel, labelSize);
@@ -275,7 +279,7 @@ async function renderXNightMoonPng({
   const textHeight = (moonText.cycleLabel ? Math.round(cycleSize * 1.4) : 0)
     + Math.round(labelSize * 1.2)
     + infoLines.length * infoLineHeight;
-  const textTop = Math.round((h - textHeight) / 2);
+  const textTop = Math.round((renderH - textHeight) / 2);
   const cycleY = textTop + cycleSize;
   const labelY = moonText.cycleLabel
     ? cycleY + Math.round(labelSize * 1.15)
@@ -317,8 +321,8 @@ async function renderXNightMoonPng({
     story,
     dateLabel: dateLabelSafe,
     seedLabel,
-    width: w,
-    height: h,
+    width: renderW,
+    height: renderH,
     variant,
     avoidRegions,
     extraDefs,
@@ -372,7 +376,14 @@ async function renderXNightMoonPng({
   ].join("");
 
   const finalSvg = svg.replace("</svg>", `${inner}</svg>`);
-  return sharp(Buffer.from(finalSvg)).png({ compressionLevel: 9 }).toBuffer();
+  const basePng = await sharp(Buffer.from(finalSvg)).png({ compressionLevel: 9 }).toBuffer();
+  if (sample > 1 && (renderW !== w || renderH !== h)) {
+    return sharp(basePng)
+      .resize(w, h, { kernel: sharp.kernel.lanczos3 })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+  }
+  return basePng;
 }
 
 module.exports = {

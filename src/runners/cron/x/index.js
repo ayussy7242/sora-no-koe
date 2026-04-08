@@ -770,6 +770,9 @@ async function runXNightPost(deps, opts = {}) {
       const nightImageHeight = Number.isFinite(Number(env2.X_NIGHT_IMAGE_HEIGHT))
         ? Number(env2.X_NIGHT_IMAGE_HEIGHT)
         : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
+      const nightImageSupersample = Number.isFinite(Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE))
+        ? Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE)
+        : (Number.isFinite(Number(env2.X_POST_IMAGE_SUPERSAMPLE)) ? Number(env2.X_POST_IMAGE_SUPERSAMPLE) : 2);
       const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
         || "story_tomorrow";
       const png = await renderXNightMoonPng({
@@ -780,6 +783,7 @@ async function runXNightPost(deps, opts = {}) {
         variant: nightImageVariant,
         dict,
         asOfISO,
+        supersample: nightImageSupersample,
       });
       fs.mkdirSync(localOutDir, { recursive: true });
       imagePath = path.join(localOutDir, `x_night_${nightImageWidth}x${nightImageHeight}.png`);
@@ -810,6 +814,9 @@ async function runXNightPost(deps, opts = {}) {
   const nightImageHeight = Number.isFinite(Number(env2.X_NIGHT_IMAGE_HEIGHT))
     ? Number(env2.X_NIGHT_IMAGE_HEIGHT)
     : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
+  const nightImageSupersample = Number.isFinite(Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE))
+    ? Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE)
+    : (Number.isFinite(Number(env2.X_POST_IMAGE_SUPERSAMPLE)) ? Number(env2.X_POST_IMAGE_SUPERSAMPLE) : 2);
   const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
     || "story_tomorrow";
 
@@ -832,6 +839,7 @@ async function runXNightPost(deps, opts = {}) {
           variant: nightImageVariant,
           dict,
           asOfISO,
+          supersample: nightImageSupersample,
         });
         const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
         nightMediaId = uploaded?.id || "";
