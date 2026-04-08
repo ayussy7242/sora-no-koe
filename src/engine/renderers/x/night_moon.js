@@ -187,8 +187,9 @@ function buildAvoidRegions({ moonBox, textBox }) {
   if (textBox) {
     regions.push({
       ...textBox,
-      weight: 0.85,
-      feather: Math.round(textBox.h * 0.6),
+      weight: 0.55,
+      feather: Math.round(textBox.h * 0.9),
+      softOnly: true,
       kind: "text",
     });
   }

@@ -200,6 +200,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
       const w = Number(field?.w) || 0;
       const h = Number(field?.h) || 0;
       if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+      if (field?.softOnly) return;
       const idx = Number.isFinite(Number(field?.slideIndex))
         ? Number(field.slideIndex)
         : Math.floor(((Number(field?.x) || 0) + w * 0.5) / width);
