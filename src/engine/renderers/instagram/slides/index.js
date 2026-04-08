@@ -8,6 +8,8 @@ const daily = {
   slide5: require("./daily/slide_5"),
   slideMoon: require("./daily/slide_moon"),
   placements: require("./daily/slide_placements"),
+  slideResonanceWheel: require("./daily/slide_resonance_wheel"),
+  slideNightMoon: require("./daily/slide_night_moon"),
 };
 
 const moonEvent = {

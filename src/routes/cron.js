@@ -22,7 +22,7 @@ const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8, rebuildDaily8, sendDaily8 } = require("../runners/cron/line");
 const { runDailyBlog } = require("../runners/cron/blog");
-const { runIgPost, runIgMoonEventPost } = require("../runners/cron/instagram");
+const { runIgPost, runIgMorningPost, runIgResonancePost, runIgNightPost, runIgMoonEventPost } = require("../runners/cron/instagram");
 const { runXMorningPost, runXResonancePost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
 const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
 const {
@@ -307,6 +307,7 @@ function createCronRouter(deps = {}) {
         keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"],
         defaultValue: undefined,
       });
+      const image = pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] });
       const force = pickBoolFlag({
         q,
         b,
@@ -324,7 +325,7 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXResonancePost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, force, local, localOutDir }
+        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, image, force, local, localOutDir }
       );
 
       logCronPhase(req, "[cron/x/resonance] done", { ok: result?.ok, ms: Date.now() - t0 });
@@ -500,6 +501,130 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return cronError(res, req, "/cron/ig/post", e);
+    }
+  });
+
+  // ✅ POST /cron/ig/morning : Instagram morning post (cover + placements + chart + CTA)
+  router.post("/ig/morning", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/morning" });
+
+    try {
+      const t0 = Date.now();
+      logCronPhase(req, "[cron/ig/morning] start", { url: stripQuery(req?.originalUrl) });
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const withCta = pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
+
+      const result = await runIgMorningPost(
+        { db, admin, env, storyService, renderers, storage, dict },
+        { dateLocal, asOfISO, dryRun, withCta, useAi, forceAi, local, localOutDir, force }
+      );
+
+      logCronPhase(req, "[cron/ig/morning] done", {
+        ok: result?.ok,
+        skipped: result?.skipped,
+        reason: result?.reason,
+        date_local: result?.date_local,
+        ms: Date.now() - t0,
+      });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/ig/morning", e);
+    }
+  });
+
+  // ✅ POST /cron/ig/resonance : Instagram resonance post (wheel + text)
+  router.post("/ig/resonance", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/resonance" });
+
+    try {
+      const t0 = Date.now();
+      logCronPhase(req, "[cron/ig/resonance] start", { url: stripQuery(req?.originalUrl) });
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
+
+      const result = await runIgResonancePost(
+        { db, admin, env, storyService, renderers, storage, dict },
+        { dateLocal, asOfISO, dryRun, useAi, forceAi, local, localOutDir, force }
+      );
+
+      logCronPhase(req, "[cron/ig/resonance] done", {
+        ok: result?.ok,
+        skipped: result?.skipped,
+        reason: result?.reason,
+        date_local: result?.date_local,
+        ms: Date.now() - t0,
+      });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/ig/resonance", e);
+    }
+  });
+
+  // ✅ POST /cron/ig/night : Instagram night post (moon focus)
+  router.post("/ig/night", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/night" });
+
+    try {
+      const t0 = Date.now();
+      logCronPhase(req, "[cron/ig/night] start", { url: stripQuery(req?.originalUrl) });
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
+
+      const result = await runIgNightPost(
+        { db, admin, env, storyService, renderers, storage, dict },
+        { dateLocal, asOfISO, dryRun, useAi, forceAi, local, localOutDir, force }
+      );
+
+      logCronPhase(req, "[cron/ig/night] done", {
+        ok: result?.ok,
+        skipped: result?.skipped,
+        reason: result?.reason,
+        date_local: result?.date_local,
+        ms: Date.now() - t0,
+      });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/ig/night", e);
     }
   });
 

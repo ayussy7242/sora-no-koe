@@ -5,6 +5,7 @@ const { generateIgResonanceText } = require("./resonance");
 const { generateIgTsukijiStructureText } = require("./tsukiji_structure");
 const { generateIgSkyOverviewText } = require("./sky_overview");
 const { generateIgMoonText } = require("./moon");
+const { generateIgHashtags } = require("./hashtags");
 const {
   generateIgCarouselCaptionText,
   generateIgCarouselObservationText,
@@ -18,6 +19,8 @@ async function generateIgDailyAiOutputs({
   asOfISO,
   useAi = true,
   forceAi = false,
+  variant,
+  slot,
 } = {}) {
   if (!useAi) return story;
   const apiKey = String(openai?.apiKey || process.env.OPENAI_API_KEY || "").trim();
@@ -40,7 +43,7 @@ async function generateIgDailyAiOutputs({
   }
 
   if (forceAi || !igOut.parts.moon) {
-    const moon = await generateIgMoonText({ story, dict, openai: openaiClient, asOfISO });
+    const moon = await generateIgMoonText({ story, dict, openai: openaiClient, asOfISO, variant });
     if (moon?.ok && moon.text) {
       igOut.parts.moon = moon.text;
       igOut.rendered.carousel.slide2_text = moon.text;
@@ -56,7 +59,7 @@ async function generateIgDailyAiOutputs({
     (currentResonanceKey && currentResonanceKey !== usedResonanceKey);
 
   if (needsResonance) {
-    const res = await generateIgResonanceText({ story, dict, openai: openaiClient });
+    const res = await generateIgResonanceText({ story, dict, openai: openaiClient, variant });
     if (res?.ok && res.text) {
       igOut.parts.resonance = res.text;
       igOut.rendered.carousel.slide3_text = res.text;
@@ -92,6 +95,18 @@ async function generateIgDailyAiOutputs({
     const obs = await generateIgCarouselObservationText({ story, dict, openai: openaiClient });
     if (obs?.ok && obs.text) {
       igOut.parts.caption_observation = obs.text;
+    }
+  }
+
+  if (slot) {
+    const slotKey = String(slot || "").toLowerCase();
+    const hashtagsKey = slotKey ? `hashtags_${slotKey}` : "hashtags";
+    const needsHashtags = forceAi || !igOut.parts?.[hashtagsKey];
+    if (needsHashtags) {
+      const tags = await generateIgHashtags({ story, dict, openai: openaiClient, slot: slotKey });
+      if (tags?.ok && tags.text) {
+        igOut.parts[hashtagsKey] = tags.text;
+      }
     }
   }
 

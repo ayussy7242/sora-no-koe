@@ -2,7 +2,7 @@
 
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
-const { renderIGCaption } = require("../../../presenters/format/ig_caption");
+const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
 const { resolveEnv } = require("../../../utils/env");
@@ -20,7 +20,12 @@ const {
   waitForContainer,
 } = require("../../../integrations/instagram/graph");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
-const { buildCarouselSlides } = require("./daily_slides");
+const {
+  buildCarouselSlides,
+  buildMorningCarouselSlides,
+  buildResonanceCarouselSlides,
+  buildNightCarouselSlides,
+} = require("./daily_slides");
 const { buildMoonEventCarouselSlides } = require("./moon_event_slides");
 const {
   resolveMoonEventTargetDateLocal,
@@ -105,7 +110,13 @@ async function runIgPost(deps, opts = {}) {
   const asOfISO = opts.asOfISO || now.toISOString();
   const dateLocal = opts.dateLocal || toDateLocalJST(now);
   const useAi = opts.useAi !== false;
-  const withCta = opts.withCta !== false;
+  const slotRaw = String(opts.slot || "").trim().toLowerCase();
+  const slotKey = ["morning", "resonance", "night"].includes(slotRaw) ? slotRaw : "";
+  const withCta = opts.withCta !== undefined
+    ? opts.withCta !== false
+    : slotKey
+      ? slotKey === "morning"
+      : true;
   const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
   const waitTimeoutMs = Number.isFinite(Number(env2.IG_CONTAINER_TIMEOUT_MS))
     ? Number(env2.IG_CONTAINER_TIMEOUT_MS)
@@ -128,7 +139,7 @@ async function runIgPost(deps, opts = {}) {
     opts.localOutDir ||
     opts.local_out_dir ||
     env2.IG_POST_LOCAL_OUT_DIR ||
-    path.join(process.cwd(), "tmp", "ig", "post", dateLocal)
+    path.join(process.cwd(), "tmp", "ig", slotKey || "post", dateLocal)
   );
   const backgroundCache = resolveBackgroundCache(env2);
   const proxyBase = String(env2.IG_PROXY_BASE_URL || env2.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
@@ -142,9 +153,10 @@ async function runIgPost(deps, opts = {}) {
   const lockTtlMin = Number(env2.IG_POST_LOCK_TTL_MIN || 30);
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 30 * 60 * 1000;
   let lockRef = null;
+  const lockId = slotKey ? `ig_post_${slotKey}_${dateLocal}` : `ig_post_${dateLocal}`;
 
   if (!dryRun && !localOnly && db && !force) {
-    const lock = await claimCronLock({ db, admin, id: `ig_post_${dateLocal}`, ttlMs: lockTtlMs });
+    const lock = await claimCronLock({ db, admin, id: lockId, ttlMs: lockTtlMs });
     if (!lock.ok) {
       return {
         ok: true,
@@ -173,6 +185,10 @@ async function runIgPost(deps, opts = {}) {
     }
 
     const tAi = Date.now();
+    const aiVariant =
+      opts.aiVariant ||
+      opts.ai_variant ||
+      (slotKey === "resonance" ? "split" : slotKey === "night" ? "night" : undefined);
     story = await generateIgDailyAiOutputs({
       story,
       dict,
@@ -184,12 +200,25 @@ async function runIgPost(deps, opts = {}) {
       asOfISO,
       useAi,
       forceAi: opts.forceAi,
+      variant: aiVariant,
+      slot: slotKey || "",
     });
     console.log("[cron/ig/post] ai_done", { ms: Date.now() - tAi, useAi });
 
-    const carousel = buildCarouselSlides({ story, dateLocal, withCta, dict });
+    const carousel = slotKey === "morning"
+      ? buildMorningCarouselSlides({ story, dateLocal, withCta, dict })
+      : slotKey === "resonance"
+        ? buildResonanceCarouselSlides({ story, dateLocal, dict })
+        : slotKey === "night"
+          ? buildNightCarouselSlides({ story, dateLocal, dict })
+          : buildCarouselSlides({ story, dateLocal, withCta, dict });
+    if (slotKey) {
+      carousel.seedVariant = slotKey;
+    }
     const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
-    const caption = renderIGCaption(story);
+    const caption = slotKey
+      ? (renderIGCaptionVariant(story, { dict, variant: slotKey }) || renderIGCaption(story, { dict }))
+      : renderIGCaption(story, { dict });
 
     if (localOnly) {
       const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
@@ -199,6 +228,7 @@ async function runIgPost(deps, opts = {}) {
           ok: true,
           dry_run: true,
           local_only: true,
+          slot: slotKey || "daily",
           date_local: dateLocal,
           as_of: asOfISO,
           resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -215,6 +245,7 @@ async function runIgPost(deps, opts = {}) {
         ok: true,
         dry_run: true,
         local_only: true,
+        slot: slotKey || "daily",
         date_local: dateLocal,
         as_of: asOfISO,
         resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -259,6 +290,7 @@ async function runIgPost(deps, opts = {}) {
       return {
         ok: true,
         dry_run: true,
+        slot: slotKey || "daily",
         date_local: dateLocal,
         as_of: asOfISO,
         resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -333,6 +365,7 @@ async function runIgPost(deps, opts = {}) {
 
     const result = {
       ok: true,
+      slot: slotKey || "daily",
       date_local: dateLocal,
       as_of: asOfISO,
       resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -648,4 +681,16 @@ async function runIgMoonEventPost(deps, opts = {}) {
   };
 }
 
-module.exports = { runIgPost, runIgMoonEventPost };
+async function runIgMorningPost(deps, opts = {}) {
+  return runIgPost(deps, { ...opts, slot: "morning" });
+}
+
+async function runIgResonancePost(deps, opts = {}) {
+  return runIgPost(deps, { ...opts, slot: "resonance" });
+}
+
+async function runIgNightPost(deps, opts = {}) {
+  return runIgPost(deps, { ...opts, slot: "night" });
+}
+
+module.exports = { runIgPost, runIgMorningPost, runIgResonancePost, runIgNightPost, runIgMoonEventPost };

@@ -4,6 +4,7 @@ const { createChatCompletion } = require("../../../../integrations/openai/openai
 const {
   SORA_AI_SYSTEM_PROMPT_COMMON,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
+  SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT,
 } = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
 const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
@@ -65,7 +66,13 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
   };
 }
 
-function buildIgResonancePrompt({ story, dict }) {
+function resolveResonanceGuide(variant) {
+  const key = String(variant || "").toLowerCase();
+  if (key === "split" || key === "short") return SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT;
+  return SORA_AI_USER_GUIDE_IG_RESONANCE;
+}
+
+function buildIgResonancePrompt({ story, dict, variant }) {
   const date = safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
   const aspect = story?.outputs?.ig?.source?.resonance_aspect || null;
   if (!aspect) return "";
@@ -73,7 +80,7 @@ function buildIgResonancePrompt({ story, dict }) {
   const { aHouse, bHouse } = buildResonanceHouseLines({ story, dict, aspect });
 
   return [
-    SORA_AI_USER_GUIDE_IG_RESONANCE,
+    resolveResonanceGuide(variant),
     "",
     "INPUT:",
     `DATE: ${date}`,
@@ -89,7 +96,7 @@ function buildIgResonancePrompt({ story, dict }) {
 }
 
 
-async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) {
+async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, variant }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -98,14 +105,20 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1 }) 
   const hasAspect = !!story?.outputs?.ig?.source?.resonance_aspect;
   if (!hasAspect) return { ok: false, error: "resonance_aspect_missing" };
 
+  const variantKey = String(variant || "").toLowerCase();
+  const isSplit = variantKey === "split" || variantKey === "short";
+
   const result = await generateWithRetry({
-    buildPrompt: () => buildIgResonancePrompt({ story, dict }),
+    buildPrompt: () => buildIgResonancePrompt({ story, dict, variant }),
     buildRetryNote: (reason) =>
-      `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`,
+      isSplit
+        ? `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、2〜3文・短めで整えて再出力。`
+        : `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`,
     validate: ({ raw }) => {
+      const preset = isSplit ? PRESETS.ig.resonance_split : PRESETS.ig.resonance;
       const verdict = runAiTextPipeline({
         rawText: raw,
-        preset: PRESETS.ig.resonance,
+        preset,
       });
       if (verdict.ok) return { ok: true, text: verdict.text };
       return { ok: false, reason: verdict.reason || "" };

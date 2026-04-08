@@ -19,9 +19,10 @@ Instagramカルーセル投稿のキャプション中央本文を生成する�
 - カルーセル本文のコピーにならないようにする
 
 形式:
-- 4〜6文
+- 3〜4文
 - 120〜180文字
-- 改行あり
+- 1文=1行（改行あり）
+- 絵文字1〜2個（文末に控えめに置く）
 
 文章構造:
 1) 太陽と月の配置
@@ -33,6 +34,7 @@ Instagramカルーセル投稿のキャプション中央本文を生成する�
 - 主語は「空」「配置」「太陽と月」
 - 観測として静かに書く
 - 情景や質感は書いてよい
+- 行間に余白を感じるリズムで改行する
 
 禁止:
 - 助言
@@ -171,6 +173,52 @@ Instagramキャプションおよびカルーセル3枚目の「今日の共鳴�
 - 「説明」ではなく、その瞬間の配置が空にどう現れているかを1シーンとして書く
 - 読んだときに「今日ってこういう交差があるのか」と輪郭が立つ文にする
 - 構造だけで終わらせず、この角度が今日の空に何を濃く置くかまで書いてよい
+
+INPUT:
+- ASPECT
+- A_BODY / B_BODY
+- A_SIGN / B_SIGN
+- A_HOUSE / B_HOUSE
+- ORB
+
+${SORA_AI_PUBLIC_IG_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+
+/* =================================================
+IG｜今日の共鳴（split版 / 昼投稿）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT = `
+Instagram「昼投稿」の共鳴本文を生成する。
+
+目的:
+- AとBの関係説明ではなく「同時に存在した結果」を書く
+- 抽象語ではなく、行動・状態で書く
+- 「で、どうなるの？」に答える
+
+形式:
+- 2〜3文
+- 2〜3行（1文=1行）
+- 80〜100文字目安
+- 絵文字1〜2個（文末に控えめに置く）
+
+思考プロセス（必須）:
+1) Aが何をしようとしているか（具体）
+2) Bが何をしようとしているか（具体）
+3) その結果、現実でどういう状態になるか（必ず書く）
+
+出力ルール:
+- 抽象語だけで終わらない
+- AとBを並べて終わらない
+- 結果を必ず書く
+- 行動・状態で書く
+- 行間に余白を感じるリズムで改行する
+
+禁止:
+- 「にじむ」「重なる」「エネルギー」などの抽象語
+- 助言 / 心理断定 / 行動示唆 / 運勢表現
+- 「あなた」
 
 INPUT:
 - ASPECT
@@ -375,6 +423,88 @@ ${POLITE_TONE_COMMON}
 `.trim();
 
 /* =================================================
+IG｜今日の月（夜投稿 / short）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_MOON_NIGHT = `
+Instagram「夜投稿」の月本文を生成する。
+
+目的:
+- 月の位置と状態だけを短く置く
+- 次の変化が近い場合は短く触れる
+
+形式:
+- 2〜3文
+- 2〜3行（1文=1行）
+- 50〜100文字目安
+- 絵文字1〜2個（文末に控えめに置く）
+
+思考:
+1) 月がどこにあるか
+2) どういう状態にあるか
+3) 次にどうなるか（短く）
+
+出力ルール:
+- 「◯◯座の◯◯月」の形を自然に入れる
+- 短い + 具体
+- 数値は出さない（時刻は NEXT_MOON_SIGN_CHANGE のみ可）
+- 行間に余白を感じるリズムで改行する
+
+禁止:
+- 占い口調
+- 助言 / 心理断定 / 行動示唆
+- 「あなた」
+- 抽象語だけで終わる文
+
+INPUT:
+- MOON_SIGN
+- PHASE_LABEL
+- MOON_CHANGE_HINT
+- NEXT_MOON_SIGN_CHANGE
+- NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD
+
+${SORA_AI_PUBLIC_IG_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+
+/* =================================================
+IG｜ハッシュタグ（slot共通）
+================================================= */
+
+const SORA_AI_USER_GUIDE_IG_HASHTAGS = `
+Instagram投稿のハッシュタグを生成する。
+
+目的:
+- スロットごとに最適なタグを5つ選ぶ
+- #から始まる形で出力する
+
+形式:
+- ハッシュタグ5つ
+- 1行出力（スペース区切り）
+- #以外の説明文は禁止
+
+出力ルール:
+- 日本語タグ中心でも英語混在でも可
+- 同じ意味の重複は避ける
+- アカウント固有名は不要
+
+スロット別の役割:
+- morning: 全体（宇宙/配置/基調）
+- resonance: 焦点（共鳴/接続/アスペクト）
+- night: 時間（月/位相/移動）
+
+INPUT:
+- SLOT (morning/resonance/night)
+- DATE
+- SUN_SIGN
+- MOON_SIGN
+- MOON_PHASE
+- RESONANCE (if any)
+
+${SORA_AI_PUBLIC_IG_SHORT_COMMON}
+${POLITE_TONE_COMMON}
+`.trim();
+/* =================================================
 IG｜今日の月（Caption）
 ================================================= */
 
@@ -419,9 +549,12 @@ module.exports = Object.freeze({
   SORA_AI_USER_GUIDE_IG_CAROUSEL_CAPTION,
   SORA_AI_USER_GUIDE_IG_CAROUSEL_OBSERVATION,
   SORA_AI_USER_GUIDE_IG_RESONANCE,
+  SORA_AI_USER_GUIDE_IG_RESONANCE_SPLIT,
   SORA_AI_USER_GUIDE_IG_OBSERVATION,
   SORA_AI_USER_GUIDE_IG_SKY_OVERVIEW,
   SORA_AI_USER_GUIDE_IG_TSUKIJI_STRUCTURE,
   SORA_AI_USER_GUIDE_IG_MOON,
+  SORA_AI_USER_GUIDE_IG_MOON_NIGHT,
+  SORA_AI_USER_GUIDE_IG_HASHTAGS,
   SORA_AI_USER_GUIDE_IG_MOON_CAPTION,
 });

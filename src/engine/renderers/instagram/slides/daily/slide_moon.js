@@ -14,6 +14,21 @@ function estimateTextWidth(line, size) {
   return Math.max(size * 2, len * size * 0.82);
 }
 
+function resolveBodyMaxChars(size) {
+  const available = CANVAS.width - TOK.marginX * 2;
+  const perChar = size * 0.95;
+  return Math.max(16, Math.floor(available / perChar));
+}
+
+function resolveNextLayout({ nextOffsetY = 0, lineCount = 2 } = {}) {
+  const offset = Number(nextOffsetY) || 0;
+  const lines = Math.max(1, Number(lineCount) || 1);
+  const lineHeight = TOK.moon.nextLineHeight;
+  const valueY = TOK.rightFooter.dateY + offset - lineHeight * (lines - 1);
+  const labelY = valueY - TOK.moon.nextLineHeight;
+  return { labelY, valueY };
+}
+
 function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "body" }) {
   const px = Number.isFinite(Number(pad)) ? Number(pad) : 0;
   return {
@@ -102,7 +117,8 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const observationLines = wrapLines(observation, 26, 5);
+  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
+  const observationLines = wrapLines(observation, observationMaxChars, 5);
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
     fields.push(makeField({
@@ -116,10 +132,11 @@ function getAvoidRegions({
     }));
   }
   if (nextLabel) {
+    const { labelY } = resolveNextLayout({ nextOffsetY, lineCount: nextLines.length || 1 });
     const w = estimateTextWidth(nextLabel, TOK.moon.nextLabelSize);
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.nextLabelY + nextOffsetY - TOK.moon.nextLabelSize,
+      y: labelY - TOK.moon.nextLabelSize,
       w,
       h: TOK.moon.nextLabelSize * 1.2,
       pad: 12,
@@ -131,10 +148,11 @@ function getAvoidRegions({
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
   if (nextLines.length) {
+    const { valueY } = resolveNextLayout({ nextOffsetY, lineCount: nextLines.length });
     const w = Math.max(...nextLines.map((l) => estimateTextWidth(l, TOK.moon.nextSize)));
     fields.push(makeField({
       x: TOK.marginX,
-      y: TOK.moon.nextY + nextOffsetY - TOK.moon.nextSize,
+      y: valueY - TOK.moon.nextSize,
       w,
       h: TOK.moon.nextLineHeight * nextLines.length,
       pad: 12,
@@ -271,9 +289,11 @@ function buildSlideMoonSvg({
   moonIllumination = 0.5,
   moonWaxing = true,
   moonSize = MOON_LAYOUT.size,
+  accentColor = "",
   space,
 } = {}) {
   const colors = resolveColors(space);
+  const accent = accentColor || colors.textMain;
   const marginX = TOK.marginX;
   const headerY = TOK.moon.headerY;
   const subLabelY = headerY + TOK.subLabel.offsetY;
@@ -289,7 +309,8 @@ function buildSlideMoonSvg({
   const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
-  const observationLines = wrapLines(observation, 26, 5);
+  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
+  const observationLines = wrapLines(observation, observationMaxChars, 5);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
@@ -309,7 +330,7 @@ function buildSlideMoonSvg({
       waxing: moonWaxing,
     }),
     phaseSignLine
-      ? `<text x=\"${marginX}\" y=\"${TOK.moon.phaseLabelY + contentOffsetY}\" fill=\"${colors.textMain}\" font-size=\"${TOK.moon.phaseLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.phaseLabelTracking}em\">${escapeXml(phaseSignLine)}</text>`
+      ? `<text x=\"${marginX}\" y=\"${TOK.moon.phaseLabelY + contentOffsetY}\" fill=\"${accent}\" font-size=\"${TOK.moon.phaseLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.phaseLabelTracking}em\">${escapeXml(phaseSignLine)}</text>`
       : "",
     textBlock({
       x: marginX,
@@ -331,10 +352,13 @@ function buildSlideMoonSvg({
       fontFamily: "SoraBody",
       letterSpacing: TOK.moon.observationTracking,
     }),
-    `<text x=\"${marginX}\" y=\"${TOK.moon.nextLabelY + contentOffsetY + nextOffsetY}\" fill=\"${colors.textSub}\" opacity=\"${nextOpacity}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`,
+    (() => {
+      const { labelY } = resolveNextLayout({ nextOffsetY, lineCount: nextLines.length || 1 });
+      return `<text x=\"${marginX}\" y=\"${labelY}\" fill=\"${colors.textSub}\" opacity=\"${nextOpacity}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(nextLabel || "")}</text>`;
+    })(),
     textBlock({
       x: marginX,
-      y: TOK.moon.nextY + contentOffsetY + nextOffsetY,
+      y: resolveNextLayout({ nextOffsetY, lineCount: nextLines.length }).valueY,
       lines: nextLines,
       size: TOK.moon.nextSize,
       lineHeight: TOK.moon.nextLineHeight,
@@ -355,6 +379,7 @@ async function renderSlideMoon(data) {
 
 module.exports = {
   buildSlideMoonSvg,
+  buildMoonPhaseGlyph,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
   renderSlideMoon,

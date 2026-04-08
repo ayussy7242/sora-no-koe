@@ -183,6 +183,13 @@ function renderIGCaption(story, deps = {}) {
   })();
 
   const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
+  const tags = normalizeHashtags(parts.hashtags_morning, [
+    "#占星術",
+    "#ホロスコープ",
+    "#星読み",
+    "#西洋占星術",
+    "#astrology",
+  ]);
 
   const buildCaptionFallback = () => {
     const aKey = normalizeBodyKey(resonance?.a || "");
@@ -242,6 +249,79 @@ function renderIGCaption(story, deps = {}) {
   lines.push("登録時には、");
   lines.push("生まれた瞬間の配置をまとめた設計図（Blueprint）もお届けしています🌙");
   lines.push("");
+  tags.forEach((tag) => lines.push(tag));
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+function buildObservationLine(story, observationRaw, dict, resonance) {
+  const raw = String(observationRaw || "").trim();
+  if (raw) {
+    const lines = raw.split(/\r?\n/).map((l) => l.trim());
+    while (lines.length && !lines[0]) lines.shift();
+    if (lines[0] && /^✦\s*観測ポイント/.test(lines[0])) {
+      lines.shift();
+      while (lines.length && !lines[0]) lines.shift();
+    }
+    const joined = lines.join("\n").trim();
+    if (joined) return joined;
+  }
+
+  const aKey = normalizeBodyKey(resonance?.a || "");
+  const bKey = normalizeBodyKey(resonance?.b || "");
+  const aName = bodyLabelJa(dict, aKey);
+  const bName = bodyLabelJa(dict, bKey);
+  if (aName && bName) return `${aName}と${bName}の接続が、内側に静かな流れを残す配置。`;
+  return "内側の変化が、外側の流れに静かに重なる配置。";
+}
+
+function renderIGCaptionMorning(story, deps = {}) {
+  const dict = deps?.dict || require("../../content/dict");
+  const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const transit = story?.public?.transit_signs || {};
+  const sunSign = transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || "");
+  const moonSign = transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || "");
+  const igOut = story?.outputs?.ig || {};
+  const parts = igOut?.parts || {};
+  const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
+
+  const skyStrata = story?.public?.sky_strata || {};
+  const elementCount = skyStrata?.element_count || {};
+  const modeCount = skyStrata?.mode_count || skyStrata?.modality_count || {};
+  const elementLine = `🔥 火${safeNumber(elementCount.fire) ?? 0}　🪨 地${safeNumber(elementCount.earth) ?? 0}　💨 風${safeNumber(elementCount.air) ?? 0}　💧 水${safeNumber(elementCount.water) ?? 0}`;
+  const modeLine = `🏃 活動${safeNumber(modeCount.cardinal) ?? 0}　🧱 不動${safeNumber(modeCount.fixed) ?? 0}　🌿 柔軟${safeNumber(modeCount.mutable) ?? 0}`;
+
+  const captionCenterRaw = parts.caption_center || "";
+  const captionCenter = String(captionCenterRaw || "").trim();
+  const captionBlock = captionCenter || buildCaptionFallbackForMorning({ story, dict, sunSign, moonSign, resonance });
+  const observation = buildObservationLine(story, parts.caption_observation, dict, resonance);
+
+  const lines = [];
+  lines.push(`🌌 ${dateLabel} 今日の星の配置`.trim());
+  lines.push("");
+  lines.push(`☉ 太陽｜${sunSign || ""}`.trim());
+  lines.push(`☽ 月｜${moonSign || ""}`.trim());
+  lines.push("");
+  captionBlock.split(/\n/).forEach((l) => lines.push(l));
+  lines.push("");
+  lines.push("✦ 観測ポイント");
+  lines.push(observation);
+  lines.push("");
+  lines.push("✦ 今日のソラ属性");
+  lines.push(elementLine);
+  lines.push(modeLine);
+  lines.push("");
+  lines.push("星は答えを示さず、");
+  lines.push("構造だけを置いています。");
+  lines.push("");
+  lines.push("解釈はあなたのもの。");
+  lines.push("");
+  lines.push("LINEでは毎朝、");
+  lines.push("ソラの配置とネイタルとの重なりも届けています🌌");
+  lines.push("");
+  lines.push("登録時には、");
+  lines.push("生まれた瞬間の配置をまとめた設計図（Blueprint）もお届けしています🌙");
+  lines.push("");
   lines.push("#占星術");
   lines.push("#ホロスコープ");
   lines.push("#星読み");
@@ -251,4 +331,141 @@ function renderIGCaption(story, deps = {}) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
-module.exports = { renderIGCaption, pickObservationLine };
+function buildCaptionFallbackForMorning({ story, dict, sunSign, moonSign, resonance }) {
+  const aKey = normalizeBodyKey(resonance?.a || "");
+  const bKey = normalizeBodyKey(resonance?.b || "");
+  const aName = bodyLabelJa(dict, aKey);
+  const bName = bodyLabelJa(dict, bKey);
+  const info = aspectInfo(dict, resonance?.type || resonance?.aspect, resonance?.aspect_deg);
+  const label = info?.label_ja || "";
+  const deg = Number.isFinite(Number(info?.deg)) ? `${Number(info.deg)}°` : "";
+  const aspectLabel = [label, deg].filter(Boolean).join(" ").trim();
+  const line1 = `${sunSign || "—"}の太陽と、${moonSign || "—"}の月。`;
+  const line2 = "静かな基調が空に残ります。";
+  const line3 = (aName && bName && aspectLabel)
+    ? `${aName}と${bName}の角度が${aspectLabel}として残ります。`
+    : "空の接続は、内側に細い流れを置きます。";
+  return [line1, line2, line3].join("\n");
+}
+
+function normalizeHashtags(raw, fallback = []) {
+  const text = String(raw || "").trim();
+  const matches = text.match(/[#＃][^\s#＃]+/g) || [];
+  const cleaned = matches
+    .map((tag) => tag.replace(/[#＃]/g, "").trim())
+    .filter(Boolean)
+    .map((tag) => `#${tag}`);
+  const unique = [];
+  cleaned.forEach((tag) => {
+    if (!unique.includes(tag)) unique.push(tag);
+  });
+  const seed = unique.length ? unique : fallback;
+  const out = seed.slice(0, 5);
+  if (out.length < 5) {
+    fallback.forEach((tag) => {
+      if (out.length >= 5) return;
+      if (!out.includes(tag)) out.push(tag);
+    });
+  }
+  return out.slice(0, 5);
+}
+
+function renderIGCaptionResonance(story, deps = {}) {
+  const dict = deps?.dict || require("../../content/dict");
+  const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
+  const transit = story?.public?.transit_signs || {};
+  const igOut = story?.outputs?.ig || {};
+  const parts = igOut?.parts || {};
+  const tags = normalizeHashtags(parts.hashtags_resonance, [
+    "#占星術",
+    "#アスペクト",
+    "#星読み",
+    "#西洋占星術",
+    "#astrology",
+  ]);
+  const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
+  const resonanceText = String(parts.resonance || "").trim();
+  const fallback = resonanceText
+    ? resonanceText
+    : (resonanceLines.length ? "配置が重なることで、流れが一時的に揺れやすくなります。" : "共鳴の角度は、静かに輪郭を残します。");
+
+  const lines = [];
+  lines.push(`🌌 ${dateLabel} 今日の星の共鳴`.trim());
+  lines.push("");
+  lines.push("【今日の共鳴】");
+  resonanceLines.forEach((l) => lines.push(l));
+  lines.push("");
+  lines.push(resonanceText || fallback);
+  lines.push("");
+  tags.forEach((tag) => lines.push(tag));
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+function renderIGCaptionNight(story, deps = {}) {
+  const dict = deps?.dict || require("../../content/dict");
+  const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const igOut = story?.outputs?.ig || {};
+  const parts = igOut?.parts || {};
+  const moonText = String(parts.moon || "").trim();
+  const tags = normalizeHashtags(parts.hashtags_night, [
+    "#占星術",
+    "#月",
+    "#月相",
+    "#星読み",
+    "#astrology",
+  ]);
+
+  const lines = [];
+  lines.push(`🌌 ${dateLabel} 今日の月`.trim());
+  lines.push("");
+  lines.push(moonText || "月の輪郭が静かに浮かびます。");
+  lines.push("");
+  tags.forEach((tag) => lines.push(tag));
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+function splitSentences(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const matches = raw.match(/[^。！？]+[。！？]?/g);
+  if (!matches) return [raw];
+  return matches.map((s) => s.trim()).filter(Boolean);
+}
+
+function takeSentences(text, max = 2) {
+  const sentences = splitSentences(text);
+  if (!sentences.length) return "";
+  const picked = sentences.slice(0, Math.max(1, max)).join("");
+  return picked.trim();
+}
+
+function renderIGCaptionVariant(story, deps = {}) {
+  const dict = deps?.dict || require("../../content/dict");
+  const variant = String(deps?.variant || deps?.slot || "").toLowerCase();
+
+  if (variant === "morning") {
+    return renderIGCaptionMorning(story, { dict });
+  }
+
+  if (variant === "resonance") {
+    return renderIGCaptionResonance(story, { dict });
+  }
+
+  if (variant === "night") {
+    return renderIGCaptionNight(story, { dict });
+  }
+
+  return renderIGCaption(story, deps);
+}
+
+module.exports = {
+  renderIGCaption,
+  renderIGCaptionVariant,
+  renderIGCaptionMorning,
+  renderIGCaptionResonance,
+  renderIGCaptionNight,
+  pickObservationLine,
+};

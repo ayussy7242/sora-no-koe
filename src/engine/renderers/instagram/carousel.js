@@ -37,8 +37,10 @@ function buildSlideRenderers(setKey) {
   const s5 = set.slide5;
   const sMoon = set.slideMoon;
   const sPlacements = set.placements;
+  const sResonanceWheel = set.slideResonanceWheel;
+  const sNightMoon = set.slideNightMoon;
 
-  return {
+  const renderers = {
     slide1: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
     cover: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
     placements: { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions },
@@ -54,6 +56,26 @@ function buildSlideRenderers(setKey) {
     cta: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
     slide5: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
   };
+
+  if (sResonanceWheel?.renderSlideResonanceWheel) {
+    renderers.resonance_wheel = {
+      variant: "resonance_wheel",
+      render: sResonanceWheel.renderSlideResonanceWheel,
+      getAvoidRegions: sResonanceWheel.getAvoidRegions,
+    };
+    renderers.resonanceWheel = renderers.resonance_wheel;
+  }
+
+  if (sNightMoon?.renderSlideNightMoon) {
+    renderers.night_moon = {
+      variant: "night_moon",
+      render: sNightMoon.renderSlideNightMoon,
+      getAvoidRegions: sNightMoon.getAvoidRegions,
+    };
+    renderers.nightMoon = renderers.night_moon;
+  }
+
+  return renderers;
 }
 
 function getSlideRenderers(setKey) {

@@ -337,8 +337,8 @@ function buildSoraWheelSvg({
       const isConjunction = type === "conjunction";
       const isHighlight = !!highlightAspect;
       const color = isHighlight ? "#C6D6FF" : (isConjunction ? "#6B7FE0" : hard ? "#7A3B3B" : soft ? "#385A8A" : "#3A3E5F");
-      const width = isHighlight ? 1.6 : (isConjunction ? 1.2 : hard ? 0.8 : soft ? 0.7 : 0.6);
-      const opacity = isHighlight ? 0.9 : (isConjunction ? 0.68 : hard ? 0.42 : soft ? 0.36 : 0.3);
+      const width = isHighlight ? 1.8 : (isConjunction ? 1.2 : hard ? 0.8 : soft ? 0.7 : 0.6);
+      const opacity = isHighlight ? 0.98 : (isConjunction ? 0.68 : hard ? 0.42 : soft ? 0.36 : 0.3);
       const aPos = polarToCartesian(cx, cy, aspectDotR, p1.lonAdj);
       const bPos = polarToCartesian(cx, cy, aspectDotR, p2.lonAdj);
       aspectLines.push({ x1: aPos.x, y1: aPos.y, x2: bPos.x, y2: bPos.y, color, width, opacity });
@@ -509,7 +509,9 @@ function buildSoraWheelSvg({
       const opacity = isHighlight ? 1 : dimOpacityValue;
       const dotFill = isHighlight ? "#F2F4FF" : "#E8E9F3";
       const dotStrokeColor = isHighlight ? "#1A1D34" : "#14162B";
-      const dot = `<circle cx="${p.x}" cy="${p.y}" r="${dotSize}" fill="${dotFill}" stroke="${dotStrokeColor}" stroke-width="${dotStroke}" opacity="${opacity}"/>`;
+      const dotRadius = isHighlight ? dotSize * 1.12 : dotSize;
+      const dotStrokeWidth = isHighlight ? dotStroke * 1.12 : dotStroke;
+      const dot = `<circle cx="${p.x}" cy="${p.y}" r="${dotRadius}" fill="${dotFill}" stroke="${dotStrokeColor}" stroke-width="${dotStrokeWidth}" opacity="${opacity}"/>`;
       const miniGlyph = glyphPathForChar(astroFonts, p.glyph, p.x, p.y, dotGlyphSize, "#14162B");
       const glyph = opacity < 1 ? miniGlyph.replace("/>", ` opacity="${opacity}"/>`) : miniGlyph;
       return `${dot}${glyph}`;

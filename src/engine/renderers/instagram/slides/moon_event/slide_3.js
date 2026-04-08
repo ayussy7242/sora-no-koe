@@ -17,6 +17,21 @@ function estimateTextWidth(line, size) {
   return Math.max(size * 2, len * size * 0.82);
 }
 
+function resolveBodyMaxChars(size) {
+  const available = CANVAS.width - TOK.marginX * 2;
+  const perChar = size * 0.95;
+  return Math.max(16, Math.floor(available / perChar));
+}
+
+function resolvePeakLayout(lineCount = 2) {
+  const lines = Math.max(1, Number(lineCount) || 1);
+  const lineHeight = TOK.moon.nextLineHeight;
+  const peakOffsetY = Number(TOK.resonance.peakOffsetY) || 0;
+  const valueY = TOK.rightFooter.dateY + peakOffsetY - lineHeight * (lines - 1);
+  const labelY = valueY - TOK.moon.nextLineHeight;
+  return { labelY, valueY };
+}
+
 function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "body" }) {
   const px = Number.isFinite(Number(pad)) ? Number(pad) : 0;
   return {
@@ -39,6 +54,8 @@ function getAvoidRegions({
   aspectLine,
   deepLine,
   structure,
+  peakLabel = "",
+  peakTime = "",
   brand = "sora-no-koe",
 } = {}) {
   const fields = [];
@@ -116,7 +133,8 @@ function getAvoidRegions({
       kind: "subtitle",
     }));
   }
-  const bodyLines = wrapLines(structure, 26, 99);
+  const bodyMaxChars = resolveBodyMaxChars(TOK.resonance.bodySize);
+  const bodyLines = wrapLines(structure, bodyMaxChars, 99);
   if (bodyLines.length) {
     const w = Math.max(...bodyLines.map((l) => estimateTextWidth(l, TOK.resonance.bodySize)));
     fields.push(makeField({
@@ -128,6 +146,35 @@ function getAvoidRegions({
       weight: 0.9,
       kind: "body",
     }));
+  }
+  const peakLabelText = peakLabel || (peakTime ? "ピーク時刻" : "");
+  if (peakLabelText || peakTime) {
+    const peakLines = String(peakTime || "").trim().split(/\s+/).filter(Boolean);
+    const { labelY, valueY } = resolvePeakLayout(peakLines.length || 1);
+    if (peakLabelText) {
+      const w = estimateTextWidth(peakLabelText, TOK.moon.nextLabelSize);
+      fields.push(makeField({
+        x: TOK.marginX,
+        y: labelY - TOK.moon.nextLabelSize,
+        w,
+        h: TOK.moon.nextLabelSize * 1.2,
+        pad: 12,
+        weight: 0.7,
+        kind: "meta",
+      }));
+    }
+    if (peakLines.length) {
+      const w = Math.max(...peakLines.map((l) => estimateTextWidth(l, TOK.moon.nextSize)));
+      fields.push(makeField({
+        x: TOK.marginX,
+        y: valueY - TOK.moon.nextSize,
+        w,
+        h: TOK.moon.nextLineHeight * peakLines.length,
+        pad: 12,
+        weight: 0.7,
+        kind: "meta",
+      }));
+    }
   }
   if (dateLabel) {
     const w = estimateTextWidth(dateLabel, TOK.rightFooter.dateSize);
@@ -189,6 +236,10 @@ function buildSlide3Svg({
   bodyAKey,
   bodyBKey,
   deepLine,
+  peakLabel = "",
+  peakTime = "",
+  lineAColor = "",
+  lineBColor = "",
   space,
 } = {}) {
   const colors = resolveColors(space);
@@ -196,11 +247,14 @@ function buildSlide3Svg({
   const headerY = TOK.resonance.headerY;
   const subLabelY = headerY + TOK.subLabel.offsetY;
 
-  const structureLines = wrapLines(structure, 26, 99);
+  const bodyMaxChars = resolveBodyMaxChars(TOK.resonance.bodySize);
+  const structureLines = wrapLines(structure, bodyMaxChars, 99);
   const glyphA = extractGlyph(lineA);
   const glyphB = extractGlyph(lineB);
-  const glowA = resolveGlowColor({ bodyKey: bodyAKey, lineText: lineA });
-  const glowB = resolveGlowColor({ bodyKey: bodyBKey, lineText: lineB });
+  const lineAColorResolved = lineAColor || colors.textMain;
+  const lineBColorResolved = lineBColor || colors.textMain;
+  const glowA = lineAColor ? lineAColor : resolveGlowColor({ bodyKey: bodyAKey, lineText: lineA });
+  const glowB = lineBColor ? lineBColor : resolveGlowColor({ bodyKey: bodyBKey, lineText: lineB });
 
   const glowDefs = [];
   const glowBodies = [];
@@ -240,7 +294,7 @@ function buildSlide3Svg({
       y: TOK.resonance.lineY1,
       text: lineA || "",
       size: TOK.resonance.lineSize,
-      color: colors.textMain,
+      color: lineAColorResolved,
       fontFamily: "SoraTitleBold",
       letterSpacing: TOK.resonance.lineTracking,
       glyphBoxWidth: TOK.resonance.glyphBoxWidth,
@@ -251,7 +305,7 @@ function buildSlide3Svg({
       y: TOK.resonance.lineY2,
       text: lineB || "",
       size: TOK.resonance.lineSize,
-      color: colors.textMain,
+      color: lineBColorResolved,
       fontFamily: "SoraTitleBold",
       letterSpacing: TOK.resonance.lineTracking,
       glyphBoxWidth: TOK.resonance.glyphBoxWidth,
@@ -270,10 +324,32 @@ function buildSlide3Svg({
       fontFamily: "SoraBody",
       letterSpacing: TOK.resonance.bodyTracking,
     }),
-    buildRightFooter({ dateLabel, colors }),
-  ].join("");
+  ];
+  const peakLabelText = peakLabel || (peakTime ? "ピーク時刻" : "");
+  if (peakLabelText || peakTime) {
+    const peakLines = String(peakTime || "").trim().split(/\s+/).filter(Boolean);
+    const { labelY, valueY } = resolvePeakLayout(peakLines.length || 1);
+    if (peakLabelText) {
+      inner.push(
+        `<text x=\"${marginX}\" y=\"${labelY}\" fill=\"${colors.textMain}\" opacity=\"${TOK.resonance.peakOpacity}\" font-size=\"${TOK.moon.nextLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.nextLabelTracking}em\">${escapeXml(peakLabelText)}</text>`
+      );
+    }
+    if (peakLines.length) {
+      inner.push(textBlock({
+        x: marginX,
+        y: valueY,
+        lines: peakLines,
+        size: TOK.moon.nextSize,
+        lineHeight: TOK.moon.nextLineHeight,
+        color: colors.textMain,
+        fontFamily: "SoraTitle",
+        letterSpacing: TOK.moon.nextTracking,
+      }));
+    }
+  }
+  inner.push(buildRightFooter({ dateLabel, colors }));
 
-  return baseSvg(inner, space);
+  return baseSvg(inner.join(""), space);
 }
 
 async function renderSlide3(data) {
