@@ -45,7 +45,7 @@ function validateText(text, { maxChars } = {}) {
   return validateXAiText(text, {
     minChars: 0,
     maxChars: Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180,
-    maxHashtags: 3,
+    maxHashtags: 0,
     trimHashtags: true,
   });
 }

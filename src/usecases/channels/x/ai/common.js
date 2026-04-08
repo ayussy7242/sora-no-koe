@@ -9,7 +9,7 @@ const { formatXAiText } = require("../../../ai_text/normalizers");
 function validateXAiText(text, opts = {}) {
   const maxChars = Number.isFinite(Number(opts.maxChars)) ? Number(opts.maxChars) : null;
   const minChars = Number.isFinite(Number(opts.minChars)) ? Number(opts.minChars) : null;
-  const maxHashtags = Number.isFinite(Number(opts.maxHashtags)) ? Number(opts.maxHashtags) : null;
+  const maxHashtags = Number.isFinite(Number(opts.maxHashtags)) ? Number(opts.maxHashtags) : 0;
   const trimHashtags = opts.trimHashtags !== false;
   const normalizeSpaces = opts.normalizeSpaces !== false;
 

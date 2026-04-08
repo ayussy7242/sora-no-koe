@@ -26,7 +26,7 @@ function truncateForX(text, maxChars) {
   if (!Number.isFinite(Number(maxChars)) || maxChars <= 0) {
     return { text: raw, truncated: false };
   }
-  const withTrimmedTags = trimTrailingHashtagsToMaxChars(raw, maxChars, { maxTags: 3 });
+  const withTrimmedTags = trimTrailingHashtagsToMaxChars(raw, maxChars, { maxTags: 2 });
   if (countChars(withTrimmedTags) <= maxChars) {
     return { text: withTrimmedTags, truncated: withTrimmedTags !== raw };
   }

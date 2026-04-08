@@ -116,7 +116,7 @@ async function generateXResonanceAiText({
   if (!picked) return { ok: false, error: "resonance_aspect_missing" };
 
   const minLen = Number.isFinite(Number(minChars)) ? Number(minChars) : 90;
-  const maxLen = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 145;
+  const maxLen = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 160;
   const maxTk = Number.isFinite(Number(maxTokens)) ? Number(maxTokens) : 180;
 
   return generateXAiWithRetry({
@@ -133,7 +133,7 @@ async function generateXResonanceAiText({
     dict,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     createChatCompletion,
-    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜130文字で短く整えて再出力。",
+    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜160文字で整えて再出力。",
     fallbackFactory,
     fallbackContext: { aspect: picked },
   }).then((res) => ({ ...res, aspect: picked }));
