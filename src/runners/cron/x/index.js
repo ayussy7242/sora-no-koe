@@ -16,6 +16,7 @@ const {
   renderXMorningWheelPng,
   renderXResonanceWheelPng,
 } = require("../../../engine/renderers/x/morning_wheel");
+const { renderXNightMoonPng } = require("../../../engine/renderers/x/night_moon");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
 const {
   acquireXPostLock,
@@ -754,12 +755,14 @@ async function runXNightPost(deps, opts = {}) {
         : (Number.isFinite(Number(env2.X_POST_IMAGE_HEIGHT)) ? Number(env2.X_POST_IMAGE_HEIGHT) : DEFAULT_X_CANVAS.height);
       const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
         || "story_tomorrow";
-      const png = await renderXMorningWheelPng({
+      const png = await renderXNightMoonPng({
         story,
         dateLabel: dateLocal,
         width: nightImageWidth,
         height: nightImageHeight,
         variant: nightImageVariant,
+        dict,
+        asOfISO,
       });
       fs.mkdirSync(localOutDir, { recursive: true });
       imagePath = path.join(localOutDir, `x_night_${nightImageWidth}x${nightImageHeight}.png`);
@@ -804,12 +807,14 @@ async function runXNightPost(deps, opts = {}) {
     };
     if (!dryRun) {
       try {
-        const png = await renderXMorningWheelPng({
+        const png = await renderXNightMoonPng({
           story,
           dateLabel: dateLocal,
           width: nightImageWidth,
           height: nightImageHeight,
           variant: nightImageVariant,
+          dict,
+          asOfISO,
         });
         const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
         nightMediaId = uploaded?.id || "";

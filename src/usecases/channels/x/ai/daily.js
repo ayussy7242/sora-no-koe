@@ -36,11 +36,11 @@ function buildXSoraPrompt({ story, dict }) {
 }
 
 async function generateXSoraAiText({ story, dict, openai, maxRetries, maxChars }) {
-  const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180;
+  const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 110;
   return generateXAiWithRetry({
     channel: "x_morning",
     prompt: buildXSoraPrompt({ story, dict }),
-    minChars: 0,
+    minChars: 90,
     maxChars: resolvedMaxChars,
     maxTokens: 160,
     temperature: 0.4,
@@ -50,7 +50,7 @@ async function generateXSoraAiText({ story, dict, openai, maxRetries, maxChars }
     dict,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     createChatCompletion,
-    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜120文字の観測文で短く再出力。",
+    retryNoteTemplate: "前回は条件外でした（${reason}）。90〜110文字・3文で再出力。",
     fallbackFactory,
   });
 }
