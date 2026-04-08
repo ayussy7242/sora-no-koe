@@ -17,11 +17,13 @@ async function buildMorningPosts({
   maxOrbDeg,
   maxMainChars,
   includeResonance = false,
+  aiMaxRetries,
 }) {
   const meta = ensureXMeta(story);
   const errors = [];
   let mainAiMax = null;
 
+  let mainAiMin = null;
   if (useAi && Number.isFinite(Number(maxMainChars))) {
     const prev = meta.x_ai.morning;
     meta.x_ai.morning = "";
@@ -29,7 +31,10 @@ async function buildMorningPosts({
     meta.x_ai.morning = prev;
     const headerLen = countChars(headerText);
     const budget = Math.max(0, Number(maxMainChars) - headerLen - 2);
-    if (budget > 0) mainAiMax = budget;
+    if (budget > 0) {
+      mainAiMax = budget;
+      mainAiMin = Math.min(90, budget);
+    }
   }
 
   if (useAi) {
@@ -38,6 +43,8 @@ async function buildMorningPosts({
       dict,
       openai,
       maxChars: mainAiMax ?? undefined,
+      minChars: mainAiMin ?? undefined,
+      maxRetries: aiMaxRetries,
     });
     if (res?.ok && res.text) {
       meta.x_ai.morning = res.text;
@@ -95,6 +102,7 @@ async function buildResonancePost({
   triggerOrbMax,
   excludeKeys,
   maxTotalChars,
+  aiMaxRetries,
 }) {
   const meta = ensureXMeta(story);
   const errors = [];
@@ -173,6 +181,7 @@ async function buildResonancePost({
       minChars,
       maxChars,
       maxTokens: 180,
+      maxRetries: aiMaxRetries,
     });
     if (res?.ok && res.text) {
       meta.x_ai.resonance = res.text;

@@ -109,6 +109,9 @@ async function runXMorningPost(deps, opts = {}) {
     : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
       ? Number(env2.X_RESONANCE_ORB_MAX)
       : Number(SPEC?.orb?.free ?? 1.5);
+  const aiMaxRetries = Number.isFinite(Number(env2.X_POST_AI_MAX_RETRIES))
+    ? Number(env2.X_POST_AI_MAX_RETRIES)
+    : (Number.isFinite(Number(env2.X_AI_MAX_RETRIES)) ? Number(env2.X_AI_MAX_RETRIES) : 8);
 
   const { posts, hasResonance, errors: buildErrors } = await buildMorningPosts({
     story,
@@ -119,6 +122,7 @@ async function runXMorningPost(deps, opts = {}) {
     maxOrbDeg: maxOrb,
     maxMainChars,
     includeResonance,
+    aiMaxRetries,
   });
 
   if (Array.isArray(posts) && posts.length === 0 && useAi) {
@@ -411,6 +415,10 @@ async function runXResonancePost(deps, opts = {}) {
 
     const excludeKeys = db ? await getXResonanceRecentKeys(db).catch(() => []) : [];
 
+    const aiMaxRetries = Number.isFinite(Number(env2.X_POST_AI_MAX_RETRIES))
+      ? Number(env2.X_POST_AI_MAX_RETRIES)
+      : (Number.isFinite(Number(env2.X_AI_MAX_RETRIES)) ? Number(env2.X_AI_MAX_RETRIES) : 8);
+
     const {
       post,
       hasResonance,
@@ -429,6 +437,7 @@ async function runXResonancePost(deps, opts = {}) {
       triggerOrbMax,
       excludeKeys,
       maxTotalChars: maxResonanceChars,
+      aiMaxRetries,
     });
 
     if (!post && useAi && Array.isArray(buildErrors) && buildErrors.length) {
@@ -703,12 +712,17 @@ async function runXNightPost(deps, opts = {}) {
     if (budget > 0) nightAiMax = budget;
   }
 
+  const aiMaxRetries = Number.isFinite(Number(env2.X_POST_AI_MAX_RETRIES))
+    ? Number(env2.X_POST_AI_MAX_RETRIES)
+    : (Number.isFinite(Number(env2.X_AI_MAX_RETRIES)) ? Number(env2.X_AI_MAX_RETRIES) : 8);
+
   if (useAi) {
     const res = await generateXNightAiText({
       story,
       dict,
       openai,
       maxChars: nightAiMax ?? undefined,
+      maxRetries: aiMaxRetries,
     });
     if (res?.ok && res.text) {
       meta.x_ai.night = res.text;
@@ -950,12 +964,16 @@ async function runXMoonEventPost(deps, opts = {}) {
             const budget = Math.max(0, Number(maxChars) - headerLen - 2);
             if (budget > 0) moonEventAiMax = budget;
           }
+          const aiMaxRetries = Number.isFinite(Number(env2.X_POST_AI_MAX_RETRIES))
+            ? Number(env2.X_POST_AI_MAX_RETRIES)
+            : (Number.isFinite(Number(env2.X_AI_MAX_RETRIES)) ? Number(env2.X_AI_MAX_RETRIES) : 8);
           const res = await generateXMoonEventAiText({
             story,
             dict,
             event,
             openai: { apiKey, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
             maxChars: moonEventAiMax ?? undefined,
+            maxRetries: aiMaxRetries,
           });
         if (res?.ok && res.text) {
           story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
@@ -1070,6 +1088,9 @@ async function runXNext30DaysPost(deps, opts = {}) {
   const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
 
   if (useAi) {
+    const aiMaxRetries = Number.isFinite(Number(env2.X_POST_AI_MAX_RETRIES))
+      ? Number(env2.X_POST_AI_MAX_RETRIES)
+      : (Number.isFinite(Number(env2.X_AI_MAX_RETRIES)) ? Number(env2.X_AI_MAX_RETRIES) : 8);
     const maxChars = resolveXMaxChars(
       Number.isFinite(Number(env2.X_POST_MONTHLY_MAX_CHARS)) ? Number(env2.X_POST_MONTHLY_MAX_CHARS) : env2.X_POST_MAX_CHARS
     );
@@ -1090,6 +1111,7 @@ async function runXNext30DaysPost(deps, opts = {}) {
       dict,
       openai: { apiKey: env2.OPENAI_API_KEY, baseUrl: env2.OPENAI_BASE_URL, model: env2.OPENAI_MODEL },
       maxChars: next30AiMax ?? undefined,
+      maxRetries: aiMaxRetries,
     });
     if (res?.ok && res.text) {
       story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};
