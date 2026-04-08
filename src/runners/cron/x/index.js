@@ -175,7 +175,10 @@ async function runXMorningPost(deps, opts = {}) {
   if (localOnly) {
     const localPaths = writeLocalPosts({ posts: trimmed, outDir: localOutDir, prefix: "x_morning" });
     let imagePath = null;
-    if (toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)) {
+    const imageEnabled = opts.image === undefined
+      ? toBool(env2.X_POST_IMAGE_ENABLED ?? env2.X_POST_IMAGE, false)
+      : toBool(opts.image, false);
+    if (imageEnabled) {
       const imageWidth = Number.isFinite(Number(env2.X_POST_IMAGE_WIDTH))
         ? Number(env2.X_POST_IMAGE_WIDTH)
         : DEFAULT_X_CANVAS.width;

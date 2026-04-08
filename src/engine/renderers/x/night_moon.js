@@ -254,9 +254,19 @@ async function renderXNightMoonPng({
   const moonY = Math.round((h - moonSize) / 2);
   const textX = moonX + moonSize + Math.round(80 * scale);
   const cycleSize = Math.round(22 * scale * sizeBoost);
-  const labelSize = Math.round(58 * scale * sizeBoost);
+  const baseLabelSize = Math.round(58 * scale * sizeBoost * 0.9);
   const infoSize = Math.round(24 * scale * sizeBoost);
   const infoLineHeight = Math.round(36 * scale * sizeBoost);
+
+  const maxLabelWidth = Math.max(0, w - textX - Math.round(80 * scale));
+  let labelSize = baseLabelSize;
+  if (maxLabelWidth > 0) {
+    const measured = estimateTextWidth(moonText.mainLabel, labelSize);
+    if (measured > maxLabelWidth) {
+      const ratio = maxLabelWidth / measured;
+      labelSize = Math.max(Math.round(baseLabelSize * ratio), Math.round(baseLabelSize * 0.65));
+    }
+  }
 
   const infoLines = [moonText.moonAgeLabel, moonText.illuminationLabel].filter(Boolean);
   const textHeight = (moonText.cycleLabel ? Math.round(cycleSize * 1.4) : 0)
