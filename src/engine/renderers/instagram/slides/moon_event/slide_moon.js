@@ -1,4 +1,5 @@
 "use strict";
+const { buildMoonPhaseGlyph: buildMoonPhaseGlyphShared } = require("../../../../shared/moon_glyph");
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
@@ -187,93 +188,8 @@ function getAvoidRegions({
   return fields;
 }
 
-function buildMoonPhaseGlyph({
-  id,
-  x,
-  y,
-  size = 160,
-  illumination = 0.5,
-  waxing = true,
-  lightColor = "rgba(245,245,240,0.95)",
-  darkColor = "rgba(8,12,28,0.9)",
-  strokeColor = null,
-}) {
-  const r = size / 2;
-  const illum = clamp(Number(illumination), 0, 1);
-  const glowBoost = illum >= 0.95 ? clamp((illum - 0.95) / 0.05, 0, 1) : 0;
-  const glowStrong = clamp(illum * 0.12 * (1 + glowBoost * 0.6), 0, 0.16);
-  const glowWeak = clamp(illum * 0.06 * (1 + glowBoost * 0.4), 0, 0.12);
-  const surfaceCore = clamp(0.86 + illum * 0.12, 0.86, 0.98);
-  const surfaceMid = clamp(surfaceCore - 0.06, 0.72, 0.92);
-  const surfaceEdge = clamp(surfaceMid - 0.08, 0.6, 0.86);
-  const circleArea = Math.PI * r * r;
-  const overlapArea = (dist) => {
-    if (dist <= 0) return circleArea;
-    if (dist >= 2 * r) return 0;
-    const a = 2 * r * r * Math.acos(dist / (2 * r));
-    const b = (dist / 2) * Math.sqrt(4 * r * r - dist * dist);
-    return a - b;
-  };
-  const offsetForIllumination = (target) => {
-    const t = clamp(Number(target), 0, 1);
-    let lo = 0;
-    let hi = 2 * r;
-    for (let i = 0; i < 28; i++) {
-      const mid = (lo + hi) / 2;
-      const bright = 1 - overlapArea(mid) / circleArea;
-      if (bright < t) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  const dx = offsetForIllumination(illum);
-  const shift = waxing ? -dx : dx;
-  const showShadow = illum < 0.995;
-  const isHalf = Math.abs(illum - 0.5) <= 0.045;
-  const clipId = `moonClip-${id || "base"}`;
-  const stroke = strokeColor ? ` stroke=\"${strokeColor}\" stroke-width=\"1\"` : "";
-  const shadowR = r * 1.02;
-  const blurId = `moonSoft-${id || "base"}`;
-  const glowId = `moonGlow-${id || "base"}`;
-  const gradId = `moonGrad-${id || "base"}`;
-  return [
-    `<g transform=\"translate(${x} ${y})\">`,
-    `<defs>`,
-    `<clipPath id=\"${clipId}\"><circle cx=\"${r}\" cy=\"${r}\" r=\"${r}\"/></clipPath>`,
-    `<radialGradient id=\"${gradId}\" cx=\"42%\" cy=\"38%\" r=\"65%\">`,
-    `<stop offset=\"0%\" stop-color=\"${lightColor}\" stop-opacity=\"${surfaceCore.toFixed(3)}\"/>`,
-    `<stop offset=\"70%\" stop-color=\"${lightColor}\" stop-opacity=\"${surfaceMid.toFixed(3)}\"/>`,
-    `<stop offset=\"100%\" stop-color=\"${lightColor}\" stop-opacity=\"${surfaceEdge.toFixed(3)}\"/>`,
-    `</radialGradient>`,
-    `<filter id=\"${blurId}\" x=\"-10%\" y=\"-10%\" width=\"120%\" height=\"120%\">`,
-    `<feGaussianBlur stdDeviation=\"0.3\"/>`,
-    `</filter>`,
-    `<filter id=\"${glowId}\" x=\"-40%\" y=\"-40%\" width=\"180%\" height=\"180%\">`,
-    `<feGaussianBlur stdDeviation=\"12\"/>`,
-    `</filter>`,
-    `</defs>`,
-    glowStrong > 0.002
-      ? `<circle cx=\"${r}\" cy=\"${r}\" r=\"${(r * 1.25).toFixed(2)}\" fill=\"${lightColor}\" opacity=\"${glowStrong.toFixed(3)}\" filter=\"url(#${glowId})\"/>`
-      : "",
-    glowWeak > 0.002
-      ? `<circle cx=\"${r}\" cy=\"${r}\" r=\"${(r * 1.55).toFixed(2)}\" fill=\"${lightColor}\" opacity=\"${glowWeak.toFixed(3)}\" filter=\"url(#${glowId})\"/>`
-      : "",
-    `<g filter=\"url(#${blurId})\">`,
-    `<circle cx=\"${r}\" cy=\"${r}\" r=\"${r}\" fill=\"url(#${gradId})\"${stroke}/>`,
-    showShadow
-      ? (isHalf
-        ? `<g clip-path=\"url(#${clipId})\">` +
-          `<rect x=\"${waxing ? 0 : r}\" y=\"0\" width=\"${r}\" height=\"${(2 * r).toFixed(2)}\" fill=\"${darkColor}\"/>` +
-          `<rect x=\"${waxing ? 0 : r}\" y=\"0\" width=\"${r}\" height=\"${(2 * r).toFixed(2)}\" fill=\"${darkColor}\" opacity=\"0.25\"/>` +
-          `</g>`
-        : `<g clip-path=\"url(#${clipId})\">` +
-          `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR}\" fill=\"${darkColor}\"/>` +
-          `<circle cx=\"${r + shift}\" cy=\"${r}\" r=\"${shadowR + 1.6}\" fill=\"${darkColor}\" opacity=\"0.35\"/>` +
-          `</g>`)
-      : "",
-    `</g>`,
-    `</g>`,
-  ].join("");
+function buildMoonPhaseGlyph(opts) {
+  return buildMoonPhaseGlyphShared(opts);
 }
 
 function buildSlideMoonSvg({
