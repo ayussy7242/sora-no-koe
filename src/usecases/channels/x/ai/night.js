@@ -14,7 +14,14 @@ const {
 } = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
 const { buildMoonStatus } = require("../../../../domain/moon/summary");
-const { generateXAiWithRetry, fallbackFactory, buildElementCount, buildModalityCount, buildTransitSigns } = require("./common");
+const {
+  generateXAiWithRetry,
+  fallbackFactory,
+  buildElementCount,
+  buildModalityCount,
+  buildTransitSigns,
+  formatXAiText,
+} = require("./common");
 const { safeTrim } = require("../../../../utils/text/normalize");
 
 
@@ -128,6 +135,12 @@ function resolveXNightPromptInput({ story, dict }) {
   const moonPhaseStage = change?.phase || "";
   const moonStatus = buildMoonStatus({ asOfISO, story, dict });
   const moonPhaseLabel = moonStatus?.phaseLabel || moonStatus?.phaseName || "";
+  const phaseName = moonStatus?.phaseName || "";
+  const waName = moonStatus?.waName || "";
+  const moonDisplayCore = (phaseName === "新月" || phaseName === "満月")
+    ? phaseName
+    : (waName || phaseName);
+  const moonDisplayLabel = [moonDisplayCore, moonStatus?.signJa || ""].filter(Boolean).join(" ");
   const moonIlluminationPct = Number.isFinite(Number(moonStatus?.illumination))
     ? Math.round(Number(moonStatus.illumination) * 100)
     : "";
@@ -149,6 +162,8 @@ function resolveXNightPromptInput({ story, dict }) {
     moonDegInSign,
     moonPhaseStage,
     moonPhaseLabel,
+    moonDisplayCore,
+    moonDisplayLabel,
     moonIlluminationPct,
     moonAge,
   };
@@ -177,6 +192,8 @@ function buildXNightPrompt({ story, dict, input } = {}) {
     `MOON_SIGN_DEG: ${safeTrim(data.moonDegInSign)}`,
     `MOON_SIGN_PHASE: ${safeTrim(data.moonPhaseStage)}`,
     `MOON_PHASE_LABEL: ${safeTrim(data.moonPhaseLabel)}`,
+    `MOON_DISPLAY_CORE: ${safeTrim(data.moonDisplayCore)}`,
+    `MOON_DISPLAY_LABEL: ${safeTrim(data.moonDisplayLabel)}`,
     `MOON_ILLUMINATION: ${safeTrim(data.moonIlluminationPct)}`,
     `MOON_AGE: ${safeTrim(data.moonAge)}`,
   ].join("\n");
@@ -186,7 +203,7 @@ async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars 
   const input = resolveXNightPromptInput({ story, dict });
   const nextHints = input.nextHints;
   const resolvedMaxChars = Number.isFinite(Number(maxChars)) ? Number(maxChars) : 180;
-  return generateXAiWithRetry({
+  const result = await generateXAiWithRetry({
     channel: "x_night",
     prompt: buildXNightPrompt({ input }),
     minChars: 0,
@@ -204,6 +221,22 @@ async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars 
     fallbackFactory,
     fallbackContext: { nextHint: nextHints },
   });
+
+  if (result?.ok && result.text && input.moonDisplayLabel && !String(result.text).includes(input.moonDisplayLabel)) {
+    const lead = `月は${input.moonDisplayLabel}にある。`;
+    const merged = `${lead}\n\n${result.text}`;
+    const formatted = formatXAiText(merged);
+    const capped = capToMaxChars(formatted, resolvedMaxChars);
+    return { ...result, text: capped, injected: true };
+  }
+  return result;
+}
+
+function capToMaxChars(text, maxChars) {
+  if (!Number.isFinite(Number(maxChars)) || maxChars <= 0) return String(text || "").trim();
+  const chars = Array.from(String(text || "").trim());
+  if (chars.length <= maxChars) return chars.join("");
+  return chars.slice(0, maxChars).join("");
 }
 
 module.exports = {
