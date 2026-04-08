@@ -131,6 +131,9 @@ function getAvoidRegions({
       kind: "body",
     }));
   }
+  const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
+  const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
+  const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
   if (nextLabel) {
     const { labelY } = resolveNextLayout({ nextOffsetY, lineCount: nextLines.length || 1 });
     const w = estimateTextWidth(nextLabel, TOK.moon.nextLabelSize);
@@ -144,9 +147,6 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
-  const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
-  const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);
   if (nextLines.length) {
     const { valueY } = resolveNextLayout({ nextOffsetY, lineCount: nextLines.length });
     const w = Math.max(...nextLines.map((l) => estimateTextWidth(l, TOK.moon.nextSize)));

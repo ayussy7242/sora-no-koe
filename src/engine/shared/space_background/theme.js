@@ -137,17 +137,20 @@ function buildElementPaletteVariants(element) {
   return variants;
 }
 
-function buildTodayPalette({ palette, topElement, secondaryElement, rand }) {
+function buildTodayPalette({ palette, topElement, secondaryElement, rand, spaceConfig = null }) {
   const rng = typeof rand === "function" ? rand : mulberry32(hashString("today-palette-default"));
   const primaryVariants = buildElementPaletteVariants(topElement);
   const secondaryVariants = buildElementPaletteVariants(secondaryElement || topElement);
   const pickVariant = (variants) => variants[Math.floor(rng() * variants.length)];
   const primary = pickVariant(primaryVariants);
   const secondary = topElement === secondaryElement ? primary : pickVariant(secondaryVariants);
-  const mixSecondary = topElement !== secondaryElement && rng() < 0.4;
-  const gasColorB = mixSecondary ? mixColor(primary.gasColorB, secondary.gasColorA, 0.6) : primary.gasColorB;
-  const dustTint = mixSecondary ? mixColor(primary.dustTint, secondary.dustTint, 0.55) : primary.dustTint;
-  const glowColor = mixSecondary ? mixColor(primary.glowColor, secondary.glowColor, 0.5) : primary.glowColor;
+  const forceMix = spaceConfig?.forceSecondaryMix === true && topElement !== secondaryElement;
+  const mixRatioRaw = Number(spaceConfig?.secondaryMixRatio);
+  const mixRatio = Number.isFinite(mixRatioRaw) ? clamp(mixRatioRaw, 0.1, 0.9) : 0.6;
+  const mixSecondary = forceMix || (topElement !== secondaryElement && rng() < 0.4);
+  const gasColorB = mixSecondary ? mixColor(primary.gasColorB, secondary.gasColorA, mixRatio) : primary.gasColorB;
+  const dustTint = mixSecondary ? mixColor(primary.dustTint, secondary.dustTint, mixRatio * 0.9) : primary.dustTint;
+  const glowColor = mixSecondary ? mixColor(primary.glowColor, secondary.glowColor, mixRatio * 0.8) : primary.glowColor;
 
   return {
     baseBias: primary.baseBias,
@@ -397,7 +400,7 @@ function buildStarColorWeights(topElement, secondaryElement) {
   };
 }
 
-function computeSpaceTheme({ story, dateLabel, seedLabel, variant = "slide1" }) {
+function computeSpaceTheme({ story, dateLabel, seedLabel, variant = "slide1", spaceConfig = null } = {}) {
   const dateSeed = String(seedLabel || story?.meta?.date_local || story?.public?.date_local || dateLabel || "");
   const skyStrata = story?.public?.sky_strata || story?.meta?.sky_strata || {};
   const elementCount = skyStrata?.element_count || {};
@@ -410,8 +413,17 @@ function computeSpaceTheme({ story, dateLabel, seedLabel, variant = "slide1" }) 
   const { top: derivedTop, secondary: derivedSecondary } = pickElementsFromCounts(baseCounts, "mixed");
 
   const rawTop = normalizeElementKey(skyStrata?.top_element);
-  const topElement = rawTop !== "mixed" ? rawTop : derivedTop;
-  const secondaryElement = derivedSecondary || topElement;
+  let topElement = rawTop !== "mixed" ? rawTop : derivedTop;
+  let secondaryElement = derivedSecondary || topElement;
+
+  const overrideTop = normalizeElementKey(spaceConfig?.elementOverride);
+  const overrideSecondary = normalizeElementKey(spaceConfig?.secondaryElementOverride);
+  if (overrideTop && overrideTop !== "mixed") {
+    topElement = overrideTop;
+    secondaryElement = (overrideSecondary && overrideSecondary !== "mixed") ? overrideSecondary : overrideTop;
+  } else if (overrideSecondary && overrideSecondary !== "mixed") {
+    secondaryElement = overrideSecondary;
+  }
 
   const seedStr = [
     dateSeed,
@@ -428,6 +440,7 @@ function computeSpaceTheme({ story, dateLabel, seedLabel, variant = "slide1" }) 
     topElement,
     secondaryElement,
     rand: paletteRand,
+    spaceConfig,
   });
 
   const houseFocus = story?.public?.house_focus || {};

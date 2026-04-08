@@ -847,6 +847,8 @@ function buildSpaceBackground({
       ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
       ["milkyDustScale", spaceConfig.milkyDustScale],
       ["whiteMix", spaceConfig.whiteMix],
+      ["forceSecondaryMix", spaceConfig.forceSecondaryMix ? 1 : 0],
+      ["secondaryMixRatio", spaceConfig.secondaryMixRatio],
       ["moonEventKind", spaceConfig.moonEventKind],
       ["moonEventStyle", spaceConfig.moonEventStyle],
       ["moonEventCenter", spaceConfig.moonEventCenter],
@@ -871,7 +873,7 @@ function buildSpaceBackground({
       spaceConfigKey,
     });
   }
-  const theme = computeSpaceTheme({ story, dateLabel, seedLabel, variant: "world" });
+  const theme = computeSpaceTheme({ story, dateLabel, seedLabel, variant: "world", spaceConfig });
   const textKey = Array.isArray(avoidRegions) && avoidRegions.length
     ? hashString(avoidRegions.map((f) => {
         const x = Math.round(Number(f?.x) || 0);

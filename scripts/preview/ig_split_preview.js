@@ -10,17 +10,8 @@ const {
   buildResonanceCarouselSlides,
   buildNightCarouselSlides,
 } = require("../../src/runners/cron/instagram/daily_slides");
-const slide1 = require("../../src/engine/renderers/instagram/slides/daily/slide_1");
-const slidePlacements = require("../../src/engine/renderers/instagram/slides/daily/slide_placements");
-const slide2 = require("../../src/engine/renderers/instagram/slides/daily/slide_2");
-const slide5 = require("../../src/engine/renderers/instagram/slides/daily/slide_5");
-const slide3 = require("../../src/engine/renderers/instagram/slides/daily/slide_3");
-const slideMoon = require("../../src/engine/renderers/instagram/slides/daily/slide_moon");
-const slideResonanceWheel = require("../../src/engine/renderers/instagram/slides/daily/slide_resonance_wheel");
-const slideNightMoon = require("../../src/engine/renderers/instagram/slides/daily/slide_night_moon");
 const { writeBufferFiles, writeJsonFile } = require("../../src/utils/infra/local_io");
-const { buildSpaceBackground } = require("../../src/engine/shared/space_background");
-const { CANVAS } = require("../../src/engine/renderers/instagram/slides/common/shared");
+const { renderInstagramCarousel } = require("../../src/engine/renderers/instagram/carousel");
 
 function parseArgs(argv) {
   const out = {};
@@ -52,28 +43,20 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
-async function renderSlide(kind, data) {
-  if (kind === "cover") return slide1.renderSlide1(data);
-  if (kind === "placements") return slidePlacements.renderSlidePlacements(data);
-  if (kind === "chart") return slide2.renderSlide2(data);
-  if (kind === "cta") return slide5.renderSlide5(data);
-  if (kind === "resonance") return slide3.renderSlide3(data);
-  if (kind === "moon") return slideMoon.renderSlideMoon(data);
-  if (kind === "resonance_wheel") return slideResonanceWheel.renderSlideResonanceWheel(data);
-  if (kind === "night_moon") return slideNightMoon.renderSlideNightMoon(data);
-  throw new Error(`unknown slide kind: ${kind}`);
-}
-
-async function renderSet({ name, slides, outDir, space }) {
+async function renderSet({ name, carousel, outDir }) {
   const items = [];
-  for (let i = 0; i < slides.slides.length; i += 1) {
-    const slide = slides.slides[i];
-    const buffer = await renderSlide(slide.kind, { ...slide.data, space });
-    items.push({
-      filename: `${name}-slide-${i + 1}.png`,
-      buffer,
-    });
-  }
+  await renderInstagramCarousel({
+    slides: carousel.slides,
+    slideSet: "daily",
+    seedVariant: carousel.seedVariant || name,
+    spaceConfig: carousel.spaceConfig || null,
+    onSlide: async ({ index, buffer }) => {
+      items.push({
+        filename: `${name}-slide-${index + 1}.png`,
+        buffer,
+      });
+    },
+  });
   return writeBufferFiles({ outDir, items });
 }
 
@@ -92,13 +75,9 @@ async function main() {
   const resonance = buildResonanceCarouselSlides({ story, dateLocal, dict });
   const night = buildNightCarouselSlides({ story, dateLocal, dict });
 
-  const morningSpace = buildSpaceBackground({ width: CANVAS.width, height: CANVAS.height });
-  const resonanceSpace = buildSpaceBackground({ width: CANVAS.width, height: CANVAS.height });
-  const nightSpace = buildSpaceBackground({ width: CANVAS.width, height: CANVAS.height });
-
-  const morningOut = await renderSet({ name: "morning", slides: morning, outDir, space: morningSpace });
-  const resonanceOut = await renderSet({ name: "resonance", slides: resonance, outDir, space: resonanceSpace });
-  const nightOut = await renderSet({ name: "night", slides: night, outDir, space: nightSpace });
+  const morningOut = await renderSet({ name: "morning", carousel: morning, outDir });
+  const resonanceOut = await renderSet({ name: "resonance", carousel: resonance, outDir });
+  const nightOut = await renderSet({ name: "night", carousel: night, outDir });
 
   writeJsonFile({
     outDir,

@@ -14,6 +14,7 @@ const { planetLine } = require("./shared/lines");
 const { BODY_META, BODY_ORDER_BASIC } = require("./shared/bodies");
 const { calcTransitLon } = require("../../../domain/astro/ephemeris");
 const { signKeyFromLon } = require("../../../domain/astro/signs");
+const { normalizeSignKey } = require("../../../domain/canonical");
 
 function plainMoonSymbol(kind) {
   if (kind === "new") return "●";
@@ -26,6 +27,31 @@ function formatJstYmdHm(date) {
   const ymd = formatJstYmd(date, { fallback: "" });
   const hm = formatJstTimeLabel(date, { fallback: "" });
   return [ymd, hm].filter(Boolean).join(" ").trim();
+}
+
+function elementFromSign(dict, signKey) {
+  const key = normalizeSignKey(signKey || "");
+  if (!key) return "";
+  const signs = dict?.SIGNS_V2?.signs || dict?.SIGNS?.signs || {};
+  return signs?.[key]?.element || "";
+}
+
+function buildResonanceSpaceConfig({ story, dict }) {
+  const topAspect =
+    story?.outputs?.ig?.source?.resonance_aspect ||
+    story?.public?.sky_top?.[0] ||
+    story?.public?.sky_all?.[0] ||
+    null;
+  if (!topAspect) return null;
+  const elementA = elementFromSign(dict, topAspect?.a_sign_key || "");
+  const elementB = elementFromSign(dict, topAspect?.b_sign_key || "");
+  if (!elementA && !elementB) return null;
+  const hasBoth = elementA && elementB && elementA !== elementB;
+  return {
+    elementOverride: elementA || elementB,
+    secondaryElementOverride: elementB || elementA || elementB,
+    ...(hasBoth ? { forceSecondaryMix: true, secondaryMixRatio: 0.62 } : {}),
+  };
 }
 
 function findNextMoonSignChange({ asOfISO, dict, maxHours = 72, stepMinutes = 30 } = {}) {
@@ -82,6 +108,7 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
   const phaseName = String(moonStatus?.phaseName || "").trim();
   const waName = String(moonStatus?.waName || "").trim();
   const moonSign = String(moonStatus?.signJa || "").trim();
+  const moonElement = elementFromSign(dict, story?.public?.moon?.sign_key || story?.public?.transit_signs?.moon?.sign_key || "");
   const phaseSymbol = moonStatus?.phaseSymbol || "🌙";
 
   const moonAgeLabel = Number.isFinite(Number(moonStatus?.moonAge))
@@ -140,6 +167,7 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
     moonSize: 160,
     phaseName,
     waName,
+    spaceConfig: moonElement ? { elementOverride: moonElement } : null,
   };
 }
 
@@ -324,6 +352,7 @@ function buildResonanceCarouselSlides({ story, dateLocal, dict }) {
   const resonanceWheel = buildResonanceWheelSlide({ story, dateLocal });
   return {
     slides: [resonanceWheel, resonanceText].filter(Boolean),
+    spaceConfig: buildResonanceSpaceConfig({ story, dict }),
   };
 }
 
@@ -347,9 +376,11 @@ function buildNightMoonSlide({ story, dateLocal, dict }) {
 
 function buildNightCarouselSlides({ story, dateLocal, dict }) {
   const dateLabel = formatDateLabel(dateLocal);
-  const moonDetail = { ...buildMoonSlide({ story, dateLabel, dateLocal, dict }), subLabel: "today's moon" };
+  const moonBase = buildMoonSlide({ story, dateLabel, dateLocal, dict });
+  const moonDetail = { ...moonBase, subLabel: "today's moon" };
   return {
     slides: [buildNightMoonSlide({ story, dateLocal, dict }), { kind: "moon", data: moonDetail }],
+    spaceConfig: moonBase?.spaceConfig || null,
   };
 }
 
