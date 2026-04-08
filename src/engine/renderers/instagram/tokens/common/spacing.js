@@ -70,8 +70,8 @@ const IG_SPACING_TOKENS = Object.freeze({
   placements: {
     headerY: 148,
     listY: 316,
-    listSize: 41,
-    listLineHeight: 79,
+    listSize: 45,
+    listLineHeight: 82,
   },
   resonance: {
     headerY: 148,

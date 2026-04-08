@@ -72,8 +72,8 @@ function getAvoidRegions({
   if (bodyLines.length) {
     const baseSize = TOK.placements.listSize;
     const listY = Number.isFinite(Number(TOK.contentStartY)) ? Number(TOK.contentStartY) : TOK.placements.listY;
-    const leftSize = baseSize + 1;
-    const rightSize = baseSize - 2;
+    const leftSize = baseSize + 3;
+    const rightSize = baseSize + 1;
     const glyphBoxWidth = Math.round(leftSize * 1.1);
     const glyphGap = Math.round(leftSize * 0.35);
     const rightGlyphBoxWidth = Math.round(rightSize * 0.95);
@@ -145,8 +145,8 @@ function buildSlidePlacementsSvg({
   const subLabelY = headerY + TOK.subLabel.offsetY;
   const listY = Number.isFinite(Number(TOK.contentStartY)) ? Number(TOK.contentStartY) : TOK.placements.listY;
   const baseSize = TOK.placements.listSize;
-  const leftSize = baseSize + 1;
-  const rightSize = baseSize - 2;
+  const leftSize = baseSize + 3;
+  const rightSize = baseSize + 1;
   const leftGlyphBoxWidth = Math.round(leftSize * 1.1);
   const leftGlyphGap = Math.round(leftSize * 0.35);
   const rightGlyphBoxWidth = Math.round(rightSize * 0.95);
