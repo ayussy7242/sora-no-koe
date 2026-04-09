@@ -20,7 +20,7 @@
 const express = require("express");
 const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
-const { runDaily8, rebuildDaily8, sendDaily8 } = require("../runners/cron/line");
+const { runDaily8, rebuildDaily8, sendDaily8, runBlueprintResend } = require("../runners/cron/line");
 const { runDailyBlog } = require("../runners/cron/blog");
 const { runIgPost, runIgMorningPost, runIgResonancePost, runIgNightPost, runIgMoonEventPost } = require("../runners/cron/instagram");
 const { runXMorningPost, runXResonancePost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
@@ -181,6 +181,43 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return cronError(res, req, "/cron/send8", e);
+    }
+  });
+
+  // ✅ POST /cron/blueprint/resend : blueprint未達/遅延の再送と再生成キック
+  router.post("/blueprint/resend", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message });
+
+    try {
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
+      const target = pickTarget({ q, b });
+      const dryRun = pickDryRun({ q, b });
+      const includeInactive = pickBoolFlag({ q, b, keys: ["include_inactive", "includeInactive"], defaultValue: false });
+      const includeDone = pickBoolFlag({ q, b, keys: ["include_done", "includeDone"], defaultValue: false });
+      const forceRegen = pickBoolFlag({ q, b, keys: ["force_regen", "forceRegen", "force"], defaultValue: false });
+      const limit = pickNumberFlag({ q, b, keys: ["limit"], defaultValue: 0 });
+      const lineUserId = b?.line_user_id ?? q?.line_user_id ?? b?.lineUserId ?? q?.lineUserId ?? null;
+      const appUserId = b?.app_user_id ?? q?.app_user_id ?? b?.appUserId ?? q?.appUserId ?? null;
+
+      const result = await runBlueprintResend(
+        { db, admin, env, storage, dict },
+        {
+          dateLocal,
+          target,
+          dryRun,
+          includeInactive,
+          includeDone,
+          forceRegen,
+          limit,
+          line_user_id: lineUserId,
+          app_user_id: appUserId,
+        }
+      );
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/blueprint/resend", e);
     }
   });
 

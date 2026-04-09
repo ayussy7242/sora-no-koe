@@ -67,10 +67,12 @@ function birthUtcIsoFromJob(job) {
   const timeHm = b?.time_hm || job?.time_hm || null;
   const tz = b?.timezone || job?.timezone || null;
 
-  if (!dateLocal || !timeHm) return null;
+  if (!dateLocal) return null;
+  // 時刻不明は 12:00 を仮置き（ASC/MC は近似値になる）
+  const timeSafe = timeHm || "12:00";
 
   if (tz === "Asia/Tokyo" || !tz) {
-    const iso = `${dateLocal}T${timeHm}:00+09:00`;
+    const iso = `${dateLocal}T${timeSafe}:00+09:00`;
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
     return d.toISOString();
