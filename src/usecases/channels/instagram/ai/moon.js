@@ -102,7 +102,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
     buildRetryNote: () => {
       const key = String(variant || "").toLowerCase();
       if (key === "caption" || key === "night_caption" || key === "night-caption") {
-        return "前回は条件外でした。4〜6行・180〜220文字・文末に絵文字1つを守り、余白ある改行で再出力。";
+        return "前回は条件外でした。240〜320文字で再出力。";
       }
       return "前回は条件外でした。「あなた」を避け、70〜100文字・2〜3文を目安に整えて再出力。";
     },
