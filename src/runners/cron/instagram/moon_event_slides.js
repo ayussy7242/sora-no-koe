@@ -152,6 +152,7 @@ function buildMoonEventPlacementBlock({
   const moonWaxing = typeof moonStatus?.waxing === "boolean"
     ? moonStatus.waxing
     : illuminationDefaults.waxing;
+  const moonAgeDays = Number.isFinite(Number(moonStatus?.moonAge)) ? Number(moonStatus.moonAge) : null;
 
   const pressureLines = [
     formatElementCounts(elementCount),
@@ -196,6 +197,7 @@ function buildMoonEventPlacementBlock({
     nextDate: "",
     moonIllumination,
     moonWaxing,
+    moonAgeDays,
     moonSize: 160,
   };
 

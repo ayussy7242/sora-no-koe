@@ -162,6 +162,7 @@ function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
     moonWaxing: Number.isFinite(Number(moonStatus?.moonAge))
       ? Number(moonStatus.moonAge) < 14.765
       : true,
+    moonAgeDays: Number.isFinite(Number(moonStatus?.moonAge)) ? Number(moonStatus.moonAge) : null,
     moonSize: 160,
     phaseName,
     waName,

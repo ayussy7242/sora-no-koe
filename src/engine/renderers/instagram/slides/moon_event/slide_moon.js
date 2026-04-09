@@ -210,6 +210,7 @@ function buildSlideMoonSvg({
   nextOffsetY = 12,
   moonIllumination = 0.5,
   moonWaxing = true,
+  moonAgeDays = null,
   moonSize = MOON_LAYOUT.size,
   accentColor = "",
   space,
@@ -250,6 +251,7 @@ function buildSlideMoonSvg({
       size: Number(moonSize) * moonScale,
       illumination: moonIllumination,
       waxing: moonWaxing,
+      moonAgeDays,
     }),
     phaseSignLine
       ? `<text x=\"${marginX}\" y=\"${TOK.moon.phaseLabelY + contentOffsetY}\" fill=\"${accent}\" font-size=\"${TOK.moon.phaseLabelSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.moon.phaseLabelTracking}em\">${escapeXml(phaseSignLine)}</text>`

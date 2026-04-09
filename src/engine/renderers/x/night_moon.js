@@ -95,6 +95,7 @@ function buildMoonText({ status, asOfISO, dateLocal, dict }) {
     illuminationLabel,
     moonIllumination: illumination != null ? illumination : 0.5,
     moonWaxing: waxing,
+    moonAgeDays: moonAge,
   };
 }
 
@@ -262,6 +263,7 @@ async function renderXNightMoonPng({
       size: moonSize,
       illumination: moonText.moonIllumination,
       waxing: moonText.moonWaxing,
+      moonAgeDays: moonText.moonAgeDays,
     }),
     moonText.cycleLabel
       ? [
