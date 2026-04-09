@@ -33,7 +33,7 @@ function textBlock({ x, y, lines, size, lineHeight, color, fontFamily, letterSpa
     .map((line, i) => `<tspan x="${x}" dy="${i === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`)
     .join("");
   if (!tspans) return "";
-  return `<text x="${x}" y="${y}" fill="${color}" font-size="${size}" font-family="${fontFamily}"${spacing}${filter}${alpha}>${tspans}</text>`;
+  return `<text x="${x}" y="${y}" fill="${color}" font-size="${size}" font-family="${fontFamily}" text-rendering="geometricPrecision"${spacing}${filter}${alpha}>${tspans}</text>`;
 }
 
 function buildMoonPhaseGlyph(opts) {
@@ -102,18 +102,28 @@ function buildMoonText({ status, asOfISO, dateLocal, dict }) {
 function buildAvoidRegions({ moonBox, textBox }) {
   const regions = [];
   if (moonBox) {
+    const moonCx = Number(moonBox.x || 0) + Number(moonBox.w || 0) / 2;
+    const moonCy = Number(moonBox.y || 0) + Number(moonBox.h || 0) / 2;
+    const moonR = Math.max(Number(moonBox.w || 0), Number(moonBox.h || 0)) / 2;
     regions.push({
-      ...moonBox,
-      weight: 0.7,
-      feather: Math.round(Math.max(moonBox.w, moonBox.h) * 0.45),
+      shape: "circle",
+      cx: moonCx,
+      cy: moonCy,
+      r: moonR,
+      x: moonCx - moonR,
+      y: moonCy - moonR,
+      w: moonR * 2,
+      h: moonR * 2,
+      weight: 0.75,
+      feather: Math.round(Math.max(18, moonR * 0.9)),
       kind: "moon",
     });
   }
   if (textBox) {
     regions.push({
       ...textBox,
-      weight: 0.55,
-      feather: Math.round(textBox.h * 0.9),
+      weight: 0.65,
+      feather: Math.round(textBox.h * 1.2),
       softOnly: true,
       kind: "text",
     });
@@ -199,13 +209,14 @@ async function renderXNightMoonPng({
   }
 
   const infoLines = [moonText.moonAgeLabel, moonText.illuminationLabel].filter(Boolean);
-  const textHeight = (moonText.cycleLabel ? Math.round(cycleSize * 1.4) : 0)
+  const cycleGap = moonText.cycleLabel ? Math.round(labelSize * 0.28) : 0;
+  const textHeight = (moonText.cycleLabel ? Math.round(cycleSize * 1.4) + cycleGap : 0)
     + Math.round(labelSize * 1.2)
     + infoLines.length * infoLineHeight;
   const textTop = Math.round((renderH - textHeight) / 2);
   const cycleY = textTop + cycleSize;
   const labelY = moonText.cycleLabel
-    ? cycleY + Math.round(labelSize * 1.15)
+    ? cycleY + Math.round(labelSize * 1.15) + cycleGap
     : textTop + labelSize;
   const infoY = labelY + Math.round(labelSize * 0.9);
 
@@ -233,7 +244,7 @@ async function renderXNightMoonPng({
 
   const safeSeed = String(seedLabel || "").replace(/[^a-zA-Z0-9_-]/g, "");
   const glowId = `nightTextGlow-${safeSeed || "base"}`;
-  const glowBlur = Math.max(1.4, 2.2 * scale);
+  const glowBlur = Math.max(1.0, 1.6 * scale);
   const extraDefs = [
     `<filter id="${glowId}" x="-50%" y="-50%" width="200%" height="200%">`,
     `<feGaussianBlur stdDeviation="${glowBlur.toFixed(2)}"/>`,
@@ -252,8 +263,8 @@ async function renderXNightMoonPng({
   });
 
   const colors = resolveColors(space);
-  const glowOpacityMain = 0.26;
-  const glowOpacitySub = 0.22;
+  const glowOpacityMain = 0.18;
+  const glowOpacitySub = 0.16;
 
   const inner = [
     buildMoonPhaseGlyph({
@@ -267,13 +278,13 @@ async function renderXNightMoonPng({
     }),
     moonText.cycleLabel
       ? [
-        `<text x="${textX}" y="${cycleY}" fill="${colors.textMain}" font-size="${cycleSize}" font-family="SoraTitle" letter-spacing="0.12em" filter="url(#${glowId})" opacity="${glowOpacitySub.toFixed(2)}">${escapeXml(moonText.cycleLabel)}</text>`,
-        `<text x="${textX}" y="${cycleY}" fill="${colors.textDim}" font-size="${cycleSize}" font-family="SoraTitle" letter-spacing="0.12em">${escapeXml(moonText.cycleLabel)}</text>`,
+        `<text x="${textX}" y="${cycleY}" fill="${colors.textMain}" font-size="${cycleSize}" font-family="SoraTitle" letter-spacing="0.12em" text-rendering="geometricPrecision" filter="url(#${glowId})" opacity="${glowOpacitySub.toFixed(2)}">${escapeXml(moonText.cycleLabel)}</text>`,
+        `<text x="${textX}" y="${cycleY}" fill="${colors.textSub}" font-size="${cycleSize}" font-family="SoraTitle" letter-spacing="0.12em" text-rendering="geometricPrecision">${escapeXml(moonText.cycleLabel)}</text>`,
       ].join("")
       : "",
     [
-      `<text x="${textX}" y="${labelY}" fill="${colors.textMain}" font-size="${labelSize}" font-family="SoraTitle" letter-spacing="0.06em" filter="url(#${glowId})" opacity="${glowOpacityMain.toFixed(2)}">${escapeXml(moonText.mainLabel)}</text>`,
-      `<text x="${textX}" y="${labelY}" fill="${colors.textMain}" font-size="${labelSize}" font-family="SoraTitle" letter-spacing="0.06em">${escapeXml(moonText.mainLabel)}</text>`,
+      `<text x="${textX}" y="${labelY}" fill="${colors.textMain}" font-size="${labelSize}" font-family="SoraTitle" letter-spacing="0.06em" text-rendering="geometricPrecision" filter="url(#${glowId})" opacity="${glowOpacityMain.toFixed(2)}">${escapeXml(moonText.mainLabel)}</text>`,
+      `<text x="${textX}" y="${labelY}" fill="${colors.textMain}" font-size="${labelSize}" font-family="SoraTitle" letter-spacing="0.06em" text-rendering="geometricPrecision">${escapeXml(moonText.mainLabel)}</text>`,
     ].join(""),
     textBlock({
       x: textX,
@@ -293,7 +304,7 @@ async function renderXNightMoonPng({
       lines: infoLines,
       size: infoSize,
       lineHeight: infoLineHeight,
-      color: colors.textDim,
+      color: colors.textSub,
       fontFamily: "SoraTitle",
       letterSpacing: 0.06,
     }),
