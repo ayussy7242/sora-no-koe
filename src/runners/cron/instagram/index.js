@@ -6,7 +6,13 @@ const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
 const { resolveEnv } = require("../../../utils/env");
-const { pickPreferredResonanceAspect } = require("../../../domain/resonance");
+const {
+  pickPreferredResonanceAspect,
+  pickResonanceForInstagram,
+  resolveResonanceMode,
+} = require("../../../domain/resonance");
+const { normalizeBodyKey } = require("../../../domain/canonical");
+const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { moonEventFlags } = require("../../../domain/moon");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { generateIgMoonEventAiOutputs } = require("../../../usecases/channels/instagram/ai/moon_event");
@@ -49,6 +55,51 @@ function resolveBackgroundCache(env = {}) {
   const force = ["1", "true", "yes", "on"].includes(forceRaw);
   const dir = env.IG_BG_CACHE_DIR || path.join(process.cwd(), "tmp", "ig", "bg_cache");
   return { dir, force };
+}
+
+function isMajorAspectDeg(deg) {
+  if (!Number.isFinite(Number(deg))) return false;
+  const d = Math.round(Number(deg));
+  return d === 0 || d === 60 || d === 90 || d === 120 || d === 180;
+}
+
+function isCorePairCandidate(candidate) {
+  const aKey = normalizeBodyKey(candidate?.a || "");
+  const bKey = normalizeBodyKey(candidate?.b || "");
+  if (!aKey || !bKey) return false;
+  return CORE_PLANETS.includes(aKey) && CORE_PLANETS.includes(bKey);
+}
+
+function buildResonanceDebug({ item, list, resonanceMode } = {}) {
+  const normalize = (it) => ({
+    key: it?.key || "",
+    types: it?.types || [],
+    score: it?.score ?? null,
+    reasons: it?.reasons || [],
+    channel_bias: it?.channel_bias || null,
+    orb: it?.flags?.orb ?? null,
+    a: it?.candidate?.a || null,
+    b: it?.candidate?.b || null,
+    aspect_deg: it?.candidate?.aspect_deg ?? null,
+    a_sign_key: it?.candidate?.a_sign_key || null,
+    b_sign_key: it?.candidate?.b_sign_key || null,
+  });
+  const topItems = Array.isArray(list) ? list.slice(0, 5) : [];
+  const top = topItems.map(normalize);
+  const picked = item ? normalize(item) : null;
+  const stats = {
+    resonance_mode: resonanceMode || null,
+    count_candidates: Array.isArray(list) ? list.length : 0,
+    count_major_aspect: Array.isArray(list)
+      ? list.filter((row) => isMajorAspectDeg(row?.candidate?.aspect_deg)).length
+      : 0,
+    count_core_pair: Array.isArray(list)
+      ? list.filter((row) => isCorePairCandidate(row?.candidate)).length
+      : 0,
+    count_major_aspect_in_top: topItems.filter((row) => isMajorAspectDeg(row?.candidate?.aspect_deg)).length,
+    count_core_pair_in_top: topItems.filter((row) => isCorePairCandidate(row?.candidate)).length,
+  };
+  return { picked, list: top, stats };
 }
 
 function buildAspectKey(aspect, { includeOrb = false } = {}) {
@@ -176,10 +227,30 @@ async function runIgPost(deps, opts = {}) {
     console.log("[cron/ig/post] story_built", { ms: Date.now() - tStory });
 
     const igOut = ensureIgOutputs(story);
-    const preferredAspect = pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
+    const skyTop = Array.isArray(story?.public?.sky_top) ? story.public.sky_top : [];
+    const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+    const resonanceMode = resolveResonanceMode(story, opts.resonanceMode);
+    const { item: preferredItem, list: importantList } = pickResonanceForInstagram({
+      story,
+      dict,
+      candidates: [...skyTop, ...skyAll],
+      skyTop,
+    });
+    const resonanceDebug = buildResonanceDebug({
+      item: preferredItem,
+      list: importantList,
+      resonanceMode,
+    });
+    const preferredAspect =
+      igOut?.source?.resonance_aspect ||
+      preferredItem?.candidate ||
+      pickPreferredResonanceAspect(story, { resonanceMode: opts.resonanceMode });
     if (preferredAspect) {
       igOut.source.resonance_aspect = preferredAspect;
       igOut.source.resonance_aspect_key = buildAspectKey(preferredAspect, { includeOrb: true });
+      if (!igOut.source.resonance_aspect_key_used) {
+        igOut.source.resonance_aspect_key_used = igOut.source.resonance_aspect_key || "";
+      }
     } else {
       igOut.source.resonance_aspect_key = "";
     }
@@ -237,6 +308,7 @@ async function runIgPost(deps, opts = {}) {
           slide3_display_aspect: topAspect || null,
           caption,
           carousel,
+          resonance_debug: resonanceDebug,
         },
         outDir: localOutDir,
         filename: "ig_post.json",
@@ -257,6 +329,7 @@ async function runIgPost(deps, opts = {}) {
         local_dir: localOutDir,
         local_paths: localPaths,
         local_json: jsonPath,
+        resonance_debug: resonanceDebug,
       };
     }
 
@@ -301,6 +374,7 @@ async function runIgPost(deps, opts = {}) {
         caption,
         image_urls: imageUrls,
         gcs_paths: upload.paths,
+        resonance_debug: resonanceDebug,
       };
     }
 

@@ -127,12 +127,13 @@ function createCronRouter(deps = {}) {
       const dryRun = pickDryRun({ q, b });
       const mode = pickMode({ q, b });
       const target = pickTarget({ q, b });
+      const debug = pickBoolFlag({ q, b, keys: ["debug"], defaultValue: false });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
 
       const result = await runDaily8(
         { db, admin, env, storyService, renderers, storage },
-        { dateLocal, dryRun, mode, target, local, localOutDir }
+        { dateLocal, dryRun, mode, target, debug, local, localOutDir }
       );
 
       return res.json(result);
@@ -344,6 +345,7 @@ function createCronRouter(deps = {}) {
         keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"],
         defaultValue: undefined,
       });
+      const debug = pickBoolFlag({ q, b, keys: ["debug"], defaultValue: false });
       const image = pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] });
       const force = pickBoolFlag({
         q,
@@ -362,7 +364,19 @@ function createCronRouter(deps = {}) {
       });
       const result = await runXResonancePost(
         { env, storyService, renderers, dict, db },
-        { dateLocal, asOfISO, dryRun, useAi, resonanceOrbMax, resonanceTriggerOrbMax, image, force, local, localOutDir }
+        {
+          dateLocal,
+          asOfISO,
+          dryRun,
+          useAi,
+          resonanceOrbMax,
+          resonanceTriggerOrbMax,
+          image,
+          force,
+          local,
+          localOutDir,
+          debug,
+        }
       );
 
       logCronPhase(req, "[cron/x/resonance] done", { ok: result?.ok, ms: Date.now() - t0 });

@@ -95,6 +95,7 @@ async function runDaily8(deps, opts = {}) {
   const LINE_ENABLED = envFlag(env2.LINE_ENABLED, true);
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const dryRun = toBool(opts.dryRun ?? opts.dry_run, false);
+  const debugEnabled = toBool(opts.debug ?? opts.debugFlag ?? env2.DAILY8_DEBUG, false);
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.DAILY8_LOCAL_ONLY,
     false
@@ -151,6 +152,7 @@ async function runDaily8(deps, opts = {}) {
     try {
       const payload = await buildPayloadFor({ appUserId, lineUserId });
       const outText = payload?.text || "";
+      const resonanceDebug = payload?.resonance_debug || null;
       if (!isNonEmptyText(outText)) throw new Error("outText empty");
 
       if (localOnly) {
@@ -163,6 +165,7 @@ async function runDaily8(deps, opts = {}) {
           is_paid_500: !!payload?.isPaid500,
           mode,
           target,
+          resonance_debug: resonanceDebug,
         });
         return { ok: true };
       }
@@ -195,6 +198,9 @@ async function runDaily8(deps, opts = {}) {
         });
       }
 
+      if (runDry || debugEnabled) {
+        return { ok: true, resonance_debug: resonanceDebug };
+      }
       return { ok: true };
     } catch (e) {
       if (localOnly) {
@@ -207,6 +213,7 @@ async function runDaily8(deps, opts = {}) {
           is_paid_500: false,
           mode,
           target,
+          resonance_debug: null,
           error: e?.message || String(e),
         });
         return { ok: false, error: e?.message || String(e) };
@@ -276,7 +283,11 @@ async function runDaily8(deps, opts = {}) {
 
     await writeDeliverySummary({ db, admin, env, dateLocal, runId, summary, mode, target });
 
-    return { ok: r.ok, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: summary.last_error };
+    const result = { ok: r.ok, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: summary.last_error };
+    if (runDry || debugEnabled) {
+      result.resonance_debug = r?.resonance_debug || null;
+    }
+    return result;
   }
 
   // ---------- target=all ----------

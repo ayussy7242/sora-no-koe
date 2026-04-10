@@ -17,7 +17,7 @@ async function buildDailyLineMessage({ story, dict, isPaid500, deepMode } = {}) 
     dict: useDict,
     includeHeader: false,
     includeHouse: isPaid500 === true,
-    resonanceMode: deepMode ? "deep" : "core",
+    resonanceMode: "core",
   });
   const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false });
   const paidBody = isPaid500

@@ -52,6 +52,7 @@ async function runXMorningPost(deps, opts = {}) {
   const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const debugEnabled = toBool(opts.debug ?? opts.debugFlag ?? env2.X_POST_DEBUG, false);
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
     false
@@ -351,6 +352,7 @@ async function runXResonancePost(deps, opts = {}) {
   const env2 = resolveEnv(env);
   const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
   const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
+  const debugEnabled = toBool(opts.debug ?? opts.debugFlag ?? env2.X_POST_DEBUG, false);
   const localOnly = toBool(
     opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
     false
@@ -427,6 +429,7 @@ async function runXResonancePost(deps, opts = {}) {
       skipMeta,
       picked,
       pickedKey,
+      debug: resonanceDebug,
     } = await buildResonancePost({
       story,
       dict,
@@ -439,6 +442,13 @@ async function runXResonancePost(deps, opts = {}) {
       maxTotalChars: maxResonanceChars,
       aiMaxRetries,
     });
+
+    const attachDebug = (payload) => {
+      if (debugEnabled || dryRun) {
+        return { ...payload, resonance_debug: resonanceDebug || null };
+      }
+      return payload;
+    };
 
     if (!post && useAi && Array.isArray(buildErrors) && buildErrors.length) {
       console.error("[x:post] ai_generation_failed", {
@@ -458,14 +468,14 @@ async function runXResonancePost(deps, opts = {}) {
       }).catch((err) => console.error("[x:outbox] save failed", err?.message || String(err)));
       await notifyXPostFailure({ env: env2, dateLocal, kind: "resonance", errors: buildErrors });
 
-      const result = {
+      const result = attachDebug({
         ok: false,
         dry_run: dryRun,
         date_local: dateLocal,
         as_of: asOfISO,
         error: "ai_generation_failed",
         details: Array.isArray(buildErrors) ? buildErrors : [],
-      };
+      });
       if (!dryRun && !localOnly) {
         await markXPostLock(db, "resonance", dateLocal, {
           status: "failed",
@@ -486,7 +496,7 @@ async function runXResonancePost(deps, opts = {}) {
           meta: skipMeta || null,
         }).catch(() => {});
       }
-      return {
+      return attachDebug({
         ok: true,
         skipped: true,
         reason,
@@ -494,7 +504,7 @@ async function runXResonancePost(deps, opts = {}) {
         dry_run: dryRun,
         date_local: dateLocal,
         as_of: asOfISO,
-      };
+      });
     }
 
     const trimmed = (() => {
@@ -556,7 +566,7 @@ async function runXResonancePost(deps, opts = {}) {
 
     if (localOnly) {
       const localPaths = writeLocalPosts({ posts: [trimmed], outDir: localOutDir, prefix: "x_resonance" });
-      return {
+      return attachDebug({
         ok: true,
         dry_run: true,
         local_only: true,
@@ -567,7 +577,7 @@ async function runXResonancePost(deps, opts = {}) {
         local_paths: localPaths,
         local_image: resonanceImagePath,
         image: resonanceImageInfo,
-      };
+      });
     }
 
     if (resonanceImageEnabled && !dryRun) {
@@ -594,14 +604,14 @@ async function runXResonancePost(deps, opts = {}) {
     }
 
     if (dryRun) {
-      return {
+      return attachDebug({
         ok: true,
         dry_run: true,
         date_local: dateLocal,
         as_of: asOfISO,
         post: trimmed,
         image: resonanceImageInfo,
-      };
+      });
     }
 
     const res = await postSingleToX({
@@ -623,7 +633,7 @@ async function runXResonancePost(deps, opts = {}) {
         await pushXResonanceRecentKey(db, pickedKey).catch(() => {});
       }
     }
-    return {
+    return attachDebug({
       ok: true,
       dry_run: false,
       date_local: dateLocal,
@@ -634,7 +644,7 @@ async function runXResonancePost(deps, opts = {}) {
       resonance_key: pickedKey || "",
       resonance: picked || null,
       image: resonanceImageInfo,
-    };
+    });
   } catch (err) {
     if (!dryRun && !localOnly) {
       await markXPostLock(db, "resonance", dateLocal, {

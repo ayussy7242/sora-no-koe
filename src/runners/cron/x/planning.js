@@ -4,7 +4,12 @@ const { countChars } = require("../../../utils/text/hashtag");
 const { generateXSoraAiText } = require("../../../usecases/channels/x/ai/daily");
 const { generateXNightAiText } = require("../../../usecases/channels/x/ai/night");
 const { generateXResonanceAiText } = require("../../../usecases/channels/x/ai/resonance");
-const { pickPrimaryResonanceAspect, listResonanceCandidates, buildResonanceKey } = require("../../../domain/resonance");
+const {
+  pickPrimaryResonanceAspect,
+  listResonanceCandidates,
+  buildResonanceKey,
+  pickResonanceForX,
+} = require("../../../domain/resonance");
 const { isApplying } = require("../../../domain/aspect/proximity");
 const { ensureXMeta } = require("./utils");
 
@@ -21,6 +26,7 @@ async function buildMorningPosts({
 }) {
   const meta = ensureXMeta(story);
   const errors = [];
+  const debug = {};
   let mainAiMax = null;
 
   let mainAiMin = null;
@@ -106,6 +112,7 @@ async function buildResonancePost({
 }) {
   const meta = ensureXMeta(story);
   const errors = [];
+  const debug = {};
 
   const candidates = listResonanceCandidates({ story, maxOrbDeg, resonanceMode: story?.meta?.resonance_mode });
   if (!candidates.length) {
@@ -147,7 +154,52 @@ async function buildResonancePost({
     nowOrb: row?.orb_deg,
   }) === true);
   const pool = applying.length ? applying : withinTrigger;
-  const pickedRaw = pool[0];
+  const { item: pickedItem, list: importantList } = pickResonanceForX({
+    story,
+    dict,
+    candidates: pool,
+    skyTop: story?.public?.sky_top,
+    asOfISO,
+  });
+  const isApplyingItem = (item) => {
+    const candidate = item?.candidate || {};
+    return isApplying({
+      kind: "transit-transit",
+      aKey: candidate?.a,
+      bKey: candidate?.b,
+      aspectDeg: candidate?.aspect_deg,
+      asOfISO,
+      nowOrb: candidate?.orb_deg,
+    }) === true;
+  };
+  if (Array.isArray(importantList) && importantList.length) {
+    debug.important = importantList.slice(0, 5).map((item) => ({
+      key: item?.key || "",
+      types: item?.types || [],
+      score: item?.score ?? null,
+      reasons: item?.reasons || [],
+      channel_bias: item?.channel_bias || null,
+      applying: isApplyingItem(item),
+      orb: item?.flags?.orb ?? null,
+      a: item?.candidate?.a || null,
+      b: item?.candidate?.b || null,
+      aspect_deg: item?.candidate?.aspect_deg ?? null,
+      a_sign_key: item?.candidate?.a_sign_key || null,
+      b_sign_key: item?.candidate?.b_sign_key || null,
+    }));
+  }
+  const pickedRaw = pickedItem?.candidate || pool[0];
+  if (pickedItem) {
+    debug.picked = {
+      key: pickedItem?.key || buildResonanceKey(pickedRaw),
+      types: pickedItem?.types || [],
+      score: pickedItem?.score ?? null,
+      reasons: pickedItem?.reasons || [],
+      channel_bias: pickedItem?.channel_bias || null,
+      applying: isApplyingItem(pickedItem),
+      orb: pickedItem?.flags?.orb ?? null,
+    };
+  }
   const picked = pickPrimaryResonanceAspect({
     story: { ...story, public: { ...story?.public, sky_all: [pickedRaw] } },
     dict,
@@ -191,7 +243,7 @@ async function buildResonancePost({
   }
 
   if (errors.length && useAi) {
-    return { post: null, hasResonance: !!picked, errors };
+    return { post: null, hasResonance: !!picked, errors, debug };
   }
 
   const resonanceText = await renderers.renderXResonance(story);
@@ -204,6 +256,7 @@ async function buildResonancePost({
     skipReason: post ? null : "no_resonance",
     picked,
     pickedKey: picked?.raw ? buildResonanceKey(picked.raw) : "",
+    debug,
   };
 }
 

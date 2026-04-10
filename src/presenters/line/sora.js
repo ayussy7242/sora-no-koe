@@ -3,9 +3,9 @@
 const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveChannelConfig } = require("../../config/aspect_channel_config");
-const { scoreForAspect } = require("../../domain/touch_point/scoring");
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
+const { listImportantResonances, applyLineBias } = require("../../domain/resonance");
 const {
   formatDateLabel,
   glyphForBody,
@@ -17,10 +17,122 @@ const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = requir
 const {
   listWithOrb,
   filterWithinOrb,
-  sortByOrb,
   minByOrb,
 } = require("../../domain/aspect/selection");
 const { formatTodayMoonLines } = require("../../domain/moon");
+
+function normalizeResonanceDebugItem(item) {
+  if (!item) return null;
+  return {
+    key: item?.key || "",
+    types: item?.types || [],
+    score: item?.score ?? null,
+    reasons: item?.reasons || [],
+    channel_bias: item?.channel_bias || null,
+    orb: item?.flags?.orb ?? null,
+    a: item?.candidate?.a || null,
+    b: item?.candidate?.b || null,
+    aspect_deg: item?.candidate?.aspect_deg ?? null,
+    a_sign_key: item?.candidate?.a_sign_key || null,
+    b_sign_key: item?.candidate?.b_sign_key || null,
+  };
+}
+
+function isMajorAspectDeg(deg) {
+  if (!Number.isFinite(Number(deg))) return false;
+  const d = Math.round(Number(deg));
+  return d === 0 || d === 60 || d === 90 || d === 120 || d === 180;
+}
+
+function isCorePairCandidate(candidate) {
+  const aKey = normalizeBodyKey(candidate?.a || "");
+  const bKey = normalizeBodyKey(candidate?.b || "");
+  if (!aKey || !bKey) return false;
+  return CORE_PLANETS.includes(aKey) && CORE_PLANETS.includes(bKey);
+}
+
+function buildLineResonanceDebug(story, deps = {}) {
+  const dict = deps?.dict || require("../../content/dict");
+  const isPaid = deps?.paid === true;
+  const LINE_SORA_CFG = resolveChannelConfig("line_sora");
+  const fallbackMode = deps?.deepMode ? "deep" : "core";
+  const cfgMode = isPaid ? (LINE_SORA_CFG.useDeepPaid ? "deep" : "core") : (LINE_SORA_CFG.useDeepFree ? "deep" : "core");
+  const resonanceMode = deps?.resonanceMode || cfgMode || fallbackMode;
+
+  const pub = story?.public || {};
+  const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
+  const coreBodies = new Set(CORE_PLANETS);
+  const deepBodies = new Set(DEEP_BODIES);
+  const allWithOrb = listWithOrb(skyAll);
+  const coreList = allWithOrb.filter((r) => {
+    const aKey = normalizeBodyKey(r?.a || "");
+    const bKey = normalizeBodyKey(r?.b || "");
+    return coreBodies.has(aKey) && coreBodies.has(bKey);
+  });
+  const deepList = allWithOrb.filter((r) => {
+    const aKey = normalizeBodyKey(r?.a || "");
+    const bKey = normalizeBodyKey(r?.b || "");
+    return deepBodies.has(aKey) || deepBodies.has(bKey);
+  });
+  const useDeep = resonanceMode === "deep";
+  const resonancePool = useDeep
+    ? (deepList.length ? deepList : coreList)
+    : (coreList.length ? coreList : deepList);
+
+  const orbLimit = isPaid
+    ? (LINE_SORA_CFG.orbLimitPaid ?? SPEC.orb.paid)
+    : (LINE_SORA_CFG.orbLimitFree ?? SPEC.orb.free);
+  const within = filterWithinOrb(resonancePool, orbLimit);
+  const minItem = minByOrb(resonancePool);
+  const skyTop = Array.isArray(pub.sky_top) ? pub.sky_top : [];
+
+  const importantWithin = applyLineBias(listImportantResonances({
+    story,
+    candidates: within,
+    skyTop,
+    resonanceMode,
+  }));
+
+  const picked = importantWithin.length ? importantWithin[0] : null;
+  const topItems = importantWithin.slice(0, 5);
+  const top = topItems.map(normalizeResonanceDebugItem);
+  const countMajorAspect = within.filter((row) => isMajorAspectDeg(row?.aspect_deg)).length;
+  const countCorePair = within.filter((row) => isCorePairCandidate(row)).length;
+  const countMajorAspectInTop = topItems.filter((item) => isMajorAspectDeg(item?.candidate?.aspect_deg)).length;
+  const countCorePairInTop = topItems.filter((item) => isCorePairCandidate(item?.candidate)).length;
+  const stats = {
+    resonance_mode: resonanceMode,
+    count_candidates: within.length,
+    count_major_aspect: countMajorAspect,
+    count_core_pair: countCorePair,
+    count_major_aspect_in_top: countMajorAspectInTop,
+    count_core_pair_in_top: countCorePairInTop,
+  };
+  if (picked) {
+    return { picked: normalizeResonanceDebugItem(picked), top, stats };
+  }
+
+  if (minItem) {
+    return {
+      picked: {
+        key: "",
+        types: ["fallback"],
+        score: null,
+        reasons: ["fallback_min_orb"],
+        orb: Number.isFinite(Number(minItem?.orb_deg)) ? Number(minItem.orb_deg) : null,
+        a: minItem?.a || null,
+        b: minItem?.b || null,
+        aspect_deg: minItem?.aspect_deg ?? null,
+        a_sign_key: minItem?.a_sign_key || null,
+        b_sign_key: minItem?.b_sign_key || null,
+      },
+      top,
+      stats,
+    };
+  }
+
+  return { picked: null, top, stats };
+}
 
 async function renderSoraLine(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
@@ -100,6 +212,13 @@ async function renderSoraLine(story, deps = {}) {
     : (coreList.length ? coreList : deepList);
   const within = filterWithinOrb(resonancePool, orbLimit);
   const minItem = minByOrb(resonancePool);
+  const skyTop = Array.isArray(pub.sky_top) ? pub.sky_top : [];
+  const importantWithin = listImportantResonances({
+    story,
+    candidates: within,
+    skyTop,
+    resonanceMode,
+  });
 
   let picked = [];
   let listTitleAspect = "";
@@ -108,24 +227,17 @@ async function renderSoraLine(story, deps = {}) {
     const maxItems = Number.isFinite(Number(LINE_SORA_CFG.maxItemsPaid))
       ? Number(LINE_SORA_CFG.maxItemsPaid)
       : null;
-    picked = within
-      .map((r) => {
-        const aKey = normalizeBodyKey(r?.a || "");
-        const bKey = normalizeBodyKey(r?.b || "");
-        return { item: r, score: scoreForAspect({ orb: r?.orb_deg, aKey, bKey }) };
-      })
-      .sort((a, b) => Number(b.score) - Number(a.score))
-      .map((x) => x.item);
+    picked = importantWithin.map((x) => x.candidate);
     if (Number.isFinite(maxItems)) {
       picked = picked.slice(0, maxItems);
     }
     listTitleAspect = SPEC.labels.sora.closestPaid(orbLimit);
   } else {
-    if (within.length) {
+    if (importantWithin.length) {
       const maxItems = Number.isFinite(Number(LINE_SORA_CFG.maxItemsFree))
         ? Number(LINE_SORA_CFG.maxItemsFree)
         : 1;
-      picked = sortByOrb(within).slice(0, maxItems);
+      picked = importantWithin.slice(0, maxItems).map((x) => x.candidate);
       listTitleAspect = SPEC.labels.sora.closest;
     } else if (minItem) {
       picked = [minItem];
@@ -226,4 +338,7 @@ async function renderSoraLine(story, deps = {}) {
   return lines.filter((x) => x !== null && x !== undefined).join("\n").trim();
 }
 
-module.exports = { renderSoraLine };
+module.exports = {
+  renderSoraLine,
+  buildLineResonanceDebug,
+};

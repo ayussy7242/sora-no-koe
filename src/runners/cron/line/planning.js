@@ -3,6 +3,7 @@
 const { normalizeStoryArgs } = require("../../../usecases/story/args");
 const { toSafeText } = require("../cron_utils");
 const { buildDailyLineMessage } = require("../../../usecases/channels/line/daily_message");
+const { buildLineResonanceDebug } = require("../../../presenters/line/sora");
 const { getLineSubscription, isPaidLine500 } = require("../../../integrations/firebase/subscription");
 const { buildAndStoreSoraWheel } = require("../../../engine/graphics/sora_wheel");
 
@@ -73,6 +74,12 @@ async function buildDailyLinePayload({
 
   const deepMode = await getLineUserDeepMode(db, lineUserId);
   const text = toSafeText(await buildDailyLineMessage({ story, dict, isPaid500, deepMode }));
+  const resonanceDebug = buildLineResonanceDebug(story, {
+    dict,
+    paid: isPaid500,
+    deepMode,
+    resonanceMode: "core",
+  });
 
   let imageUrl = null;
   let imagePath = null;
@@ -98,7 +105,7 @@ async function buildDailyLinePayload({
     }
   }
 
-  return { text, isPaid500, imageUrl, imagePath };
+  return { text, isPaid500, imageUrl, imagePath, resonance_debug: resonanceDebug };
 }
 
 module.exports = {
