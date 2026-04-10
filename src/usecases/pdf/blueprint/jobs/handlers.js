@@ -44,6 +44,23 @@ function toMillis(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function pickDelayedDoneText({ job, env } = {}) {
+  if (!job) return null;
+  const thresholdMin = toNumberSafe(
+    env?.BLUEPRINT_RESEND_NOTICE_MINUTES || process.env.BLUEPRINT_RESEND_NOTICE_MINUTES,
+    60
+  );
+  const baseMs =
+    toMillis(job?.created_at) ||
+    toMillis(job?.started_at) ||
+    toMillis(job?.updated_at) ||
+    null;
+  if (!baseMs) return null;
+  const elapsedMin = (Date.now() - baseMs) / 60000;
+  if (elapsedMin >= thresholdMin) return LINE_COPY?.BLUEPRINT_RESEND_NOTICE || null;
+  return null;
+}
+
 async function logBlueprintEvent({ db, admin, lineUserId, status, stage, error, attempts, extra } = {}) {
   if (!db || !admin || !lineUserId) return;
   try {
@@ -552,10 +569,13 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
             maxText: Number(env.MAX_LINE_TEXT || 4800),
           });
           const displayName = await resolveLineDisplayName(db, lineUserId);
-          const doneText = formatBlueprintDoneText(
-            LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
-            displayName
-          );
+          const jobSnapForText = await jobRef.get().catch(() => null);
+          const jobDataForText = jobSnapForText?.exists ? jobSnapForText.data() : null;
+          const baseText =
+            pickDelayedDoneText({ job: jobDataForText, env }) ||
+            LINE_COPY?.NATAL_DONE ||
+            "🌌 Blueprintが完成しました";
+          const doneText = formatBlueprintDoneText(baseText, displayName);
           const templateMessage = {
             type: "template",
             altText: "星の設計図（Blueprint v25）",
@@ -674,10 +694,13 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
           maxText: Number(env.MAX_LINE_TEXT || 4800),
         });
         const displayName = await resolveLineDisplayName(db, lineUserId);
-        const doneText = formatBlueprintDoneText(
-          LINE_COPY?.NATAL_DONE || "🌌 Blueprintが完成しました",
-          displayName
-        );
+        const jobSnapForText = await jobRef.get().catch(() => null);
+        const jobDataForText = jobSnapForText?.exists ? jobSnapForText.data() : null;
+        const baseText =
+          pickDelayedDoneText({ job: jobDataForText, env }) ||
+          LINE_COPY?.NATAL_DONE ||
+          "🌌 Blueprintが完成しました";
+        const doneText = formatBlueprintDoneText(baseText, displayName);
         const templateMessage = {
           type: "template",
           altText: "星の設計図（Blueprint v25）",
