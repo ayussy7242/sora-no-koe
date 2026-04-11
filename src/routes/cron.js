@@ -280,6 +280,7 @@ function createCronRouter(deps = {}) {
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
       const dryRun = pickDryRun({ q, b });
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
       const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
       const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
       const resonanceOrbMax = pickNumberFlag({
@@ -587,7 +588,7 @@ function createCronRouter(deps = {}) {
 
       const result = await runIgMonthlyPost(
         { db, admin, env, storyService, renderers, storage, dict },
-        { dateLocal, month, asOfISO, dryRun, useAi, local, localOutDir, force }
+        { dateLocal, month, asOfISO, dryRun, useAi, forceAi, local, localOutDir, force }
       );
 
       logCronPhase(req, "[cron/ig/monthly] done", {

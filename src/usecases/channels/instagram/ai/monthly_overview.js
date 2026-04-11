@@ -130,7 +130,7 @@ function buildCaptionHashtags({ reference, dict }) {
   return Array.from(tags).slice(0, 10).join(" ");
 }
 
-async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 1 }) {
+async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 2, forceAi = false }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
@@ -162,22 +162,25 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
     maxRetries: resolvedMaxRetries,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     temperature: 0.4,
-    maxTokens: 520,
+    maxTokens: 700,
     context: { month, reference },
   });
 
   if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
   if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
+    if (forceAi && result.lastText) {
+      return { ok: true, text: result.lastText, model, attempts: result.attempts, last_text: result.lastText, degraded: true };
+    }
     return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
   }
 
   const fallback = buildCaptionFallback({ month, reference, dict });
   return {
     ok: true,
-    text: fallback,
+    text: forceAi && result.lastText ? result.lastText : fallback,
     model,
-    fallback: true,
+    fallback: !forceAi,
     reason: result.reason || "",
     fallback_reason: result.reason || result.error || "",
     attempts: result.attempts,

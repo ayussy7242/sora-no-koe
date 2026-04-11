@@ -290,11 +290,13 @@ async function runIgMonthlyPost(deps, opts = {}) {
     const exportPayload = await buildMonthlyExport({ month, dict, templatePath, storyDay: opts.storyDay || 15 });
     const carousel = buildMonthlyCarousel({ payload: exportPayload });
     const useAi = opts.useAi !== false;
+    const forceAi = opts.forceAi === true;
     const aiRes = useAi
       ? await generateIgMonthlyCaptionText({
           month,
           reference: exportPayload.reference,
           dict,
+          forceAi,
           openai: {
             apiKey: env2.OPENAI_API_KEY,
             baseUrl: env2.OPENAI_BASE_URL,
