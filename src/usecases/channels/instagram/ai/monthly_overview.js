@@ -135,7 +135,8 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
-  const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
+  let resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
+  if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 3);
 
   const result = await generateWithRetry({
     buildPrompt: () => buildCaptionPrompt({ month, reference, dict }),
@@ -169,18 +170,18 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
   if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
-    if (forceAi && result.lastText) {
-      return { ok: true, text: result.lastText, model, attempts: result.attempts, last_text: result.lastText, degraded: true };
+    if (forceAi) {
+      return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
     }
     return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
   }
 
   const fallback = buildCaptionFallback({ month, reference, dict });
   return {
-    ok: true,
-    text: forceAi && result.lastText ? result.lastText : fallback,
+    ok: !forceAi,
+    text: fallback,
     model,
-    fallback: !forceAi,
+    fallback: true,
     reason: result.reason || "",
     fallback_reason: result.reason || result.error || "",
     attempts: result.attempts,

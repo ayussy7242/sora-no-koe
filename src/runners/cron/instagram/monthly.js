@@ -304,6 +304,9 @@ async function runIgMonthlyPost(deps, opts = {}) {
           },
         })
       : { ok: false, error: "ai_disabled" };
+    if (useAi && forceAi && !aiRes.ok) {
+      throw new Error(`monthly_caption_ai_failed:${aiRes.reason || aiRes.error || "unknown"}`);
+    }
     const captionBody = aiRes.ok
       ? aiRes.text
       : buildCaptionFallback({ month, reference: exportPayload.reference, dict });
