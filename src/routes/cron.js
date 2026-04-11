@@ -577,6 +577,7 @@ function createCronRouter(deps = {}) {
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
       const dryRun = pickDryRun({ q, b });
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
+      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
       const force = pickBoolFlag({
