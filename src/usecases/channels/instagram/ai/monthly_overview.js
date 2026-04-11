@@ -130,6 +130,46 @@ function buildCaptionHashtags({ reference, dict }) {
   return Array.from(tags).slice(0, 10).join(" ");
 }
 
+const EMOJI_REGEX = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+
+function stripPeriodBeforeEmoji(line) {
+  const chars = Array.from(String(line || ""));
+  if (chars.length < 2) return line;
+  const last = chars[chars.length - 1];
+  const prev = chars[chars.length - 2];
+  if (prev === "。" && EMOJI_REGEX.test(last)) {
+    return chars.slice(0, -2).join("") + last;
+  }
+  return line;
+}
+
+function buildSummaryLine({ reference, dict }) {
+  const phaseCount = Array.isArray(reference?.moon?.phases) ? reference.moon.phases.length : 0;
+  const retroCount = Array.isArray(reference?.retrogrades) ? reference.retrogrades.length : 0;
+  const ingressCount = Array.isArray(reference?.sign_ingresses) ? reference.sign_ingresses.length : 0;
+  const aspectCount = Array.isArray(reference?.aspects) ? reference.aspects.length : 0;
+  return `今月の空模様のまとめ：月相${phaseCount}・逆行${retroCount}・星座移動${ingressCount}・主要アスペクト${aspectCount}`;
+}
+
+function postprocessMonthlyCaption({ text, month, reference, dict }) {
+  const lines = String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(stripPeriodBeforeEmoji);
+
+  const summaryLine = buildSummaryLine({ reference, dict });
+  const hasSummary = lines.some((line) => line.startsWith("今月の空模様のまとめ"));
+  const hashtags = buildCaptionHashtags({ reference, dict });
+  const hasTags = lines.some((line) => line.startsWith("#"));
+
+  const out = [...lines];
+  if (!hasSummary) out.push(summaryLine);
+  if (!hasTags && hashtags) out.push(hashtags);
+
+  return out.join("\n");
+}
+
 async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 1 }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
@@ -162,7 +202,10 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
     context: { month, reference },
   });
 
-  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
+  if (result.ok) {
+    const text = postprocessMonthlyCaption({ text: result.text, month, reference, dict });
+    return { ok: true, text, model, attempts: result.attempts, last_text: result.lastText };
+  }
 
   if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
     return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
@@ -171,7 +214,7 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   const fallback = buildCaptionFallback({ month, reference, dict });
   return {
     ok: true,
-    text: fallback,
+    text: postprocessMonthlyCaption({ text: fallback, month, reference, dict }),
     model,
     fallback: true,
     reason: result.reason || "",
@@ -186,4 +229,5 @@ module.exports = {
   formatMonthDot,
   buildCaptionFallback,
   buildCaptionHashtags,
+  postprocessMonthlyCaption,
 };
