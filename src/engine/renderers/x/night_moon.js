@@ -3,6 +3,7 @@ const { buildMoonPhaseGlyph: buildMoonPhaseGlyphShared } = require("../../shared
 
 const sharp = require("sharp");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
+const { signElement } = require("../../shared/space_background/theme");
 const { fontFaceCss } = require("../instagram/assets/fonts");
 const { formatDateLabel, toDateLocalJST } = require("../../../utils/time");
 const { escapeXml } = require("../../../utils/data/xml");
@@ -253,6 +254,23 @@ async function renderXNightMoonPng({
     `</filter>`,
   ].join("");
 
+  const moonSignKey =
+    story?.public?.transit_signs?.moon?.sign_key ||
+    story?.public?.moon?.sign_key ||
+    story?.public?.moon?.sign ||
+    story?.public?.moon?.key ||
+    "";
+  const moonElement = signElement(moonSignKey);
+  const resolvedSpaceConfig = (() => {
+    const base = (spaceConfig && typeof spaceConfig === "object") ? { ...spaceConfig } : {};
+    if (moonElement && moonElement !== "mixed") {
+      base.elementOverride = moonElement;
+      base.secondaryElementOverride = moonElement;
+      base.forceSecondaryMix = false;
+    }
+    return base;
+  })();
+
   const { svg, space } = buildBaseSvg({
     story,
     dateLabel: dateLabelSafe,
@@ -262,7 +280,7 @@ async function renderXNightMoonPng({
     variant,
     avoidRegions,
     extraDefs,
-    spaceConfig,
+    spaceConfig: resolvedSpaceConfig,
   });
 
   const colors = resolveColors(space);
