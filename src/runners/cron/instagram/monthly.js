@@ -324,6 +324,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
           date_local: dateLocal,
           as_of: asOfISO,
           caption,
+          caption_length: Array.from(String(caption || "")).length,
           ai: aiRes,
           carousel,
           export: exportPayload,

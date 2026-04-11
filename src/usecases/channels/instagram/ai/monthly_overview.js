@@ -130,13 +130,36 @@ function buildCaptionHashtags({ reference, dict }) {
   return Array.from(tags).slice(0, 10).join(" ");
 }
 
+const EMOJI_REGEX = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+
+function endsWithEmoji(text) {
+  const chars = Array.from(String(text || ""));
+  if (!chars.length) return false;
+  return EMOJI_REGEX.test(chars[chars.length - 1]);
+}
+
+function endsWithSentencePunctuation(text) {
+  const t = String(text || "").trim();
+  return t.endsWith("。") || t.endsWith("！") || t.endsWith("？");
+}
+
+function hasValidLineEnding(line) {
+  const t = String(line || "").trim();
+  if (!t) return true;
+  if (t.startsWith("#")) return true;
+  return endsWithEmoji(t) || endsWithSentencePunctuation(t);
+}
+
 async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 2, forceAi = false }) {
   const apiKey = openai?.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "OPENAI_API_KEY missing" };
 
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   let resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
-  if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 3);
+  if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 4);
+
+  const titleLine = `⭐️ ${formatMonthDot(month)} 今月の星カレンダー`;
+  const maxBodyChars = Math.max(200, 500 - (Array.from(titleLine).length + 2));
 
   const result = await generateWithRetry({
     buildPrompt: () => buildCaptionPrompt({ month, reference, dict }),
@@ -146,11 +169,14 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
       const verdict = runAiTextPipeline({
         rawText: raw,
         preset: PRESETS.ig.monthly_caption,
+        overrides: { maxChars: maxBodyChars },
       });
       if (!verdict.ok) return { ok: false, reason: verdict.reason || "" };
       const text = String(verdict.text || "");
       if (!text.includes("今月の空模様のまとめ")) return { ok: false, reason: "missing_summary" };
       if (!text.split("\n").some((line) => line.trim().startsWith("#"))) return { ok: false, reason: "missing_hashtags" };
+      const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+      if (lines.some((line) => !hasValidLineEnding(line))) return { ok: false, reason: "invalid_line_ending" };
       return { ok: true, text: verdict.text };
     },
     createChatCompletion,
