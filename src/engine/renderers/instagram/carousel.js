@@ -152,6 +152,7 @@ function buildSpaceConfigKey(spaceConfig) {
     ["moonEventStyle", spaceConfig.moonEventStyle],
     ["moonEventCenter", spaceConfig.moonEventCenter],
     ["moonEventIntensity", spaceConfig.moonEventIntensity],
+    ["slide1Extras", spaceConfig.slide1Extras ? 1 : 0],
   ]
     .filter(([, v]) => v !== null && v !== undefined && v !== "")
     .map(([k, v]) => {

@@ -588,7 +588,8 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     }
   }
 
-  if (variant === "slide1" && world.densityAt) {
+  const slide1ExtrasEnabled = spaceConfig?.slide1Extras === true;
+  if (slide1ExtrasEnabled && variant === "slide1" && world.densityAt) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const bloomColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
     const moonEventKind = String(spaceConfig?.moonEventKind || "").toLowerCase();
@@ -637,7 +638,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     if (extraHero) overlay.push(`<g>${extraHero}</g>`);
   }
 
-  if (variant === "slide1" && world.stream) {
+  if (slide1ExtrasEnabled && variant === "slide1" && world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
     const milkyBoost = buildMilkyBandLayer({
@@ -861,6 +862,7 @@ function buildSpaceBackground({
       ["emissionColorBoost", spaceConfig.emissionColorBoost],
       ["nebulaNoiseScale", spaceConfig.nebulaNoiseScale],
       ["radialFlowStrength", spaceConfig.radialFlowStrength],
+      ["slide1Extras", spaceConfig.slide1Extras ? 1 : 0],
       ["forceSecondaryMix", spaceConfig.forceSecondaryMix ? 1 : 0],
       ["secondaryMixRatio", spaceConfig.secondaryMixRatio],
       ["moonEventKind", spaceConfig.moonEventKind],
