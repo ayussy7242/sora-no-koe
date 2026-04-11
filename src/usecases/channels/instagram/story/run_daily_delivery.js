@@ -8,11 +8,14 @@ const { writeBufferFiles, writeJsonFile } = require("../../../../utils/infra/loc
 const { uploadGcsFiles } = require("../../../../utils/infra/gcs_upload");
 const { generateIgStoryTexts } = require("./generate_texts");
 const { renderStoryBackgroundSet } = require("../../../../engine/renderers/instagram/story/render_backgrounds");
+const { buildCosmicSpaceConfig, applySpaceConfigBoost } = require("../../../../engine/shared/space_background");
 const { formatIgStoryLinePayload } = require("./format_message");
 const { sendIgStoryToLine } = require("./send_to_line");
 const { runDailyBlog } = require("../../../../runners/cron/blog");
 const { buildPublicStorySnapshot } = require("../../../story/store");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../cron/lock_utils");
+
+const IG_DENSITY_BOOST = 1.2;
 
 function addDays(dateLocal, days = 1) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
@@ -209,6 +212,10 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
       const buffers = await renderStoryBackgroundSet({
         story,
         dateLabel: String(dateLocal).replace(/-/g, "."),
+        spaceConfig: applySpaceConfigBoost(
+          buildCosmicSpaceConfig("cosmic_default"),
+          { densityBoost: IG_DENSITY_BOOST }
+        ),
       });
       if (localOnly) {
         const localPaths = writeLocalStoryImages({ outDir: localOutDir, dateLocal, buffers });

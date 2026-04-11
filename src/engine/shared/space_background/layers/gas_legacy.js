@@ -1,6 +1,7 @@
 "use strict";
 
 const { clamp } = require("../utils");
+const { mixColor } = require("../../color");
 const { buildLongThemeLayer } = require("./base");
 const {
   buildStructureTintField,
@@ -74,16 +75,34 @@ function buildColorAtmosphereLayer({
   safeZone,
   idPrefix,
   textFieldMask,
+  nebulaConfig = null,
 }) {
   if (!palette) return { defs: "", body: "" };
   const resolvedToday = todayPalette || {};
-  const gasPrimary = resolvedToday.gasColorA || palette.primary.nebula[0];
-  const gasSecondary = resolvedToday.gasColorB || palette.secondary.nebula[0] || palette.primary.nebula[1];
-  const dustTone = resolvedToday.dustTint || palette.secondary.nebula[0] || palette.primary.nebula[0];
-  const glowColor = resolvedToday.glowColor || palette.glow || palette.primary.nebula[0];
+  const nebula = nebulaConfig || {};
+  const nebulaIntensity = clamp(Number(nebula.intensity ?? 1), 0.4, 3);
+  const nebulaScale = clamp(Number(nebula.scale ?? 1), 0.6, 1.8);
+  const nebulaSpread = clamp(Number(nebula.spread ?? 1), 0.6, 1.8);
+  const nebulaArms = clamp(Number(nebula.arms ?? 1), 0.4, 2.2);
+  const coreGlowIntensity = clamp(Number(nebula.coreGlowIntensity ?? 1), 0.4, 2.6);
+  const coreGlowRadius = clamp(Number(nebula.coreGlowRadius ?? 1), 0.4, 2.6);
+  const emissionBoost = clamp(Number(nebula.emissionColorBoost ?? 1), 0.6, 1.8);
+  const nebulaNoiseScale = clamp(Number(nebula.noiseScale ?? 1), 0.6, 1.8);
+
+  const baseGlowColor = resolvedToday.glowColor || palette.glow || palette.primary.nebula[0];
+  const emissionMix = clamp((emissionBoost - 1) / 0.7, 0, 0.55);
+  const boostColor = (color) => {
+    if (!color || emissionMix <= 0) return color;
+    return mixColor(color, baseGlowColor || color, emissionMix);
+  };
+
+  const gasPrimary = boostColor(resolvedToday.gasColorA || palette.primary.nebula[0]);
+  const gasSecondary = boostColor(resolvedToday.gasColorB || palette.secondary.nebula[0] || palette.primary.nebula[1]);
+  const dustTone = boostColor(resolvedToday.dustTint || palette.secondary.nebula[0] || palette.primary.nebula[0]);
+  const glowColor = boostColor(baseGlowColor);
   const baseBias = resolvedToday.baseBias || null;
   const layerProfile = resolvedToday.layers || {};
-  const colorPresence = clamp(Number(resolvedToday.colorPresence ?? 1), 1.1, 2.8);
+  const colorPresence = clamp(Number(resolvedToday.colorPresence ?? 1) * clamp(emissionBoost, 0.85, 1.35), 1.1, 3.2);
   const atmoIntensity = clamp(layerProfile.atmosphere?.intensity ?? 0.04, 0.01, 0.18);
   const mistIntensity = clamp((layerProfile.mist?.intensity ?? 0.08) * colorPresence, 0.04, 0.55);
   const glowIntensity = clamp((layerProfile.glow?.intensity ?? 0.12) * colorPresence, 0.06, 0.6);
@@ -91,9 +110,9 @@ function buildColorAtmosphereLayer({
   const primaryScale = Number.isFinite(primaryOpacityScale) ? primaryOpacityScale : 1;
   const secondaryScale = Number.isFinite(secondaryOpacityScale) ? secondaryOpacityScale : 1;
   const tintScale = clamp((primaryScale + secondaryScale) / 2, 0.7, 1.05);
-  const glowScale = clamp(glowIntensity / 0.12, 0.9, 2.8);
-  const mistScale = clamp(mistIntensity / 0.08, 0.9, 2.9);
-  const dustScale = clamp(dustIntensity / 0.08, 0.9, 2.4);
+  const glowScale = clamp((glowIntensity / 0.12) * nebulaIntensity, 0.9, 3.2);
+  const mistScale = clamp((mistIntensity / 0.08) * nebulaIntensity, 0.9, 3.2);
+  const dustScale = clamp((dustIntensity / 0.08) * nebulaIntensity, 0.9, 3.0);
   const structureScale = clamp(mistScale * 0.55 + glowScale * 0.45, 1.0, 2.8);
   const defs = [];
   const body = [];
@@ -137,8 +156,11 @@ function buildColorAtmosphereLayer({
     color: gasPrimary,
     opacity: 0.085 * primaryScale * mistScale,
     modality: "mixed",
-    intensityScale: 0.85,
+    intensityScale: 0.85 * nebulaSpread,
     spreadPattern,
+    scale: nebulaScale,
+    noiseScale: nebulaNoiseScale,
+    spreadScale: nebulaSpread,
   });
   const nebulaSecondary = buildNebulaLayerFbm({
     rand,
@@ -148,8 +170,11 @@ function buildColorAtmosphereLayer({
     color: gasSecondary,
     opacity: 0.055 * secondaryScale * mistScale,
     modality: "mixed",
-    intensityScale: 0.65,
+    intensityScale: 0.65 * nebulaSpread,
     spreadPattern,
+    scale: nebulaScale,
+    noiseScale: nebulaNoiseScale,
+    spreadScale: nebulaSpread,
   });
   defs.push(nebulaPrimary.defs, nebulaSecondary.defs);
   baseLayers.push(nebulaPrimary.body, nebulaSecondary.body);
@@ -215,7 +240,7 @@ function buildColorAtmosphereLayer({
   defs.push(filamentPrimary.defs, filamentSecondary.defs);
   flowLayers.push(filamentPrimary.body, filamentSecondary.body);
 
-  const filamentLevel = clamp(mood?.filamentLevel ?? 0.6, 0, 1);
+  const filamentLevel = clamp((mood?.filamentLevel ?? 0.6) * nebulaArms, 0, 1);
   if (filamentAt && filamentLevel > 0.05) {
     const filamentField = buildFilamentFieldOverlay({
       rand,
@@ -232,7 +257,7 @@ function buildColorAtmosphereLayer({
     flowLayers.push(filamentField.body);
   }
 
-  const ridgeLevel = clamp(mood?.structureEmphasis ?? 0.5, 0, 1);
+  const ridgeLevel = clamp((mood?.structureEmphasis ?? 0.5) * nebulaArms, 0, 1);
   if (ridgeAt && ridgeLevel > 0.05) {
     const ridgeField = buildRidgeFieldOverlay({
       rand,
@@ -254,9 +279,9 @@ function buildColorAtmosphereLayer({
         id: `${idPrefix}-hero-${idx}`,
         x: region.x,
         y: region.y,
-        r: region.r * 1.25,
+        r: region.r * 1.25 * coreGlowRadius,
         color: glowColor,
-        opacity: 0.18 * (0.5 + clamp(mood?.glowLevel ?? 0.5, 0, 1)) * glowScale,
+        opacity: 0.18 * (0.5 + clamp(mood?.glowLevel ?? 0.5, 0, 1)) * glowScale * coreGlowIntensity,
       });
       defs.push(glow.defs);
       heroLayers.push(glow.body);
@@ -304,7 +329,7 @@ function buildColorAtmosphereLayer({
     height,
     palette,
     idPrefix: `${idPrefix}-veil`,
-    mistIntensity,
+    mistIntensity: mistIntensity * nebulaIntensity,
   });
   defs.push(veil.defs);
   veilLayers.push(veil.body);
@@ -331,7 +356,7 @@ function buildColorAtmosphereLayer({
     height,
     id: `${idPrefix}-edgeTint`,
     color: gasPrimary,
-    intensity: 0.06 * primaryScale * glowScale,
+    intensity: 0.06 * primaryScale * glowScale * nebulaSpread,
     pattern: edgePattern,
   });
   defs.push(edgeTint.defs);

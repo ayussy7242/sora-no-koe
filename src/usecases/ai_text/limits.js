@@ -45,6 +45,8 @@ const RELATION_PROMPT_LIMITS = Object.freeze({
   relation_center_separation: { sentences: 1 },
   relation_center_flow: { sentences: 1 },
   relation_center_summary: { sentences: 1 },
+  element_modality_text: { sentences: 3 },
+  relation_type_text: { sentences: 4 },
   house_ingress_lines: { sentences: 0 },
   house_ingress_summary: { sentences: 1 },
   sign_facing: { sentences: 2 },

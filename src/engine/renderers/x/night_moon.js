@@ -131,7 +131,7 @@ function buildAvoidRegions({ moonBox, textBox }) {
   return regions;
 }
 
-function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avoidRegions, inner, extraDefs }) {
+function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avoidRegions, inner, extraDefs, spaceConfig }) {
   const space = buildSpaceBackground({
     story,
     dateLabel,
@@ -140,6 +140,7 @@ function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avo
     height,
     variant,
     avoidRegions,
+    spaceConfig,
   });
   const defs = `<style>${fontFaceCss()}</style>${extraDefs || ""}${space.defs || ""}`;
   const body = `${space.body || ""}${inner || ""}`;
@@ -163,6 +164,7 @@ async function renderXNightMoonPng({
   height = DEFAULT_X_NIGHT_CANVAS.height,
   variant = "night_moon",
   supersample = 1,
+  spaceConfig = null,
 } = {}) {
   if (!story) throw new Error("renderXNightMoonPng: story required");
 
@@ -260,6 +262,7 @@ async function renderXNightMoonPng({
     variant,
     avoidRegions,
     extraDefs,
+    spaceConfig,
   });
 
   const colors = resolveColors(space);

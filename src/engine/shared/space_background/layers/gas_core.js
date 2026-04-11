@@ -331,28 +331,45 @@ function buildHeroRegionGlow({ id, x, y, r, color, opacity = 0.18 }) {
   return { defs, body };
 }
 
-function buildNebulaLayerFbm({ rand, width, height, idPrefix, color, opacity, modality, intensityScale = 1, spreadPattern = "center" }) {
+function buildNebulaLayerFbm({
+  rand,
+  width,
+  height,
+  idPrefix,
+  color,
+  opacity,
+  modality,
+  intensityScale = 1,
+  spreadPattern = "center",
+  scale = 1,
+  noiseScale = 1,
+  spreadScale = 1,
+}) {
   const octaves = 3 + Math.floor(rand() * 3);
   const seed = Math.floor(rand() * 9000) + 100;
+  const safeNoise = clamp(Number.isFinite(Number(noiseScale)) ? Number(noiseScale) : 1, 0.6, 1.8);
+  const safeScale = clamp(Number.isFinite(Number(scale)) ? Number(scale) : 1, 0.6, 1.8);
+  const safeSpread = clamp(Number.isFinite(Number(spreadScale)) ? Number(spreadScale) : 1, 0.6, 1.8);
+  const freqScale = 1 / safeNoise;
   const flow =
     modality === "cardinal"
       ? [0.008 + rand() * 0.006, 0.02 + rand() * 0.015]
       : modality === "fixed"
       ? [0.014 + rand() * 0.01, 0.014 + rand() * 0.01]
       : [0.01 + rand() * 0.008, 0.018 + rand() * 0.012];
-  const blur = modality === "fixed" ? 18 : modality === "mutable" ? 28 : 22;
+  const blur = (modality === "fixed" ? 18 : modality === "mutable" ? 28 : 22) * safeScale;
   const filterId = `nebulaNoise-${idPrefix}`;
   const maskId = `nebulaMask-${idPrefix}`;
 
   const edgeSide = spreadPattern === "rightBottom" || spreadPattern === "rightTop" ? "right" : "left";
-  const nebulaWidth = width * 0.58;
+  const nebulaWidth = Math.min(width, width * 0.58 * safeSpread);
   const nebulaX = edgeSide === "right" ? width - nebulaWidth : 0;
   const gradId = `${idPrefix}-nebulaEdge`;
 
   const defs = [
     nebulaNoiseFilter({
       id: filterId,
-      baseFrequency: `${flow[0].toFixed(3)} ${flow[1].toFixed(3)}`,
+      baseFrequency: `${(flow[0] * freqScale).toFixed(3)} ${(flow[1] * freqScale).toFixed(3)}`,
       numOctaves: octaves,
       seed,
       blur,
@@ -371,7 +388,7 @@ function buildNebulaLayerFbm({ rand, width, height, idPrefix, color, opacity, mo
       `</mask>`,
   ].join("");
 
-  const baseOpacity = clamp(opacity * intensityScale * 0.6, 0.01, 0.08);
+  const baseOpacity = clamp(opacity * intensityScale * 0.6 * (0.85 + safeScale * 0.25), 0.01, 0.12);
   const baseBody = `<rect x="${nebulaX.toFixed(2)}" width="${nebulaWidth.toFixed(2)}" height="${height}" fill="url(#${gradId})" opacity="${baseOpacity.toFixed(3)}" mask="url(#${maskId})"/>`;
   return { defs, body: baseBody };
 }

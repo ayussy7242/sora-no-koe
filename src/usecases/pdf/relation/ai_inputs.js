@@ -23,6 +23,8 @@ const {
   RELATION_SEGMENT_PROMPT_DEEP_COMPARE,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_SUMMARY,
+  RELATION_SEGMENT_PROMPT_ELEMENT_MODE,
+  RELATION_SEGMENT_PROMPT_RELATION_TYPE,
   RELATION_SEGMENT_PROMPT_PATTERN,
 } = require("../../../content/prompts/pdf/relation");
 const { PROMPT_LIMITS } = require("./generation/limits");
@@ -127,6 +129,7 @@ function buildRelationAiInputs({
   pattern_evidence,
   a_center,
   b_center,
+  element_modality,
   sign_facing,
   relation_counts,
   core_links,
@@ -195,6 +198,23 @@ function buildRelationAiInputs({
         separation_band: relation_center?.separation_band || "",
         flow_band: relation_center?.flow_band || "",
         direction_vector: relation_center?.direction_vector || "",
+      },
+    },
+    element_modality_text: {
+      prompt: RELATION_SEGMENT_PROMPT_ELEMENT_MODE,
+      limits: PROMPT_LIMITS.element_modality_text,
+      input: {
+        element_modality: element_modality || {},
+      },
+    },
+    relation_type_text: {
+      prompt: RELATION_SEGMENT_PROMPT_RELATION_TYPE,
+      limits: PROMPT_LIMITS.relation_type_text,
+      input: {
+        relation_pattern,
+        relation_center,
+        relation_core,
+        pattern_evidence,
       },
     },
     house_ingress_a_lines: {

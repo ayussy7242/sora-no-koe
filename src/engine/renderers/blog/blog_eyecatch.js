@@ -462,6 +462,7 @@ async function renderBlogEyecatchJpeg({
   line3,
   quality = 92,
   preset = "C",
+  spaceConfig = null,
 } = {}) {
   return renderBlogEyecatchImage({
     bgPath,
@@ -475,6 +476,7 @@ async function renderBlogEyecatchJpeg({
     format: "jpeg",
     quality,
     preset,
+    spaceConfig,
   });
 }
 

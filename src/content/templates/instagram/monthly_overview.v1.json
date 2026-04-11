@@ -7,11 +7,13 @@
   "subtitle": "{{month}} Sky Overview",
   "badge": "保存版",
   "spaceConfig": {
-    "starDensityScale": 3,
-    "milkyIntensityScale": 3,
-    "milkyThicknessScale": 3,
-    "milkyDustScale": 3,
-    "gasIntensityScale": 3
+    "starDensityScale": 1.15,
+    "milkyIntensityScale": 1.25,
+    "milkyThicknessScale": 1.10,
+    "milkyDustScale": 1.20,
+    "gasIntensityScale": 1.00,
+    "whiteMix": 0.06,
+    "underlayPreset": "halo_medium"
   },
   "header_text": {
     "primary": "{{month_dot}}",

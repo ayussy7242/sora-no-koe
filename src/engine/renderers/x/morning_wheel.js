@@ -34,7 +34,7 @@ function buildFooterSvg({ width, height, brand, dateLabel }) {
   return `${brandLine}${dateLine}`;
 }
 
-function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avoidRegions, underlay, footer }) {
+function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avoidRegions, underlay, footer, spaceConfig }) {
   const space = buildSpaceBackground({
     story,
     dateLabel,
@@ -43,6 +43,7 @@ function buildBaseSvg({ story, dateLabel, seedLabel, width, height, variant, avo
     height,
     variant,
     avoidRegions,
+    spaceConfig,
   });
   const defs = `<style>${fontFaceCss()}</style>${space.defs || ""}${underlay?.defs || ""}`;
   const body = `${space.body || ""}${underlay?.body || ""}${footer || ""}`;
@@ -74,6 +75,7 @@ async function renderXMorningWheelPng({
   height = DEFAULT_X_CANVAS.height,
   variant = "story_today",
   wheelSize,
+  spaceConfig = null,
 } = {}) {
   if (!story) throw new Error("renderXMorningWheelPng: story required");
 
@@ -114,11 +116,14 @@ async function renderXMorningWheelPng({
     feather: Math.round(wheel * 0.28),
   }];
 
-  const underlay = buildWheelUnderlay({
-    cx: left + wheel / 2,
-    cy: top + wheel / 2,
-    r: wheel * 0.6,
-  });
+  const useLegacyUnderlay = !(spaceConfig?.underlayPreset || spaceConfig?.underlay);
+  const underlay = useLegacyUnderlay
+    ? buildWheelUnderlay({
+      cx: left + wheel / 2,
+      cy: top + wheel / 2,
+      r: wheel * 0.6,
+    })
+    : null;
 
   const baseSvg = buildBaseSvg({
     story,
@@ -128,6 +133,7 @@ async function renderXMorningWheelPng({
     height: h,
     variant,
     avoidRegions,
+    spaceConfig,
     underlay,
     footer: buildFooterSvg({
       width: w,
@@ -156,6 +162,7 @@ async function renderXResonanceWheelPng({
   variant = "resonance",
   wheelSize,
   resonanceAspect = null,
+  spaceConfig = null,
 } = {}) {
   if (!story) throw new Error("renderXResonanceWheelPng: story required");
 
@@ -196,11 +203,14 @@ async function renderXResonanceWheelPng({
     feather: Math.round(wheel * 0.28),
   }];
 
-  const underlay = buildWheelUnderlay({
-    cx: left + wheel / 2,
-    cy: top + wheel / 2,
-    r: wheel * 0.6,
-  });
+  const useLegacyUnderlay = !(spaceConfig?.underlayPreset || spaceConfig?.underlay);
+  const underlay = useLegacyUnderlay
+    ? buildWheelUnderlay({
+      cx: left + wheel / 2,
+      cy: top + wheel / 2,
+      r: wheel * 0.6,
+    })
+    : null;
 
   const baseSvg = buildBaseSvg({
     story,
@@ -210,6 +220,7 @@ async function renderXResonanceWheelPng({
     height: h,
     variant,
     avoidRegions,
+    spaceConfig,
     underlay,
     footer: buildFooterSvg({
       width: w,

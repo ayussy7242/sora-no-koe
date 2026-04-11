@@ -4,6 +4,7 @@ const { buildGlyphImgTag } = require("../blueprint_v25/glyphs");
 const { PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/constants");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { BACKGROUND_COLORS } = require("../../shared/space_background/constants");
+const { buildCosmicSpaceConfig } = require("../../shared/space_background");
 const {
   SIGN_RELATION_LABELS,
   SIGN_RELATION_SYMBOLS,
@@ -40,7 +41,13 @@ function buildSpaceSvg(variant = "slide3", seedLabel = "") {
     pairId: seedLabel,
     prefixChannel: true,
   });
-  const bg = buildSpaceBackground({ width: PAGE_WIDTH, height: PAGE_HEIGHT, variant, seedLabel: seed });
+  const bg = buildSpaceBackground({
+    width: PAGE_WIDTH,
+    height: PAGE_HEIGHT,
+    variant,
+    seedLabel: seed,
+    spaceConfig: buildCosmicSpaceConfig("cosmic_soft"),
+  });
   const svg = [
     `<svg class="bg-space__svg" xmlns="http://www.w3.org/2000/svg" width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" viewBox="0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}" preserveAspectRatio="xMidYMid slice">`,
     `<rect width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" fill="${BACKGROUND_COLORS.bgDeep}"/>`,
@@ -221,8 +228,10 @@ function buildDeepBlock({ title = "DEEP", connections = [], aName = "A", bName =
 }
 
 function buildHouseBlock({ title = "HOUSE", sections = [] } = {}) {
-  const left = sections?.[0] || { heading: "", houses: [], summary: "" };
-  const right = sections?.[1] || { heading: "", houses: [], summary: "" };
+  const list = Array.isArray(sections) ? sections.filter(Boolean) : [];
+  const left = list[0] || { heading: "", houses: [], summary: "" };
+  const right = list[1] || null;
+  const isSingle = list.length <= 1;
   const normalizeHeading = (heading) => {
     const text = String(heading || "");
     if (!text) return "";
@@ -257,13 +266,14 @@ function buildHouseBlock({ title = "HOUSE", sections = [] } = {}) {
       </div>
     `;
   };
+  const colsClass = `relation-cols relation-cols--house${isSingle ? " relation-cols--single" : ""}`;
   return `
     <div class="relation-house">
       <div class="card-head relation-house-title">${escapeHtml(title)}</div>
       <div class="card-note">相手が自分のどの領域を動かしやすいか</div>
-      <div class="relation-cols relation-cols--house">
+      <div class="${colsClass}">
         ${renderSection(left)}
-        ${renderSection(right)}
+        ${right ? renderSection(right) : ""}
       </div>
     </div>
   `;
@@ -871,6 +881,7 @@ module.exports = {
   buildComparePairsSection,
   buildSignRelationSection,
   buildCoreSection,
+  buildRelationTypeSection,
   buildRelationPatternSection,
   buildConnectionDualStack,
   buildConnectionStack,

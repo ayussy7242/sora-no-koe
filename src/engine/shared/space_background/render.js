@@ -19,6 +19,8 @@ const { renderStarSprite } = require("./layers/renderStarSprite");
 const { mixColor } = require("../../shared/color");
 const { BACKGROUND_COLORS, DEFAULT_MOON_LAYOUT } = require("./constants");
 const { streamInfluenceAt, streamPoint } = require("./fields");
+const { buildUnderlayLayer } = require("./underlay");
+const { resolveUnderlayPreset } = require("./presets");
 
 function sliceAvoidRegions(avoidRegions, offsetX, width) {
   if (!Array.isArray(avoidRegions) || !avoidRegions.length) return [];
@@ -834,6 +836,7 @@ function buildSpaceBackground({
   offsetX: offsetXInput,
   avoidRegions = [],
   spaceConfig = null,
+  underlay = null,
 } = {}) {
   const worldWidth = Number.isFinite(Number(worldWidthInput)) ? Number(worldWidthInput) : width;
   const offsetX = clamp(offsetXInput || 0, 0, Math.max(0, worldWidth - width));
@@ -848,6 +851,15 @@ function buildSpaceBackground({
       ["milkyDustScale", spaceConfig.milkyDustScale],
       ["gasIntensityScale", spaceConfig.gasIntensityScale],
       ["whiteMix", spaceConfig.whiteMix],
+      ["nebulaIntensity", spaceConfig.nebulaIntensity],
+      ["nebulaScale", spaceConfig.nebulaScale],
+      ["nebulaSpread", spaceConfig.nebulaSpread],
+      ["nebulaArms", spaceConfig.nebulaArms],
+      ["coreGlowIntensity", spaceConfig.coreGlowIntensity],
+      ["coreGlowRadius", spaceConfig.coreGlowRadius],
+      ["emissionColorBoost", spaceConfig.emissionColorBoost],
+      ["nebulaNoiseScale", spaceConfig.nebulaNoiseScale],
+      ["radialFlowStrength", spaceConfig.radialFlowStrength],
       ["forceSecondaryMix", spaceConfig.forceSecondaryMix ? 1 : 0],
       ["secondaryMixRatio", spaceConfig.secondaryMixRatio],
       ["moonEventKind", spaceConfig.moonEventKind],
@@ -908,10 +920,34 @@ function buildSpaceBackground({
     slice = renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions });
     SLICE_CACHE.set(sliceKey, slice);
   }
-  const defs = `${world.defs}${slice.defs}`;
+  const underlayPresetKey = underlay || spaceConfig?.underlayPreset || spaceConfig?.underlay || null;
+  let underlayPreset = resolveUnderlayPreset(underlayPresetKey);
+  const underlayBoost = Number(spaceConfig?.underlayBoost);
+  if (underlayPreset && Number.isFinite(underlayBoost) && underlayBoost !== 1) {
+    const boosted = { ...underlayPreset };
+    ["opacity", "centerOpacity", "midOpacity"].forEach((key) => {
+      if (Number.isFinite(Number(boosted[key]))) {
+        boosted[key] = Math.min(1, Number(boosted[key]) * underlayBoost);
+      }
+    });
+    underlayPreset = boosted;
+  }
+  const underlayColorSource = world?.theme?.todayPalette?.baseBias
+    || world?.theme?.todayPalette?.gasColorA
+    || world?.theme?.todayPalette?.glowColor
+    || BACKGROUND_COLORS.bgDeep;
+  const underlayColor = mixColor(BACKGROUND_COLORS.bgDeep, underlayColorSource, 0.55);
+  const underlayLayer = buildUnderlayLayer({
+    width,
+    height,
+    preset: underlayPreset,
+    idPrefix: `${variant}-${worldKey}-underlay`,
+    color: underlayColor,
+  });
+  const defs = `${world.defs}${slice.defs}${underlayLayer.defs || ""}`;
   return {
     defs,
-    body: slice.body,
+    body: `${slice.body}${underlayLayer.body || ""}`,
     theme: world.theme,
     todayPalette: world.theme?.todayPalette || null,
   };

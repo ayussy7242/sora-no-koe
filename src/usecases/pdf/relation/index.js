@@ -822,6 +822,21 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     const axisCompare = pickCompare(["asc", "dc", "mc", "ic"]);
     const deepCompare = pickCompare(["north_node", "south_node", "lilith", "chiron"]);
 
+    const elementModalityInput = {
+      a: {
+        top_element: balanceA.top_element,
+        top_modality: balanceA.top_modality,
+        element_count: balanceA.element_count,
+        modality_count: balanceA.modality_count,
+      },
+      b: {
+        top_element: balanceB.top_element,
+        top_modality: balanceB.top_modality,
+        element_count: balanceB.element_count,
+        modality_count: balanceB.modality_count,
+      },
+    };
+
     const aiInputs = buildRelationAiInputs({
       relation_center: derived?.relationCenter || {},
       relation_core: derived?.relationCore || {},
@@ -843,6 +858,7 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
         element_balance: balanceB.element_count,
         modality_balance: balanceB.modality_count,
       },
+      element_modality: elementModalityInput,
       sign_facing: comparePairs.map((row) => ({
         body: row.body_ja || row.body_key,
         a_sign: row.a_sign,

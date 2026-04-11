@@ -10,6 +10,7 @@ const {
 } = require("../../../../engine/pdf/blueprint_v25/backgrounds");
 const { buildSpaceSeedLabel } = require("../../../../engine/shared/space_background");
 const { isSpaceDebug } = require("../../../../engine/shared/space_background/utils");
+const { buildCosmicSpaceConfig } = require("../../../../engine/shared/space_background");
 
 async function buildOrReuseV25BgImages({
   lineUserId,
@@ -66,6 +67,7 @@ async function buildOrReuseV25BgImages({
     dateLabel,
     natalHash,
     seedLabel,
+    spaceConfig: buildCosmicSpaceConfig("cosmic_soft"),
     outDir: bgDir,
     inline: false,
   });

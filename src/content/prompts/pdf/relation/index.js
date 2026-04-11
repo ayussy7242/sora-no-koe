@@ -616,6 +616,61 @@ ${OUTPUT_TEXT}
 - 60〜90字。
 `.trim();
 
+const RELATION_SEGMENT_PROMPT_ELEMENT_MODE = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- 属性（エレメント）と区分（モード）の相性をまとめる。
+
+${OUTPUT_TEXT}
+
+#INPUT
+- element_modality
+
+#書くこと
+- A/Bの主成分（要素）と動き方（区分）の組み合わせを示す。
+- 温度（属性）と速度（区分）の噛み合いを具体的に描写する。
+
+#書かないこと
+- 接続の列挙。
+- 評価や助言。
+
+#文章ルール
+- 2〜3文で相性の輪郭を描く。
+
+#文字量
+- 180〜220字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_RELATION_TYPE = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- Relation TYPE を本文で解説する。
+
+${OUTPUT_TEXT}
+
+#INPUT
+- relation_pattern
+- relation_center
+- relation_core
+- pattern_evidence
+
+#書くこと
+- relation_pattern / relation_core / relation_center をつなげて型の特徴を説明する。
+- pattern_evidence を最低2つ反映する。
+
+#書かないこと
+- 接続の列挙。
+- 評価や助言。
+
+#文章ルール
+- 構造として言い切る。
+
+#文字量
+- 300〜400字。
+`.trim();
+
 const RELATION_SEGMENT_PROMPT_PATTERN = `
 ${RELATION_BATCH_PREFIX}
 
@@ -670,5 +725,7 @@ module.exports = Object.freeze({
   RELATION_SEGMENT_PROMPT_DEEP_COMPARE,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_SUMMARY,
+  RELATION_SEGMENT_PROMPT_ELEMENT_MODE,
+  RELATION_SEGMENT_PROMPT_RELATION_TYPE,
   RELATION_SEGMENT_PROMPT_PATTERN,
 });

@@ -2,7 +2,7 @@
 
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
-const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
+const { buildCosmicSpaceConfig, applySpaceConfigBoost } = require("../../../engine/shared/space_background");
 const { runIgMonthlyPost } = require("./monthly");
 const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
@@ -48,6 +48,8 @@ const {
   writeLocalJson,
   renderAndUploadCarouselSlides,
 } = require("./io");
+
+const IG_DENSITY_BOOST = 1.2;
 
 function resolveBackgroundCache(env = {}) {
   const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
@@ -289,11 +291,14 @@ async function runIgPost(deps, opts = {}) {
       carousel.seedVariant = slotKey;
     }
     const presetName = slotKey === "morning"
-      ? "cosmic_soft"
+      ? "cosmic_vivid"
       : slotKey === "night"
-        ? "cosmic_vivid"
-        : "cosmic_default";
-    carousel.spaceConfig = buildCosmicSpaceConfig(presetName, carousel.spaceConfig);
+        ? "special_crimson"
+        : "cosmic_crimson";
+    carousel.spaceConfig = applySpaceConfigBoost(
+      buildCosmicSpaceConfig(presetName, carousel.spaceConfig),
+      { densityBoost: IG_DENSITY_BOOST }
+    );
     const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
     const caption = slotKey
       ? (renderIGCaptionVariant(story, { dict, variant: slotKey }) || renderIGCaption(story, { dict }))
@@ -591,7 +596,10 @@ async function runIgMoonEventPost(deps, opts = {}) {
     moonResonanceAspect,
   });
   carousel.seedVariant = "moon_event";
-  carousel.spaceConfig = buildCosmicSpaceConfig("cosmic_vivid", resolveMoonEventSpaceConfig(event));
+  carousel.spaceConfig = applySpaceConfigBoost(
+    buildCosmicSpaceConfig("cosmic_vivid", resolveMoonEventSpaceConfig(event)),
+    { densityBoost: IG_DENSITY_BOOST }
+  );
 
   if (localOnly) {
     const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });

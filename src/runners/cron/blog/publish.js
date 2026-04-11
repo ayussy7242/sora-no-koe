@@ -3,6 +3,7 @@
 const { createWpClient } = require("../../../integrations/wordpress/client");
 const { renderBlogEyecatchJpeg } = require("../../../engine/renderers/blog/blog_eyecatch");
 const { buildDailyEyecatchLines } = require("../../../usecases/channels/blog/daily");
+const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
 
 async function publishDailyPost({ env, plan, publish, mark = () => {} } = {}) {
   if (!plan) throw new Error("plan missing");
@@ -48,6 +49,7 @@ async function publishDailyPost({ env, plan, publish, mark = () => {} } = {}) {
       line2,
       line3,
       preset: env?.BLOG_EYECATCH_PRESET || "C",
+      spaceConfig: buildCosmicSpaceConfig("cosmic_default"),
     });
     if (rendered?.ok && rendered.buffer) {
       const filename = `sora-eyecatch-${slug}.jpg`;

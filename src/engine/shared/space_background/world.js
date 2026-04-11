@@ -126,6 +126,15 @@ function normalizeSpaceConfig(spaceConfig) {
     milkyDustScale: pick(spaceConfig.milkyDustScale, 0.4, 2.6),
     gasIntensityScale: pick(spaceConfig.gasIntensityScale, 0.5, 3),
     whiteMix: pick(spaceConfig.whiteMix, 0, 0.85),
+    nebulaIntensity: pick(spaceConfig.nebulaIntensity, 0.4, 3),
+    nebulaScale: pick(spaceConfig.nebulaScale, 0.5, 1.8),
+    nebulaSpread: pick(spaceConfig.nebulaSpread, 0.5, 1.8),
+    nebulaArms: pick(spaceConfig.nebulaArms, 0.4, 2.2),
+    coreGlowIntensity: pick(spaceConfig.coreGlowIntensity, 0.4, 2.6),
+    coreGlowRadius: pick(spaceConfig.coreGlowRadius, 0.4, 2.6),
+    emissionColorBoost: pick(spaceConfig.emissionColorBoost, 0.6, 1.8),
+    nebulaNoiseScale: pick(spaceConfig.nebulaNoiseScale, 0.5, 1.8),
+    radialFlowStrength: pick(spaceConfig.radialFlowStrength, 0.4, 2.2),
   };
   const extra = {};
   if (spaceConfig.moonEventKind) {
@@ -444,14 +453,15 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
     const density = densityAt ? clamp(densityAt(x, y), 0, 1) : 0;
     return clamp(filament * 0.7 + ridge * 0.55 + density * 0.25, 0, 1);
   };
+  const flowStrengthScale = clamp(Number(resolvedSpaceConfig?.radialFlowStrength) || 1, 0.4, 2.2);
   const flowField = buildFlowField({
     seed: hashString(`${worldTheme.seed}_flow`),
     width: worldWidth,
     height,
     stream,
     gaps: streamGaps,
-    strength: clamp(0.55 + (mood.structureEmphasis ?? 0.5) * 0.55, 0.35, 1),
-    curlStrength: clamp(0.25 + (mood.turbulence ?? 0.5) * 0.45, 0.2, 0.8),
+    strength: clamp(0.55 + (mood.structureEmphasis ?? 0.5) * 0.55, 0.35, 1) * flowStrengthScale,
+    curlStrength: clamp(0.25 + (mood.turbulence ?? 0.5) * 0.45, 0.2, 0.8) * flowStrengthScale,
     safeZones: slideSafeZones,
     textFieldMask: textAvoidField,
   });
@@ -464,6 +474,11 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   if (gasIntensityScale !== 1) {
     primaryOpacityScale *= gasIntensityScale;
     secondaryOpacityScale *= gasIntensityScale;
+  }
+  const nebulaIntensityScale = Number(resolvedSpaceConfig?.nebulaIntensity) || 1;
+  if (nebulaIntensityScale !== 1) {
+    primaryOpacityScale *= nebulaIntensityScale;
+    secondaryOpacityScale *= nebulaIntensityScale;
   }
 
   const deep = buildDeepSpaceLayer({
@@ -696,6 +711,16 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
       safeZone,
       idPrefix: `${worldId}-color`,
       textFieldMask: textAvoidField,
+      nebulaConfig: {
+        intensity: resolvedSpaceConfig?.nebulaIntensity,
+        scale: resolvedSpaceConfig?.nebulaScale,
+        spread: resolvedSpaceConfig?.nebulaSpread,
+        arms: resolvedSpaceConfig?.nebulaArms,
+        coreGlowIntensity: resolvedSpaceConfig?.coreGlowIntensity,
+        coreGlowRadius: resolvedSpaceConfig?.coreGlowRadius,
+        emissionColorBoost: resolvedSpaceConfig?.emissionColorBoost,
+        noiseScale: resolvedSpaceConfig?.nebulaNoiseScale,
+      },
     });
 
   return {

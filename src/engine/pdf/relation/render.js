@@ -87,6 +87,7 @@ const {
   buildSignRelationSection,
   buildCoreSection,
   buildRelationPatternSection,
+  buildRelationTypeSection,
   buildConnectionDualStack,
   buildConnectionStack,
   buildRelationCoreText,
@@ -310,19 +311,19 @@ function getRelationMeta() {
       intro: "それぞれが持つ配置を全体で確認します。",
     },
     {
+      ja: "関係タイプ",
+      en: "RELATION TYPE",
+      intro: "この関係の型を解説します。",
+    },
+    {
+      ja: "属性・区分バランス",
+      en: "ELEMENT / MODE BALANCE",
+      intro: "要素と動き方の相性を見ていきます。",
+    },
+    {
       ja: "関係の重心",
       en: "RELATION CENTER",
       intro: "重なりと方向の中心をまとめます。",
-    },
-    {
-      ja: "同天体どうし",
-      en: "SAME BODY",
-      intro: "同じ天体の向かい方を比べます。",
-    },
-    {
-      ja: "エレメントとモード",
-      en: "ELEMENT / MODE BALANCE",
-      intro: "構成要素と動き方の違いを観測します。",
     },
     {
       ja: "関係の核",
@@ -335,19 +336,34 @@ function getRelationMeta() {
       intro: "流れやすさと張りやすさを並べます。",
     },
     {
-      ja: "感情・会話・惹き合い",
+      ja: "会話・惹き合い",
       en: "COMMUNICATION / ATTRACTION",
       intro: "人間的な体感の回路を整理します。",
     },
     {
-      ja: "軸の接触",
-      en: "AXIS",
-      intro: "関係の骨組みにあたる接触をまとめます。",
+      ja: "パーソナル",
+      en: "PERSONAL",
+      intro: "内側の機能の違いを見ます。",
     },
     {
-      ja: "ハウスへの流入",
-      en: "HOUSE",
-      intro: "関係が入り込む領域を整理します。",
+      ja: "ソーシャル / トランス",
+      en: "SOCIAL / TRANSPERSONAL",
+      intro: "外側の機能と構造の違いを見ます。",
+    },
+    {
+      ja: "アクシス / ディープ",
+      en: "AXIS / DEEP",
+      intro: "骨組みと深層の比較をまとめます。",
+    },
+    {
+      ja: "ハウス流入 A→B",
+      en: "HOUSE (A → B)",
+      intro: "AからBへ入る領域を整理します。",
+    },
+    {
+      ja: "ハウス流入 B→A",
+      en: "HOUSE (B → A)",
+      intro: "BからAへ入る領域を整理します。",
     },
     {
       ja: "関係のパターン",
@@ -438,6 +454,13 @@ function buildRelationDocumentHtml(pages = []) {
       .house-ai-list { margin-top: 10px; display: grid; gap: 6px; }
       .house-ai { font-size: calc(var(--fs-body) - 1px); color: var(--muted); line-height: 1.6; }
       .house-summary { margin-top: 10px; font-size: calc(var(--fs-body) - 1px); color: var(--muted); line-height: 1.7; }
+      .relation-type { display: grid; grid-template-columns: 1fr 1fr; gap: var(--column-gap); width: 100%; }
+      .relation-type-main { min-height: 0; }
+      .relation-type-name { margin-top: 10px; font-size: calc(var(--fs-body) + 12px); letter-spacing: 0.06em; }
+      .relation-type-tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+      .relation-type-tag { font-size: calc(var(--fs-sub) + var(--fs-bump)); color: var(--muted); border: 1px solid rgba(237, 238, 255, 0.2); padding: 4px 10px; border-radius: 999px; letter-spacing: 0.08em; }
+      .relation-type-ai { margin-top: 12px; font-size: calc(var(--fs-body) - 1px); color: var(--muted); line-height: 1.7; }
+      .relation-type-evidence-list { margin-top: 12px; display: grid; gap: 8px; }
       .relation-pattern { width: 100%; }
       .relation-pattern-name { min-height: 0; margin-bottom: 14px; }
       .relation-pattern-summary { min-height: 0; width: 100%; }
@@ -519,8 +542,10 @@ function buildRelationHtml(view, options = {}) {
   const frictionList = derived?.frictionList || [];
   const commList = derived?.commList || [];
   const attractionList = derived?.attractionList || [];
-  const axisList = derived?.axisList || [];
-  const deepList = derived?.deepList || [];
+  const flowTop = flowList.slice(0, 2);
+  const frictionTop = frictionList.slice(0, 2);
+  const commTop = commList.slice(0, 2);
+  const attractionTop = attractionList.slice(0, 2);
   const houseSections = derived?.houseSections || [];
   const baseLines = Array.isArray(derived?.baseLines) ? derived.baseLines : [];
   const comparePairsEnsured = Array.isArray(derived?.comparePairsEnsured) ? derived.comparePairsEnsured : [];
@@ -556,6 +581,21 @@ function buildRelationHtml(view, options = {}) {
     pageClass: "page-full-position",
   });
 
+  const relationTypeText = view?.ai_texts?.relation_type_text || "";
+  pageDefs.push({
+    type: "page",
+    meta: meta[2],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: buildRelationTypeSection({
+      pattern: relationPattern,
+      relationCore,
+      aiText: relationTypeText,
+    }),
+    bottomSections: [],
+    pageClass: "page-relation-type",
+  });
+
   const elementBalanceA = view?.element_balance?.a || {};
   const elementBalanceB = view?.element_balance?.b || {};
   const modalityBalanceA = view?.modality_balance?.a || {};
@@ -588,10 +628,14 @@ function buildRelationHtml(view, options = {}) {
       })(),
     },
   ];
+  const elementModalityAiText = view?.ai_texts?.element_modality_text || "";
+  const elementModalityBottomSections = elementModalityAiText
+    ? [{ label: "", text: elementModalityAiText }]
+    : elementModalityBottom;
 
   pageDefs.push({
     type: "page",
-    meta: meta[4],
+    meta: meta[3],
     leftRows: [],
     rightRows: [],
     middleHtml: `
@@ -602,7 +646,7 @@ function buildRelationHtml(view, options = {}) {
         })}
       </div>
     `,
-    bottomSections: elementModalityBottom,
+    bottomSections: elementModalityBottomSections,
     pageClass: "page-element-mode",
   });
 
@@ -618,10 +662,12 @@ function buildRelationHtml(view, options = {}) {
   const overlapLabel = [relationCenter?.shared_sign_label, relationCenter?.shared_house_cluster].filter(Boolean).join("｜") || "—";
   const separationLabel = [topSignLabelA, topSignLabelB].filter(Boolean).join("｜") || "—";
   const flowLabel = relationCenter?.direction_vector || "—";
+  const relationCenterAiText = view?.ai_texts?.relation_center || view?.ai_texts?.relation_center_summary || "";
+  const relationCenterBottomSections = relationCenterAiText ? [{ label: "", text: relationCenterAiText }] : [];
 
   pageDefs.push({
     type: "page",
-    meta: meta[2],
+    meta: meta[4],
     leftRows: [],
     rightRows: [],
     middleHtml: `
@@ -669,68 +715,47 @@ function buildRelationHtml(view, options = {}) {
         })}
       </div>
     `,
-    bottomSections: [],
+    bottomSections: relationCenterBottomSections,
     pageClass: "page-relation-center",
   });
 
   const compareIndex = new Map(comparePairsEnsured.map((row) => [row?.body_key, row]));
   const pickByKeys = (keys) => keys.map((key) => compareIndex.get(key)).filter(Boolean);
-  const sortByOrder = (rows) => rows.slice().sort((a, b) => {
-    const aKey = a?.body_key || "";
-    const bKey = b?.body_key || "";
-    const aIdx = BODY_ORDER_MAP.has(aKey) ? BODY_ORDER_MAP.get(aKey) : 999;
-    const bIdx = BODY_ORDER_MAP.has(bKey) ? BODY_ORDER_MAP.get(bKey) : 999;
-    return aIdx - bIdx;
-  });
-
   const personalRows = pickByKeys(["sun", "moon", "mercury", "venus", "mars"]);
   const socialRows = pickByKeys(["jupiter", "saturn"]);
   const transpersonalRows = pickByKeys(["uranus", "neptune", "pluto"]);
   const axisRows = pickByKeys(["asc", "dc", "mc", "ic"]);
   const deepRows = pickByKeys(["north_node", "south_node", "lilith", "chiron"]);
-  const compareBlockDefs = buildCompareBlockDefs({
-    personal: personalRows,
-    social: socialRows,
-    transpersonal: transpersonalRows,
-    axis: axisRows,
-    deep: deepRows,
-    aiTexts: {
-      personal_text: view?.ai_texts?.personal_text || "",
-      social_text: view?.ai_texts?.social_text || "",
-      transpersonal_text: view?.ai_texts?.transpersonal_text || "",
-      axis_compare_text: view?.ai_texts?.axis_compare_text || "",
-      deep_compare_text: view?.ai_texts?.deep_compare_text || "",
-    },
-  });
-
-  const paginatedCompareBlocks = Array.isArray(options?.pagination?.compareBlocks) ? options.pagination.compareBlocks : null;
-  if (paginatedCompareBlocks && paginatedCompareBlocks.length) {
-    paginatedCompareBlocks.forEach((page) => {
-      const start = Math.max(0, page.start || 0);
-      const end = Math.max(start, page.end || start);
-      pageDefs.push({
-        type: "page",
-        meta: meta[3],
-        leftRows: [],
-        rightRows: [],
-        middleHtml: buildCompareBlockStack(compareBlockDefs.slice(start, end)),
-        bottomSections: [],
-        pageClass: "page-compare",
-      });
-    });
-  } else {
-    pageDefs.push({
-      type: "page",
-      meta: meta[3],
-      leftRows: [],
-      rightRows: [],
-      middleHtml: buildCompareBlockStack(compareBlockDefs),
-      bottomSections: [],
-      pageClass: "page-compare",
-    });
-  }
-
-  // SIGN FACING page removed
+  const personalBlock = {
+    title: "PERSONAL",
+    note: "内側の機能",
+    aiText: view?.ai_texts?.personal_text || "",
+    rows: personalRows,
+  };
+  const socialBlock = {
+    title: "SOCIAL",
+    note: "外との接点",
+    aiText: view?.ai_texts?.social_text || "",
+    rows: socialRows,
+  };
+  const transpersonalBlock = {
+    title: "TRANSPERSONAL",
+    note: "構造変化",
+    aiText: view?.ai_texts?.transpersonal_text || "",
+    rows: transpersonalRows,
+  };
+  const axisBlock = {
+    title: "AXIS",
+    note: "構造の骨",
+    aiText: view?.ai_texts?.axis_compare_text || "",
+    rows: axisRows,
+  };
+  const deepBlock = {
+    title: "DEEP",
+    note: "地下構造",
+    aiText: view?.ai_texts?.deep_compare_text || "",
+    rows: deepRows,
+  };
 
   pageDefs.push({
     type: "page",
@@ -742,152 +767,58 @@ function buildRelationHtml(view, options = {}) {
     pageClass: "page-core",
   });
 
-  const paginatedFlowFriction = Array.isArray(options?.pagination?.flowFriction) ? options.pagination.flowFriction : null;
-  if (paginatedFlowFriction && paginatedFlowFriction.length) {
-    const orderedPages = paginatedFlowFriction.slice().sort((a, b) => (a.flowStart || 0) - (b.flowStart || 0));
-    orderedPages.forEach((page) => {
-      const flowSlice = flowList.slice(page.flowStart || 0, page.flowEnd || 0);
-      const frictionSlice = frictionList.slice(page.frictionStart || 0, page.frictionEnd || 0);
-      const blocks = [];
-      if ((page.flowCount || 0) > 0) {
-        blocks.push({
-          title: "FLOW",
-          sub: "",
-          note: "流れやすい接触",
-          aiText: view?.ai_texts?.flow_text || "",
-          connections: flowSlice,
-          aName,
-          bName,
-          showNames: true,
-        });
-      }
-      if ((page.frictionCount || 0) > 0) {
-        blocks.push({
-          title: "FRICTION",
-          sub: "",
-          note: "張りが生まれる接触",
-          aiText: view?.ai_texts?.friction_text || "",
-          connections: frictionSlice,
-          aName,
-          bName,
-          showNames: false,
-        });
-      }
-      pageDefs.push({
-        type: "page",
-        meta: meta[6],
-        leftRows: [],
-        rightRows: [],
-        middleHtml: buildConnectionStack({ blocks }),
-        bottomSections: [],
-        variant: "slide3",
-        pageClass: "page-flow-friction",
-      });
-    });
-  } else {
-    pageDefs.push({
-      type: "page",
-      meta: meta[6],
-      leftRows: [],
-      rightRows: [],
-      middleHtml: buildConnectionDualStack({
-        aName,
-        bName,
-        leftTitle: "FLOW",
-        rightTitle: "FRICTION",
-        leftNote: "流れやすい接触",
-        rightNote: "張りが生まれる接触",
-        leftAiText: view?.ai_texts?.flow_text || "",
-        rightAiText: view?.ai_texts?.friction_text || "",
-        leftConnections: flowList,
-        rightConnections: frictionList,
-      }),
-      bottomSections: [],
-      variant: "slide3",
-      pageClass: "page-flow-friction",
-    });
-  }
+  pageDefs.push({
+    type: "page",
+    meta: meta[6],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: buildConnectionDualStack({
+      aName,
+      bName,
+      leftTitle: "FLOW",
+      rightTitle: "FRICTION",
+      leftNote: "流れやすい接触",
+      rightNote: "張りが生まれる接触",
+      leftAiText: view?.ai_texts?.flow_text || "",
+      rightAiText: view?.ai_texts?.friction_text || "",
+      leftConnections: flowTop,
+      rightConnections: frictionTop,
+    }),
+    bottomSections: [],
+    variant: "slide3",
+    pageClass: "page-flow-friction",
+  });
 
-  const paginatedCommAttraction = Array.isArray(options?.pagination?.commAttraction) ? options.pagination.commAttraction : null;
-  if (paginatedCommAttraction && paginatedCommAttraction.length) {
-    const orderedPages = paginatedCommAttraction.slice().sort((a, b) => (a.flowStart || 0) - (b.flowStart || 0));
-    orderedPages.forEach((page) => {
-      const commSlice = commList.slice(page.flowStart || 0, page.flowEnd || 0);
-      const attractionSlice = attractionList.slice(page.frictionStart || 0, page.frictionEnd || 0);
-      const blocks = [];
-      if ((page.flowCount || 0) > 0) {
-        blocks.push({
-          title: "COMMUNICATION",
-          sub: "",
-          note: "会話・理解の接続",
-          aiText: view?.ai_texts?.comm_text || view?.ai_texts?.comm_attraction || "",
-          connections: commSlice,
-          aName,
-          bName,
-          showNames: true,
-        });
-      }
-      if ((page.frictionCount || 0) > 0) {
-        blocks.push({
-          title: "ATTRACTION",
-          sub: "",
-          note: "惹き合いの回路",
-          aiText: view?.ai_texts?.attraction_text || view?.ai_texts?.comm_attraction || "",
-          connections: attractionSlice,
-          aName,
-          bName,
-          showNames: false,
-        });
-      }
-      pageDefs.push({
-        type: "page",
-        meta: meta[7],
-        leftRows: [],
-        rightRows: [],
-        middleHtml: buildConnectionStack({ blocks }),
-        bottomSections: [],
-        variant: "slide3",
-        pageClass: "page-comm-attraction",
-      });
-    });
-  } else {
-    pageDefs.push({
-      type: "page",
-      meta: meta[7],
-      leftRows: [],
-      rightRows: [],
-      middleHtml: buildConnectionDualStack({
-        aName,
-        bName,
-        leftTitle: "COMMUNICATION",
-        rightTitle: "ATTRACTION",
-        leftNote: "会話・理解の接続",
-        rightNote: "惹き合いの回路",
-        leftAiText: view?.ai_texts?.comm_text || view?.ai_texts?.comm_attraction || "",
-        rightAiText: view?.ai_texts?.attraction_text || view?.ai_texts?.comm_attraction || "",
-        leftConnections: commList,
-        rightConnections: attractionList,
-      }),
-      bottomSections: [],
-      variant: "slide3",
-      pageClass: "page-comm-attraction",
-    });
-  }
+  pageDefs.push({
+    type: "page",
+    meta: meta[7],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: buildConnectionDualStack({
+      aName,
+      bName,
+      leftTitle: "COMMUNICATION",
+      rightTitle: "ATTRACTION",
+      leftNote: "会話・理解の接続",
+      rightNote: "惹き合いの回路",
+      leftAiText: view?.ai_texts?.comm_text || view?.ai_texts?.comm_attraction || "",
+      rightAiText: view?.ai_texts?.attraction_text || view?.ai_texts?.comm_attraction || "",
+      leftConnections: commTop,
+      rightConnections: attractionTop,
+    }),
+    bottomSections: [],
+    variant: "slide3",
+    pageClass: "page-comm-attraction",
+  });
 
   pageDefs.push({
     type: "page",
     meta: meta[8],
     leftRows: [],
     rightRows: [],
-    middleHtml: `
-      <div class="relation-stack">
-        ${buildAxisBlock({ connections: axisList.slice(0, 4), aName, bName, aiText: view?.ai_texts?.axis_text || "" })}
-        ${buildDeepBlock({ connections: deepList.slice(0, 3), aName, bName, aiText: view?.ai_texts?.deep_text || "" })}
-      </div>
-    `,
+    middleHtml: buildCompareBlockStack([personalBlock]),
     bottomSections: [],
-    variant: "slide3",
-    pageClass: "page-axis",
+    pageClass: "page-personal",
   });
 
   pageDefs.push({
@@ -895,9 +826,9 @@ function buildRelationHtml(view, options = {}) {
     meta: meta[9],
     leftRows: [],
     rightRows: [],
-    middleHtml: buildHouseBlock({ sections: houseSections }),
+    middleHtml: buildCompareBlockStack([socialBlock, transpersonalBlock]),
     bottomSections: [],
-    pageClass: "page-house",
+    pageClass: "page-social",
   });
 
   pageDefs.push({
@@ -905,12 +836,45 @@ function buildRelationHtml(view, options = {}) {
     meta: meta[10],
     leftRows: [],
     rightRows: [],
+    middleHtml: buildCompareBlockStack([axisBlock, deepBlock]),
+    bottomSections: [],
+    pageClass: "page-axis-deep",
+  });
+
+  const houseSectionBA = houseSections?.[0] || { heading: "", houses: [], summary: "" };
+  const houseSectionAB = houseSections?.[1] || { heading: "", houses: [], summary: "" };
+
+  pageDefs.push({
+    type: "page",
+    meta: meta[11],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: buildHouseBlock({ sections: [houseSectionAB] }),
+    bottomSections: [],
+    pageClass: "page-house",
+  });
+
+  pageDefs.push({
+    type: "page",
+    meta: meta[12],
+    leftRows: [],
+    rightRows: [],
+    middleHtml: buildHouseBlock({ sections: [houseSectionBA] }),
+    bottomSections: [],
+    pageClass: "page-house",
+  });
+
+  pageDefs.push({
+    type: "page",
+    meta: meta[13],
+    leftRows: [],
+    rightRows: [],
     middleHtml: buildRelationPatternSection({
       pattern: relationPattern,
       evidence: relationPattern?.evidence || [],
       text: view?.ai_texts?.relation_pattern || relationPatternText,
     }),
-    bottomSections: [{ label: "", text: "この関係の型を総括します。" }],
+    bottomSections: [],
     pageClass: "page-pattern",
   });
 
@@ -1063,156 +1027,7 @@ async function measureStackBlocksMetrics(page, { meta, middleHtml, bottomSection
 
 async function buildRelationHtmlPaginated(view, { browser } = {}) {
   if (!view) throw new Error("buildRelationHtmlPaginated: view required");
-  const meta = getRelationMeta();
-  const aName = view?.people?.a?.name || "A";
-  const bName = view?.people?.b?.name || "B";
-  const derived = deriveRelationData(view);
-  const flowList = derived?.flowList || [];
-  const frictionList = derived?.frictionList || [];
-  const commList = derived?.commList || [];
-  const attractionList = derived?.attractionList || [];
-  const comparePairsEnsured = Array.isArray(derived?.comparePairsEnsured) ? derived.comparePairsEnsured : [];
-  const compareIndex = new Map(comparePairsEnsured.map((row) => [row?.body_key, row]));
-  const pickByKeys = (keys) => keys.map((key) => compareIndex.get(key)).filter(Boolean);
-  const sortByOrder = (rows) => rows.slice().sort((a, b) => {
-    const aKey = a?.body_key || "";
-    const bKey = b?.body_key || "";
-    const aIdx = BODY_ORDER_MAP.has(aKey) ? BODY_ORDER_MAP.get(aKey) : 999;
-    const bIdx = BODY_ORDER_MAP.has(bKey) ? BODY_ORDER_MAP.get(bKey) : 999;
-    return aIdx - bIdx;
-  });
-  const personalRows = pickByKeys(["sun", "moon", "mercury", "venus", "mars"]);
-  const socialRows = pickByKeys(["jupiter", "saturn"]);
-  const transpersonalRows = pickByKeys(["uranus", "neptune", "pluto"]);
-  const axisRows = pickByKeys(["asc", "dc", "mc", "ic"]);
-  const deepRows = pickByKeys(["north_node", "south_node", "lilith", "chiron"]);
-
-  const ownBrowser = !browser;
-  const activeBrowser = browser || await puppeteer.launch({
-    headless: "new",
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    timeout: 0,
-    protocolTimeout: 180000,
-  });
-
-  try {
-    const page = await activeBrowser.newPage();
-    await page.setViewport({ width: PAGE_WIDTH, height: PAGE_HEIGHT, deviceScaleFactor: 1 });
-
-    const compareBlockDefs = buildCompareBlockDefs({
-      personal: personalRows,
-      social: socialRows,
-      transpersonal: transpersonalRows,
-      axis: axisRows,
-      deep: deepRows,
-    });
-    const compareMiddle = buildCompareBlockStack(compareBlockDefs);
-    const compareMetrics = await measureStackBlocksMetrics(page, {
-      meta: meta[3],
-      middleHtml: compareMiddle,
-      bottomSections: [],
-      pageClass: "page-compare",
-    });
-    const comparePages = paginateStackBlocksFromStart({
-      blockHeights: compareMetrics.blockHeights,
-      gap: compareMetrics.gap,
-      maxHeight: compareMetrics.maxMiddleHeight,
-    });
-
-    const flowFrictionMiddle = buildConnectionStack({
-      blocks: [
-        { title: "FLOW", sub: "", connections: flowList, aName, bName, showNames: true },
-        { title: "FRICTION", sub: "", connections: frictionList, aName, bName, showNames: false },
-      ],
-    });
-    const flowFrictionBottom = [];
-    const flowFrictionMetrics = await measureDualListMetrics(page, {
-      meta: meta[6],
-      middleHtml: flowFrictionMiddle,
-      bottomSections: flowFrictionBottom,
-      pageClass: "page-flow-friction",
-    });
-    const flowFrictionMetricsNoBottom = await measureDualListMetrics(page, {
-      meta: meta[6],
-      middleHtml: flowFrictionMiddle,
-      bottomSections: [],
-      pageClass: "page-flow-friction",
-    });
-    const flowHeights = flowFrictionMetrics.blocks[0]?.rowHeights || [];
-    const frictionHeights = flowFrictionMetrics.blocks[1]?.rowHeights || [];
-    const flowFrictionPages = paginateDualListsFromEnd({
-      flowHeights,
-      frictionHeights,
-      flowHeadHeight: flowFrictionMetrics.blocks[0]?.headHeight || 0,
-      frictionHeadHeight: flowFrictionMetrics.blocks[1]?.headHeight || 0,
-      flowGap: flowFrictionMetrics.blocks[0]?.listGap || 0,
-      frictionGap: flowFrictionMetrics.blocks[1]?.listGap || 0,
-      stackGap: flowFrictionMetrics.stackGap || 0,
-      maxNoBottom: flowFrictionMetricsNoBottom.maxMiddleHeight,
-      maxWithBottom: flowFrictionMetrics.maxMiddleHeight,
-    });
-
-    const commAttractionMiddle = buildConnectionStack({
-      blocks: [
-        { title: "COMMUNICATION", sub: "", note: "会話・理解の接続", aiText: view?.ai_texts?.comm_text || view?.ai_texts?.comm_attraction || "", connections: commList, aName, bName, showNames: true },
-        { title: "ATTRACTION", sub: "", note: "惹き合いの回路", aiText: view?.ai_texts?.attraction_text || view?.ai_texts?.comm_attraction || "", connections: attractionList, aName, bName, showNames: false },
-      ],
-    });
-    const commAttractionBottom = [];
-    const commAttractionMetrics = await measureDualListMetrics(page, {
-      meta: meta[7],
-      middleHtml: commAttractionMiddle,
-      bottomSections: commAttractionBottom,
-      pageClass: "page-comm-attraction",
-    });
-    const commAttractionMetricsNoBottom = await measureDualListMetrics(page, {
-      meta: meta[7],
-      middleHtml: commAttractionMiddle,
-      bottomSections: [],
-      pageClass: "page-comm-attraction",
-    });
-    const commAttractionPages = paginateDualListsFromEnd({
-      flowHeights: commAttractionMetrics.blocks[0]?.rowHeights || [],
-      frictionHeights: commAttractionMetrics.blocks[1]?.rowHeights || [],
-      flowHeadHeight: commAttractionMetrics.blocks[0]?.headHeight || 0,
-      frictionHeadHeight: commAttractionMetrics.blocks[1]?.headHeight || 0,
-      flowGap: commAttractionMetrics.blocks[0]?.listGap || 0,
-      frictionGap: commAttractionMetrics.blocks[1]?.listGap || 0,
-      stackGap: commAttractionMetrics.stackGap || 0,
-      maxNoBottom: commAttractionMetricsNoBottom.maxMiddleHeight,
-      maxWithBottom: commAttractionMetrics.maxMiddleHeight,
-    });
-
-    await page.close();
-
-    const pagination = {
-      compareBlocks: comparePages.map((p) => ({ start: p.start, end: p.end })),
-      flowFriction: flowFrictionPages.map((p) => ({
-        flowStart: p.flowStart,
-        flowEnd: p.flowEnd,
-        flowCount: p.flowCount,
-        frictionStart: p.frictionStart,
-        frictionEnd: p.frictionEnd,
-        frictionCount: p.frictionCount,
-        isLast: p.isLast,
-      })),
-      commAttraction: commAttractionPages.map((p) => ({
-        flowStart: p.flowStart,
-        flowEnd: p.flowEnd,
-        flowCount: p.flowCount,
-        frictionStart: p.frictionStart,
-        frictionEnd: p.frictionEnd,
-        frictionCount: p.frictionCount,
-        isLast: p.isLast,
-      })),
-    };
-
-    return buildRelationHtml(view, { pagination });
-  } finally {
-    if (ownBrowser && activeBrowser) {
-      await activeBrowser.close();
-    }
-  }
+  return buildRelationHtml(view);
 }
 
 async function renderRelationPdfBuffer({ view } = {}) {

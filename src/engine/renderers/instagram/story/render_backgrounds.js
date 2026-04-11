@@ -116,6 +116,7 @@ async function renderStoryBackgroundSet({
     { ja: "明日の空", en: "Tomorrow's Sky" },
   ],
   variants = ["story_today", "story_resonance", "story_tomorrow"],
+  spaceConfig = null,
 } = {}) {
   const width = CANVAS.width;
   const height = CANVAS.height;
@@ -132,6 +133,7 @@ async function renderStoryBackgroundSet({
       worldWidth,
       offsetX: width * i,
       avoidRegions,
+      spaceConfig,
     });
     buffers.push(await renderStoryBackground({ title: titles[i], space }));
   }

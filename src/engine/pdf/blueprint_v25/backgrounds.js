@@ -157,6 +157,7 @@ async function buildBlueprintV25BgImages({
   dateLabel = "",
   natalHash = "",
   seedLabel = "",
+  spaceConfig = null,
   outDir,
   inline = false,
 } = {}) {
@@ -205,6 +206,7 @@ async function buildBlueprintV25BgImages({
       variant: v.variant,
       worldWidth,
       offsetX,
+      spaceConfig,
     });
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" viewBox="0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}"><defs>${bg.defs || ""}</defs>${bg.body || ""}</svg>`;
     const filePath = path.join(dir, `bg_${v.key}.png`);

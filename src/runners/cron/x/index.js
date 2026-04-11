@@ -17,6 +17,7 @@ const {
   renderXResonanceWheelPng,
 } = require("../../../engine/renderers/x/morning_wheel");
 const { renderXNightMoonPng } = require("../../../engine/renderers/x/night_moon");
+const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
 const {
   acquireXPostLock,
@@ -191,12 +192,14 @@ async function runXMorningPost(deps, opts = {}) {
         ? Number(env2.X_POST_IMAGE_HEIGHT)
         : DEFAULT_X_CANVAS.height;
       const imageVariant = String(env2.X_POST_IMAGE_VARIANT || "story_today").trim() || "story_today";
+      const spaceConfig = buildCosmicSpaceConfig("cosmic_soft");
       const png = await renderXMorningWheelPng({
         story,
         dateLabel: dateLocal,
         width: imageWidth,
         height: imageHeight,
         variant: imageVariant,
+        spaceConfig,
       });
       fs.mkdirSync(localOutDir, { recursive: true });
       imagePath = path.join(localOutDir, `x_morning_${imageWidth}x${imageHeight}.png`);
@@ -238,13 +241,14 @@ async function runXMorningPost(deps, opts = {}) {
     };
     if (!dryRun) {
       try {
-        const png = await renderXMorningWheelPng({
-          story,
-          dateLabel: dateLocal,
-          width: imageWidth,
-          height: imageHeight,
-          variant: imageVariant,
-        });
+      const png = await renderXMorningWheelPng({
+        story,
+        dateLabel: dateLocal,
+        width: imageWidth,
+        height: imageHeight,
+        variant: imageVariant,
+        spaceConfig: buildCosmicSpaceConfig("cosmic_soft"),
+      });
         const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
         mediaId = uploaded?.id || "";
         imageInfo.media_id = mediaId || null;
@@ -554,6 +558,7 @@ async function runXResonancePost(deps, opts = {}) {
             height: resonanceImageHeight,
             variant: resonanceImageVariant,
             resonanceAspect,
+            spaceConfig: buildCosmicSpaceConfig("cosmic_default"),
           });
           fs.mkdirSync(localOutDir, { recursive: true });
           resonanceImagePath = path.join(localOutDir, `x_resonance_wheel_${resonanceImageWidth}x${resonanceImageHeight}.png`);
@@ -591,6 +596,7 @@ async function runXResonancePost(deps, opts = {}) {
             height: resonanceImageHeight,
             variant: resonanceImageVariant,
             resonanceAspect,
+            spaceConfig: buildCosmicSpaceConfig("cosmic_default"),
           });
           const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
           resonanceMediaId = uploaded?.id || "";
@@ -794,6 +800,7 @@ async function runXNightPost(deps, opts = {}) {
         dict,
         asOfISO,
         supersample: nightImageSupersample,
+        spaceConfig: buildCosmicSpaceConfig("cosmic_vivid"),
       });
       fs.mkdirSync(localOutDir, { recursive: true });
       imagePath = path.join(localOutDir, `x_night_${nightImageWidth}x${nightImageHeight}.png`);
@@ -850,6 +857,7 @@ async function runXNightPost(deps, opts = {}) {
           dict,
           asOfISO,
           supersample: nightImageSupersample,
+          spaceConfig: buildCosmicSpaceConfig("cosmic_vivid"),
         });
         const uploaded = await uploadMedia({ buffer: png, mediaType: "image/png", env: env2 });
         nightMediaId = uploaded?.id || "";
