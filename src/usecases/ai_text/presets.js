@@ -33,7 +33,7 @@ const PRESETS = {
       outputType: "plain_text",
       allowEmpty: true,
       minChars: 160,
-      maxChars: 320,
+      maxChars: 420,
       normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },
     hashtags: {
