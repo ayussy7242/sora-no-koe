@@ -119,6 +119,7 @@ const CONSTELLATION_POINTS = {
 };
 
 const COVER_LAYOUT = Object.freeze({
+  globalOffsetY: 18,
   shiftY: 84,
   blockShiftY: 24,
   brandExtraY: 32,
@@ -233,13 +234,14 @@ function getAvoidRegions({
 } = {}) {
   const fields = [];
   const centerX = CANVAS.width / 2;
-  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY;
-  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY;
+  const globalOffsetY = COVER_LAYOUT.globalOffsetY || 0;
+  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY + globalOffsetY;
+  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + globalOffsetY;
   const mainSize = TOK.cover.mainSize;
   const midSize = TOK.cover.midSize || Math.round(mainSize * 0.5);
   const moonSize = TOK.cover.moonSize || mainSize;
   const mainGap = Math.round(TOK.cover.mainGap * COVER_LAYOUT.gapScale);
-  const mainStartY = TOK.cover.mainStartY + COVER_LAYOUT.shiftY;
+  const mainStartY = TOK.cover.mainStartY + COVER_LAYOUT.shiftY + globalOffsetY;
 
   if (brand) {
     const w = estimateTextWidth(brand, TOK.cover.brandSize, "title");
@@ -318,9 +320,9 @@ function getAvoidRegions({
     { text: sunLine, size: mainSize, offsetY: 0 },
     { text: midLine, size: midSize, offsetY: TOK.cover.midOffsetY || 0 },
     { text: moonLine, size: moonSize, offsetY: TOK.cover.moonOffsetY || 0 },
-  ].filter((line) => String(line?.text || "").trim());
+  ];
   const lineCount = heroLines.length;
-  const startY = lineCount >= 3 ? mainStartY - mainGap * 0.5 : mainStartY;
+  const startY = mainStartY - mainGap * 0.5;
   heroLines.forEach((line, idx) => {
     buildRowField({
       text: line.text,
@@ -334,7 +336,7 @@ function getAvoidRegions({
     const maxWidth = Math.max(...pressureList.map((l) => estimateTextWidth(l, TOK.cover.pressure.size, "body")));
     fields.push(makeField({
       x: centerX - maxWidth / 2,
-      y: (TOK.cover.pressure.y + COVER_LAYOUT.shiftY + COVER_LAYOUT.pressureOffsetY) - TOK.cover.pressure.size,
+      y: (TOK.cover.pressure.y + COVER_LAYOUT.shiftY + COVER_LAYOUT.pressureOffsetY + globalOffsetY) - TOK.cover.pressure.size,
       w: maxWidth,
       h: Math.round(TOK.cover.pressure.lineHeight * COVER_LAYOUT.pressureLineHeightScale) * pressureList.length,
       pad: 14,
@@ -347,7 +349,8 @@ function getAvoidRegions({
   if (obsLines.length) {
     const obsWidth = Math.max(...obsLines.map((l) => estimateTextWidth(l, TOK.cover.observation.size, "body")));
     const obsBlockY = (obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle)
-      + COVER_LAYOUT.shiftY;
+      + COVER_LAYOUT.shiftY
+      + globalOffsetY;
     fields.push(makeField({
       x: centerX - obsWidth / 2,
       y: obsBlockY - TOK.cover.observation.size,
@@ -363,7 +366,7 @@ function getAvoidRegions({
     const w = estimateTextWidth(dateLabel, TOK.footer.dateSize, "title");
     fields.push(makeField({
       x: TOK.marginX,
-      y: (TOK.footer.dateY + COVER_LAYOUT.dateOffsetY) - TOK.footer.dateSize,
+      y: (TOK.footer.dateY + COVER_LAYOUT.dateOffsetY + globalOffsetY) - TOK.footer.dateSize,
       w,
       h: TOK.footer.dateSize * 1.2,
       pad: 12,
@@ -375,7 +378,7 @@ function getAvoidRegions({
     const w = estimateTextWidth(swipeLabel, TOK.footer.swipeSize, "title");
     fields.push(makeField({
       x: CANVAS.width - TOK.marginX - w,
-      y: TOK.footer.dateY - TOK.footer.swipeSize,
+      y: TOK.footer.dateY + globalOffsetY - TOK.footer.swipeSize,
       w,
       h: TOK.footer.swipeSize * 1.2,
       pad: 12,
@@ -403,15 +406,16 @@ function buildSlide1Svg({
 } = {}) {
   const colors = resolveColors(space);
   const centerX = CANVAS.width / 2;
-  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY;
-  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY;
+  const globalOffsetY = COVER_LAYOUT.globalOffsetY || 0;
+  const brandY = TOK.cover.brandY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + COVER_LAYOUT.brandExtraY + globalOffsetY;
+  const taglineY = TOK.cover.taglineY + COVER_LAYOUT.shiftY + COVER_LAYOUT.blockShiftY + globalOffsetY;
   const subLabelY = taglineY + Math.round(TOK.subLabel.offsetY * COVER_LAYOUT.subLabelOffsetScale);
   const subLabelSize = TOK.cover.subLabelSize || TOK.subLabel.size;
   const mainSize = TOK.cover.mainSize;
   const midSize = TOK.cover.midSize || Math.round(mainSize * 0.5);
   const moonSize = TOK.cover.moonSize || mainSize;
   const mainGap = Math.round(TOK.cover.mainGap * COVER_LAYOUT.gapScale);
-  const mainStartY = TOK.cover.mainStartY + COVER_LAYOUT.shiftY;
+  const mainStartY = TOK.cover.mainStartY + COVER_LAYOUT.shiftY + globalOffsetY;
   const midOpacity = 0.6;
 
   const buildCenteredRow = ({ text, y, size = mainSize, color = colors.textMain, tracking = 0.02, opacity = 1, fontFamily = "SoraTitle" }) => {
@@ -448,7 +452,8 @@ function buildSlide1Svg({
   const pressureList = Array.isArray(pressureLines) ? pressureLines.filter(Boolean) : [];
   const obsLines = pressureList.length ? [] : wrapLines(observation, 20, 2);
   const obsBlockY = (obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle)
-    + COVER_LAYOUT.shiftY;
+    + COVER_LAYOUT.shiftY
+    + globalOffsetY;
 
   const sunKey = detectSignKey({ signKey: sunSignKey, text: sunLine });
   const moonKey = detectSignKey({ signKey: moonSignKey, text: moonLine });
@@ -487,9 +492,9 @@ function buildSlide1Svg({
         { text: sunLine, size: mainSize, color: colors.textMain, tracking: COVER_LAYOUT.mainTracking, opacity: 1, offsetY: 0 },
         { text: midLine, size: midSize, color: colors.textDim, tracking: TOK.cover.midTracking * COVER_LAYOUT.trackingScale, opacity: midOpacity, offsetY: TOK.cover.midOffsetY || 0, fontFamily: "SoraSoft" },
         { text: moonLine, size: moonSize, color: colors.textMain, tracking: COVER_LAYOUT.mainTracking, opacity: 1, offsetY: TOK.cover.moonOffsetY || 0 },
-      ].filter((line) => String(line?.text || "").trim());
+      ];
       const lineCount = heroLines.length;
-      const startY = lineCount >= 3 ? mainStartY - mainGap * 0.5 : mainStartY;
+      const startY = mainStartY - mainGap * 0.5;
       return heroLines
         .map((line, idx) => buildCenteredRow({
           text: line.text || "",
@@ -507,7 +512,7 @@ function buildSlide1Svg({
           const opacity = Number.isFinite(TOK.cover.pressure.opacity) ? TOK.cover.pressure.opacity : 0.62;
           const block = textBlock({
             x: centerX,
-            y: TOK.cover.pressure.y + COVER_LAYOUT.shiftY + COVER_LAYOUT.pressureOffsetY,
+            y: TOK.cover.pressure.y + COVER_LAYOUT.shiftY + COVER_LAYOUT.pressureOffsetY + globalOffsetY,
             lines: pressureList,
             size: TOK.cover.pressure.size,
             lineHeight: Math.round(TOK.cover.pressure.lineHeight * COVER_LAYOUT.pressureLineHeightScale),
@@ -530,8 +535,8 @@ function buildSlide1Svg({
       letterSpacing: TOK.cover.observation.tracking * COVER_LAYOUT.observationTrackingScale,
       anchor: "middle",
     }),
-    `<text x=\"${TOK.marginX}\" y=\"${TOK.footer.dateY + COVER_LAYOUT.dateOffsetY}\" fill=\"${colors.textDim}\" font-size=\"${TOK.footer.dateSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.footer.swipeTracking}em\">${escapeXml(dateLabel || "")}</text>`,
-    `<text x=\"${CANVAS.width - TOK.marginX}\" y=\"${TOK.footer.dateY + COVER_LAYOUT.dateOffsetY}\" text-anchor=\"end\" fill=\"${colors.textSub}\" font-size=\"${TOK.footer.swipeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.footer.swipeTracking}em\">${escapeXml(swipeLabel)}</text>`,
+    `<text x=\"${TOK.marginX}\" y=\"${TOK.footer.dateY + COVER_LAYOUT.dateOffsetY + globalOffsetY}\" fill=\"${colors.textDim}\" font-size=\"${TOK.footer.dateSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.footer.swipeTracking}em\">${escapeXml(dateLabel || "")}</text>`,
+    `<text x=\"${CANVAS.width - TOK.marginX}\" y=\"${TOK.footer.dateY + COVER_LAYOUT.dateOffsetY + globalOffsetY}\" text-anchor=\"end\" fill=\"${colors.textSub}\" font-size=\"${TOK.footer.swipeSize}\" font-family=\"SoraTitle\" letter-spacing=\"${TOK.footer.swipeTracking}em\">${escapeXml(swipeLabel)}</text>`,
   ].join("");
 
   return baseSvg(inner, space);
