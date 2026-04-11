@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "retrogrades_year.v1.schema.json",
+  "title": "Retrogrades Year Reference (v1)",
+  "type": "object",
+  "required": ["type", "version", "year", "time_zone", "generated_at_utc", "items"],
+  "properties": {
+    "type": { "const": "retrogrades_year" },
+    "version": { "const": "v1" },
+    "year": { "type": "integer", "minimum": 1900 },
+    "time_zone": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/retrograde_item" }
+    }
+  },
+  "definitions": {
+    "date_local": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "retrograde_item": {
+      "type": "object",
+      "required": ["id", "planet_key", "start_local", "end_local", "sign_key_start", "sign_key_end"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "planet_key": { "type": "string", "minLength": 1 },
+        "start_local": { "$ref": "#/definitions/date_local" },
+        "end_local": { "$ref": "#/definitions/date_local" },
+        "sign_key_start": { "type": "string", "minLength": 1 },
+        "sign_key_end": { "type": "string", "minLength": 1 },
+        "shadow_start_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "shadow_end_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "station_retrograde_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "station_direct_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "is_carry_in": { "oneOf": [ { "type": "boolean" }, { "type": "null" } ] },
+        "is_carry_out": { "oneOf": [ { "type": "boolean" }, { "type": "null" } ] },
+        "note": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

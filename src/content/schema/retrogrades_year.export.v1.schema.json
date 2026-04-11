@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "retrogrades_year.export.v1.schema.json",
+  "title": "Retrogrades Year Export (v1)",
+  "type": "object",
+  "required": ["type", "version", "year", "time_zone", "generated_at_utc", "reference", "deck"],
+  "properties": {
+    "type": { "const": "retrogrades_year_export" },
+    "version": { "const": "v1" },
+    "year": { "type": "integer", "minimum": 1900 },
+    "time_zone": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "reference": { "$ref": "retrogrades_year.v1.schema.json" },
+    "deck": { "$ref": "retrogrades_year.deck.v1.schema.json" }
+  }
+}

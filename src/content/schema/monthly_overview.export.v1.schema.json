@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "monthly_overview.export.v1.schema.json",
+  "title": "Monthly Overview Export (v1)",
+  "type": "object",
+  "required": ["type", "version", "month", "time_zone", "generated_at_utc", "reference", "deck"],
+  "properties": {
+    "type": { "const": "monthly_overview_export" },
+    "version": { "const": "v1" },
+    "month": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+    "time_zone": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "reference": { "$ref": "monthly_overview.v1.schema.json" },
+    "deck": { "$ref": "monthly_overview.deck.v1.schema.json" }
+  }
+}

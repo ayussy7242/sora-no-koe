@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "calendar_year.v1.schema.json",
+  "title": "Calendar Year Reference (v1)",
+  "type": "object",
+  "required": ["type", "version", "year", "time_zone", "generated_at_utc", "full_moons", "new_moons"],
+  "properties": {
+    "type": { "const": "calendar_year" },
+    "version": { "const": "v1" },
+    "year": { "type": "integer", "minimum": 1900 },
+    "time_zone": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "full_moons": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/moon_event" }
+    },
+    "new_moons": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/moon_event" }
+    }
+  },
+  "definitions": {
+    "date_local": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "time_local": {
+      "type": "string",
+      "pattern": "^\\d{2}:\\d{2}$"
+    },
+    "moon_event": {
+      "type": "object",
+      "required": ["id", "date_local", "time_local", "sign_key"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "time_local": { "oneOf": [ { "$ref": "#/definitions/time_local" }, { "type": "null" } ] },
+        "sign_key": { "type": "string", "minLength": 1 },
+        "moon_name_ja": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "moon_name_en": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "special_name_ja": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "special_name_en": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

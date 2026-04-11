@@ -1,0 +1,36 @@
+{
+  "type": "carousel_deck",
+  "version": "v1",
+  "layout_key": "monthly_overview",
+  "seedVariant": "morning",
+  "title": "{{month_label}}の空",
+  "subtitle": "{{month}} Sky Overview",
+  "badge": "保存版",
+  "spaceConfig": {
+    "starDensityScale": 3,
+    "milkyIntensityScale": 3,
+    "milkyThicknessScale": 3,
+    "milkyDustScale": 3,
+    "gasIntensityScale": 3
+  },
+  "header_text": {
+    "primary": "{{month_dot}}",
+    "secondary": "今月の空模様",
+    "sub_en": "monthly sky"
+  },
+  "slides": [
+    {
+      "id": "calendar",
+      "type": "calendar",
+      "title": "{{month_label}}の空模様",
+      "tagline": "今月の節目を、一覧で",
+      "badge": "保存版"
+    },
+    {
+      "id": "timeline",
+      "type": "timeline",
+      "title": "",
+      "limit": 14
+    }
+  ]
+}

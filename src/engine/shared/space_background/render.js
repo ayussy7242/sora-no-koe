@@ -846,6 +846,7 @@ function buildSpaceBackground({
       ["milkyIntensityScale", spaceConfig.milkyIntensityScale],
       ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
       ["milkyDustScale", spaceConfig.milkyDustScale],
+      ["gasIntensityScale", spaceConfig.gasIntensityScale],
       ["whiteMix", spaceConfig.whiteMix],
       ["forceSecondaryMix", spaceConfig.forceSecondaryMix ? 1 : 0],
       ["secondaryMixRatio", spaceConfig.secondaryMixRatio],

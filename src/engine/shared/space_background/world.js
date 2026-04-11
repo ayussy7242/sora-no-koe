@@ -124,6 +124,7 @@ function normalizeSpaceConfig(spaceConfig) {
     milkyIntensityScale: pick(spaceConfig.milkyIntensityScale, 0.4, 2.5),
     milkyThicknessScale: pick(spaceConfig.milkyThicknessScale, 0.6, 2.4),
     milkyDustScale: pick(spaceConfig.milkyDustScale, 0.4, 2.6),
+    gasIntensityScale: pick(spaceConfig.gasIntensityScale, 0.5, 3),
     whiteMix: pick(spaceConfig.whiteMix, 0, 0.85),
   };
   const extra = {};
@@ -157,6 +158,7 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   const milkyIntensityScale = Number(resolvedSpaceConfig?.milkyIntensityScale) || 1;
   const milkyThicknessScale = Number(resolvedSpaceConfig?.milkyThicknessScale) || 1;
   const milkyDustScale = Number(resolvedSpaceConfig?.milkyDustScale) || 1;
+  const gasIntensityScale = Number(resolvedSpaceConfig?.gasIntensityScale) || 1;
   const whiteMix = Number(resolvedSpaceConfig?.whiteMix) || 0;
   const defs = [];
   const body = [];
@@ -458,6 +460,10 @@ function buildSpaceWorld({ story, dateLabel, width, height, worldWidth, theme, a
   if (moonFull) {
     primaryOpacityScale *= 0.55;
     secondaryOpacityScale *= 0.55;
+  }
+  if (gasIntensityScale !== 1) {
+    primaryOpacityScale *= gasIntensityScale;
+    secondaryOpacityScale *= gasIntensityScale;
   }
 
   const deep = buildDeepSpaceLayer({

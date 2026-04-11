@@ -10,6 +10,11 @@ Base URL: https://sora-no-koe-v2-256321662770.asia-northeast1.run.app
   - Method: `POST`
   - URL: `/cron/x/resonance`
   - Behavior: app-side condition (orb <= 0.5) determines skip/post
+- `sora-ig-monthly`
+  - Schedule: `0 7 1 * *` (Asia/Tokyo)
+  - Method: `POST`
+  - URL: `/cron/ig/monthly`
+  - Behavior: posts monthly overview carousel for the month
 
 ## Auth
 - Use `x-cron-token` header.
@@ -25,6 +30,18 @@ gcloud scheduler jobs create http sora-x-resonance \
   --time-zone="Asia/Tokyo" \
   --http-method=POST \
   --uri="https://sora-no-koe-v2-256321662770.asia-northeast1.run.app/cron/x/resonance" \
+  --headers="x-cron-token=REDACTED"
+```
+
+Create monthly IG job:
+```
+gcloud scheduler jobs create http sora-ig-monthly \
+  --project=sora-no-koe \
+  --location=asia-northeast1 \
+  --schedule="0 7 1 * *" \
+  --time-zone="Asia/Tokyo" \
+  --http-method=POST \
+  --uri="https://sora-no-koe-v2-256321662770.asia-northeast1.run.app/cron/ig/monthly" \
   --headers="x-cron-token=REDACTED"
 ```
 

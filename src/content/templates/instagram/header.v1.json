@@ -1,0 +1,8 @@
+{
+  "type": "ig_header",
+  "version": "v1",
+  "brand": "{{brand}}",
+  "primary": "{{primary}}",
+  "secondary": "{{secondary}}",
+  "sub_en": "{{sub_en}}"
+}

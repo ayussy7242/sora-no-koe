@@ -43,19 +43,36 @@ function buildSlideRenderers(setKey) {
   const renderers = {
     slide1: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
     cover: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
-    placements: { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions },
-    slidePlacements: { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions },
-    moon: { variant: "moon", render: sMoon.renderSlideMoon, getAvoidRegions: sMoon.getAvoidRegions },
-    slideMoon: { variant: "moon", render: sMoon.renderSlideMoon, getAvoidRegions: sMoon.getAvoidRegions },
+    calendar: { variant: "slide1", render: s1.renderSlide1, getAvoidRegions: s1.getAvoidRegions },
     chart: { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions },
     slide2: { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions },
-    resonance: { variant: "slide3", render: s3.renderSlide3, getAvoidRegions: s3.getAvoidRegions },
-    slide3: { variant: "slide3", render: s3.renderSlide3, getAvoidRegions: s3.getAvoidRegions },
-    tsukiji: { variant: "slide4", render: s4.renderSlide4, getAvoidRegions: s4.getAvoidRegions },
-    slide4: { variant: "slide4", render: s4.renderSlide4, getAvoidRegions: s4.getAvoidRegions },
-    cta: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
-    slide5: { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions },
+    timeline: { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions },
   };
+
+  if (s3?.renderSlide3) {
+    renderers.resonance = { variant: "slide3", render: s3.renderSlide3, getAvoidRegions: s3.getAvoidRegions };
+    renderers.slide3 = renderers.resonance;
+  }
+
+  if (s4?.renderSlide4) {
+    renderers.tsukiji = { variant: "slide4", render: s4.renderSlide4, getAvoidRegions: s4.getAvoidRegions };
+    renderers.slide4 = renderers.tsukiji;
+  }
+
+  if (s5?.renderSlide5) {
+    renderers.cta = { variant: "slide5", render: s5.renderSlide5, getAvoidRegions: s5.getAvoidRegions };
+    renderers.slide5 = renderers.cta;
+  }
+
+  if (sPlacements?.renderSlidePlacements) {
+    renderers.placements = { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions };
+    renderers.slidePlacements = renderers.placements;
+  }
+
+  if (sMoon?.renderSlideMoon) {
+    renderers.moon = { variant: "moon", render: sMoon.renderSlideMoon, getAvoidRegions: sMoon.getAvoidRegions };
+    renderers.slideMoon = renderers.moon;
+  }
 
   if (sResonanceWheel?.renderSlideResonanceWheel) {
     renderers.resonance_wheel = {
@@ -122,6 +139,7 @@ function buildSpaceConfigKey(spaceConfig) {
     ["milkyIntensityScale", spaceConfig.milkyIntensityScale],
     ["milkyThicknessScale", spaceConfig.milkyThicknessScale],
     ["milkyDustScale", spaceConfig.milkyDustScale],
+    ["gasIntensityScale", spaceConfig.gasIntensityScale],
     ["whiteMix", spaceConfig.whiteMix],
     ["moonEventKind", spaceConfig.moonEventKind],
     ["moonEventStyle", spaceConfig.moonEventStyle],

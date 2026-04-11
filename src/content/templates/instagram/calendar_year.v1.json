@@ -1,0 +1,34 @@
+{
+  "type": "carousel_deck",
+  "version": "v1",
+  "layout_key": "calendar_year",
+  "title": "{{year}}年 満月と新月の一覧",
+  "subtitle": "{{year}} Moon Calendar",
+  "badge": "保存版",
+  "header_text": {
+    "primary": "{{year}}",
+    "secondary": "満月と新月の一覧",
+    "sub_en": "moon calendar"
+  },
+  "slides": [
+    {
+      "id": "cover",
+      "type": "cover",
+      "title": "{{year}}年 満月と新月の一覧",
+      "tagline": "月の節目を、ひと目で",
+      "badge": "保存版"
+    },
+    {
+      "id": "table_full",
+      "type": "table",
+      "title": "満月一覧",
+      "source": "full_moons"
+    },
+    {
+      "id": "table_new",
+      "type": "table",
+      "title": "新月一覧",
+      "source": "new_moons"
+    }
+  ]
+}

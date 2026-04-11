@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "monthly_overview.deck.v1.schema.json",
+  "title": "Monthly Overview Deck (v1)",
+  "type": "object",
+  "required": ["type", "version", "layout_key", "slides"],
+  "properties": {
+    "type": { "const": "carousel_deck" },
+    "version": { "const": "v1" },
+    "layout_key": { "type": "string", "minLength": 1 },
+    "title": { "type": "string" },
+    "subtitle": { "type": "string" },
+    "badge": { "type": "string" },
+    "data": { "type": "object" },
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/slide" }
+    }
+  },
+  "definitions": {
+    "slide": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "tagline": { "type": "string" },
+        "badge": { "type": "string" },
+        "source": { "type": "string" },
+        "rows": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "table" } }
+          },
+          "then": {
+            "required": ["source"],
+            "properties": {
+              "source": {
+                "enum": [
+                  "highlights",
+                  "moon",
+                  "retrogrades",
+                  "sign_ingresses",
+                  "aspects",
+                  "peaks"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

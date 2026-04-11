@@ -8,6 +8,7 @@ const PATH_GLYPHS = new Set([
   "☉","☽","☿","♀","♂","♃","♄","♅","♆","♇",
   "⚷","⚸","☊","☋",
   "♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓",
+  "☌","⚹","□","△","☍",
 ]);
 
 function createGlyphLayout({ resolveFontPath, FONT_FILES } = {}) {

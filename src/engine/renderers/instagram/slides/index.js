@@ -22,7 +22,13 @@ const moonEvent = {
   placements: require("./moon_event/slide_placements"),
 };
 
+const monthlyOverview = {
+  slide1: require("./monthly_overview/slide_1"),
+  slide2: require("./monthly_overview/slide_2"),
+};
+
 module.exports = {
   daily,
   moon_event: moonEvent,
+  monthly_overview: monthlyOverview,
 };

@@ -1,0 +1,156 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "monthly_overview.v1.schema.json",
+  "title": "Monthly Overview Reference (v1)",
+  "type": "object",
+  "required": [
+    "type",
+    "version",
+    "month",
+    "time_zone",
+    "generated_at_utc",
+    "title",
+    "summary_tags",
+    "moon",
+    "retrogrades",
+    "sign_ingresses",
+    "aspects",
+    "peaks",
+    "highlights"
+  ],
+  "properties": {
+    "type": { "const": "monthly_overview" },
+    "version": { "const": "v1" },
+    "month": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+    "time_zone": { "type": "string", "minLength": 1 },
+    "generated_at_utc": { "type": "string", "format": "date-time" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary_tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "moon": { "$ref": "#/definitions/moon_block" },
+    "retrogrades": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/retrograde_item" }
+    },
+    "sign_ingresses": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/sign_ingress" }
+    },
+    "aspects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/aspect_item" }
+    },
+    "peaks": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/peak_item" }
+    },
+    "highlights": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/highlight_item" }
+    }
+  },
+  "definitions": {
+    "date_local": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "time_local": {
+      "type": "string",
+      "pattern": "^\\d{2}:\\d{2}$"
+    },
+    "moon_event": {
+      "type": "object",
+      "required": ["date_local", "sign_key"],
+      "properties": {
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "time_local": { "oneOf": [ { "$ref": "#/definitions/time_local" }, { "type": "null" } ] },
+        "sign_key": { "type": "string", "minLength": 1 },
+        "phase_key": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "label": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "moon_name_ja": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "moon_name_en": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    },
+    "moon_block": {
+      "type": "object",
+      "required": ["new_moon", "full_moon"],
+      "properties": {
+        "new_moon": { "$ref": "#/definitions/moon_event" },
+        "full_moon": { "$ref": "#/definitions/moon_event" },
+        "phases": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/moon_event" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "retrograde_item": {
+      "type": "object",
+      "required": ["planet_key", "start_local", "end_local", "sign_key_start", "sign_key_end"],
+      "properties": {
+        "planet_key": { "type": "string", "minLength": 1 },
+        "start_local": { "$ref": "#/definitions/date_local" },
+        "end_local": { "$ref": "#/definitions/date_local" },
+        "sign_key_start": { "type": "string", "minLength": 1 },
+        "sign_key_end": { "type": "string", "minLength": 1 },
+        "shadow_start_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "shadow_end_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "station_retrograde_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "station_direct_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "active_in_month_start": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "active_in_month_end": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "is_carry_in": { "oneOf": [ { "type": "boolean" }, { "type": "null" } ] },
+        "is_carry_out": { "oneOf": [ { "type": "boolean" }, { "type": "null" } ] },
+        "is_shadow_only_in_month": { "oneOf": [ { "type": "boolean" }, { "type": "null" } ] },
+        "note": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    },
+    "sign_ingress": {
+      "type": "object",
+      "required": ["planet_key", "date_local", "sign_key"],
+      "properties": {
+        "planet_key": { "type": "string", "minLength": 1 },
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "sign_key": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "aspect_item": {
+      "type": "object",
+      "required": ["date_local", "a", "b", "aspect_key"],
+      "properties": {
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "a": { "type": "string", "minLength": 1 },
+        "b": { "type": "string", "minLength": 1 },
+        "aspect_key": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "peak_item": {
+      "type": "object",
+      "required": ["date_local", "label"],
+      "properties": {
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "label": { "type": "string", "minLength": 1 },
+        "note": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    },
+    "highlight_item": {
+      "type": "object",
+      "required": ["label", "date_local"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "date_local": { "$ref": "#/definitions/date_local" },
+        "planet_key": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+        "start_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] },
+        "end_local": { "oneOf": [ { "$ref": "#/definitions/date_local" }, { "type": "null" } ] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

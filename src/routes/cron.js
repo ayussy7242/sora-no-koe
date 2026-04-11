@@ -22,7 +22,14 @@ const { safeEqual } = require("../utils/data/equal");
 const { handleJobsWorker } = require("../runners/jobs/worker");
 const { runDaily8, rebuildDaily8, sendDaily8, runBlueprintResend } = require("../runners/cron/line");
 const { runDailyBlog } = require("../runners/cron/blog");
-const { runIgPost, runIgMorningPost, runIgResonancePost, runIgNightPost, runIgMoonEventPost } = require("../runners/cron/instagram");
+const {
+  runIgPost,
+  runIgMorningPost,
+  runIgResonancePost,
+  runIgNightPost,
+  runIgMoonEventPost,
+  runIgMonthlyPost,
+} = require("../runners/cron/instagram");
 const { runXMorningPost, runXResonancePost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
 const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
 const {
@@ -552,6 +559,46 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return cronError(res, req, "/cron/ig/post", e);
+    }
+  });
+
+  // ✅ POST /cron/ig/monthly : Instagram monthly overview post
+  router.post("/ig/monthly", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/monthly" });
+
+    try {
+      const t0 = Date.now();
+      logCronPhase(req, "[cron/ig/monthly] start", { url: stripQuery(req?.originalUrl) });
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const month = b?.month ?? q?.month ?? (dateLocal ? String(dateLocal).slice(0, 7) : undefined);
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
+
+      const result = await runIgMonthlyPost(
+        { db, admin, env, storyService, renderers, storage, dict },
+        { dateLocal, month, asOfISO, dryRun, local, localOutDir, force }
+      );
+
+      logCronPhase(req, "[cron/ig/monthly] done", {
+        ok: result?.ok,
+        skipped: result?.skipped,
+        reason: result?.reason,
+        month: result?.month,
+        ms: Date.now() - t0,
+      });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/ig/monthly", e);
     }
   });
 

@@ -2,6 +2,7 @@
 
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
+const { runIgMonthlyPost } = require("./monthly");
 const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
@@ -767,4 +768,11 @@ async function runIgNightPost(deps, opts = {}) {
   return runIgPost(deps, { ...opts, slot: "night" });
 }
 
-module.exports = { runIgPost, runIgMorningPost, runIgResonancePost, runIgNightPost, runIgMoonEventPost };
+module.exports = {
+  runIgPost,
+  runIgMorningPost,
+  runIgResonancePost,
+  runIgNightPost,
+  runIgMoonEventPost,
+  runIgMonthlyPost,
+};

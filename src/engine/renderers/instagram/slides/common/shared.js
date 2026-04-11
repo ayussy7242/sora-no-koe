@@ -8,6 +8,7 @@ const { resolveColors } = require("../../theme");
 const { formatDateLabel } = require("../../../../../utils/time");
 const { escapeXml } = require("../../../../../utils/data/xml");
 const { wrapLines } = require("../../../../../utils/text/wrap");
+const { PATH_GLYPHS, measureTextWidth, buildGlyphPath, pickGlyphPathFont, glyphAdvanceWidth } = require("./glyph_layout");
 
 const CANVAS = {
   width: 1080,
@@ -16,12 +17,86 @@ const CANVAS = {
 
 const TOK = IG_TOKENS;
 
-function textBlock({ x, y, lines, size, lineHeight, color, fontFamily, letterSpacing, anchor }) {
+function splitGlyphRuns(line) {
+  const chars = Array.from(String(line || ""));
+  const runs = [];
+  chars.forEach((ch) => {
+    const isGlyph = PATH_GLYPHS.has(ch);
+    const last = runs[runs.length - 1];
+    if (!last || last.isGlyph !== isGlyph) {
+      runs.push({ isGlyph, text: ch });
+    } else {
+      last.text += ch;
+    }
+  });
+  return runs;
+}
+
+function measureGlyphWidth(glyph, size) {
+  const font = pickGlyphPathFont(glyph);
+  if (font) return glyphAdvanceWidth(font, glyph, size);
+  return size * 0.9;
+}
+
+const GLYPH_Y_ADJUST = {
+  "□": 1,
+};
+
+function richTextLine({ x, y, text, size, color, fontFamily = "SoraBody", anchor = "start", glyphOffsetY = -1, glyphGap = 3 } = {}) {
+  const runs = splitGlyphRuns(text);
+  const widths = runs.map((run) => {
+    if (!run.text) return 0;
+    if (run.isGlyph) {
+      return Array.from(run.text).reduce((acc, ch) => acc + measureGlyphWidth(ch, size) + glyphGap, -glyphGap);
+    }
+    return measureTextWidth(run.text, size, "body");
+  });
+  const total = widths.reduce((a, b) => a + b, 0);
+  let cursorX = anchor === "middle" ? x - total / 2 : x;
+  const out = [];
+  runs.forEach((run, idx) => {
+    if (!run.text) return;
+    if (run.isGlyph) {
+      Array.from(run.text).forEach((ch) => {
+        const adjust = Number.isFinite(GLYPH_Y_ADJUST[ch]) ? GLYPH_Y_ADJUST[ch] : 0;
+        const path = buildGlyphPath({ glyph: ch, x: cursorX, y: y + glyphOffsetY + adjust, size, color });
+        if (path) out.push(path);
+        cursorX += measureGlyphWidth(ch, size) + glyphGap;
+      });
+      return;
+    }
+    out.push(
+      `<text x="${cursorX}" y="${y}" fill="${color}" font-size="${size}" font-family="${fontFamily}">${escapeXml(run.text)}</text>`
+    );
+    cursorX += widths[idx] || 0;
+  });
+  return out.join("");
+}
+
+function glyphTextLine({ x, y, text, size, color, fontFamily = "SoraBody", glyphFamily = "SoraGlyphAlt", letterSpacing, anchor }) {
+  const spacing = Number.isFinite(letterSpacing) ? ` letter-spacing="${letterSpacing}em"` : "";
+  const anchorAttr = anchor ? ` text-anchor="${anchor}"` : "";
+  const runs = splitGlyphRuns(text);
+  const runSpans = runs.map((run) => {
+    const ff = run.isGlyph ? glyphFamily : fontFamily;
+    return `<tspan font-family="${ff}">${escapeXml(run.text)}</tspan>`;
+  }).join("");
+  return `<text x="${x}" y="${y}" fill="${color}" font-size="${size}" font-family="${fontFamily}"${spacing}${anchorAttr}>${runSpans}</text>`;
+}
+
+function textBlock({ x, y, lines, size, lineHeight, color, fontFamily, letterSpacing, anchor, glyphFamily = "SoraGlyphAlt" }) {
   const spacing = Number.isFinite(letterSpacing) ? ` letter-spacing=\"${letterSpacing}em\"` : "";
   const anchorAttr = anchor ? ` text-anchor=\"${anchor}\"` : "";
   const safeLines = Array.isArray(lines) ? lines : wrapLines(lines, 20, 3);
   const tspans = safeLines
-    .map((line, i) => `<tspan x=\"${x}\" dy=\"${i === 0 ? 0 : lineHeight}\">${escapeXml(line)}</tspan>`)
+    .map((line, i) => {
+      const runs = splitGlyphRuns(line);
+      const runSpans = runs.map((run) => {
+        const ff = run.isGlyph ? glyphFamily : fontFamily;
+        return `<tspan font-family="${ff}">${escapeXml(run.text)}</tspan>`;
+      }).join("");
+      return `<tspan x="${x}" dy="${i === 0 ? 0 : lineHeight}">${runSpans}</tspan>`;
+    })
     .join("");
   return `<text x=\"${x}\" y=\"${y}\" fill=\"${color}\" font-size=\"${size}\" font-family=\"${fontFamily}\"${spacing}${anchorAttr}>${tspans}</text>`;
 }
@@ -88,6 +163,8 @@ module.exports = {
   escapeXml,
   formatDateLabel,
   wrapLines,
+  glyphTextLine,
+  richTextLine,
   textBlock,
   baseSvg,
   buildRightFooter,

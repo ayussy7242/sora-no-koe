@@ -1,0 +1,30 @@
+{
+  "type": "carousel_deck",
+  "version": "v1",
+  "layout_key": "retrogrades_year",
+  "title": "{{year}}年 逆行カレンダー",
+  "subtitle": "{{year}} Retrogrades",
+  "badge": "保存版",
+  "header_text": {
+    "primary": "{{year}}",
+    "secondary": "逆行カレンダー",
+    "sub_en": "retrogrades"
+  },
+  "slides": [
+    {
+      "id": "cover",
+      "type": "cover",
+      "title": "{{year}}年 逆行カレンダー",
+      "tagline": "空の節目を、一覧で",
+      "badge": "保存版"
+    },
+    {
+      "id": "table_retrogrades",
+      "type": "table",
+      "title": "逆行一覧",
+      "source": "retrogrades",
+      "sort": "start_local",
+      "columns": ["planet_key", "start_local", "end_local", "sign_key_start", "sign_key_end"]
+    }
+  ]
+}

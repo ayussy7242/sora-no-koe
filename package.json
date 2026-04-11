@@ -24,6 +24,8 @@
     "swisseph": "^0.5.17"
   },
   "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1",
     "nodemon": "^3.1.9"
   },
   "scripts": {
@@ -35,7 +37,11 @@
     "export:dict": "node scripts/export/export_dictionaries_json.js",
     "export:dict:fb": "node scripts/export/export_dictionaries_json.js --firebase --db sora-no-koe-db",
     "export:dict:dry": "node scripts/export/export_dictionaries_json.js --firebase --db sora-no-koe-db --dry-run",
-    "export:aspects": "node scripts/export/export_aspects_json.js"
+    "export:aspects": "node scripts/export/export_aspects_json.js",
+    "validate:calendar-year": "node scripts/validate/validate_calendar_year.js",
+    "validate:reference": "node scripts/validate/validate_reference.js",
+    "validate:retrogrades-year": "node scripts/validate/validate_retrogrades_year.js",
+    "validate:monthly-overview": "node scripts/validate/validate_monthly_overview.js"
   },
   "_moduleAliases": {
     "@src": "src",
