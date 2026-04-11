@@ -82,7 +82,7 @@ const PRESETS = {
       outputType: "plain_text",
       allowEmpty: true,
       minChars: 120,
-      maxChars: 500,
+      maxChars: 800,
       normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },
     tsukiji_structure: {

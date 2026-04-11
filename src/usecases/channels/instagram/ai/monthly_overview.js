@@ -159,7 +159,7 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 4);
 
   const titleLine = `⭐️ ${formatMonthDot(month)} 今月の星カレンダー`;
-  const maxBodyChars = Math.max(200, 500 - (Array.from(titleLine).length + 2));
+  const maxBodyChars = 650;
 
   const result = await generateWithRetry({
     buildPrompt: () => buildCaptionPrompt({ month, reference, dict }),
