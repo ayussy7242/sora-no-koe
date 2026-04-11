@@ -214,14 +214,15 @@ function buildTextVeilLayer({ regions, width, height, idPrefix, color, rand }) {
     const gradId = `${idPrefix}-veil-${idx}`;
     const noiseId = `${gradId}-noise`;
     const maskId = `${gradId}-mask`;
-    const baseOpacity = clamp(0.045 + weight * 0.05, 0.03, 0.12);
+    const baseOpacity = clamp(0.03 + weight * 0.035, 0.02, 0.08);
     const freqX = (0.014 + rng() * 0.02).toFixed(3);
     const freqY = (0.02 + rng() * 0.02).toFixed(3);
     const blur = clamp(Math.max(rx, ry) * 0.12, 12, 32).toFixed(1);
     defs.push(
       `<radialGradient id="${gradId}" cx="${(cx / width).toFixed(3)}" cy="${(cy / height).toFixed(3)}" r="${(Math.max(rx, ry) / Math.max(width, height)).toFixed(3)}">` +
-        `<stop offset="0%" stop-color="${color}" stop-opacity="${baseOpacity.toFixed(3)}"/>` +
-        `<stop offset="55%" stop-color="${color}" stop-opacity="${(baseOpacity * 0.55).toFixed(3)}"/>` +
+        `<stop offset="0%" stop-color="${color}" stop-opacity="${(baseOpacity * 0.72).toFixed(3)}"/>` +
+        `<stop offset="45%" stop-color="${color}" stop-opacity="${(baseOpacity * 0.42).toFixed(3)}"/>` +
+        `<stop offset="80%" stop-color="${color}" stop-opacity="${(baseOpacity * 0.16).toFixed(3)}"/>` +
         `<stop offset="100%" stop-color="${color}" stop-opacity="0"/>` +
       `</radialGradient>` +
       `<filter id="${noiseId}" x="-40%" y="-40%" width="180%" height="180%">` +

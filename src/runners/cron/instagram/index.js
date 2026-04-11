@@ -596,8 +596,9 @@ async function runIgMoonEventPost(deps, opts = {}) {
     moonResonanceAspect,
   });
   carousel.seedVariant = "moon_event";
+  const eventPreset = event?.kind === "new" ? "special_event_newmoon" : "cosmic_vivid";
   carousel.spaceConfig = applySpaceConfigBoost(
-    buildCosmicSpaceConfig("cosmic_vivid", resolveMoonEventSpaceConfig(event)),
+    buildCosmicSpaceConfig(eventPreset, resolveMoonEventSpaceConfig(event)),
     { densityBoost: IG_DENSITY_BOOST }
   );
 

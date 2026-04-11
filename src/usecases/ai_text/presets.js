@@ -32,7 +32,7 @@ const PRESETS = {
     moon_night_caption: {
       outputType: "plain_text",
       allowEmpty: true,
-      minChars: 240,
+      minChars: 160,
       maxChars: 320,
       normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },

@@ -92,6 +92,9 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
 
   const model = openai?.model || process.env.OPENAI_MODEL || "gpt-4o";
   const resolvedMaxRetries = resolveMaxRetries({ maxRetries, openaiMaxRetries: openai?.maxRetries });
+  const variantKey = String(variant || "").toLowerCase();
+  const isCaptionVariant = ["caption", "night_caption", "night-caption"].includes(variantKey);
+  const maxTokens = isCaptionVariant ? 420 : 160;
 
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const moonSign = safeTrim(info?.moonSign || "");
@@ -128,7 +131,7 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
     maxRetries: resolvedMaxRetries,
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     temperature: 0.4,
-    maxTokens: 160,
+    maxTokens,
     context: { story, dict, asOfISO },
   });
 

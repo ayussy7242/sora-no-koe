@@ -15,6 +15,7 @@ ${SORA_AI_PUBLIC_IG_COMMON}
 
 ■ イベント一覧構成
 - 日付と内容を対応させて並べる（例：2026-04-07 牡羊座 新月）
+- そのご完結に何が起きるかを書く
 - INPUTの PHASES / RETROGRADES / SIGN_INGRESSES / ASPECTS はすべて含める
 - 各行は「今月の空の節目」がわかる内容にする
 - 自然な美しい日本語で書く
