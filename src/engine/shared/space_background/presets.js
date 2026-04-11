@@ -232,6 +232,23 @@ const COSMIC_PRESETS = {
     },
     underlay: "halo_medium",
   },
+  special_sparkle: {
+    space: {
+      ...NEBULA_DEFAULTS,
+      starDensityScale: 2.20,
+      milkyIntensityScale: 1.25,
+      milkyThicknessScale: 1.05,
+      milkyDustScale: 2.10,
+      gasIntensityScale: 0.85,
+      whiteMix: 0.03,
+      nebulaIntensity: 0.90,
+      emissionColorBoost: 0.90,
+      coreGlowIntensity: 0.90,
+      sparkleExtras: true,
+      sparkleBoost: 1.8,
+    },
+    underlay: "halo_medium",
+  },
   special_event_newmoon: {
     space: {
       ...NEBULA_DEFAULTS,

@@ -588,21 +588,29 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     }
   }
 
-  const slide1ExtrasEnabled = spaceConfig?.slide1Extras === true;
-  if (slide1ExtrasEnabled && variant === "slide1" && world.densityAt) {
+  const sparkleExtrasEnabled = spaceConfig?.sparkleExtras === true;
+  const sparkleBoost = clamp(Number(spaceConfig?.sparkleBoost) || 1, 0.6, 3);
+  const slide1ExtrasEnabled = spaceConfig?.slide1Extras === true || sparkleExtrasEnabled;
+  const extraMode = slide1ExtrasEnabled && (variant === "slide1" || sparkleExtrasEnabled);
+  const extraSafe = sparkleExtrasEnabled ? safeRegion : slide1Safe;
+  if (extraMode && world.densityAt) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const bloomColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
     const moonEventKind = String(spaceConfig?.moonEventKind || "").toLowerCase();
     if (moonEventKind !== "full") {
       const bloomRand = mulberry32(hashString(`${slideId}-bloom`));
+      const bloomCount = Math.max(2, Math.round(2 * sparkleBoost));
+      const positions = [];
+      positions.push({ x: width * 0.18, y: height * 0.22 });
+      positions.push({ x: width * 0.82, y: height * 0.78 });
+      for (let i = 2; i < bloomCount; i += 1) {
+        positions.push({ x: width * (0.15 + bloomRand() * 0.7), y: height * (0.15 + bloomRand() * 0.7) });
+      }
       const bloomLayer = buildBloomGlows({
         rand: bloomRand,
         width,
         height,
-        positions: [
-          { x: width * 0.18, y: height * 0.22 },
-          { x: width * 0.82, y: height * 0.78 },
-        ],
+        positions,
         color: bloomColor,
       });
       if (bloomLayer) overlay.push(bloomLayer);
@@ -610,10 +618,10 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
 
     const spikeLayer = buildSpikeStars({
       rand: mulberry32(hashString(`${slideId}-spike-stars`)),
-      count: 3,
+      count: Math.max(2, Math.round(3 * sparkleBoost)),
       width,
       height,
-      avoidRect: slide1Safe,
+      avoidRect: extraSafe,
       voids: world.voids,
       color: "#FFFFFF",
     });
@@ -625,9 +633,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
       height,
       densityAt: world.densityAt,
       voids: world.voids,
-      avoidRect: slide1Safe,
+      avoidRect: extraSafe,
       colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
-      countOverride: 10,
+      countOverride: Math.max(6, Math.round(10 * sparkleBoost)),
       textFieldMask: world.textAvoidField,
       sizeMin: 3.0,
       sizeMax: 5.2,
@@ -638,7 +646,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
     if (extraHero) overlay.push(`<g>${extraHero}</g>`);
   }
 
-  if (slide1ExtrasEnabled && variant === "slide1" && world.stream) {
+  if (extraMode && world.stream) {
     const palette = world.todayPalette || world.theme?.todayPalette || {};
     const milkyColor = palette.glowColor || palette.gasColorA || world.theme?.palette?.primary?.nebula?.[0] || BACKGROUND_COLORS.bgDeep;
     const milkyBoost = buildMilkyBandLayer({
@@ -700,7 +708,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
         height,
         clusters: boostedClusters,
         colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
-        avoidRect: slide1Safe,
+        avoidRect: extraSafe,
         voids: world.voids,
         tone: world.tone,
         clusterTightness: world.theme?.mood?.clusterBias ? clamp(0.45 + world.theme.mood.clusterBias * 0.4, 0.25, 0.95) : 0.55,
@@ -722,7 +730,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
           count: 1,
           width,
           height,
-          avoidRect: slide1Safe,
+          avoidRect: extraSafe,
           voids: world.voids,
           baseColor: "#FFFFFF",
           glowColor: world.theme?.palette?.glow,
@@ -735,7 +743,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             count: 1,
             width,
             height,
-            avoidRect: slide1Safe,
+            avoidRect: extraSafe,
             voids: world.voids,
             baseColor: "#FFFFFF",
             glowColor: world.theme?.palette?.glow,
@@ -770,7 +778,7 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
             height,
             clusters: [ridgeCluster],
             colorWeights: buildStarColorWeights(world.theme.topElement, world.theme.secondaryElement),
-            avoidRect: slide1Safe,
+            avoidRect: extraSafe,
             voids: world.voids,
             tone: world.tone,
             clusterTightness: 0.72,
@@ -863,6 +871,8 @@ function buildSpaceBackground({
       ["nebulaNoiseScale", spaceConfig.nebulaNoiseScale],
       ["radialFlowStrength", spaceConfig.radialFlowStrength],
       ["slide1Extras", spaceConfig.slide1Extras ? 1 : 0],
+      ["sparkleExtras", spaceConfig.sparkleExtras ? 1 : 0],
+      ["sparkleBoost", spaceConfig.sparkleBoost],
       ["forceSecondaryMix", spaceConfig.forceSecondaryMix ? 1 : 0],
       ["secondaryMixRatio", spaceConfig.secondaryMixRatio],
       ["moonEventKind", spaceConfig.moonEventKind],
