@@ -15,6 +15,7 @@ const { toDateLocalJST } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
 const { createSchemaValidator } = require("../../../utils/schema/validator");
 const { buildMonthlyOverviewReference, buildMonthlyOverviewDeck } = require("../../../usecases/reference/monthly_overview");
+const { generateIgMonthlyCaptionText, formatMonthDot, buildCaptionFallback } = require("../../../usecases/channels/instagram/ai/monthly_overview");
 const { createStoryService } = require("../../../usecases/story/story");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
 const { swisseph } = require("../../../config/swisseph");
@@ -153,12 +154,9 @@ async function buildMonthStory({ month, day = 15, dict }) {
   }
 }
 
-function formatMonthlyCaption({ deck, month }) {
-  const badge = String(deck?.badge || "").trim();
-  const title = String(deck?.title || "").trim();
-  const subtitle = String(deck?.subtitle || "").trim();
-  const headline = badge && title ? `${badge}｜${title}` : (title || badge);
-  return [headline, subtitle, "#ソラのこえ"].filter(Boolean).join("\n");
+function formatMonthlyCaption({ month, body }) {
+  const titleLine = `⭐️ ${formatMonthDot(month)} 今月の星カレンダー`;
+  return [titleLine, body].filter(Boolean).join("\n\n");
 }
 
 function validatePayloads({ reference, deck, exportPayload }) {
@@ -291,7 +289,23 @@ async function runIgMonthlyPost(deps, opts = {}) {
 
     const exportPayload = await buildMonthlyExport({ month, dict, templatePath, storyDay: opts.storyDay || 15 });
     const carousel = buildMonthlyCarousel({ payload: exportPayload });
-    const caption = formatMonthlyCaption({ deck: exportPayload.deck, month });
+    const useAi = opts.useAi !== false;
+    const aiRes = useAi
+      ? await generateIgMonthlyCaptionText({
+          month,
+          reference: exportPayload.reference,
+          dict,
+          openai: {
+            apiKey: env2.OPENAI_API_KEY,
+            baseUrl: env2.OPENAI_BASE_URL,
+            model: env2.OPENAI_MODEL,
+          },
+        })
+      : { ok: false, error: "ai_disabled" };
+    const captionBody = aiRes.ok
+      ? aiRes.text
+      : buildCaptionFallback({ month, reference: exportPayload.reference, dict });
+    const caption = formatMonthlyCaption({ month, body: captionBody });
 
     if (localOnly) {
       const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
@@ -305,6 +319,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
           date_local: dateLocal,
           as_of: asOfISO,
           caption,
+          ai: aiRes,
           carousel,
           export: exportPayload,
         },

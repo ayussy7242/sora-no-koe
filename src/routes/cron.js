@@ -276,7 +276,7 @@ function createCronRouter(deps = {}) {
     try {
       const t0 = Date.now();
       const { q, b } = getRequestParts(req);
-      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: true });
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
       const dryRun = pickDryRun({ q, b });
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
@@ -575,6 +575,7 @@ function createCronRouter(deps = {}) {
       const month = b?.month ?? q?.month ?? (dateLocal ? String(dateLocal).slice(0, 7) : undefined);
       const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
       const dryRun = pickDryRun({ q, b });
+      const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
       const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
       const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
       const force = pickBoolFlag({
@@ -586,7 +587,7 @@ function createCronRouter(deps = {}) {
 
       const result = await runIgMonthlyPost(
         { db, admin, env, storyService, renderers, storage, dict },
-        { dateLocal, month, asOfISO, dryRun, local, localOutDir, force }
+        { dateLocal, month, asOfISO, dryRun, useAi, local, localOutDir, force }
       );
 
       logCronPhase(req, "[cron/ig/monthly] done", {

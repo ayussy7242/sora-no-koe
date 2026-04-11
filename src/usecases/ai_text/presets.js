@@ -78,6 +78,13 @@ const PRESETS = {
       maxChars: 70,
       normalizeRules: ["normalize_observation_lines"],
     },
+    monthly_caption: {
+      outputType: "plain_text",
+      allowEmpty: true,
+      minChars: 120,
+      maxChars: 320,
+      normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
+    },
     tsukiji_structure: {
       outputType: "plain_text",
       allowEmpty: true,
