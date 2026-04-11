@@ -8,14 +8,14 @@ const { interpolateKeyframes } = require("./interpolate");
 const AGE_SPECS = Object.freeze([
   { family: "new", strength: 0, side: "none" },               // 0
   { family: "waxing_shadow", strength: 0.95, side: "right" }, // 1
-  { family: "waxing_shadow", strength: 0.80, side: "right" }, // 2
-  { family: "waxing_shadow", strength: 0.64, side: "right" }, // 3
-  { family: "waxing_shadow", strength: 0.48, side: "right" }, // 4
-  { family: "waxing_shadow", strength: 0.34, side: "right" }, // 5
-  { family: "waxing_shadow", strength: 0.22, side: "right" }, // 6
-  { family: "waxing_shadow", strength: 0.16, side: "right" }, // 7
+  { family: "waxing_shadow", strength: 0.73, side: "right" }, // 2
+  { family: "waxing_shadow", strength: 0.53, side: "right" }, // 3
+  { family: "waxing_shadow", strength: 0.34, side: "right" }, // 4
+  { family: "waxing_shadow", strength: 0.18, side: "right" }, // 5
+  { family: "waxing_shadow", strength: 0.04, side: "right" }, // 6
+  { family: "waxing_shadow", strength: 0.02, side: "right" }, // 7
   { family: "quarter", strength: 1, side: "right" },          // 8
-  { family: "gibbous", strength: 0.30, side: "right" },       // 9
+  { family: "gibbous", strength: 0.40, side: "right" },       // 9
   { family: "gibbous", strength: 0.50, side: "right" },       // 10
   { family: "gibbous", strength: 0.64, side: "right" },       // 11
   { family: "gibbous", strength: 0.74, side: "right" },       // 12
@@ -27,16 +27,76 @@ const AGE_SPECS = Object.freeze([
   { family: "gibbous", strength: 0.74, side: "left" },        // 18
   { family: "gibbous", strength: 0.64, side: "left" },        // 19
   { family: "gibbous", strength: 0.50, side: "left" },        // 20
-  { family: "gibbous", strength: 0.30, side: "left" },        // 21
+  { family: "gibbous", strength: 0.40, side: "left" },        // 21
   { family: "quarter", strength: 1, side: "left" },           // 22
-  { family: "waning_shadow", strength: 0.16, side: "left" },  // 23
-  { family: "waning_shadow", strength: 0.34, side: "left" },  // 24
-  { family: "waning_shadow", strength: 0.48, side: "left" },  // 25
-  { family: "waning_shadow", strength: 0.64, side: "left" },  // 26
-  { family: "waning_shadow", strength: 0.80, side: "left" },  // 27
+  { family: "waning_shadow", strength: 0.04, side: "left" },  // 23
+  { family: "waning_shadow", strength: 0.18, side: "left" },  // 24
+  { family: "waning_shadow", strength: 0.34, side: "left" },  // 25
+  { family: "waning_shadow", strength: 0.55, side: "left" },  // 26
+  { family: "waning_shadow", strength: 0.73, side: "left" },  // 27
   { family: "waning_shadow", strength: 0.95, side: "left" },  // 28
   { family: "new", strength: 0, side: "none" },               // 29
 ]);
+
+function resolveAgeStrengthInterpolated(ageDays) {
+  const clamped = clamp(Number.isFinite(Number(ageDays)) ? Number(ageDays) : 0, 0, 29);
+  const ageFloor = Math.floor(clamped);
+  const ageCeil = Math.min(ageFloor + 1, 29);
+  const t = clamp(clamped - ageFloor, 0, 1);
+
+  const specA = AGE_SPECS[ageFloor] || AGE_SPECS[0];
+  const specB = AGE_SPECS[ageCeil] || specA;
+  const strengthA = clamp(Number(specA?.strength ?? 0), 0, 1);
+  const strengthB = clamp(Number(specB?.strength ?? 0), 0, 1);
+  const familyA = specA?.family || "new";
+  const familyB = specB?.family || familyA;
+  const sideA = specA?.side || "none";
+  const sideB = specB?.side || "none";
+
+  const isShadowFamily = (family) =>
+    family === "waxing_shadow" || family === "waning_shadow";
+
+  // Special-case quarter <-> shadow transitions so strength maps to "shadow depth"
+  // rather than averaging across different family meanings.
+  if (familyA === "quarter" && isShadowFamily(familyB)) {
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength: strengthB * t,
+      strengthA,
+      strengthB,
+      family: t === 0 ? "quarter" : familyB,
+      side: t === 0 ? sideA : sideB,
+    };
+  }
+  if (isShadowFamily(familyA) && familyB === "quarter") {
+    const strength = strengthA * (1 - t);
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength,
+      strengthA,
+      strengthB,
+      family: t === 1 ? "quarter" : familyA,
+      side: t === 1 ? sideB : sideA,
+    };
+  }
+
+  const strength = strengthA + (strengthB - strengthA) * t;
+
+  return {
+    ageFloor,
+    ageCeil,
+    t,
+    strength,
+    strengthA,
+    strengthB,
+    family: familyA === familyB ? familyA : (t < 0.5 ? familyA : familyB),
+    side: sideA === sideB ? sideA : (t < 0.5 ? sideA : sideB),
+  };
+}
 
 function resolveIllumFromFamily(family, strength) {
   const t = clamp(Number(strength || 0), 0, 1);
@@ -113,7 +173,7 @@ function buildMoonPathFromSpec({ r, family, strength, side }) {
 
   if (family === "waning_shadow") {
     const t = clamp(Number(strength || 0), 0, 1);
-    const rx = r * (0.25 + 0.75 * t);
+    const rx = r * (0.05 + 0.95 * t);
     const ry = r;
     const sign = side === "right" ? 1 : -1;
     const k = 0.5522847498;
@@ -138,7 +198,7 @@ function buildMoonPathFromSpec({ r, family, strength, side }) {
 
   if (family === "waxing_shadow") {
     const t = clamp(Number(strength || 0), 0, 1);
-    const rx = r * (0.25 + 0.75 * t);
+    const rx = r * (0.05 + 0.95 * t);
     const ry = r;
     const sign = side === "right" ? 1 : -1;
     const k = 0.5522847498;
@@ -881,14 +941,12 @@ function buildMoonGeometry({
       illumination: illum,
       waxing,
     });
-    const ageIndex = clamp(Math.round(ageDays), 0, 29);
-    const spec = AGE_SPECS[ageIndex] || {};
-    const family = spec.family || "new";
-    const strength = clamp(Number(spec.strength ?? 0), 0, 1);
-    const side = spec.side || "none";
-    const illumHint = resolveIllumFromFamily(family, strength);
-    const visualIllum = illumHint;
-    const waxingResolved = side === "right";
+    const interp = resolveAgeStrengthInterpolated(ageDays);
+    const family = interp.family || "new";
+    const side = interp.side || "none";
+    const strength = interp.strength;
+    const visualIllum = resolveIllumFromFamily(family, strength);
+    const waxingResolved = side === "right" ? true : side === "left" ? false : waxing;
     const { path, meta } = buildMoonPathFromSpec({
       r,
       family,
@@ -907,7 +965,18 @@ function buildMoonGeometry({
       litPath: path,
       ageDays,
       ageNorm,
-      meta: { ...meta, ageIndex, ageSource: source, family, strength, side },
+      meta: {
+        ...meta,
+        ageSource: source,
+        ageFloor: interp.ageFloor,
+        ageCeil: interp.ageCeil,
+        ageT: interp.t,
+        family,
+        strength,
+        strengthA: interp.strengthA,
+        strengthB: interp.strengthB,
+        side,
+      },
     };
   }
 
