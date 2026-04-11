@@ -281,7 +281,6 @@ function createCronRouter(deps = {}) {
       const dryRun = pickDryRun({ q, b });
       const useAi = pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true });
       const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
-      const forceAi = pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false });
       const orbMaxDeg = pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined });
       const precisionDeg = pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined });
       const resonanceOrbMax = pickNumberFlag({
