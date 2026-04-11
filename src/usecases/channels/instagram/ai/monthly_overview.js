@@ -147,7 +147,10 @@ function hasValidLineEnding(line) {
   const t = String(line || "").trim();
   if (!t) return true;
   if (t.startsWith("#")) return true;
-  return endsWithEmoji(t) || endsWithSentencePunctuation(t);
+  if (endsWithEmoji(t) || endsWithSentencePunctuation(t)) return true;
+  const last = Array.from(t).slice(-1)[0] || "";
+  const invalidParticles = new Set(["が","を","に","へ","と","で","から","まで","より","や","の","も","は","へ","と","、"]);
+  return !invalidParticles.has(last);
 }
 
 async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 2, forceAi = false }) {
@@ -159,7 +162,7 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 4);
 
   const titleLine = `⭐️ ${formatMonthDot(month)} 今月の星カレンダー`;
-  const maxBodyChars = 650;
+  const maxBodyChars = 800;
 
   const result = await generateWithRetry({
     buildPrompt: () => buildCaptionPrompt({ month, reference, dict }),
