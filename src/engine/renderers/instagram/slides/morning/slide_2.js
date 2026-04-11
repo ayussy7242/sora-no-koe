@@ -219,7 +219,7 @@ async function renderSlidePlacements(data) {
 }
 
 module.exports = {
-  buildSlidePlacementsSvg,
+  buildSlide2BaseSvg: buildSlidePlacementsSvg,
   getAvoidRegions,
-  renderSlidePlacements,
+  renderSlide2: renderSlidePlacements,
 };

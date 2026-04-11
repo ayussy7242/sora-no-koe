@@ -11,9 +11,9 @@ const {
   buildNightCarouselSlides,
 } = require("../../src/runners/cron/instagram/slot_slides");
 const { renderIGCaptionVariant } = require("../../src/presenters/format/ig_caption");
-const slide1 = require("../../src/engine/renderers/instagram/slides/daily/slide_1");
-const slideResonanceWheel = require("../../src/engine/renderers/instagram/slides/daily/slide_resonance_wheel");
-const slideNightMoon = require("../../src/engine/renderers/instagram/slides/daily/slide_night_moon");
+const slideMorningCover = require("../../src/engine/renderers/instagram/slides/morning/slide_1");
+const slideResonanceWheel = require("../../src/engine/renderers/instagram/slides/resonance/slide_1");
+const slideNightMoon = require("../../src/engine/renderers/instagram/slides/moon/slide_1");
 const { buildSpaceBackground } = require("../../src/engine/shared/space_background");
 const { CANVAS } = require("../../src/engine/renderers/instagram/slides/common/shared");
 
@@ -49,9 +49,9 @@ function ensureDir(p) {
 
 async function renderCover(slot, slide, outDir, space) {
   let buffer = null;
-  if (slot === "morning") buffer = await slide1.renderSlide1({ ...slide.data, space });
-  if (slot === "resonance") buffer = await slideResonanceWheel.renderSlideResonanceWheel({ ...slide.data, space });
-  if (slot === "night") buffer = await slideNightMoon.renderSlideNightMoon({ ...slide.data, space });
+  if (slot === "morning") buffer = await slideMorningCover.renderSlide1({ ...slide.data, space });
+  if (slot === "resonance") buffer = await slideResonanceWheel.renderSlide1({ ...slide.data, space });
+  if (slot === "night") buffer = await slideNightMoon.renderSlide1({ ...slide.data, space });
   if (!buffer) return null;
   const filename = `${slot}-cover.png`;
   const full = path.join(outDir, filename);

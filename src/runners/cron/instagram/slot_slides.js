@@ -319,8 +319,17 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
 function buildMorningCarouselSlides({ story, dateLocal, withCta = true, dict }) {
   const base = buildCarouselSlides({ story, dateLocal, withCta, dict });
   const keep = new Set(["cover", "placements", "chart", "cta"]);
+  const kindMap = {
+    cover: "slide1",
+    placements: "slide2",
+    chart: "slide3",
+    cta: "slide4",
+  };
   return {
-    slides: base.slides.filter((slide) => keep.has(slide?.kind)),
+    slides: base.slides
+      .filter((slide) => keep.has(slide?.kind))
+      .map((slide) => ({ ...slide, kind: kindMap[slide.kind] || slide.kind })),
+    slideSet: "morning",
   };
 }
 
@@ -350,8 +359,12 @@ function buildResonanceCarouselSlides({ story, dateLocal, dict }) {
   const resonanceText = base.slides.find((slide) => slide?.kind === "resonance") || null;
   const resonanceWheel = buildResonanceWheelSlide({ story, dateLocal });
   return {
-    slides: [resonanceWheel, resonanceText].filter(Boolean),
+    slides: [
+      resonanceWheel ? { kind: "slide1", data: resonanceWheel.data } : null,
+      resonanceText ? { kind: "slide2", data: resonanceText.data } : null,
+    ].filter(Boolean),
     spaceConfig: buildResonanceSpaceConfig({ story, dict }),
+    slideSet: "resonance",
   };
 }
 
@@ -379,9 +392,14 @@ function buildNightCarouselSlides({ story, dateLocal, dict }) {
   const dateLabel = formatDateLabel(dateLocal);
   const moonBase = buildMoonSlide({ story, dateLabel, dateLocal, dict });
   const moonDetail = { ...moonBase, subLabel: "today's moon" };
+  const night = buildNightMoonSlide({ story, dateLocal, dict });
   return {
-    slides: [buildNightMoonSlide({ story, dateLocal, dict }), { kind: "moon", data: moonDetail }],
+    slides: [
+      night ? { kind: "slide1", data: night.data } : null,
+      { kind: "slide2", data: moonDetail },
+    ].filter(Boolean),
     spaceConfig: moonBase?.spaceConfig || null,
+    slideSet: "moon",
   };
 }
 

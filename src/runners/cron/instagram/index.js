@@ -2,6 +2,7 @@
 
 const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
+const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
 const { runIgMonthlyPost } = require("./monthly");
 const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
@@ -283,10 +284,16 @@ async function runIgPost(deps, opts = {}) {
         ? buildResonanceCarouselSlides({ story, dateLocal, dict })
         : slotKey === "night"
           ? buildNightCarouselSlides({ story, dateLocal, dict })
-          : buildCarouselSlides({ story, dateLocal, withCta, dict });
+          : buildMorningCarouselSlides({ story, dateLocal, withCta, dict });
     if (slotKey) {
       carousel.seedVariant = slotKey;
     }
+    const presetName = slotKey === "morning"
+      ? "cosmic_soft"
+      : slotKey === "night"
+        ? "cosmic_vivid"
+        : "cosmic_default";
+    carousel.spaceConfig = buildCosmicSpaceConfig(presetName, carousel.spaceConfig);
     const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
     const caption = slotKey
       ? (renderIGCaptionVariant(story, { dict, variant: slotKey }) || renderIGCaption(story, { dict }))
@@ -300,7 +307,7 @@ async function runIgPost(deps, opts = {}) {
           ok: true,
           dry_run: true,
           local_only: true,
-          slot: slotKey || "daily",
+          slot: slotKey || "morning",
           date_local: dateLocal,
           as_of: asOfISO,
           resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -318,7 +325,7 @@ async function runIgPost(deps, opts = {}) {
         ok: true,
         dry_run: true,
         local_only: true,
-        slot: slotKey || "daily",
+        slot: slotKey || "morning",
         date_local: dateLocal,
         as_of: asOfISO,
         resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -364,7 +371,7 @@ async function runIgPost(deps, opts = {}) {
       return {
         ok: true,
         dry_run: true,
-        slot: slotKey || "daily",
+        slot: slotKey || "morning",
         date_local: dateLocal,
         as_of: asOfISO,
         resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -440,7 +447,7 @@ async function runIgPost(deps, opts = {}) {
 
     const result = {
       ok: true,
-      slot: slotKey || "daily",
+      slot: slotKey || "morning",
       date_local: dateLocal,
       as_of: asOfISO,
       resonance_aspect_key: igOut?.source?.resonance_aspect_key || null,
@@ -584,7 +591,7 @@ async function runIgMoonEventPost(deps, opts = {}) {
     moonResonanceAspect,
   });
   carousel.seedVariant = "moon_event";
-  carousel.spaceConfig = resolveMoonEventSpaceConfig(event);
+  carousel.spaceConfig = buildCosmicSpaceConfig("cosmic_vivid", resolveMoonEventSpaceConfig(event));
 
   if (localOnly) {
     const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });

@@ -359,8 +359,8 @@ async function renderSlide3(data) {
 }
 
 module.exports = {
-  buildSlide3Svg,
+  buildSlide2BaseSvg: buildSlide3Svg,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlide3,
+  renderSlide2: renderSlide3,
 };

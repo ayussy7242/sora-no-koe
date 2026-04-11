@@ -303,9 +303,9 @@ async function renderSlideMoon(data) {
 }
 
 module.exports = {
-  buildSlideMoonSvg,
+  buildSlide2BaseSvg: buildSlideMoonSvg,
   buildMoonPhaseGlyph,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlideMoon,
+  renderSlide2: renderSlideMoon,
 };

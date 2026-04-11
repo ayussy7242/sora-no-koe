@@ -153,8 +153,8 @@ async function renderSlide2({ story, dateLabel, chartSize = TOK.chart.chartSize,
 }
 
 module.exports = {
-  buildSlide2BaseSvg,
+  buildSlide3Svg: buildSlide2BaseSvg,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlide2,
+  renderSlide3: renderSlide2,
 };

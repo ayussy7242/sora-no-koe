@@ -325,13 +325,12 @@ async function main() {
 
   const slides = await renderInstagramCarousel({
     slides: [
-      { kind: "cover", data: slide1 },
-      { kind: "placements", data: slidePlacements },
-      { kind: "moon", data: slideMoon },
-      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
-      { kind: "resonance", data: slide3 },
-      ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
+      { kind: "slide1", data: slide1 },
+      { kind: "slide2", data: slidePlacements },
+      { kind: "slide3", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
+      ...(withCta ? [{ kind: "slide4", data: slide5 }] : []),
     ],
+    slideSet: "morning",
     backgroundCache: bgCache ? { dir: bgCacheDir, force: bgRefresh } : null,
   });
 

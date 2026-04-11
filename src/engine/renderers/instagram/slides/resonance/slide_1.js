@@ -194,5 +194,5 @@ async function renderSlideResonanceWheel({
 module.exports = {
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlideResonanceWheel,
+  renderSlide1: renderSlideResonanceWheel,
 };

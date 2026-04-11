@@ -1,17 +1,5 @@
 "use strict";
 
-const daily = {
-  slide1: require("./daily/slide_1"),
-  slide2: require("./daily/slide_2"),
-  slide3: require("./daily/slide_3"),
-  slide4: require("./daily/slide_4"),
-  slide5: require("./daily/slide_5"),
-  slideMoon: require("./daily/slide_moon"),
-  placements: require("./daily/slide_placements"),
-  slideResonanceWheel: require("./daily/slide_resonance_wheel"),
-  slideNightMoon: require("./daily/slide_night_moon"),
-};
-
 const moonEvent = {
   slide1: require("./moon_event/slide_1"),
   slide2: require("./moon_event/slide_2"),
@@ -27,8 +15,27 @@ const monthlyOverview = {
   slide2: require("./monthly_overview/slide_2"),
 };
 
+const morning = {
+  slide1: require("./morning/slide_1"),
+  slide2: require("./morning/slide_2"),
+  slide3: require("./morning/slide_3"),
+  slide4: require("./morning/slide_4"),
+};
+
+const resonance = {
+  slide1: require("./resonance/slide_1"),
+  slide2: require("./resonance/slide_2"),
+};
+
+const moon = {
+  slide1: require("./moon/slide_1"),
+  slide2: require("./moon/slide_2"),
+};
+
 module.exports = {
-  daily,
   moon_event: moonEvent,
   monthly_overview: monthlyOverview,
+  morning,
+  resonance,
+  moon,
 };

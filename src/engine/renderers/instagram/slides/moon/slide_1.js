@@ -2,7 +2,7 @@
 
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
-const { buildMoonPhaseGlyph } = require("./slide_moon");
+const { buildMoonPhaseGlyph } = require("./slide_2");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
@@ -186,8 +186,8 @@ async function renderSlideNightMoon(data) {
 }
 
 module.exports = {
-  buildSlideNightMoonSvg,
+  buildSlide1Svg: buildSlideNightMoonSvg,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlideNightMoon,
+  renderSlide1: renderSlideNightMoon,
 };

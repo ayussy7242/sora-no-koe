@@ -47,7 +47,7 @@ async function renderSet({ name, carousel, outDir }) {
   const items = [];
   await renderInstagramCarousel({
     slides: carousel.slides,
-    slideSet: "daily",
+    slideSet: carousel.slideSet || name,
     seedVariant: carousel.seedVariant || name,
     spaceConfig: carousel.spaceConfig || null,
     onSlide: async ({ index, buffer }) => {

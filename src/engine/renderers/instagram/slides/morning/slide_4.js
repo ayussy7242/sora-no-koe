@@ -338,8 +338,8 @@ async function renderSlide5(data) {
 }
 
 module.exports = {
-  buildSlide5Svg,
+  buildSlide4Svg: buildSlide5Svg,
   getAvoidRegions,
   getTextFields: getAvoidRegions,
-  renderSlide5,
+  renderSlide4: renderSlide5,
 };

@@ -7,17 +7,15 @@ const { isSpaceDebug } = require("../../shared/space_background/utils");
 const { CANVAS, formatDateLabel } = require("./slides/common/shared");
 const SLIDE_SETS = require("./slides");
 
-const DEFAULT_SET_KEY = "daily";
-const DEFAULT_SET = SLIDE_SETS[DEFAULT_SET_KEY];
-const {
-  slide1,
-  slide2,
-  slide3,
-  slide4,
-  slide5,
-  slideMoon,
-  placements,
-} = DEFAULT_SET;
+const DEFAULT_SET_KEY = "morning";
+const DEFAULT_SET = SLIDE_SETS[DEFAULT_SET_KEY] || {};
+const slide1 = DEFAULT_SET.slide1 || {};
+const slide2 = DEFAULT_SET.slide2 || {};
+const slide3 = DEFAULT_SET.slide3 || {};
+const slide4 = DEFAULT_SET.slide4 || {};
+const slide5 = DEFAULT_SET.slide5 || DEFAULT_SET.slide4 || {};
+const slideMoon = DEFAULT_SET.slideMoon || {};
+const placements = DEFAULT_SET.placements || {};
 const { buildSlide1Svg, renderSlide1, getAvoidRegions: getSlide1AvoidRegions } = slide1;
 const { buildSlide2BaseSvg, renderSlide2, getAvoidRegions: getSlide2AvoidRegions } = slide2;
 const { buildSlidePlacementsSvg, renderSlidePlacements, getAvoidRegions: getSlidePlacementsAvoidRegions } = placements;
@@ -25,6 +23,12 @@ const { buildSlide3Svg, renderSlide3, getAvoidRegions: getSlide3AvoidRegions } =
 const { buildSlideMoonSvg, renderSlideMoon, getAvoidRegions: getSlideMoonAvoidRegions } = slideMoon;
 const { buildSlide4Svg, renderSlide4, getAvoidRegions: getSlide4AvoidRegions } = slide4;
 const { buildSlide5Svg, renderSlide5, getAvoidRegions: getSlide5AvoidRegions } = slide5;
+const buildSlidePlacementsSvgExport = buildSlidePlacementsSvg || buildSlide2BaseSvg;
+const renderSlidePlacementsExport = renderSlidePlacements || renderSlide2;
+const getSlidePlacementsAvoidRegionsExport = getSlidePlacementsAvoidRegions || getSlide2AvoidRegions;
+const buildSlide5SvgExport = buildSlide5Svg || buildSlide4Svg;
+const renderSlide5Export = renderSlide5 || renderSlide4;
+const getSlide5AvoidRegionsExport = getSlide5AvoidRegions || getSlide4AvoidRegions;
 
 const SLIDE_RENDERER_CACHE = new Map();
 
@@ -66,6 +70,9 @@ function buildSlideRenderers(setKey) {
 
   if (sPlacements?.renderSlidePlacements) {
     renderers.placements = { variant: "slide2", render: sPlacements.renderSlidePlacements, getAvoidRegions: sPlacements.getAvoidRegions };
+    renderers.slidePlacements = renderers.placements;
+  } else if (s2?.renderSlide2) {
+    renderers.placements = { variant: "slide2", render: s2.renderSlide2, getAvoidRegions: s2.getAvoidRegions };
     renderers.slidePlacements = renderers.placements;
   }
 
@@ -369,18 +376,18 @@ async function renderInstagramCarousel({
 module.exports = {
   buildSlide1Svg,
   buildSlide2BaseSvg,
-  buildSlidePlacementsSvg,
+  buildSlidePlacementsSvg: buildSlidePlacementsSvgExport,
   buildSlide3Svg,
   buildSlideMoonSvg,
   buildSlide4Svg,
-  buildSlide5Svg,
+  buildSlide5Svg: buildSlide5SvgExport,
   renderSlide1,
   renderSlide2,
-  renderSlidePlacements,
+  renderSlidePlacements: renderSlidePlacementsExport,
   renderSlide3,
   renderSlideMoon,
   renderSlide4,
-  renderSlide5,
+  renderSlide5: renderSlide5Export,
   renderInstagramCarousel,
   formatDateLabel,
 };
