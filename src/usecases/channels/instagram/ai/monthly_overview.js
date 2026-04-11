@@ -63,7 +63,7 @@ function buildCaptionPrompt({ month, reference, dict }) {
   const phaseLines = phases.map((p) => formatPhaseLine({ item: p, dict })).filter(Boolean);
   const retroLines = retrogrades.map((r) => formatRetroLine({ item: r, dict })).filter(Boolean);
   const ingressLines = ingresses.map((r) => formatIngressLine({ item: r, dict })).filter(Boolean);
-  const aspectLines = aspects.slice(0, 8).map((a) => formatAspectLine({ item: a, dict })).filter(Boolean);
+  const aspectLines = aspects.map((a) => formatAspectLine({ item: a, dict })).filter(Boolean);
 
   return [
     SORA_AI_USER_GUIDE_IG_MONTHLY_CAPTION,
@@ -96,7 +96,38 @@ function buildCaptionFallback({ month, reference, dict }) {
     const body = bodyLabelJa(dict, normalizeBodyKey(r.planet_key || "")) || r.planet_key || "";
     lines.push([body, r.start_local, "〜", r.end_local].filter(Boolean).join(" "));
   });
-  return lines.filter(Boolean).slice(0, 8).join("\n");
+  const tags = buildCaptionHashtags({ reference, dict });
+  return [lines.filter(Boolean).slice(0, 10).join("\n"), tags].filter(Boolean).join("\n");
+}
+
+function buildCaptionHashtags({ reference, dict }) {
+  const tags = new Set();
+  const add = (t) => {
+    const v = String(t || "").trim();
+    if (!v) return;
+    tags.add(v.startsWith("#") ? v : `#${v}`);
+  };
+  add("ソラのこえ");
+  add("今月の空");
+  add("月相");
+  add("逆行");
+  add("星座移動");
+
+  const phases = Array.isArray(reference?.moon?.phases) ? reference.moon.phases : [];
+  phases.forEach((p) => {
+    const sign = signJa(dict, p.sign_key || "");
+    if (sign) add(sign);
+  });
+  (reference?.retrogrades || []).forEach((r) => {
+    const body = bodyLabelJa(dict, normalizeBodyKey(r.planet_key || "")) || "";
+    if (body) add(body);
+  });
+  (reference?.sign_ingresses || []).forEach((i) => {
+    const body = bodyLabelJa(dict, normalizeBodyKey(i.planet_key || "")) || "";
+    if (body) add(body);
+  });
+
+  return Array.from(tags).slice(0, 10).join(" ");
 }
 
 async function generateIgMonthlyCaptionText({ month, reference, dict, openai, maxRetries = 1 }) {
@@ -154,4 +185,5 @@ module.exports = {
   generateIgMonthlyCaptionText,
   formatMonthDot,
   buildCaptionFallback,
+  buildCaptionHashtags,
 };
