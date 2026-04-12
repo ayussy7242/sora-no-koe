@@ -4,6 +4,7 @@ const path = require("path");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
 const { buildCosmicSpaceConfig, applySpaceConfigBoost } = require("../../../engine/shared/space_background");
 const { runIgMonthlyPost } = require("./monthly");
+const { runIgMonthlyOverviewReel } = require("./monthly_overview_reel");
 const { renderIGCaption, renderIGCaptionVariant } = require("../../../presenters/format/ig_caption");
 const { toDateLocalJST, isYYYYMMDD } = require("../../../utils/time");
 const { toBool } = require("../../../utils/data/bool");
@@ -791,4 +792,5 @@ module.exports = {
   runIgNightPost,
   runIgMoonEventPost,
   runIgMonthlyPost,
+  runIgMonthlyOverviewReel,
 };

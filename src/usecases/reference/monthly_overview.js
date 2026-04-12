@@ -80,6 +80,31 @@ function formatMonthLabel(month) {
   return `${y}年${m}月`;
 }
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function formatMonthLabelEn(month) {
+  const [yRaw, mRaw] = String(month).split("-");
+  const y = Number(yRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return String(month || "");
+  const idx = m - 1;
+  if (idx < 0 || idx >= MONTH_NAMES.length) return String(month || "");
+  return `${MONTH_NAMES[idx]} ${y}`;
+}
+
 function addDaysDateLocalJST(dateLocal, offsetDays) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
   if (Number.isNaN(base.getTime())) return dateLocal;
@@ -654,8 +679,14 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
   const base = template && typeof template === "object" ? template : {};
   const deckBase = JSON.parse(JSON.stringify(base));
   const monthLabel = formatMonthLabel(reference.month);
+  const monthLabelEn = formatMonthLabelEn(reference.month);
   const monthDot = reference.month.replace("-", ".");
-  const tokenMap = { month: reference.month, month_label: monthLabel, month_dot: monthDot };
+  const tokenMap = {
+    month: reference.month,
+    month_label: monthLabel,
+    month_label_en: monthLabelEn,
+    month_dot: monthDot,
+  };
   const deck = applyTokens(deckBase, tokenMap);
   const { startLocal, endLocal } = monthRange(reference.month);
 

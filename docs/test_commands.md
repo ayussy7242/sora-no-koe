@@ -53,6 +53,7 @@ curl -s -X POST "$BASE/cron/ig/story/daily?date_local=$DATE&dryRun=1&local=1&loc
 curl -s -X POST "$BASE/cron/ig/post?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/post" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/moon_event?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/moon_event" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/monthly?date_local=$DATE&month=${DATE:0:7}&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/monthly" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/monthly_overview_reel?date_local=$DATE&month=${DATE:0:7}&dryRun=1&local=1&local_out_dir=$OUT_DIR/cron/ig/monthly_overview_reel&fps=2&outroSeconds=1.5" -H "x-cron-token: $CRON_TOKEN"
 ```
 
 ### X

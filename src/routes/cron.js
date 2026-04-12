@@ -29,6 +29,7 @@ const {
   runIgNightPost,
   runIgMoonEventPost,
   runIgMonthlyPost,
+  runIgMonthlyOverviewReel,
 } = require("../runners/cron/instagram");
 const { runXMorningPost, runXResonancePost, runXNightPost, runXMoonEventPost, runXNext30DaysPost } = require("../runners/cron/x");
 const { runDailyIgStoryDelivery } = require("../usecases/channels/instagram/story/run_daily_delivery");
@@ -602,6 +603,50 @@ function createCronRouter(deps = {}) {
       return res.json(result);
     } catch (e) {
       return cronError(res, req, "/cron/ig/monthly", e);
+    }
+  });
+
+  // ✅ POST /cron/ig/monthly_overview_reel : Instagram monthly reel (wheel flow)
+  router.post("/ig/monthly_overview_reel", async (req, res) => {
+    const gate = requireCronToken(req);
+    if (!gate.ok) return res.status(gate.status).json({ ok: false, error: gate.message, path: "/cron/ig/monthly_overview_reel" });
+
+    try {
+      const t0 = Date.now();
+      logCronPhase(req, "[cron/ig/monthly_overview_reel] start", { url: stripQuery(req?.originalUrl) });
+      const { q, b } = getRequestParts(req);
+      const dateLocal = pickDateLocal({ q, b, fallbackNow: false });
+      const month = b?.month ?? q?.month ?? (dateLocal ? String(dateLocal).slice(0, 7) : undefined);
+      const asOfISO = pickAsOfISO({ q, b, dateLocal, fallbackFromDateLocal: false });
+      const dryRun = pickDryRun({ q, b });
+      const local = pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false });
+      const localOutDir = b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
+      const fps = pickNumberFlag({ q, b, keys: ["fps", "frame_rate", "frameRate"], defaultValue: null });
+      const outroSeconds = pickNumberFlag({ q, b, keys: ["outro_seconds", "outroSeconds"], defaultValue: null });
+      const outro = pickBoolFlag({ q, b, keys: ["outro"], defaultValue: true });
+      const video = pickBoolFlag({ q, b, keys: ["video"], defaultValue: true });
+      const force = pickBoolFlag({
+        q,
+        b,
+        keys: ["force", "force_lock", "forceLock"],
+        defaultValue: false,
+      });
+
+      const result = await runIgMonthlyOverviewReel(
+        { db, admin, env, storyService, storage, dict },
+        { dateLocal, month, asOfISO, dryRun, local, localOutDir, fps, outroSeconds, outro, video, force }
+      );
+
+      logCronPhase(req, "[cron/ig/monthly_overview_reel] done", {
+        ok: result?.ok,
+        skipped: result?.skipped,
+        reason: result?.reason,
+        month: result?.month,
+        ms: Date.now() - t0,
+      });
+      return res.json(result);
+    } catch (e) {
+      return cronError(res, req, "/cron/ig/monthly_overview_reel", e);
     }
   });
 

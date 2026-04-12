@@ -104,6 +104,38 @@ async function createCarouselContainer({ igUserId, children, caption, accessToke
   });
 }
 
+async function createVideoContainer({
+  igUserId,
+  videoUrl,
+  caption,
+  accessToken,
+  version,
+  mediaType = "REELS",
+  shareToFeed,
+  coverUrl,
+  thumbOffset,
+} = {}) {
+  if (!igUserId) throw new Error("IG_USER_ID missing");
+  if (!videoUrl) throw new Error("videoUrl missing");
+  const params = {
+    media_type: mediaType || "REELS",
+    video_url: videoUrl,
+    caption: caption || "",
+  };
+  if (shareToFeed !== undefined && shareToFeed !== null) {
+    params.share_to_feed = shareToFeed ? "true" : "false";
+  }
+  if (coverUrl) params.cover_url = coverUrl;
+  if (Number.isFinite(Number(thumbOffset))) params.thumb_offset = String(thumbOffset);
+  return igRequest({
+    accessToken,
+    method: "POST",
+    version,
+    path: `${igUserId}/media`,
+    params,
+  });
+}
+
 async function publishMedia({ igUserId, creationId, accessToken, version }) {
   if (!igUserId) throw new Error("IG_USER_ID missing");
   if (!creationId) throw new Error("creationId missing");
@@ -149,6 +181,7 @@ module.exports = {
   igRequest,
   createImageContainer,
   createCarouselContainer,
+  createVideoContainer,
   publishMedia,
   getContainerStatus,
   waitForContainer,
