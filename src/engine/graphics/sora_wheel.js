@@ -24,6 +24,8 @@ const SIGN_GLYPH = {
   aquarius: "♒",
   pisces: "♓",
 };
+const SIGN_KEYS = Object.keys(SIGN_GLYPH);
+const SIGN_INDEX = new Map(SIGN_KEYS.map((key, i) => [key, i]));
 
 const ROOT_DIR = path.resolve(__dirname, "..", "..", "..");
 const FONT_DIR = path.join(ROOT_DIR, "assets", "fonts");
@@ -159,7 +161,8 @@ function buildSoraWheelSvg({
   size = 1400,
   rotationDeg = 0,
   showAspects = true,
-  showHouses = false,
+  showHouses = true,
+  showCenterLines = null,
   aspects = null,
   ascLonDeg = null,
   mcLonDeg = null,
@@ -194,13 +197,32 @@ function buildSoraWheelSvg({
   const dotStroke = 2.5;
   const dotGlyphSize = 18;
   const tangentStep = 18;
+  const centerLineColor = "#EDEEFF";
+  const centerLineWidth = 0.6;
+  const centerLineOpacity = 0.5;
 
   const pub = story?.public || {};
   const transit = pub.transit_signs || {};
   const ascLonFromStory = Number(transit?.asc?.lon_deg);
   const mcLonFromStory = Number(transit?.mc?.lon_deg);
-  const ascLon = Number.isFinite(Number(ascLonDeg)) ? Number(ascLonDeg) : (Number.isFinite(ascLonFromStory) ? ascLonFromStory : null);
+  const hasAngleSource = (
+    Number.isFinite(Number(ascLonDeg)) ||
+    Number.isFinite(Number(mcLonDeg)) ||
+    Number.isFinite(Number(ascLonFromStory)) ||
+    Number.isFinite(Number(mcLonFromStory))
+  );
+  let ascLon = Number.isFinite(Number(ascLonDeg)) ? Number(ascLonDeg) : (Number.isFinite(ascLonFromStory) ? ascLonFromStory : null);
   const mcLon = Number.isFinite(Number(mcLonDeg)) ? Number(mcLonDeg) : (Number.isFinite(mcLonFromStory) ? mcLonFromStory : null);
+  if (!Number.isFinite(Number(ascLon))) {
+    const ascKey = String(pub?.house_focus?.asc_sign_key || "").toLowerCase();
+    const ascIndex = SIGN_INDEX.get(ascKey);
+    if (Number.isFinite(Number(ascIndex))) {
+      ascLon = ascIndex * 30;
+    }
+  }
+  if (!Number.isFinite(Number(ascLon)) && showHouses) {
+    ascLon = 0;
+  }
 
   const bodyOrder = [
     "sun",
@@ -228,6 +250,7 @@ function buildSoraWheelSvg({
     ? Number(dimOpacity)
     : (hasHighlight ? 0.25 : 1);
   const zodiacOpacityValue = 1;
+  const showCenterLineValue = typeof showCenterLines === "boolean" ? showCenterLines : showAspects;
 
   const points = [];
   bodyOrder.forEach((key) => {
@@ -345,6 +368,18 @@ function buildSoraWheelSvg({
     });
   }
 
+  const centerLineEls = showCenterLineValue
+    ? points
+      .map((p) => {
+        const isHighlight = hasHighlight ? highlightSet.has(p.key) : true;
+        const opacity = isHighlight
+          ? centerLineOpacity
+          : (centerLineOpacity * dimOpacityValue);
+        return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="${centerLineColor}" stroke-width="${centerLineWidth}" opacity="${opacity}"/>`;
+      })
+      .join("")
+    : "";
+
   const ringLines = [];
   for (let i = 0; i < 12; i += 1) {
     const deg = i * 30;
@@ -374,7 +409,7 @@ function buildSoraWheelSvg({
   }
 
   const angleLabels = [];
-  if (showHouses && Number.isFinite(Number(ascLon))) {
+  if (showHouses && hasAngleSource && Number.isFinite(Number(ascLon))) {
     const angles = [
       { key: "ASC", lon: Number(ascLon) },
       { key: "DC", lon: Number(ascLon) + 180 },
@@ -466,7 +501,7 @@ function buildSoraWheelSvg({
     .map((l) => `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#2A2D4A" stroke-width="0.7"/>`)
     .join("");
   const houseLabelEls = houseLabels
-    .map((l) => `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="middle" fill="#B3B7E6" font-size="12" font-family="SoraBody,serif">${l.text}</text>`)
+    .map((l) => `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="middle" fill="#B3B7E6" font-size="16" font-family="SoraBody,serif">${l.text}</text>`)
     .join("");
   const angleLabelEls = angleLabels
     .map((l) => `<text x="${l.x}" y="${l.y}" text-anchor="middle" dominant-baseline="middle" fill="#C8CBF2" font-size="12" font-family="SoraBody,serif">${l.text}</text>`)
@@ -574,6 +609,7 @@ function buildSoraWheelSvg({
     circleInner,
     ringLineEls,
     zodiacEls,
+    centerLineEls,
     aspectEls,
     houseLineEls,
     houseLabelEls,
