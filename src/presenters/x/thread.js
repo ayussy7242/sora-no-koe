@@ -21,7 +21,7 @@ const {
 const { listWithOrb, sortByOrb } = require("../../domain/aspect/selection");
 const { pickApplyingUpcomingAspects } = require("../../domain/astro/compute");
 const { isApplying, refinePeakTime } = require("../../domain/aspect/proximity");
-const { buildMoonStatus, formatNextMoonLines } = require("../../domain/moon");
+const { formatTodayMoonLines, formatNextMoonLines } = require("../../domain/moon");
 const { formatMonthDayHm } = require("../../utils/time");
 const { joinLines } = require("../../utils/text/format");
 
@@ -127,12 +127,11 @@ function renderXThread(story, deps = {}) {
 
   // ---------- Part 2: 月相 + 今日の共鳴（上位1件） ----------
   const moonLines = (() => {
-    const today = buildMoonStatus({ asOfISO, story, dict });
-    if (!today?.line1) return [];
+    const today = formatTodayMoonLines({ asOfISO, story, dict });
+    const baseLines = today?.lines || [];
+    if (!baseLines.length) return [];
 
-    const lines = [];
-    lines.push(today.line1);
-    if (today.line2) lines.push(today.line2);
+    const lines = [...baseLines];
 
     const nextMoon = formatNextMoonLines({ asOfISO, dict });
     const items = nextMoon?.items || [];

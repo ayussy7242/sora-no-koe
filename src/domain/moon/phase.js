@@ -75,6 +75,29 @@ function waNameFromMoonAge(moonAge) {
   return map[age] || "";
 }
 
+function moonPhaseLabelFromKey(phaseKey, { withMoon = false } = {}) {
+  const key = String(phaseKey || "").toLowerCase();
+  if (key === "new") return "新月";
+  if (key === "full") return "満月";
+  if (key === "first_quarter" || key === "first-quarter") return withMoon ? "上弦の月" : "上弦";
+  if (key === "last_quarter" || key === "last-quarter") return withMoon ? "下弦の月" : "下弦";
+  return "";
+}
+
+function isMoonCyclePhaseName(phaseName) {
+  const name = String(phaseName || "").trim();
+  return name === "満ちゆく月" || name === "欠けゆく月";
+}
+
+function resolveMoonPhaseDisplayName({ phaseName, waName, allowCycleName = true } = {}) {
+  const name = String(phaseName || "").trim();
+  const wa = String(waName || "").trim();
+  if (!name && !wa) return "";
+  if (!allowCycleName && isMoonCyclePhaseName(name)) return wa || "";
+  if (wa && wa !== name) return wa;
+  return name;
+}
+
 function formatMoonPhaseLabel({ phaseName, waName }) {
   const core = String(phaseName || "").trim() || "—";
   const wa = String(waName || "").trim();
@@ -88,5 +111,8 @@ module.exports = {
   moonPhaseInfo,
   normalizeMoonPhaseByIllumination,
   waNameFromMoonAge,
+  moonPhaseLabelFromKey,
+  isMoonCyclePhaseName,
+  resolveMoonPhaseDisplayName,
   formatMoonPhaseLabel,
 };

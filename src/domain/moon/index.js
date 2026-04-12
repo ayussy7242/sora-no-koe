@@ -5,6 +5,9 @@ const {
   astroPhaseFromDeg,
   moonPhaseInfo,
   waNameFromMoonAge,
+  moonPhaseLabelFromKey,
+  isMoonCyclePhaseName,
+  resolveMoonPhaseDisplayName,
   formatMoonPhaseLabel,
 } = require("./phase");
 const {
@@ -16,6 +19,7 @@ const {
 const {
   fullMoonNameJaFromDate,
   fullMoonNameEnFromDate,
+  moonEventNameInfo,
   moonEventKindLabelJa,
   moonEventKindLabelEn,
   moonEventKindSymbol,
@@ -88,8 +92,12 @@ module.exports = {
   listMoonSignChangesInMonth,
   formatMoonPhaseLabel,
   waNameFromMoonAge,
+  moonPhaseLabelFromKey,
+  isMoonCyclePhaseName,
+  resolveMoonPhaseDisplayName,
   isBlackMoon,
   isBlueMoon,
   isSecondMoonInMonth,
   getFullMoonForDate,
+  moonEventNameInfo,
 };

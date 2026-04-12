@@ -4,12 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const dictDefault = require("../../content/dict");
 const { findNextMoonPhase, calcTransitLon } = require("../../domain/astro/compute");
-const {
-  fullMoonNameJaFromDate,
-  fullMoonNameEnFromDate,
-  isBlueMoon,
-  isBlackMoon,
-} = require("../../domain/moon/events");
+const { moonEventNameInfo } = require("../../domain/moon/events");
 const { signKeyFromLon } = require("../../domain/moon/labels");
 const { ymdInTimeZone, dateTimePartsInTimeZone } = require("../../utils/time");
 
@@ -38,26 +33,24 @@ function buildMoonEventEntry({ date, kind, dict, timeZone }) {
   };
 
   if (kind === "full") {
-    const specialNameJa = isBlueMoon(date) ? "ブルームーン" : "";
-    const specialNameEn = isBlueMoon(date) ? "Blue Moon" : "";
+    const nameInfo = moonEventNameInfo({ kind: "full", date });
     return {
       ...base,
-      moon_name_ja: fullMoonNameJaFromDate(date) || null,
-      moon_name_en: fullMoonNameEnFromDate(date) || null,
-      special_name_ja: specialNameJa || null,
-      special_name_en: specialNameEn || null,
+      moon_name_ja: nameInfo.moonNameJa || null,
+      moon_name_en: nameInfo.moonNameEn || null,
+      special_name_ja: nameInfo.specialNameJa || null,
+      special_name_en: nameInfo.specialNameEn || null,
     };
   }
 
   if (kind === "new") {
-    const specialNameJa = isBlackMoon(date) ? "ブラックムーン" : "";
-    const specialNameEn = isBlackMoon(date) ? "Black Moon" : "";
+    const nameInfo = moonEventNameInfo({ kind: "new", date });
     return {
       ...base,
       moon_name_ja: null,
       moon_name_en: null,
-      special_name_ja: specialNameJa || null,
-      special_name_en: specialNameEn || null,
+      special_name_ja: nameInfo.specialNameJa || null,
+      special_name_en: nameInfo.specialNameEn || null,
     };
   }
 

@@ -2,7 +2,7 @@
 
 const dict = require("../../../../content/dict");
 const { findNextMoonPhase } = require("../../../../domain/astro/compute");
-const { formatTodayMoonLines, detectMoonEventLocal } = require("../../../../domain/moon");
+const { formatTodayMoonLines, detectMoonEventLocal, moonPhaseLabelFromKey } = require("../../../../domain/moon");
 const { toDateLocalJST } = require("../../../../utils/time");
 
 function findMoonPhaseInJstDate(dateLocal, phaseDeg) {
@@ -42,13 +42,13 @@ function diffDaysJst(dateLocal, date) {
 function moonPhaseTitleLabel({ dateLocal, asOfISO }) {
   if (!dateLocal) return "";
   const newMoonAt = findMoonPhaseInJstDate(dateLocal, 0);
-  if (newMoonAt instanceof Date) return "新月";
+  if (newMoonAt instanceof Date) return moonPhaseLabelFromKey("new");
   const firstQuarterAt = findMoonPhaseInJstDate(dateLocal, 90);
-  if (firstQuarterAt instanceof Date) return "上弦";
+  if (firstQuarterAt instanceof Date) return moonPhaseLabelFromKey("first_quarter");
   const fullMoonAt = findMoonPhaseInJstDate(dateLocal, 180);
-  if (fullMoonAt instanceof Date) return "満月";
+  if (fullMoonAt instanceof Date) return moonPhaseLabelFromKey("full");
   const lastQuarterAt = findMoonPhaseInJstDate(dateLocal, 270);
-  if (lastQuarterAt instanceof Date) return "下弦";
+  if (lastQuarterAt instanceof Date) return moonPhaseLabelFromKey("last_quarter");
 
   const lastFull = lastFullMoonDate(asOfISO);
   const diff = diffDaysJst(dateLocal, lastFull);
@@ -74,10 +74,17 @@ function getMoonEventPhaseLabel({ dateLocal, asOfISO } = {}) {
 
 function extractMoonPhaseLabel({ asOfISO, story }) {
   const todayMoon = formatTodayMoonLines({ asOfISO, story, dict });
-  const phaseLine = todayMoon?.lines?.[1] || "";
+  const phaseLine = (todayMoon?.lines || []).find((line) => {
+    const text = String(line || "");
+    if (!text) return false;
+    if (text.startsWith("月齢")) return false;
+    if (text.includes("サイクル")) return false;
+    return text.includes("｜");
+  }) || "";
   if (!phaseLine) return "";
   const main = phaseLine.split("｜")[0] || "";
-  const label = main.split("（")[0].trim();
+  const withoutSymbol = main.replace(/^[^\s]*\s*/, "");
+  const label = withoutSymbol.split("（")[0].trim();
   return label;
 }
 

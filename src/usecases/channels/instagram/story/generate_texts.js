@@ -7,7 +7,7 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
 } = require("../../../../content/prompts/sora/sora_core");
-const { buildTodayMoonInfo, findNextMoonSignChangeDetailed, detectMoonEventLocal } = require("../../../../domain/moon");
+const { buildMoonStatus, findNextMoonSignChangeDetailed, detectMoonEventLocal } = require("../../../../domain/moon");
 const { formatDateYmdHm, calcTransitLon } = require("../../../../domain/astro");
 const { signKeyFromLon } = require("../../../../domain/moon/labels");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
@@ -566,9 +566,9 @@ async function generateIgStoryTexts({
   if (!story) throw new Error("story missing");
   const useDict = dict || require("../../../../content/dict");
 
-  const info = buildTodayMoonInfo({ asOfISO, story, dict: useDict });
-  const moonSign = safeTrim(info?.moonSign);
-  const phaseLabel = safeTrim(info?.phase?.name);
+  const info = buildMoonStatus({ asOfISO, story, dict: useDict });
+  const moonSign = safeTrim(info?.signJa);
+  const phaseLabel = safeTrim(info?.displayName || "");
   const sunSign = safeTrim(story?.public?.transit_signs?.sun?.sign_ja);
 
   const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
@@ -585,9 +585,9 @@ async function generateIgStoryTexts({
   });
 
   const nowBaseStory = nowStory || story;
-  const nowInfo = buildTodayMoonInfo({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
-  const nowMoonSign = safeTrim(nowInfo?.moonSign);
-  const nowPhaseLabel = safeTrim(nowInfo?.phase?.name);
+  const nowInfo = buildMoonStatus({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
+  const nowMoonSign = safeTrim(nowInfo?.signJa);
+  const nowPhaseLabel = safeTrim(nowInfo?.displayName || "");
   const nowAspect = pickPreferredResonanceAspect(nowBaseStory, { resonanceMode, preferOutput: false });
   const nowAspectInput = buildAspectInput({ dict: useDict, aspect: nowAspect });
   const resonancePrompt = buildResonancePrompt({
@@ -606,9 +606,9 @@ async function generateIgStoryTexts({
   });
 
   const nextStory = tomorrowStory || story;
-  const nextInfo = buildTodayMoonInfo({ asOfISO: asOfTomorrowISO, story: nextStory, dict: useDict });
-  const nextMoonSign = safeTrim(nextInfo?.moonSign);
-  const nextPhaseLabel = safeTrim(nextInfo?.phase?.name);
+  const nextInfo = buildMoonStatus({ asOfISO: asOfTomorrowISO, story: nextStory, dict: useDict });
+  const nextMoonSign = safeTrim(nextInfo?.signJa);
+  const nextPhaseLabel = safeTrim(nextInfo?.displayName || "");
   const nextAspect = pickPreferredResonanceAspect(nextStory, { resonanceMode });
   const nextAspectInput = buildAspectInput({ dict: useDict, aspect: nextAspect });
   const nextSunSign = safeTrim(nextStory?.public?.transit_signs?.sun?.sign_ja);

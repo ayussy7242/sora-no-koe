@@ -11,6 +11,8 @@ const {
   waNameFromMoonAge,
   formatMoonPhaseLabel,
   normalizeMoonPhaseByIllumination,
+  isMoonCyclePhaseName,
+  resolveMoonPhaseDisplayName,
 } = require("./phase");
 const { signLabelJa, signKeyFromLon, degInSignFromLon } = require("./labels");
 
@@ -79,12 +81,18 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   const illumination = Number.isFinite(Number(moonInfo.illumination)) ? Number(moonInfo.illumination) : null;
 
   const phaseLabel = formatMoonPhaseLabel({ phaseName, waName });
+  const displayNameRaw = resolveMoonPhaseDisplayName({ phaseName, waName, allowCycleName: false });
+  const displayName = displayNameRaw === "—" ? "" : displayNameRaw;
   const line1 = `${phaseSymbol} ${phaseLabel}｜${signJa}`.trim();
   const moonAgeText = Number.isFinite(moonAge) ? moonAge.toFixed(1) : "—";
   const illuminationPct = Number.isFinite(illumination) ? Math.round(illumination * 100) : null;
   const line2 = illuminationPct != null
     ? `月齢 ${moonAgeText}｜照度 ${illuminationPct}%`
     : `月齢 ${moonAgeText}`;
+  const waxing = Number.isFinite(moonAge) ? moonAge < 14.765 : true;
+  const cycleLabel = isMoonCyclePhaseName(phaseName)
+    ? (waxing ? "満ちゆく月のサイクル" : "欠けゆく月のサイクル")
+    : "";
 
   return {
     info: moonInfo,
@@ -95,6 +103,9 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
     moonAge,
     illumination,
     phaseLabel,
+    displayName,
+    waxing,
+    cycleLabel,
     line1,
     line2,
   };
@@ -104,7 +115,15 @@ function formatTodayMoonLines({ asOfISO, story, dict }) {
   const info = buildTodayMoonInfo({ asOfISO, story, dict });
   const lines = [];
   const display = buildMoonStatus({ asOfISO, story, dict, info });
-  if (display?.line1) lines.push(display.line1);
+  if (display?.cycleLabel) lines.push(display.cycleLabel);
+  if (display?.displayName || display?.signJa) {
+    const signText = display?.signJa || "—";
+    const nameText = display?.displayName || "—";
+    const symbolText = display?.phaseSymbol || "🌙";
+    lines.push(`${symbolText} ${nameText}｜${signText}`.trim());
+  } else if (display?.line1) {
+    lines.push(display.line1);
+  }
   if (display?.line2) lines.push(display.line2);
   return { lines, info: display?.info || info, display };
 }

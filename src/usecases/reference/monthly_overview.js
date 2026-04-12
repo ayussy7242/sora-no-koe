@@ -7,11 +7,8 @@ const { findNextMoonPhase, calcTransitLon, absAngularDistance } = require("../..
 const { signKeyFromLon: signKeyFromLonDict } = require("../../domain/moon/labels");
 const { signKeyFromLon } = require("../../domain/astro/signs");
 const { buildRetrogradesYearReference } = require("./retrogrades_year");
-const {
-  fullMoonNameJaFromDate,
-  fullMoonNameEnFromDate,
-} = require("../../domain/moon/events");
-const { moonPhaseInfo } = require("../../domain/moon/phase");
+const { moonEventNameInfo } = require("../../domain/moon/events");
+const { moonPhaseInfo, moonPhaseLabelFromKey } = require("../../domain/moon/phase");
 const {
   ymdInTimeZone,
   dateTimePartsInTimeZone,
@@ -181,15 +178,16 @@ function formatPhaseLinesForCalendar(phase) {
     const sign = signLabelJa(dictDefault, phase.sign_key) || "";
     const nameRaw = phase.moon_name_en || phase.moon_name_ja || phase.label || "";
     const name = String(nameRaw).replace(/\s+/g, "");
-    if (name) return [sign, "満月", name].filter(Boolean);
-    return [sign, "満月"].filter(Boolean);
+    const phaseLabel = moonPhaseLabelFromKey("full");
+    if (name) return [sign, phaseLabel, name].filter(Boolean);
+    return [sign, phaseLabel].filter(Boolean);
   }
   if (key === "new") {
     const sign = signLabelJa(dictDefault, phase.sign_key) || "";
-    return [sign, "新月"].filter(Boolean);
+    return [sign, moonPhaseLabelFromKey("new")].filter(Boolean);
   }
-  if (key === "first_quarter") return ["上弦の月"];
-  if (key === "last_quarter") return ["下弦の月"];
+  if (key === "first_quarter") return [moonPhaseLabelFromKey("first_quarter", { withMoon: true })];
+  if (key === "last_quarter") return [moonPhaseLabelFromKey("last_quarter", { withMoon: true })];
   return [];
 }
 
@@ -269,16 +267,17 @@ function formatPhaseTimelineLabel(dict, phase) {
   let base = "";
   if (phase.phase_key === "full") {
     const name = phase.moon_name_en || phase.moon_name_ja || phase.label || "";
-    base = name ? `満月 ${name}` : "満月";
+    const phaseLabel = moonPhaseLabelFromKey("full");
+    base = name ? `${phaseLabel} ${name}` : phaseLabel;
     return [sign, base].filter(Boolean).join(" ").trim();
   } else if (phase.phase_key === "new") {
-    base = "新月";
+    base = moonPhaseLabelFromKey("new");
     return [sign, base].filter(Boolean).join(" ").trim();
   } else if (phase.phase_key === "first_quarter") {
-    base = "上弦の月";
+    base = moonPhaseLabelFromKey("first_quarter", { withMoon: true });
     return [base, sign].filter(Boolean).join(" ").trim();
   } else if (phase.phase_key === "last_quarter") {
-    base = "下弦の月";
+    base = moonPhaseLabelFromKey("last_quarter", { withMoon: true });
     return [base, sign].filter(Boolean).join(" ").trim();
   } else {
     base = phase.label || phase.phase_key || "";
@@ -321,12 +320,15 @@ function collectMoonPhasesInMonth({ month, targetDeg, phaseKey, labelJa, timeZon
     const base = buildMoonEventEntry({ date: next, timeZone, dict });
     if (base?.date_local?.startsWith(month)) {
       const isFull = phaseKey === "full";
+      const nameInfo = isFull ? moonEventNameInfo({ kind: "full", date: next }) : null;
+      const nameJa = isFull ? (nameInfo?.displayNameJa || nameInfo?.moonNameJa || "") : "";
+      const nameEn = isFull ? (nameInfo?.displayNameEn || nameInfo?.moonNameEn || "") : "";
       items.push({
         ...base,
         phase_key: phaseKey,
         label: labelJa || null,
-        moon_name_ja: isFull ? fullMoonNameJaFromDate(next) || null : null,
-        moon_name_en: isFull ? fullMoonNameEnFromDate(next) || null : null,
+        moon_name_ja: isFull ? (nameJa || null) : null,
+        moon_name_en: isFull ? (nameEn || null) : null,
       });
     }
     cursor = new Date(next.getTime() + 60 * 60 * 1000).toISOString();
@@ -562,20 +564,11 @@ function buildMonthlyOverviewReference({ month, timeZone, dict } = {}) {
   if (!startLocal || !endLocal) throw new Error("invalid month range");
 
   const phases = [
-    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 0, phaseKey: "new", labelJa: "新月", timeZone: tz, dict: useDict }),
-    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 90, phaseKey: "first_quarter", labelJa: "上弦", timeZone: tz, dict: useDict }),
-    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 180, phaseKey: "full", labelJa: "満月", timeZone: tz, dict: useDict }),
-    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 270, phaseKey: "last_quarter", labelJa: "下弦", timeZone: tz, dict: useDict }),
+    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 0, phaseKey: "new", labelJa: moonPhaseLabelFromKey("new"), timeZone: tz, dict: useDict }),
+    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 90, phaseKey: "first_quarter", labelJa: moonPhaseLabelFromKey("first_quarter"), timeZone: tz, dict: useDict }),
+    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 180, phaseKey: "full", labelJa: moonPhaseLabelFromKey("full"), timeZone: tz, dict: useDict }),
+    ...collectMoonPhasesInMonth({ month: monthStr, targetDeg: 270, phaseKey: "last_quarter", labelJa: moonPhaseLabelFromKey("last_quarter"), timeZone: tz, dict: useDict }),
   ].sort((a, b) => String(a.date_local).localeCompare(String(b.date_local)));
-
-  const fulls = phases.filter((p) => p.phase_key === "full");
-  if (fulls.length >= 2) {
-    fulls.forEach((full, idx) => {
-      if (idx === 0) return;
-      full.moon_name_en = "Blue Moon";
-      full.moon_name_ja = "ブルームーン";
-    });
-  }
 
   const newMoon = phases.find((p) => p.phase_key === "new") || null;
   const fullMoon = phases.find((p) => p.phase_key === "full") || null;

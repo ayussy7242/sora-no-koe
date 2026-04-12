@@ -134,12 +134,10 @@ function resolveXNightPromptInput({ story, dict }) {
   const moonDegInSign = Number.isFinite(Number(change?.degInSign)) ? Number(change.degInSign).toFixed(1) : "";
   const moonPhaseStage = change?.phase || "";
   const moonStatus = buildMoonStatus({ asOfISO, story, dict });
-  const moonPhaseLabel = moonStatus?.phaseLabel || moonStatus?.phaseName || "";
   const phaseName = moonStatus?.phaseName || "";
-  const waName = moonStatus?.waName || "";
-  const moonDisplayCore = (phaseName === "新月" || phaseName === "満月")
-    ? phaseName
-    : (waName || phaseName);
+  const moonDisplayCore = safeTrim(moonStatus?.displayName || "")
+    || (phaseName === "新月" || phaseName === "満月" ? phaseName : "");
+  const moonPhaseLabel = moonDisplayCore;
   const moonDisplayLabel = [moonDisplayCore, moonStatus?.signJa || ""].filter(Boolean).join(" ");
   const moonIlluminationPct = Number.isFinite(Number(moonStatus?.illumination))
     ? Math.round(Number(moonStatus.illumination) * 100)

@@ -5,46 +5,82 @@ const { calcTransitLon, findNextMoonPhase, formatDateYmdHm } = require("../astro
 const { toDateLocalJST } = require("../../utils/time");
 const { signLabelFromLon } = require("./labels");
 
-function fullMoonNameJaFromDate(date) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+const FULL_MOON_NAMES = {
+  1: { ja: "ウルフムーン", en: "Wolf Moon" },
+  2: { ja: "スノームーン", en: "Snow Moon" },
+  3: { ja: "ワームムーン", en: "Worm Moon" },
+  4: { ja: "ピンクムーン", en: "Pink Moon" },
+  5: { ja: "フラワームーン", en: "Flower Moon" },
+  6: { ja: "ストロベリームーン", en: "Strawberry Moon" },
+  7: { ja: "バックムーン", en: "Buck Moon" },
+  8: { ja: "スタージョンムーン", en: "Sturgeon Moon" },
+  9: { ja: "ハーベストムーン", en: "Harvest Moon" },
+  10: { ja: "ハンターズムーン", en: "Hunter's Moon" },
+  11: { ja: "ビーバームーン", en: "Beaver Moon" },
+  12: { ja: "コールドムーン", en: "Cold Moon" },
+};
+
+function fullMoonNameFromDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return { ja: "", en: "" };
   const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
   const month = jst.getUTCMonth() + 1;
-  const names = {
-    1: "ウルフムーン",
-    2: "スノームーン",
-    3: "ワームムーン",
-    4: "ピンクムーン",
-    5: "フラワームーン",
-    6: "ストロベリームーン",
-    7: "バックムーン",
-    8: "スタージョンムーン",
-    9: "ハーベストムーン",
-    10: "ハンターズムーン",
-    11: "ビーバームーン",
-    12: "コールドムーン",
+  const entry = FULL_MOON_NAMES[month] || {};
+  return {
+    ja: entry.ja || "",
+    en: entry.en || "",
   };
-  return names[month] || "";
+}
+
+function fullMoonNameJaFromDate(date) {
+  return fullMoonNameFromDate(date).ja || "";
 }
 
 function fullMoonNameEnFromDate(date) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
-  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const month = jst.getUTCMonth() + 1;
-  const names = {
-    1: "Wolf Moon",
-    2: "Snow Moon",
-    3: "Worm Moon",
-    4: "Pink Moon",
-    5: "Flower Moon",
-    6: "Strawberry Moon",
-    7: "Buck Moon",
-    8: "Sturgeon Moon",
-    9: "Harvest Moon",
-    10: "Hunter's Moon",
-    11: "Beaver Moon",
-    12: "Cold Moon",
+  return fullMoonNameFromDate(date).en || "";
+}
+
+function moonEventNameInfo({ kind, date } = {}) {
+  const k = String(kind || "").toLowerCase();
+  const empty = {
+    moonNameJa: "",
+    moonNameEn: "",
+    specialNameJa: "",
+    specialNameEn: "",
+    displayNameJa: "",
+    displayNameEn: "",
   };
-  return names[month] || "";
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return empty;
+
+  if (k === "full") {
+    const names = fullMoonNameFromDate(date);
+    const blueMoon = isBlueMoon(date);
+    const specialNameJa = blueMoon ? "ブルームーン" : "";
+    const specialNameEn = blueMoon ? "Blue Moon" : "";
+    return {
+      moonNameJa: names.ja || "",
+      moonNameEn: names.en || "",
+      specialNameJa,
+      specialNameEn,
+      displayNameJa: specialNameJa || names.ja || "",
+      displayNameEn: specialNameEn || names.en || "",
+    };
+  }
+
+  if (k === "new") {
+    const blackMoon = isBlackMoon(date);
+    const specialNameJa = blackMoon ? "ブラックムーン" : "";
+    const specialNameEn = blackMoon ? "Black Moon" : "";
+    return {
+      moonNameJa: "",
+      moonNameEn: "",
+      specialNameJa,
+      specialNameEn,
+      displayNameJa: specialNameJa || "",
+      displayNameEn: specialNameEn || "",
+    };
+  }
+
+  return empty;
 }
 
 function moonEventKindLabelJa(kind) {
@@ -271,14 +307,11 @@ function formatMoonEventDisplay(ev = {}) {
   const phaseSymbol = moonEventKindSymbol(kind);
   const phaseName = moonEventKindLabelJa(kind);
   const signJa = ev?.signJa || signLabelFromLon(dict, calcTransitLon("moon", date.toISOString()));
-  const moonName = fullMoonNameJaFromDate(date);
-  const moonNameEn = fullMoonNameEnFromDate(date);
-  const specialName = kind === "new"
-    ? (isBlackMoon(date) ? "ブラックムーン" : "")
-    : (isBlueMoon(date) ? "ブルームーン" : "");
-  const specialNameEn = kind === "new"
-    ? (isBlackMoon(date) ? "Black Moon" : "")
-    : (isBlueMoon(date) ? "Blue Moon" : "");
+  const nameInfo = moonEventNameInfo({ kind, date });
+  const moonName = nameInfo.moonNameJa || "";
+  const moonNameEn = nameInfo.moonNameEn || "";
+  const specialName = nameInfo.specialNameJa || "";
+  const specialNameEn = nameInfo.specialNameEn || "";
 
   const core = signJa && signJa !== "—" ? `${signJa}${phaseName}` : phaseName;
   let label = core;
@@ -397,6 +430,7 @@ function detectMoonEventLocal({ dateLocal, asOfISO, dict, forceNext = false, eve
 module.exports = {
   fullMoonNameJaFromDate,
   fullMoonNameEnFromDate,
+  moonEventNameInfo,
   moonEventKindLabelJa,
   moonEventKindLabelEn,
   moonEventKindSymbol,

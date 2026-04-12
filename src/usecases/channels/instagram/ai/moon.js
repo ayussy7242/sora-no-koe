@@ -6,7 +6,7 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON,
   SORA_AI_USER_GUIDE_IG_MOON_NIGHT_CAPTION,
 } = require("../../../../content/prompts/sora/sora_core");
-const { buildTodayMoonInfo, buildMoonSignChangeState } = require("../../../../domain/moon");
+const { buildMoonStatus, buildMoonSignChangeState } = require("../../../../domain/moon");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
 const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
@@ -42,16 +42,6 @@ function buildMoonChangeHint(change) {
   return "";
 }
 
-function resolveMoonPhaseLabel(info) {
-  const raw = safeTrim(info?.phase?.name || "");
-  const illumination = Number(info?.illumination || 0);
-  const isNewNow = Number.isFinite(illumination) && illumination <= 0.02;
-  const isFullNow = Number.isFinite(illumination) && illumination >= 0.98;
-  if (raw === "満月" && !isFullNow) return "満ちゆく月";
-  if (raw === "新月" && !isNewNow) return "欠けてゆく月";
-  return raw;
-}
-
 function resolveMoonGuide(variant) {
   const key = String(variant || "").toLowerCase();
   if (key === "caption" || key === "night_caption" || key === "night-caption") {
@@ -61,10 +51,10 @@ function resolveMoonGuide(variant) {
 }
 
 function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
-  const info = buildTodayMoonInfo({ asOfISO, story, dict });
+  const moonStatus = buildMoonStatus({ asOfISO, story, dict });
   const change = buildMoonSignChangeState({ asOfISO, dict });
-  const moonSign = safeTrim(info?.moonSign || "");
-  const phaseLabel = safeTrim(resolveMoonPhaseLabel(info));
+  const moonSign = safeTrim(moonStatus?.signJa || "");
+  const phaseLabel = safeTrim(moonStatus?.displayName || "");
   const moonChangeHint = safeTrim(buildMoonChangeHint(change));
   const nextChange = change?.next || null;
   const nextChangeText = nextChange?.date
@@ -96,9 +86,9 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
   const isCaptionVariant = ["caption", "night_caption", "night-caption"].includes(variantKey);
   const maxTokens = isCaptionVariant ? 420 : 160;
 
-  const info = buildTodayMoonInfo({ asOfISO, story, dict });
-  const moonSign = safeTrim(info?.moonSign || "");
-  const phaseLabel = safeTrim(resolveMoonPhaseLabel(info));
+  const moonStatus = buildMoonStatus({ asOfISO, story, dict });
+  const moonSign = safeTrim(moonStatus?.signJa || "");
+  const phaseLabel = safeTrim(moonStatus?.displayName || "");
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgMoonPrompt({ story, dict, asOfISO, variant }),
