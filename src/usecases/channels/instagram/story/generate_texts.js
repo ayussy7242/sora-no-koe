@@ -7,8 +7,9 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
 } = require("../../../../content/prompts/sora/sora_core");
-const { buildTodayMoonInfo, findNextMoonSignChangeDetailed } = require("../../../../domain/moon");
-const { formatDateYmdHm } = require("../../../../domain/astro");
+const { buildTodayMoonInfo, findNextMoonSignChangeDetailed, detectMoonEventLocal } = require("../../../../domain/moon");
+const { formatDateYmdHm, calcTransitLon } = require("../../../../domain/astro");
+const { signKeyFromLon } = require("../../../../domain/moon/labels");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa, signLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { pickPreferredResonanceAspect } = require("../../../../domain/resonance");
@@ -16,10 +17,35 @@ const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("../ai/utils");
 const { safeTrim, normalizeMultilineText } = require("../../../../utils/text/normalize");
+const { formatJstTimeLabel, toDateLocalJST } = require("../../../../utils/time");
+const { isRetrograde } = require("../../../../domain/astro/retrograde");
 
 function normalizeText(text) {
   return normalizeMultilineText(text);
 }
+
+const SIGN_INGRESS_PLANETS = [
+  "sun",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+];
+
+const RETROGRADE_PLANETS = [
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
+];
 
 function buildAspectInput({ dict, aspect } = {}) {
   if (!aspect) return null;
@@ -42,13 +68,17 @@ function buildAspectInput({ dict, aspect } = {}) {
     bLabel: bodyLabelJa(dict, bKey) || bKey,
     aSign: aspect?.a_sign_ja || signLabelJa(dict, aSignKey) || "",
     bSign: aspect?.b_sign_ja || signLabelJa(dict, bSignKey) || "",
+    aSignKey,
+    bSignKey,
     aspectLabel: info?.label || "",
     aspectDeg: info?.deg ?? aspect?.aspect_deg ?? "",
     orb: Number.isFinite(Number(info?.orb)) ? info.orb : Number(aspect?.orb_deg),
   };
 }
 
-function buildTodayPrompt({ moonSign, phaseLabel, sunSign }) {
+function buildTodayPrompt({ moonSign, phaseLabel, sunSign, aspectInput }) {
+  const a = aspectInput || {};
+  const aspectSignature = buildResonanceSignature({ aspectInput: a });
   return [
     SORA_AI_USER_GUIDE_IG_STORY_TODAY,
     "",
@@ -56,6 +86,8 @@ function buildTodayPrompt({ moonSign, phaseLabel, sunSign }) {
     `MOON_SIGN: ${safeTrim(moonSign)}`,
     `PHASE_LABEL: ${safeTrim(phaseLabel)}`,
     `SUN_SIGN: ${safeTrim(sunSign)}`,
+    `TODAY_ASPECT_LABEL: ${safeTrim(a.aspectLabel)}`,
+    `TODAY_ASPECT_SIGNATURE: ${safeTrim(aspectSignature)}`,
   ].join("\n");
 }
 
@@ -89,19 +121,224 @@ function buildResonancePrompt({ aspectInput, nowAspectInput, nowMoonSign, nowPha
   ].join("\n");
 }
 
-function buildTomorrowPrompt({ nextMoonSign, nextPhaseLabel, nextAspectInput }) {
+function formatTimeHm(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const t = formatJstTimeLabel(date, { fallback: "" });
+  return t === "-" ? "" : t;
+}
+
+function resolveDateLocal(story) {
+  return safeTrim(story?.meta?.date_local || story?.public?.date_local || "");
+}
+
+function addDaysDateLocalJST(dateLocal, offsetDays) {
+  const base = new Date(`${dateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(base.getTime())) return dateLocal;
+  const shiftMs = Number(offsetDays) * 86400000;
+  if (!Number.isFinite(shiftMs) || shiftMs === 0) return dateLocal;
+  const shifted = new Date(base.getTime() + shiftMs);
+  return toDateLocalJST(shifted);
+}
+
+function isoFromDateLocalTime(dateLocal, hour = 0, minute = 0) {
+  const hh = String(hour).padStart(2, "0");
+  const mm = String(minute).padStart(2, "0");
+  const d = new Date(`${dateLocal}T${hh}:${mm}:00+09:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function resolvePlanetSignKeyForDate({ planetKey, dateLocal, dict, hour = 12, minute = 0 } = {}) {
+  if (!planetKey || !dateLocal) return "";
+  const iso = isoFromDateLocalTime(dateLocal, hour, minute);
+  if (!iso) return "";
+  const lon = calcTransitLon(planetKey, iso);
+  return signKeyFromLon(dict, lon) || "";
+}
+
+function resolveMoonMoveForDate({ dict, asOfISO, dateLocal } = {}) {
+  const move = findNextMoonSignChangeDetailed({ dict, asOfISO });
+  if (!move?.date || !move?.to?.label) return null;
+  const moveDateLocal = toDateLocalJST(move.date);
+  if (!moveDateLocal || !dateLocal || moveDateLocal !== dateLocal) return null;
+  return move;
+}
+
+function detectSignIngressesForDate({ dateLocal, planets, dict } = {}) {
+  if (!dateLocal) return [];
+  const startIso = isoFromDateLocalTime(dateLocal, 0, 0);
+  const nextDateLocal = addDaysDateLocalJST(dateLocal, 1);
+  const endIso = isoFromDateLocalTime(nextDateLocal, 0, 0);
+  if (!startIso || !endIso) return [];
+
+  const out = [];
+  (planets || []).forEach((planet) => {
+    const lonStart = calcTransitLon(planet, startIso);
+    const lonEnd = calcTransitLon(planet, endIso);
+    const signStart = signKeyFromLon(dict, lonStart);
+    const signEnd = signKeyFromLon(dict, lonEnd);
+    if (!signStart || !signEnd || signStart === signEnd) return;
+    out.push({ planetKey: planet, signKey: signEnd });
+  });
+  return out;
+}
+
+function detectRetrogradeStationsForDate({ dateLocal, planets } = {}) {
+  if (!dateLocal) return [];
+  const startIso = isoFromDateLocalTime(dateLocal, 0, 0);
+  const nextDateLocal = addDaysDateLocalJST(dateLocal, 1);
+  const endIso = isoFromDateLocalTime(nextDateLocal, 0, 0);
+  if (!startIso || !endIso) return [];
+
+  const out = [];
+  (planets || []).forEach((planet) => {
+    const startRetro = isRetrograde(planet, startIso);
+    const endRetro = isRetrograde(planet, endIso);
+    if (startRetro === endRetro) return;
+    out.push({ planetKey: planet, type: endRetro ? "start" : "end" });
+  });
+  return out;
+}
+
+function formatMoonEventText(ev = {}) {
+  const phase = safeTrim(ev?.phaseName || "");
+  const sign = safeTrim(ev?.signJa || "");
+  if (sign && phase) return `${sign}${phase}`;
+  return phase || sign || "";
+}
+
+function orderByPlanetPriority(list, priority = []) {
+  const rank = new Map(priority.map((key, idx) => [key, idx]));
+  return (list || []).slice().sort((a, b) => {
+    const ra = rank.has(a?.planetKey) ? rank.get(a.planetKey) : Infinity;
+    const rb = rank.has(b?.planetKey) ? rank.get(b.planetKey) : Infinity;
+    if (ra !== rb) return ra - rb;
+    if (a?.type && b?.type && a.type !== b.type) return a.type === "start" ? -1 : 1;
+    return 0;
+  });
+}
+
+function uniqueEvents(events) {
+  const seen = new Set();
+  const out = [];
+  for (const ev of events || []) {
+    const key = `${ev?.kind || ""}|${ev?.text || ""}`;
+    if (!ev?.text || seen.has(key)) continue;
+    seen.add(key);
+    out.push(ev);
+  }
+  return out;
+}
+
+function buildEventCandidates({ moonEvent, signIngresses, retroStations, nextAspectInput, moonMove, dateLocal, dict } = {}) {
+  const candidates = [];
+
+  if (moonEvent) {
+    const eventIso = moonEvent?.date instanceof Date ? moonEvent.date.toISOString() : null;
+    const eventLon = eventIso ? calcTransitLon("moon", eventIso) : null;
+    const signKey = signKeyFromLon(dict, eventLon) || resolvePlanetSignKeyForDate({ planetKey: "moon", dateLocal, dict });
+    candidates.push({
+      kind: "moon_event",
+      text: formatMoonEventText(moonEvent),
+      time: formatTimeHm(moonEvent?.date),
+      signKey,
+    });
+  }
+
+  orderByPlanetPriority(signIngresses, SIGN_INGRESS_PLANETS).forEach((ingress) => {
+    if (!ingress?.planetKey || !ingress?.signKey) return;
+    const planetLabel = bodyLabelJa(dict, ingress.planetKey) || ingress.planetKey;
+    const signLabel = signLabelJa(dict, ingress.signKey) || ingress.signKey;
+    candidates.push({
+      kind: "sign_ingress",
+      text: `${planetLabel}、${signLabel}へ`,
+      time: "",
+      planetKey: ingress.planetKey,
+      signKey: ingress.signKey,
+    });
+  });
+
+  orderByPlanetPriority(retroStations, RETROGRADE_PLANETS).forEach((station) => {
+    if (!station?.planetKey || !station?.type) return;
+    const planetLabel = bodyLabelJa(dict, station.planetKey) || station.planetKey;
+    const action = station.type === "start" ? "開始" : "終了";
+    const kind = station.type === "start" ? "retrograde_start" : "retrograde_end";
+    const signKey = resolvePlanetSignKeyForDate({ planetKey: station.planetKey, dateLocal, dict });
+    candidates.push({
+      kind,
+      text: `${planetLabel}逆行、${action}`,
+      time: "",
+      planetKey: station.planetKey,
+      signKey,
+    });
+  });
+
+  const aspectSignature = buildResonanceSignature({ aspectInput: nextAspectInput });
+  const orb = Number(nextAspectInput?.orb);
+  if (aspectSignature && Number.isFinite(orb) && orb <= 1.0) {
+    candidates.push({
+      kind: "tight_aspect",
+      text: aspectSignature,
+      time: "",
+      aSignKey: nextAspectInput?.aSignKey || "",
+      bSignKey: nextAspectInput?.bSignKey || "",
+    });
+  }
+
+  if (moonMove?.date && moonMove?.to?.label) {
+    const moveDateLocal = toDateLocalJST(moonMove.date);
+    if (!dateLocal || moveDateLocal === dateLocal) {
+      candidates.push({
+        kind: "moon_move",
+        text: `月が${safeTrim(moonMove.to.label)}へ`,
+        time: "",
+        signKey: moonMove?.to?.key || "",
+      });
+    }
+  }
+
+  return uniqueEvents(candidates);
+}
+
+function pickTomorrowEvents({ moonEvent, signIngresses, retroStations, nextAspectInput, moonMove, dateLocal, dict, maxItems = 3 } = {}) {
+  const candidates = buildEventCandidates({
+    moonEvent,
+    signIngresses,
+    retroStations,
+    nextAspectInput,
+    moonMove,
+    dateLocal,
+    dict,
+  });
+  return candidates.slice(0, Math.max(0, Number(maxItems) || 0));
+}
+
+function buildTomorrowPrompt({ nextSunSign, nextMoonSign, nextPhaseLabel, nextAspectInput, moonMove, events }) {
   const a = nextAspectInput || {};
+  const aspectSignature = buildResonanceSignature({ aspectInput: a });
+  const moveTime = formatTimeHm(moonMove?.date);
+  const moveTo = safeTrim(moonMove?.to?.label);
+  const slots = [0, 1, 2].map((idx) => events?.[idx] || {});
   return [
     SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
     "",
     "INPUT:",
-    `NEXT_MOON_SIGN: ${safeTrim(nextMoonSign)}`,
-    `NEXT_PHASE_LABEL: ${safeTrim(nextPhaseLabel)}`,
-    `NEXT_ASPECT: ${safeTrim(a.aspectLabel)}`,
-    `NEXT_A_BODY: ${safeTrim(a.aLabel)}`,
-    `NEXT_B_BODY: ${safeTrim(a.bLabel)}`,
-    `NEXT_A_SIGN: ${safeTrim(a.aSign)}`,
-    `NEXT_B_SIGN: ${safeTrim(a.bSign)}`,
+    `TOMORROW_SUN_SIGN: ${safeTrim(nextSunSign)}`,
+    `TOMORROW_MOON_SIGN: ${safeTrim(nextMoonSign)}`,
+    `TOMORROW_PHASE_LABEL: ${safeTrim(nextPhaseLabel)}`,
+    `TOMORROW_MOON_MOVE_TO: ${moveTo}`,
+    `TOMORROW_MOON_MOVE_TIME: ${moveTime}`,
+    `TOMORROW_ASPECT_LABEL: ${safeTrim(a.aspectLabel)}`,
+    `TOMORROW_ASPECT_SIGNATURE: ${safeTrim(aspectSignature)}`,
+    `EVENT_1_KIND: ${safeTrim(slots[0].kind)}`,
+    `EVENT_1_TEXT: ${safeTrim(slots[0].text)}`,
+    `EVENT_1_TIME: ${safeTrim(slots[0].time)}`,
+    `EVENT_2_KIND: ${safeTrim(slots[1].kind)}`,
+    `EVENT_2_TEXT: ${safeTrim(slots[1].text)}`,
+    `EVENT_2_TIME: ${safeTrim(slots[1].time)}`,
+    `EVENT_3_KIND: ${safeTrim(slots[2].kind)}`,
+    `EVENT_3_TEXT: ${safeTrim(slots[2].text)}`,
+    `EVENT_3_TIME: ${safeTrim(slots[2].time)}`,
   ].join("\n");
 }
 
@@ -258,10 +495,12 @@ async function generateTextWithRetry({
   return { ok: false, error: lastReason || "retry_exceeded" };
 }
 
-function fallbackToday({ moonSign, phaseLabel } = {}) {
+function fallbackToday({ moonSign, phaseLabel, sunSign, aspectInput } = {}) {
   const sign = safeTrim(moonSign) || "—";
   const phase = safeTrim(phaseLabel) || "静かな月相";
-  return `今日の空、どうでしたか？\n${sign}の月と${phase}の輪郭が残ります。\n静かな余韻が空に置かれます。`;
+  const sun = safeTrim(sunSign) || "—";
+  const aspect = buildResonanceSignature({ aspectInput }) || "ひとつの接続";
+  return `${sun}の太陽 × ${sign}の月。\n${aspect}が今日の軸でした。\n${phase}の輪郭が残ります。\nどこが印象に残りましたか？`;
 }
 
 function fallbackResonance({ aspectInput, nowAspectInput, nowMoonSign, nowPhaseLabel } = {}) {
@@ -280,13 +519,35 @@ function fallbackResonance({ aspectInput, nowAspectInput, nowMoonSign, nowPhaseL
   return `${a}×${b}の接続が${label}${deg}で近づきます。\n空の質感が静かに濃くなる配置です。\n今は${nowMoonText}、${nowA}×${nowB}の${nowLabel}${nowDeg}。\n何か感じた人いる？`;
 }
 
-function fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput } = {}) {
-  const sign = safeTrim(nextMoonSign) || "—";
+function fallbackTomorrow({
+  nextSunSign,
+  nextMoonSign,
+  nextPhaseLabel,
+  nextAspectInput,
+  moonMove,
+  events,
+} = {}) {
+  const sun = safeTrim(nextSunSign) || "—";
+  const moon = safeTrim(nextMoonSign) || "—";
   const phase = safeTrim(nextPhaseLabel) || "月相";
-  const a = nextAspectInput?.aLabel || "";
-  const b = nextAspectInput?.bLabel || "";
-  const aspect = a && b ? `${a}×${b}` : "ひとつの接続";
-  return `明日は${sign}の月、${phase}の空。\n${aspect}が見えやすい配置です。\nこの流れは、明日にもそのまま続いていきます。\nどんな空になりそうですか？`;
+  const aspect = buildResonanceSignature({ aspectInput: nextAspectInput }) || "ひとつの接続";
+  const moveTo = safeTrim(moonMove?.to?.label);
+  const moveTime = formatTimeHm(moonMove?.date);
+  const changeLine = moveTo && moveTime ? `${moveTime}、月は${moveTo}へ。` : `${phase}の流れ。`;
+  const eventLines = (events || [])
+    .map((ev) => {
+      const text = safeTrim(ev?.text);
+      const time = safeTrim(ev?.time);
+      return text ? `${text}${time ? ` ${time}` : ""}` : "";
+    })
+    .filter(Boolean);
+  return [
+    `${sun}の太陽 × ${moon}の月。`,
+    changeLine,
+    `${aspect}が残る配置。`,
+    ...eventLines,
+    "どこが残りそう？",
+  ].filter(Boolean).join("\n");
 }
 
 async function generateIgStoryTexts({
@@ -310,7 +571,10 @@ async function generateIgStoryTexts({
   const phaseLabel = safeTrim(info?.phase?.name);
   const sunSign = safeTrim(story?.public?.transit_signs?.sun?.sign_ja);
 
-  const todayPrompt = buildTodayPrompt({ moonSign, phaseLabel, sunSign });
+  const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
+  const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
+
+  const todayPrompt = buildTodayPrompt({ moonSign, phaseLabel, sunSign, aspectInput: resonanceInput });
   const todayText = await generateTextWithRetry({
     userPrompt: todayPrompt,
     openai,
@@ -320,8 +584,6 @@ async function generateIgStoryTexts({
     maxTokens: 160,
   });
 
-  const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
-  const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
   const nowBaseStory = nowStory || story;
   const nowInfo = buildTodayMoonInfo({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
   const nowMoonSign = safeTrim(nowInfo?.moonSign);
@@ -349,10 +611,43 @@ async function generateIgStoryTexts({
   const nextPhaseLabel = safeTrim(nextInfo?.phase?.name);
   const nextAspect = pickPreferredResonanceAspect(nextStory, { resonanceMode });
   const nextAspectInput = buildAspectInput({ dict: useDict, aspect: nextAspect });
+  const nextSunSign = safeTrim(nextStory?.public?.transit_signs?.sun?.sign_ja);
+  const tomorrowDateLocal = resolveDateLocal(nextStory);
+  const nextMoonMove = resolveMoonMoveForDate({
+    dict: useDict,
+    asOfISO: asOfTomorrowISO || nextStory?.meta?.as_of || asOfISO,
+    dateLocal: tomorrowDateLocal,
+  });
+  const moonEvent = detectMoonEventLocal({
+    dateLocal: tomorrowDateLocal,
+    asOfISO: asOfTomorrowISO || nextStory?.meta?.as_of || asOfISO,
+    dict: useDict,
+  });
+  const signIngresses = detectSignIngressesForDate({
+    dateLocal: tomorrowDateLocal,
+    planets: SIGN_INGRESS_PLANETS,
+    dict: useDict,
+  });
+  const retroStations = detectRetrogradeStationsForDate({
+    dateLocal: tomorrowDateLocal,
+    planets: RETROGRADE_PLANETS,
+  });
+  const tomorrowEvents = pickTomorrowEvents({
+    moonEvent,
+    signIngresses,
+    retroStations,
+    nextAspectInput,
+    moonMove: nextMoonMove,
+    dateLocal: tomorrowDateLocal,
+    dict: useDict,
+  });
   const tomorrowPrompt = buildTomorrowPrompt({
+    nextSunSign,
     nextMoonSign,
     nextPhaseLabel,
     nextAspectInput,
+    moonMove: nextMoonMove,
+    events: tomorrowEvents,
   });
   const tomorrowText = await generateTextWithRetry({
     userPrompt: tomorrowPrompt,
@@ -363,13 +658,13 @@ async function generateIgStoryTexts({
     maxTokens: 180,
   });
 
-  const nextMoonMove = findNextMoonSignChangeDetailed({ dict: useDict, asOfISO });
+  const nextMoonMoveToday = findNextMoonSignChangeDetailed({ dict: useDict, asOfISO });
   const todayFixedLines = buildTodayDataLines({
     moonSign,
     phaseLabel,
     moonAge: info?.moonAge,
     illumination: info?.illumination,
-    nextMove: nextMoonMove,
+    nextMove: nextMoonMoveToday,
   });
   const resonanceFixedLines = buildResonanceDataLines({
     aspectInput: resonanceInput,
@@ -382,7 +677,9 @@ async function generateIgStoryTexts({
   });
 
   const todayBody = appendFixedLines(
-    todayText.ok ? todayText.text : fallbackToday({ moonSign, phaseLabel }),
+    todayText.ok
+      ? todayText.text
+      : fallbackToday({ moonSign, phaseLabel, sunSign, aspectInput: resonanceInput }),
     todayFixedLines
   );
   const resonanceBody = appendFixedLines(
@@ -400,7 +697,16 @@ async function generateIgStoryTexts({
     resonanceFixedLines
   );
   const tomorrowBody = appendFixedLines(
-    tomorrowText.ok ? tomorrowText.text : fallbackTomorrow({ nextMoonSign, nextPhaseLabel, nextAspectInput }),
+    tomorrowText.ok
+      ? tomorrowText.text
+      : fallbackTomorrow({
+          nextSunSign,
+          nextMoonSign,
+          nextPhaseLabel,
+          nextAspectInput,
+          moonMove: nextMoonMove,
+          events: tomorrowEvents,
+        }),
     tomorrowFixedLines
   );
 
@@ -435,6 +741,7 @@ async function generateIgStoryTexts({
       resonance_aspect: resonanceAspect || null,
       tomorrow_aspect: nextAspect || null,
       now_resonance_aspect: nowAspect || null,
+      tomorrow_events: tomorrowEvents || [],
     },
   };
 }

@@ -27,6 +27,68 @@ function addDays(dateLocal, days = 1) {
   return `${y}-${m}-${d}`;
 }
 
+function normalizeElementKey(value) {
+  const key = String(value || "").toLowerCase();
+  return key === "fire" || key === "earth" || key === "air" || key === "water" ? key : "";
+}
+
+function elementFromSign(dict, signKey) {
+  const key = String(signKey || "").toLowerCase();
+  if (!key) return "";
+  const signs = dict?.SIGNS_V2?.signs || dict?.SIGNS?.signs || {};
+  return signs?.[key]?.element || "";
+}
+
+function buildResonanceSpaceConfig({ aspect, dict }) {
+  if (!aspect) return null;
+  const elementA = elementFromSign(dict, aspect?.a_sign_key || "");
+  const elementB = elementFromSign(dict, aspect?.b_sign_key || "");
+  if (!elementA && !elementB) return null;
+  const hasBoth = elementA && elementB && elementA !== elementB;
+  return {
+    elementOverride: elementA || elementB,
+    secondaryElementOverride: elementB || elementA || elementB,
+    ...(hasBoth ? { forceSecondaryMix: true, secondaryMixRatio: 0.62 } : {}),
+  };
+}
+
+function buildTodaySpaceConfig({ story, dict }) {
+  const top = normalizeElementKey(story?.public?.sky_strata?.top_element || story?.meta?.sky_strata?.top_element || "");
+  if (top) return { elementOverride: top };
+  const moonKey = story?.public?.moon?.sign_key || story?.public?.transit_signs?.moon?.sign_key || "";
+  const sunKey = story?.public?.transit_signs?.sun?.sign_key || "";
+  const fallbackElement = elementFromSign(dict, moonKey) || elementFromSign(dict, sunKey);
+  return fallbackElement ? { elementOverride: fallbackElement } : null;
+}
+
+function buildEventSpaceConfig({ event, dict, story }) {
+  if (!event || !dict) return null;
+
+  if (event.kind === "tight_aspect") {
+    const elementA = elementFromSign(dict, event?.aSignKey || "");
+    const elementB = elementFromSign(dict, event?.bSignKey || "");
+    if (!elementA && !elementB) return null;
+    const hasBoth = elementA && elementB && elementA !== elementB;
+    return {
+      elementOverride: elementA || elementB,
+      secondaryElementOverride: elementB || elementA || elementB,
+      ...(hasBoth ? { forceSecondaryMix: true, secondaryMixRatio: 0.62 } : {}),
+    };
+  }
+
+  let signKey = event?.signKey || "";
+  if (!signKey && event?.planetKey && story?.public?.transit_signs?.[event.planetKey]?.sign_key) {
+    signKey = story.public.transit_signs[event.planetKey].sign_key;
+  }
+  const element = elementFromSign(dict, signKey);
+  return element ? { elementOverride: element } : null;
+}
+
+function mergeSpaceConfig(base, override) {
+  if (!override) return base || null;
+  return { ...(base || {}), ...override };
+}
+
 function writeLocalStoryImages({ outDir, dateLocal, buffers }) {
   if (!Array.isArray(buffers) || buffers.length !== 3) throw new Error("buffers missing");
   const names = ["today", "resonance", "tomorrow"];
@@ -209,13 +271,31 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     const bucketName = env2.IG_GCS_BUCKET || env2.GCS_BUCKET_SORA || env2.GCS_BUCKET_BLUEPRINTS;
     let upload = { ok: true, urls: {}, paths: {}, bucket: bucketName };
     if (!textOnly) {
+      const baseSpaceConfig = applySpaceConfigBoost(
+        buildCosmicSpaceConfig("cosmic_default"),
+        { densityBoost: IG_DENSITY_BOOST }
+      );
+      const todaySpace = mergeSpaceConfig(baseSpaceConfig, buildTodaySpaceConfig({ story, dict }));
+      const resonanceAspect =
+        storyTextsResult?.source?.resonance_aspect ||
+        story?.outputs?.ig?.source?.resonance_aspect ||
+        story?.public?.sky_top?.[0] ||
+        story?.public?.sky_all?.[0] ||
+        null;
+      const resonanceSpace = mergeSpaceConfig(
+        baseSpaceConfig,
+        buildResonanceSpaceConfig({ aspect: resonanceAspect, dict })
+      );
+      const topEvent = storyTextsResult?.source?.tomorrow_events?.[0] || null;
+      const tomorrowSpace = mergeSpaceConfig(
+        baseSpaceConfig,
+        buildEventSpaceConfig({ event: topEvent, dict, story: tomorrowStory })
+      );
+      const spaceConfigs = [todaySpace, resonanceSpace, tomorrowSpace];
       const buffers = await renderStoryBackgroundSet({
         story,
         dateLabel: String(dateLocal).replace(/-/g, "."),
-        spaceConfig: applySpaceConfigBoost(
-          buildCosmicSpaceConfig("cosmic_default"),
-          { densityBoost: IG_DENSITY_BOOST }
-        ),
+        spaceConfigs,
       });
       if (localOnly) {
         const localPaths = writeLocalStoryImages({ outDir: localOutDir, dateLocal, buffers });

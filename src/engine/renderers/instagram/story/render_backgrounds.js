@@ -117,6 +117,7 @@ async function renderStoryBackgroundSet({
   ],
   variants = ["story_today", "story_resonance", "story_tomorrow"],
   spaceConfig = null,
+  spaceConfigs = null,
 } = {}) {
   const width = CANVAS.width;
   const height = CANVAS.height;
@@ -126,14 +127,31 @@ async function renderStoryBackgroundSet({
   const baseArgs = { story, dateLabel, width, height };
   const buffers = [];
 
+  const resolveSpaceConfig = ({ variant, index } = {}) => {
+    if (typeof spaceConfigs === "function") {
+      return spaceConfigs({ variant, index, story, dateLabel }) || spaceConfig || null;
+    }
+    if (Array.isArray(spaceConfigs)) {
+      return spaceConfigs[index] || spaceConfig || null;
+    }
+    if (spaceConfigs && typeof spaceConfigs === "object") {
+      if (spaceConfigs[variant]) return spaceConfigs[variant];
+      if (spaceConfigs[index]) return spaceConfigs[index];
+      return spaceConfigs;
+    }
+    return spaceConfig || null;
+  };
+
   for (let i = 0; i < titles.length; i++) {
+    const variant = variants[i] || "story_today";
+    const resolvedSpaceConfig = resolveSpaceConfig({ variant, index: i });
     const space = buildSpaceBackground({
       ...baseArgs,
-      variant: variants[i] || "story_today",
+      variant,
       worldWidth,
       offsetX: width * i,
       avoidRegions,
-      spaceConfig,
+      spaceConfig: resolvedSpaceConfig,
     });
     buffers.push(await renderStoryBackground({ title: titles[i], space }));
   }
