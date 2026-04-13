@@ -15,6 +15,8 @@ function renderBlueprintLightPdf({
   blueprintText,
   bgImages,
   story,
+  houseCusps,
+  houseSystem,
 }) {
   return renderPdfBuffer({
     manifest,
@@ -29,6 +31,8 @@ function renderBlueprintLightPdf({
     blueprintText,
     bgImages,
     story,
+    houseCusps,
+    houseSystem,
   });
 }
 

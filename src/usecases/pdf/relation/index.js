@@ -13,6 +13,7 @@ const { resolveDisplayNameFromUserDoc } = require("../../../utils/text/display_n
 const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 const { saveGcsFile, getGcsSignedUrl, fileExists } = require("../../../utils/infra/gcs_upload");
+const { normalizeCusps, houseNumberForLonCusps, houseNumberForLonWholeSign } = require("../../../domain/astro/houses");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",
@@ -175,11 +176,11 @@ function normalizeAxisPair(pairRaw) {
   return { a: parts[0], b: parts[1], key: `${parts[0]}_${parts[1]}` };
 }
 
-function houseNumberForLon(lon, ascLon) {
-  if (!Number.isFinite(Number(lon)) || !Number.isFinite(Number(ascLon))) return null;
-  const signIndex = Math.floor(norm360(lon) / 30);
-  const ascIndex = Math.floor(norm360(ascLon) / 30);
-  return ((signIndex - ascIndex + 12) % 12) + 1;
+function houseNumberForLon(lon, ascLon, cusps) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const byCusps = houseNumberForLonCusps(lon, cusps);
+  if (Number.isFinite(Number(byCusps))) return byCusps;
+  return houseNumberForLonWholeSign(lon, ascLon);
 }
 
 function extractRelationLongitudes(natalCacheDoc) {
@@ -239,15 +240,47 @@ function extractRelationLongitudes(natalCacheDoc) {
   return { ok, longitudes: out };
 }
 
-function buildPlanetMatrix({ longitudes, dict, signFromLon, order = DEFAULT_RELATION_BODY_KEYS }) {
-  const ascLon = longitudes?.asc;
+function extractRelationHouses(natalCacheDoc) {
+  const d = natalCacheDoc || {};
+  const houses = d?.houses || null;
+  const system = houses?.system || d?.engine?.houses?.system || null;
+  const cusps = normalizeCusps(houses?.cusps || houses?.cusp || houses?.house || null);
+  const angles = houses?.angles || d?.min?.angles || d?.engine?.houses || null;
+  const asc =
+    angles?.asc ?? angles?.ASC ?? angles?.asc_deg ?? angles?.ASC_deg ??
+    d?.min?.asc ?? d?.min?.asc_deg ?? d?.asc ?? d?.ASC ?? null;
+  const mc =
+    angles?.mc ?? angles?.MC ?? angles?.mc_deg ?? angles?.MC_deg ??
+    d?.min?.mc ?? d?.min?.mc_deg ?? d?.mc ?? d?.MC ?? null;
+  const vertex =
+    angles?.vertex ?? angles?.vertex_deg ?? angles?.VERTEX ?? angles?.VERTEX_deg ??
+    d?.min?.vertex ?? d?.min?.vertex_deg ?? null;
+
+  const ok = !!(cusps && cusps.length === 12) || Number.isFinite(Number(asc));
+  return {
+    ok,
+    houses: {
+      system: system || null,
+      cusps: cusps || null,
+      angles: {
+        asc: Number.isFinite(Number(asc)) ? Number(asc) : null,
+        mc: Number.isFinite(Number(mc)) ? Number(mc) : null,
+        vertex: Number.isFinite(Number(vertex)) ? Number(vertex) : null,
+      },
+    },
+  };
+}
+
+function buildPlanetMatrix({ longitudes, houses, dict, signFromLon, order = DEFAULT_RELATION_BODY_KEYS }) {
+  const ascLon = houses?.angles?.asc ?? longitudes?.asc;
+  const cusps = houses?.cusps || null;
   const rows = [];
 
   for (const body of order) {
     const lon = longitudes?.[body];
     const sign = Number.isFinite(Number(lon)) ? signFromLon(lon) : { sign_key: null, sign_ja: null };
     const signKey = sign?.sign_key || null;
-    const house = houseNumberForLon(lon, ascLon);
+    const house = houseNumberForLon(lon, ascLon, cusps);
 
     rows.push({
       body_key: body,
@@ -264,9 +297,17 @@ function buildPlanetMatrix({ longitudes, dict, signFromLon, order = DEFAULT_RELA
   return rows;
 }
 
-function buildHouseIngressAiData({ ownerPlanets = [], guestPlanets = [], ownerName = "A", guestName = "B", maxHouses = 5 } = {}) {
+function buildHouseIngressAiData({
+  ownerPlanets = [],
+  guestPlanets = [],
+  ownerHouses,
+  ownerName = "A",
+  guestName = "B",
+  maxHouses = 5,
+} = {}) {
   const asc = ownerPlanets.find((p) => p?.body_key === "asc");
-  const ascLon = asc?.lon_deg;
+  const ascLon = ownerHouses?.angles?.asc ?? asc?.lon_deg;
+  const cusps = ownerHouses?.cusps || null;
   const heading = `${guestName} → ${ownerName}`;
   if (!Number.isFinite(Number(ascLon))) return { heading, houses: [] };
 
@@ -275,7 +316,7 @@ function buildHouseIngressAiData({ ownerPlanets = [], guestPlanets = [], ownerNa
   for (const row of guestPlanets) {
     if (!row?.body_key || !Number.isFinite(Number(row?.lon_deg))) continue;
     if (AXIS_BODIES.has(row.body_key)) continue;
-    const house = houseNumberForLon(row.lon_deg, ascLon);
+    const house = houseNumberForLon(row.lon_deg, ascLon, cusps);
     if (!Number.isFinite(Number(house))) continue;
     const label = row?.body_ja || row?.body_key || "";
     if (!label) continue;
@@ -339,6 +380,8 @@ function computeElementModalityBalance({ longitudes, dict, getSignMetaByKey }) {
 function buildConnections({
   aLongitudes,
   bLongitudes,
+  aHouses,
+  bHouses,
   rules,
   dict,
   signFromLon,
@@ -368,8 +411,10 @@ function buildConnections({
 
     const aSign = signFromLon(aLon);
     const bSign = signFromLon(bLon);
-    const aHouse = houseNumberForLon(aLon, aLongitudes?.asc);
-    const bHouse = houseNumberForLon(bLon, bLongitudes?.asc);
+    const aAsc = aHouses?.angles?.asc ?? aLongitudes?.asc;
+    const bAsc = bHouses?.angles?.asc ?? bLongitudes?.asc;
+    const aHouse = houseNumberForLon(aLon, aAsc, aHouses?.cusps);
+    const bHouse = houseNumberForLon(bLon, bAsc, bHouses?.cusps);
 
     out.push({
       pair: pair.key,
@@ -678,24 +723,31 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
       };
     }
 
+    const aHouses = extractRelationHouses(aCache);
+    const bHouses = extractRelationHouses(bCache);
+
     const planetMatrixA = buildPlanetMatrix({
       longitudes: aExtracted.longitudes,
+      houses: aHouses?.houses || null,
       dict,
       signFromLon,
     });
     const planetMatrixB = buildPlanetMatrix({
       longitudes: bExtracted.longitudes,
+      houses: bHouses?.houses || null,
       dict,
       signFromLon,
     });
     const deepPointsA = buildPlanetMatrix({
       longitudes: aExtracted.longitudes,
+      houses: aHouses?.houses || null,
       dict,
       signFromLon,
       order: DEFAULT_DEEP_POINT_KEYS,
     });
     const deepPointsB = buildPlanetMatrix({
       longitudes: bExtracted.longitudes,
+      houses: bHouses?.houses || null,
       dict,
       signFromLon,
       order: DEFAULT_DEEP_POINT_KEYS,
@@ -715,6 +767,8 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     const connections = buildConnections({
       aLongitudes: aExtracted.longitudes,
       bLongitudes: bExtracted.longitudes,
+      aHouses: aHouses?.houses || null,
+      bHouses: bHouses?.houses || null,
       rules,
       dict,
       signFromLon,
@@ -765,6 +819,10 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
       people: { a: { name: nameA }, b: { name: nameB } },
       planet_matrix: { a: planetMatrixA, b: planetMatrixB },
       deep_points: { a: deepPointsA, b: deepPointsB },
+      houses: {
+        a: aHouses?.houses || null,
+        b: bHouses?.houses || null,
+      },
       element_balance: {
         a: { element_count: balanceA.element_count, top_element: balanceA.top_element },
         b: { element_count: balanceB.element_count, top_element: balanceB.top_element },
@@ -786,12 +844,14 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
     const houseIngressA = buildHouseIngressAiData({
       ownerPlanets: planetMatrixA,
       guestPlanets: planetMatrixB,
+      ownerHouses: aHouses?.houses || null,
       ownerName: nameA || "A",
       guestName: nameB || "B",
     });
     const houseIngressB = buildHouseIngressAiData({
       ownerPlanets: planetMatrixB,
       guestPlanets: planetMatrixA,
+      ownerHouses: bHouses?.houses || null,
       ownerName: nameB || "B",
       guestName: nameA || "A",
     });

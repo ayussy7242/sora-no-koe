@@ -6,7 +6,7 @@ const { aspectInfo } = require("../../../presenters/format/format/common");
 const { formatMonthDayHm, formatJstYmd, formatJstTimeLabel } = require("../../../utils/time");
 const { refinePeakTime } = require("../../../domain/aspect/proximity");
 const { buildMoonStatus, formatMoonEventDisplay } = require("../../../domain/moon");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
+const { resolveHouseNumber, HOUSE_BASIS } = require("../../../domain/astro/compute");
 const { signGlyph, signLabelJa } = require("../../../presenters/shared/text/tokens");
 const { selectNextMajorPhase } = require("../../../domain/moon/phase_select");
 const { aspectLabelJa } = require("./shared/aspects");
@@ -203,15 +203,16 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
   const placements = (() => {
     const transit = story?.public?.transit_signs || {};
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
     return BODY_ORDER_BASIC.map((key) => {
       const meta = BODY_META[key] || { name: key, glyph: "" };
       const signKey = transit?.[key]?.sign_key || "";
       const signJa = transit?.[key]?.sign_ja || "—";
-      const signIndex = signIndexFromKey(dict, signKey);
-      const houseNo = Number.isFinite(signIndex) && Number.isFinite(ascIndex)
-        ? houseNumberForSignIndex(signIndex, ascIndex)
-        : null;
+      const houseNo = resolveHouseNumber({
+        basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+        signKey,
+        ascSignKey: ascKey,
+        dict,
+      });
       const houseLabel = houseNo ? `${houseNo}H` : "—";
       return {
         glyph: meta.glyph,

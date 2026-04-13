@@ -107,6 +107,8 @@ function calcMcLon(rowsAngles = []) {
     birth_place: birth?.place_text || birth?.place_formatted || "",
   };
   const birthText = [identity.birth_date, identity.birth_time, identity.birth_place].filter(Boolean).join(" / ");
+  const houseSystem = natalCache?.houses?.system || natalCache?.engine?.houses?.system || null;
+  const houseCusps = natalCache?.houses?.cusps || natalCache?.engine?.houses?.cusps || null;
 
   const aiInput = buildAiInput({
     displayName,
@@ -118,6 +120,8 @@ function calcMcLon(rowsAngles = []) {
     dict,
     longitudes,
     identity,
+    cusps: Array.isArray(houseCusps) ? houseCusps : null,
+    houseSystem: houseSystem || null,
   });
 
   const res = await generateBlueprintLightTextV2({
@@ -156,6 +160,8 @@ function calcMcLon(rowsAngles = []) {
       rowsAngles,
       rowsExtra,
       blueprintText: res.data,
+      houseCusps: Array.isArray(houseCusps) ? houseCusps : null,
+      houseSystem: houseSystem || null,
     });
     fs.writeFileSync(outPdf, pdfBuffer);
   }
@@ -167,6 +173,8 @@ function calcMcLon(rowsAngles = []) {
       displayName,
       ownerName: displayName,
       birthText,
+      houseCusps: Array.isArray(houseCusps) ? houseCusps : null,
+      houseSystem: houseSystem || null,
       wheelRotationDeg: Number.isFinite(Number(calcAscLon(rowsAngles)))
         ? 270 - Number(calcAscLon(rowsAngles))
         : 0,

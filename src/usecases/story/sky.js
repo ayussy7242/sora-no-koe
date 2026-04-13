@@ -154,7 +154,7 @@ function createSkyService({
     return buildPublicSkyList(transitBodies, aspectsList, { orbMaxDeg, max });
   }
 
-  function buildTouchPoints({ transitBodies, natalBodies, rules, withSigns = true }) {
+  function buildTouchPoints({ transitBodies, natalBodies, natalHouses, asOfISO, rules, withSigns = true }) {
     const results = [];
     const transitRaw = transitBodies || {};
     const natalRaw = natalBodies || {};
@@ -175,14 +175,24 @@ function createSkyService({
       const s = String(k || "").toLowerCase();
       return s === "chiron" || s === "lilith";
     };
-    const signIndexFromLon = (lon) => Math.floor(norm360(lon) / 30);
-    const ascLon = natalBodies?.asc;
-    const ascIndex = Number.isFinite(Number(ascLon)) ? signIndexFromLon(ascLon) : null;
-    const houseNumberForLon = (lon) => {
-      if (ascIndex == null || !Number.isFinite(Number(lon))) return null;
-      const signIndex = signIndexFromLon(lon);
-      return ((signIndex - ascIndex + 12) % 12) + 1;
-    };
+    const { resolveHouseNumber, HOUSE_BASIS } = require("../../domain/astro/houses");
+    const natalAscLon = Number.isFinite(Number(natalHouses?.angles?.asc))
+      ? Number(natalHouses.angles.asc)
+      : natalBodies?.asc;
+    const natalCusps = natalHouses?.cusps || null;
+    const houseNumberForNatal = (lon) =>
+      resolveHouseNumber({
+        basis: HOUSE_BASIS.NATAL_PERSONAL,
+        lonDeg: lon,
+        ascLonDeg: natalAscLon,
+        cusps: natalCusps,
+      });
+    const houseNumberForTransit = (lon) =>
+      resolveHouseNumber({
+        basis: HOUSE_BASIS.TOUCH_TRANSIT,
+        lonDeg: lon,
+        asOfISO,
+      });
 
     for (const t of transitKeys) {
       const tLon = transitMap[t];
@@ -203,13 +213,17 @@ function createSkyService({
         const orb = (isChironLilith(t) || isChironLilith(n)) ? 8 : baseOrb;
         if (best.delta > orb) continue;
 
+        const natalHouse = houseNumberForNatal(nLon);
+        const transitHouse = houseNumberForTransit(tLon);
         const base = {
           transit_body: t,
           natal_body_or_point: n,
           aspect: best.type,
           aspect_deg: best.aspect_deg,
           orb_deg: Number(best.delta.toFixed(2)),
-          house_focus: houseNumberForLon(nLon),
+          house_focus: natalHouse,
+          natal_house_focus: natalHouse,
+          transit_house_focus: transitHouse,
           keywords: [],
         };
 

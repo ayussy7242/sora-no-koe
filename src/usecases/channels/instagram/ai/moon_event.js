@@ -9,8 +9,7 @@ const {
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_RESONANCE,
   SORA_AI_USER_GUIDE_IG_MOON_EVENT_AIR,
 } = require("../../../../content/prompts/sora/sora_core");
-const { formatDateYmdHm } = require("../../../../domain/astro/compute");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
+const { formatDateYmdHm, resolveHouseNumber, HOUSE_BASIS } = require("../../../../domain/astro/compute");
 const { moonSignAtIso } = require("../../../../domain/moon/sign");
 const { runAiTextPipeline } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
@@ -35,11 +34,12 @@ function bodyHouseLabel({ dict, story, bodyKey }) {
   const transit = story?.public?.transit_signs || {};
   const ascKey = story?.public?.house_focus?.asc_sign_key || "";
   const signKey = transit?.[bodyKey]?.sign_key || "";
-  const ascIndex = signIndexFromKey(dict, ascKey);
-  const signIndex = signIndexFromKey(dict, signKey);
-  const houseNo = Number.isFinite(ascIndex) && Number.isFinite(signIndex)
-    ? houseNumberForSignIndex(signIndex, ascIndex)
-    : null;
+  const houseNo = resolveHouseNumber({
+    basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+    signKey,
+    ascSignKey: ascKey,
+    dict,
+  });
   return Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—";
 }
 
@@ -50,11 +50,12 @@ function buildMoonEventPlacementPrompt({ story, dict, event }) {
   const moonHouse = (() => {
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const moonKey = transit?.moon?.sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
-    const moonIndex = signIndexFromKey(dict, moonKey);
-    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
-      ? houseNumberForSignIndex(moonIndex, ascIndex)
-      : null;
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey: moonKey,
+      ascSignKey: ascKey,
+      dict,
+    });
     const core = houseCoreLabel(dict, houseNo);
     return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
   })();
@@ -84,22 +85,24 @@ function buildMoonEventSunMoonPrompt({ story, dict, event }) {
   const sunHouse = (() => {
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const sunKey = transit?.sun?.sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
-    const sunIndex = signIndexFromKey(dict, sunKey);
-    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(sunIndex)
-      ? houseNumberForSignIndex(sunIndex, ascIndex)
-      : null;
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey: sunKey,
+      ascSignKey: ascKey,
+      dict,
+    });
     const core = houseCoreLabel(dict, houseNo);
     return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
   })();
   const moonHouse = (() => {
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const moonKey = transit?.moon?.sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
-    const moonIndex = signIndexFromKey(dict, moonKey);
-    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
-      ? houseNumberForSignIndex(moonIndex, ascIndex)
-      : null;
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey: moonKey,
+      ascSignKey: ascKey,
+      dict,
+    });
     const core = houseCoreLabel(dict, houseNo);
     return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
   })();
@@ -189,11 +192,12 @@ function buildMoonEventCaptionPrompt({ story, dict, event, resonanceAspect }) {
   const sunHouse = (() => {
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const sunKey = transit?.sun?.sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
-    const sunIndex = signIndexFromKey(dict, sunKey);
-    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(sunIndex)
-      ? houseNumberForSignIndex(sunIndex, ascIndex)
-      : null;
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey: sunKey,
+      ascSignKey: ascKey,
+      dict,
+    });
     const core = houseCoreLabel(dict, houseNo);
     return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
   })();
@@ -201,11 +205,12 @@ function buildMoonEventCaptionPrompt({ story, dict, event, resonanceAspect }) {
   const moonHouse = (() => {
     const ascKey = story?.public?.house_focus?.asc_sign_key || "";
     const moonKey = transit?.moon?.sign_key || "";
-    const ascIndex = signIndexFromKey(dict, ascKey);
-    const moonIndex = signIndexFromKey(dict, moonKey);
-    const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
-      ? houseNumberForSignIndex(moonIndex, ascIndex)
-      : null;
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey: moonKey,
+      ascSignKey: ascKey,
+      dict,
+    });
     const core = houseCoreLabel(dict, houseNo);
     return core || (Number.isFinite(Number(houseNo)) ? `第${houseNo}ハウス` : "—");
   })();

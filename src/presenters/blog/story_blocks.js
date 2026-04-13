@@ -14,11 +14,7 @@ const {
   normalizeAspectKey,
 } = require("../../domain/canonical");
 const { formatTodayMoonLines, buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
-const {
-  computeTokyoAscDeg,
-  signIndexFromKey,
-  houseNumberForSignIndex,
-} = require("../../domain/astro/compute");
+const { resolveHouseNumber, HOUSE_BASIS } = require("../../domain/astro/compute");
 const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
 
 const BODY_ORDER = EXTENDED_PLANETS;
@@ -195,13 +191,6 @@ function buildMoonBlockHtml({ story, asOfISO }) {
   return parts.join("\n");
 }
 
-function houseNumberForSignKey(signKey, ascIndex) {
-  if (!signKey || ascIndex == null) return null;
-  const signIndex = signIndexFromKey(dict, signKey);
-  if (!Number.isFinite(signIndex) || signIndex < 0) return null;
-  return houseNumberForSignIndex(signIndex, ascIndex);
-}
-
 function buildBlogBlocks(story, opts = {}) {
   const pub = story?.public || {};
   const dateLocal = opts.dateLocal || story?.meta?.date_local || "";
@@ -210,16 +199,16 @@ function buildBlogBlocks(story, opts = {}) {
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, BODY_ORDER);
 
-  const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
-  const ascIndex = Number.isFinite(Number(ascDeg))
-    ? Math.floor((((Number(ascDeg) % 360) + 360) % 360) / 30)
-    : null;
-
   const positions = BODY_ORDER.map((key) => {
     const item = transitSigns[key];
     if (!item) return "";
     const signKey = normalizeSignKey(item?.sign_key || "");
-    const houseNo = houseNumberForSignKey(signKey, ascIndex);
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey,
+      asOfISO,
+      dict,
+    });
     return formatPositionLine({
       bodyKey: key,
       signKey,

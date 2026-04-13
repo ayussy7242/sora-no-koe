@@ -1,6 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../../domain/canonical");
+const { normalizeCusps } = require("../../domain/astro/houses");
 
 function createNatalService({ db, norm360 }) {
   async function loadNatalFromcache(appUserId) {
@@ -85,7 +86,39 @@ function createNatalService({ db, norm360 }) {
     return { ok, longitudes: out };
   }
 
-  return { loadNatalFromcache, extractNatalLongitudes };
+  function extractNatalHouses(natalCacheDoc) {
+    const d = natalCacheDoc || {};
+    const houses = d?.houses || null;
+    const system = houses?.system || d?.engine?.houses?.system || null;
+    const cusps = normalizeCusps(houses?.cusps || houses?.cusp || houses?.house || null);
+
+    const angles = houses?.angles || d?.min?.angles || d?.engine?.houses || null;
+    const asc =
+      angles?.asc ?? angles?.ASC ?? angles?.asc_deg ?? angles?.ASC_deg ??
+      d?.min?.asc ?? d?.min?.asc_deg ?? d?.asc ?? d?.ASC ?? null;
+    const mc =
+      angles?.mc ?? angles?.MC ?? angles?.mc_deg ?? angles?.MC_deg ??
+      d?.min?.mc ?? d?.min?.mc_deg ?? d?.mc ?? d?.MC ?? null;
+    const vertex =
+      angles?.vertex ?? angles?.vertex_deg ?? angles?.VERTEX ?? angles?.VERTEX_deg ??
+      d?.min?.vertex ?? d?.min?.vertex_deg ?? null;
+
+    const ok = !!(cusps && cusps.length === 12) || Number.isFinite(Number(asc));
+    return {
+      ok,
+      houses: {
+        system: system || null,
+        cusps: cusps || null,
+        angles: {
+          asc: Number.isFinite(Number(asc)) ? Number(asc) : null,
+          mc: Number.isFinite(Number(mc)) ? Number(mc) : null,
+          vertex: Number.isFinite(Number(vertex)) ? Number(vertex) : null,
+        },
+      },
+    };
+  }
+
+  return { loadNatalFromcache, extractNatalLongitudes, extractNatalHouses };
 }
 
 module.exports = { createNatalService };

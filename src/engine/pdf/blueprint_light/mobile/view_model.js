@@ -19,6 +19,8 @@ async function buildMobileV25ViewModel({
   blueprintText,
   bgImages: bgImagesInput,
   story: storyInput,
+  houseCusps,
+  houseSystem,
 }) {
   const ascLon = calcAscLon(rowsAngles);
   const mcLon = calcMcLon(rowsAngles);
@@ -55,6 +57,8 @@ async function buildMobileV25ViewModel({
       wheelRotationDeg,
       wheelAscLon: Number.isFinite(Number(ascLon)) ? Number(ascLon) : null,
       wheelMcLon: Number.isFinite(Number(mcLon)) ? Number(mcLon) : null,
+      houseCusps: Array.isArray(houseCusps) ? houseCusps : null,
+      houseSystem: houseSystem || null,
     },
   };
 }

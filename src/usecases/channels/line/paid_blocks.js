@@ -10,8 +10,9 @@ const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKe
 const { EXTENDED_PLANETS } = require("../../../domain/astro/constants");
 const {
   computeTokyoAscDeg,
-  signIndexFromKey,
-  houseNumberForSignIndex,
+  signKeyFromLon,
+  resolveHouseNumber,
+  HOUSE_BASIS,
   formatDateYmd,
   findAspectWindow,
   findTransitTransitWindow,
@@ -97,7 +98,11 @@ function buildBunpuTop5(story, dict) {
     else if (degRaw === 72 || degRaw === 144) micro.c72_144 += 1;
     else if (degRaw === 40 || degRaw === 80 || degRaw === 160) micro.c40_80_160 += 1;
 
-    const house = Number(row?.item?.house_focus);
+    const house = Number(
+      row?.item?.natal_house_focus ??
+      row?.item?.house_focus ??
+      row?.item?.transit_house_focus
+    );
     if (Number.isFinite(house) && house >= 1 && house <= 12) {
       houseCounts[house] = (houseCounts[house] || 0) + 1;
     }
@@ -124,16 +129,7 @@ function buildBunpuTop5(story, dict) {
 
 function buildHouseBlock(story, dict, asOfISO) {
   const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
-  const ascIndex = Number.isFinite(Number(ascDeg)) ? Math.floor(Number(ascDeg) / 30) : null;
-
-  const transitSigns = story?.public?.transit_signs || {};
-  const bodyOrder = EXTENDED_PLANETS;
-
-  const houseBuckets = new Map();
-  for (let i = 1; i <= 12; i++) houseBuckets.set(i, { items: [], score: 0, signKey: null, signJa: null, signGlyph: null });
-
-  const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
-
+  const ascSignKey = Number.isFinite(Number(ascDeg)) ? signKeyFromLon(Number(ascDeg)) : null;
   const signOrder =
     dict?.SIGNS_V2?.order ||
     dict?.SIGNS?.order ||
@@ -151,6 +147,15 @@ function buildHouseBlock(story, dict, asOfISO) {
       "aquarius",
       "pisces",
     ];
+  const ascIndex = ascSignKey ? signOrder.indexOf(ascSignKey) : null;
+
+  const transitSigns = story?.public?.transit_signs || {};
+  const bodyOrder = EXTENDED_PLANETS;
+
+  const houseBuckets = new Map();
+  for (let i = 1; i <= 12; i++) houseBuckets.set(i, { items: [], score: 0, signKey: null, signJa: null, signGlyph: null });
+
+  const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
   if (ascIndex != null && ascIndex >= 0) {
     for (let h = 1; h <= 12; h++) {
@@ -166,9 +171,12 @@ function buildHouseBlock(story, dict, asOfISO) {
     const signKeyRaw = transitSigns?.[key]?.sign_key || "";
     const signKey = String(signKeyRaw || "").toLowerCase();
     const signJaLabel = transitSigns?.[key]?.sign_ja || signJa(dict, signKey || "");
-    const signIndex = signIndexFromKey(dict, signKey || "");
-    if (signIndex < 0 || ascIndex == null) return;
-    const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey,
+      asOfISO,
+      dict,
+    });
     if (!houseNo) return;
     const glyph = glyphForBody(key);
     const retro = retroMap[key] ? `${SPEC.retro.joiner}${SPEC.retro.short}` : "";

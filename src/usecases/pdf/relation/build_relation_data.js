@@ -35,6 +35,7 @@ const {
   pickDominantElementKey,
   topTwoFromCounts,
 } = require("../../../engine/pdf/relation/formatters");
+const { houseNumberForLonCusps, houseNumberForLonWholeSign } = require("../../../domain/astro/houses");
 
 function mergeUniqueBodies(base = [], extra = []) {
   const seen = new Set(base.map((row) => row?.body_key).filter(Boolean));
@@ -343,23 +344,24 @@ function assignConnections({ candidates = [], category = "", max = 6, used = new
   return picked;
 }
 
-function houseNumberForLon(lon, ascLon) {
-  if (!Number.isFinite(Number(lon)) || !Number.isFinite(Number(ascLon))) return null;
-  const signIndex = Math.floor(((Number(lon) % 360) + 360) % 360 / 30);
-  const ascIndex = Math.floor(((Number(ascLon) % 360) + 360) % 360 / 30);
-  return ((signIndex - ascIndex + 12) % 12) + 1;
+function houseNumberForLon(lon, ascLon, cusps) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const byCusps = houseNumberForLonCusps(lon, cusps);
+  if (Number.isFinite(Number(byCusps))) return byCusps;
+  return houseNumberForLonWholeSign(lon, ascLon);
 }
 
-function buildHouseOverlayRows({ ownerPlanets = [], guestPlanets = [], ownerName = "A", guestName = "B" } = {}) {
+function buildHouseOverlayRows({ ownerPlanets = [], guestPlanets = [], ownerHouses, ownerName = "A", guestName = "B" } = {}) {
   const asc = ownerPlanets.find((p) => p?.body_key === "asc");
-  const ascLon = asc?.lon_deg;
+  const ascLon = ownerHouses?.angles?.asc ?? asc?.lon_deg;
+  const cusps = ownerHouses?.cusps || null;
   if (!Number.isFinite(Number(ascLon))) return [];
   const out = [];
   for (const row of guestPlanets) {
     if (!row?.body_key || !Number.isFinite(Number(row?.lon_deg))) continue;
     if (AXIS_BODIES.has(row.body_key)) continue;
     if (DEEP_BODIES.has(row.body_key)) continue;
-    const house = houseNumberForLon(row.lon_deg, ascLon);
+    const house = houseNumberForLon(row.lon_deg, ascLon, cusps);
     if (!Number.isFinite(Number(house))) continue;
     const label = row?.body_glyph || row?.body_ja || formatBodyKeyShort(row?.body_key);
     out.push(`${guestName} ${label} → ${ownerName} ${house}H`);
@@ -386,6 +388,7 @@ function parseAiLines(text = "") {
 function buildHouseIngressSection({
   ownerPlanets = [],
   guestPlanets = [],
+  ownerHouses,
   ownerName = "A",
   guestName = "B",
   maxHouses = 5,
@@ -393,7 +396,8 @@ function buildHouseIngressSection({
   aiSummary = "",
 } = {}) {
   const asc = ownerPlanets.find((p) => p?.body_key === "asc");
-  const ascLon = asc?.lon_deg;
+  const ascLon = ownerHouses?.angles?.asc ?? asc?.lon_deg;
+  const cusps = ownerHouses?.cusps || null;
   const heading = `${shortName(guestName)} → ${shortName(ownerName)}`;
   if (!Number.isFinite(Number(ascLon))) return { heading, houses: [], summary: "" };
 
@@ -402,7 +406,7 @@ function buildHouseIngressSection({
   for (const row of guestPlanets) {
     if (!row?.body_key || !Number.isFinite(Number(row?.lon_deg))) continue;
     if (AXIS_BODIES.has(row.body_key)) continue;
-    const house = houseNumberForLon(row.lon_deg, ascLon);
+    const house = houseNumberForLon(row.lon_deg, ascLon, cusps);
     if (!Number.isFinite(Number(house))) continue;
     const label = [row.body_glyph, row.body_ja].filter(Boolean).join(" ").trim();
     if (!label) continue;
@@ -806,6 +810,8 @@ function deriveRelationData(view) {
   const bPlanetsRaw = view?.planet_matrix?.b || [];
   const aName = view?.people?.a?.name || "A";
   const bName = view?.people?.b?.name || "B";
+  const aHouses = view?.houses?.a || null;
+  const bHouses = view?.houses?.b || null;
 
   const aDeepAll = Array.isArray(view?.deep_points?.a) ? view.deep_points.a : [];
   const bDeepAll = Array.isArray(view?.deep_points?.b) ? view.deep_points.b : [];
@@ -1008,6 +1014,7 @@ function deriveRelationData(view) {
     buildHouseIngressSection({
       ownerPlanets: aFull,
       guestPlanets: bFull,
+      ownerHouses: aHouses,
       ownerName: aName,
       guestName: bName,
       aiLines: houseAiLinesA,
@@ -1016,6 +1023,7 @@ function deriveRelationData(view) {
     buildHouseIngressSection({
       ownerPlanets: bFull,
       guestPlanets: aFull,
+      ownerHouses: bHouses,
       ownerName: bName,
       guestName: aName,
       aiLines: houseAiLinesB,

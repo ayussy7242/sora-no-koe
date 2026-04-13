@@ -36,6 +36,8 @@ async function renderPdfBuffer({
   blueprintText,
   bgImages,
   story,
+  houseCusps,
+  houseSystem,
 }) {
   const resolved = manifest || { variant: "print" };
   if (resolved.variant === "mobile") {
@@ -50,6 +52,8 @@ async function renderPdfBuffer({
         blueprintText,
         bgImages,
         story,
+        houseCusps,
+        houseSystem,
       });
     }
     return renderPdfBufferMobile({

@@ -13,7 +13,7 @@ const {
   formatAspectDisplay,
   formatElementModalityLines,
 } = require("../format/format/common");
-const { computeTokyoAscDeg, signIndexFromKey, houseNumberForSignIndex } = require("../../domain/astro/compute");
+const { resolveHouseNumber, HOUSE_BASIS } = require("../../domain/astro/compute");
 const {
   listWithOrb,
   filterWithinOrb,
@@ -161,14 +161,14 @@ async function renderSoraLine(story, deps = {}) {
   const transitSigns = pub.transit_signs || {};
   const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
 
-  const ascDeg = includeHouse && asOfISO ? computeTokyoAscDeg(asOfISO) : null;
-  const ascIndex = Number.isFinite(Number(ascDeg)) ? Math.floor(Number(ascDeg) / 30) : null;
-
   const houseLabelFor = (signKey) => {
-    if (ascIndex == null) return "";
-    const idx = signIndexFromKey(dict, signKey || "");
-    if (idx < 0) return "";
-    const houseNo = houseNumberForSignIndex(idx, ascIndex);
+    if (!includeHouse || !asOfISO) return "";
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey,
+      asOfISO,
+      dict,
+    });
     return houseNo ? `｜第${houseNo}ハウス` : "";
   };
 

@@ -34,6 +34,19 @@ function extractFromKernel({ kernel, input, p }) {
   const story = input?.story || input?.kernel?.story;
   if (story) {
     try {
+      const normalizeCusps = (raw) => {
+        if (!Array.isArray(raw)) return null;
+        const list = raw.length === 13 ? raw.slice(1) : raw;
+        if (list.length !== 12) return null;
+        const vals = list.map((v) => Number(v));
+        if (vals.some((v) => !Number.isFinite(v))) return null;
+        return vals;
+      };
+      const houseCusps =
+        normalizeCusps(input?.houseCusps || input?.house_cusps || input?.wheelHouseCusps || input?.wheel_house_cusps) ||
+        normalizeCusps(input?.blueprint?.house_cusps || input?.blueprint?.houseCusps) ||
+        null;
+      const houseSystem = input?.houseSystem || input?.house_system || input?.wheelHouseSystem || input?.wheel_house_system || null;
       const rotationDeg = Number.isFinite(Number(input?.wheelRotationDeg))
         ? Number(input.wheelRotationDeg)
         : 0;
@@ -47,6 +60,8 @@ function extractFromKernel({ kernel, input, p }) {
         showAspects: false,
         ascLonDeg,
         mcLonDeg,
+        houseCusps,
+        houseSystem,
       });
     } catch (_) {
       // keep placeholder if wheel fails

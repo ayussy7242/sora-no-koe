@@ -11,7 +11,7 @@ const {
   moonEventRelationInfo,
   moonEventNameLineEn,
 } = require("../../../domain/moon");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../domain/astro/compute");
+const { resolveHouseNumber, HOUSE_BASIS } = require("../../../domain/astro/compute");
 const { pickMoonResonanceAspect } = require("./moon_event");
 const { aspectLabelJa, aspectCircuitLabel } = require("./shared/aspects");
 const { signLabelEnFromKey } = require("./shared/signs");
@@ -137,11 +137,12 @@ function buildMoonEventPlacementBlock({
   const moonDegLabel = Number.isFinite(moonDeg) ? `${moonDeg.toFixed(1)}°` : "";
   const moonKey = moonPos?.key || transit?.moon?.sign_key || "";
   const ascKey = story?.public?.house_focus?.asc_sign_key || "";
-  const ascIndex = signIndexFromKey(dict, ascKey);
-  const moonIndex = signIndexFromKey(dict, moonKey);
-  const houseNo = Number.isFinite(ascIndex) && Number.isFinite(moonIndex)
-    ? houseNumberForSignIndex(moonIndex, ascIndex)
-    : null;
+  const houseNo = resolveHouseNumber({
+    basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+    signKey: moonKey,
+    ascSignKey: ascKey,
+    dict,
+  });
   const houseLabel = Number.isFinite(Number(houseNo)) ? `${houseNo}H` : "";
 
   const moonStatus = buildMoonStatus({ asOfISO: eventIso || story?.meta?.as_of, story, dict });

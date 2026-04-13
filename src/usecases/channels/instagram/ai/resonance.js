@@ -7,7 +7,7 @@ const {
   SORA_AI_USER_GUIDE_IG_RESONANCE_CAPTION,
 } = require("../../../../content/prompts/sora/sora_core");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../../../domain/astro/compute");
+const { resolveHouseNumber, HOUSE_BASIS } = require("../../../../domain/astro/compute");
 const { aspectInfo, signJa } = require("../../../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../../../presenters/shared/text/tokens");
 const { safeTrim } = require("../../../../utils/text/normalize");
@@ -52,13 +52,20 @@ function buildResonanceHouseLines({ story, dict, aspect }) {
   const ascKey = focus?.asc_sign_key || null;
   if (!ascKey || !aspect) return { aHouse: "", bHouse: "" };
 
-  const ascIndex = signIndexFromKey(dict, ascKey);
   const aSignKey = aspect?.a_sign_key || null;
   const bSignKey = aspect?.b_sign_key || null;
-  const aIndex = aSignKey ? signIndexFromKey(dict, aSignKey) : -1;
-  const bIndex = bSignKey ? signIndexFromKey(dict, bSignKey) : -1;
-  const aHouse = Number.isFinite(aIndex) && aIndex >= 0 ? houseNumberForSignIndex(aIndex, ascIndex) : null;
-  const bHouse = Number.isFinite(bIndex) && bIndex >= 0 ? houseNumberForSignIndex(bIndex, ascIndex) : null;
+  const aHouse = resolveHouseNumber({
+    basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+    signKey: aSignKey,
+    ascSignKey: ascKey,
+    dict,
+  });
+  const bHouse = resolveHouseNumber({
+    basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+    signKey: bSignKey,
+    ascSignKey: ascKey,
+    dict,
+  });
 
   return {
     aHouse: aHouse ? `第${aHouse}ハウス` : "",

@@ -24,9 +24,8 @@ const { SPEC, resolveBlogResonanceOrbLimit } = require("../../../../config/sora_
 const { buildRetrogradeMap } = require("../../../../domain/astro/retrograde");
 const { weightForBody } = require("../../../../domain/touch_point/scoring");
 const {
-  computeTokyoAscDeg,
-  signIndexFromKey,
-  houseNumberForSignIndex,
+  resolveHouseNumber,
+  HOUSE_BASIS,
   formatDateYmd,
   formatDateYmdHm,
 } = require("../../../../domain/astro/compute");
@@ -582,10 +581,8 @@ async function generateDailyDraft({ story, dateLocal, openai }) {
 
 function buildHouseRowsPublic(story, asOfISO) {
   const transitSigns = story?.public?.transit_signs || {};
-  const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
-  const ascIndex = Number.isFinite(Number(ascDeg))
-    ? Math.floor((((Number(ascDeg) % 360) + 360) % 360) / 30)
-    : null;
+  const ascSignKey = story?.public?.house_focus?.asc_sign_key || null;
+  const ascIndex = ascSignKey ? BLOG_STRUCT_SIGN_ORDER.indexOf(ascSignKey) : null;
 
   const retroMap = buildRetrogradeMap(asOfISO, BLOG_STRUCT_BODY_ORDER);
 
@@ -605,9 +602,12 @@ function buildHouseRowsPublic(story, asOfISO) {
   BLOG_STRUCT_BODY_ORDER.forEach((key) => {
     const signKeyRaw = transitSigns?.[key]?.sign_key || "";
     const signKey = normalizeSignKey(signKeyRaw || "");
-    const signIndex = signIndexFromKey(dict, signKey || "");
-    if (signIndex < 0 || ascIndex == null) return;
-    const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey,
+      asOfISO,
+      dict,
+    });
     const bucket = buckets.get(houseNo);
     if (!bucket) return;
 
@@ -870,10 +870,6 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const retroMap = buildRetrogradeMap(asOfISO, BLOG_STRUCT_BODY_ORDER);
   const retroBodies = BLOG_STRUCT_BODY_ORDER.filter((k) => retroMap[k]);
 
-  const ascDeg = computeTokyoAscDeg(asOfISO);
-  const ascIndex = Number.isFinite(Number(ascDeg))
-    ? Math.floor((((Number(ascDeg) % 360) + 360) % 360) / 30)
-    : null;
   const bodyHouseMap = new Map();
 
   const strata = pub.sky_strata || {};
@@ -951,11 +947,13 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const info = transit?.[key];
     if (!info) continue;
     const signKey = normalizeSignKey(info.sign_key || "");
-    const signIndex = signIndexFromKey(dict, signKey || "");
-    if (signIndex >= 0 && ascIndex != null) {
-      const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
-      if (houseNo) bodyHouseMap.set(key, houseNo);
-    }
+    const houseNo = resolveHouseNumber({
+      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+      signKey,
+      asOfISO,
+      dict,
+    });
+    if (houseNo) bodyHouseMap.set(key, houseNo);
     const glyph = bodyGlyph(key);
     const bodyLabel = bodyLabelJa(dict, key);
     const retroSuffix = retroMap[key] ? "（R）" : "";

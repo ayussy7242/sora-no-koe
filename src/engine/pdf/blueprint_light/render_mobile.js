@@ -182,6 +182,8 @@ async function renderPdfBufferMobileV25({
   blueprintText,
   bgImages: bgImagesInput,
   story: storyInput,
+  houseCusps,
+  houseSystem,
 }) {
   const view = await buildMobileV25ViewModel({
     displayName,
@@ -192,6 +194,8 @@ async function renderPdfBufferMobileV25({
     blueprintText,
     bgImages: bgImagesInput,
     story: storyInput,
+    houseCusps,
+    houseSystem,
   });
   const html = buildBlueprintV25WireframeHtml({
     data: view.data,

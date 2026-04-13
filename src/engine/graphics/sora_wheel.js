@@ -166,6 +166,8 @@ function buildSoraWheelSvg({
   aspects = null,
   ascLonDeg = null,
   mcLonDeg = null,
+  houseCusps = null,
+  houseSystem = null,
   highlightBodies = null,
   highlightAspect = null,
   dimOpacity = null,
@@ -179,6 +181,18 @@ function buildSoraWheelSvg({
   const cy = h / 2;
   const rotation = Number.isFinite(Number(rotationDeg)) ? Number(rotationDeg) : 0;
   const applyRotation = (deg) => normalizeDeg(Number(deg) + rotation);
+  const normalizeCusps = (input) => {
+    if (!Array.isArray(input)) return null;
+    const raw = input.length === 13 ? input.slice(1) : input;
+    if (raw.length !== 12) return null;
+    const vals = raw.map((v) => Number(v));
+    if (vals.some((v) => !Number.isFinite(v))) return null;
+    return vals.map((v) => normalizeDeg(v));
+  };
+  const systemKey = String(houseSystem || "").trim().toLowerCase();
+  const isWholeSignSystem = ["w", "whole", "whole_sign", "whole-sign", "whole sign"].includes(systemKey);
+  const normalizedCusps = normalizeCusps(houseCusps);
+  const useCusps = !!(normalizedCusps && !isWholeSignSystem);
 
   // Radius design
   const outerR = w * 0.40;
@@ -213,6 +227,9 @@ function buildSoraWheelSvg({
   );
   let ascLon = Number.isFinite(Number(ascLonDeg)) ? Number(ascLonDeg) : (Number.isFinite(ascLonFromStory) ? ascLonFromStory : null);
   const mcLon = Number.isFinite(Number(mcLonDeg)) ? Number(mcLonDeg) : (Number.isFinite(mcLonFromStory) ? mcLonFromStory : null);
+  if (!Number.isFinite(Number(ascLon)) && useCusps) {
+    ascLon = normalizedCusps[0];
+  }
   if (!Number.isFinite(Number(ascLon))) {
     const ascKey = String(pub?.house_focus?.asc_sign_key || "").toLowerCase();
     const ascIndex = SIGN_INDEX.get(ascKey);
@@ -396,15 +413,29 @@ function buildSoraWheelSvg({
 
   const houseLines = [];
   const houseLabels = [];
-  if (showHouses && Number.isFinite(Number(ascLon))) {
-    for (let i = 0; i < 12; i += 1) {
-      const deg = Number(ascLon) + i * 30;
-      const p1 = polarToCartesian(cx, cy, houseInnerR, applyRotation(deg));
-      const p2 = polarToCartesian(cx, cy, houseOuterR, applyRotation(deg));
-      houseLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
-      const labelDeg = Number(ascLon) + i * 30 + 15;
-      const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(labelDeg));
-      houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
+  if (showHouses) {
+    if (useCusps) {
+      for (let i = 0; i < 12; i += 1) {
+        const start = normalizedCusps[i];
+        const end = normalizedCusps[(i + 1) % 12];
+        const span = ((end - start + 360) % 360);
+        const mid = start + span / 2;
+        const p1 = polarToCartesian(cx, cy, houseInnerR, applyRotation(start));
+        const p2 = polarToCartesian(cx, cy, houseOuterR, applyRotation(start));
+        houseLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(mid));
+        houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
+      }
+    } else if (Number.isFinite(Number(ascLon))) {
+      for (let i = 0; i < 12; i += 1) {
+        const deg = Number(ascLon) + i * 30;
+        const p1 = polarToCartesian(cx, cy, houseInnerR, applyRotation(deg));
+        const p2 = polarToCartesian(cx, cy, houseOuterR, applyRotation(deg));
+        houseLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+        const labelDeg = Number(ascLon) + i * 30 + 15;
+        const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(labelDeg));
+        houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
+      }
     }
   }
 

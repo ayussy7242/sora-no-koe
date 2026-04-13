@@ -252,6 +252,8 @@ async function main() {
       displayName: name,
       ownerName: name,
       birthText,
+      houseCusps: Array.isArray(natal?.houses?.cusps) ? natal.houses.cusps : null,
+      houseSystem: natal?.houses?.system || null,
       wheelRotationDeg: Number.isFinite(Number(calcAscLon(rowsAngles)))
         ? 270 - Number(calcAscLon(rowsAngles))
         : 0,

@@ -184,6 +184,8 @@ function canonicalizeTouchPoint(tp = {}) {
   out.aspect_deg = aspectDeg != null ? aspectDeg : tp?.aspect_deg;
 
   out.house_focus = normalizeHouse(tp?.house_focus ?? tp?.house ?? tp?.house_no ?? tp?.house_num ?? null);
+  out.natal_house_focus = normalizeHouse(tp?.natal_house_focus ?? tp?.natal_house ?? null);
+  out.transit_house_focus = normalizeHouse(tp?.transit_house_focus ?? tp?.transit_house ?? null);
 
   return out;
 }

@@ -375,6 +375,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       blueprintText: useV25 ? aiData : null,
       bgImages,
       story,
+      houseCusps: Array.isArray(cusps) ? cusps : null,
+      houseSystem: houseSystem || null,
       bodyTextByKey: mapped?.bodyTextByKey,
       angleTextByKey: mapped?.angleTextByKey,
       chironText: mapped?.chironText,
@@ -462,6 +464,8 @@ function createBlueprintLightService({ db, admin, storage, env, dict }) {
       blueprintText: aiData,
       bgImages,
       story,
+      houseCusps: Array.isArray(cusps) ? cusps : null,
+      houseSystem: houseSystem || null,
     });
 
     await blueprintStorage.savePdf(lineUserId, pdfBuffer, manifest.variant);

@@ -33,8 +33,8 @@ const { createSkyService } = require("./sky");
 const { resolveDisplayNameFromUserDoc } = require("../../utils/text/display_name");
 const {
   computeTokyoAscDeg,
-  signIndexFromKey,
-  houseNumberForSignIndex,
+  resolveHouseNumber,
+  HOUSE_BASIS,
   pickApplyingUpcomingAspects,
   findTransitTransitWindow,
   formatDateYmdHm,
@@ -107,7 +107,7 @@ function createStoryService({
     norm360,
     safeNumber,
   });
-  const { loadNatalFromcache, extractNatalLongitudes } = createNatalService({ db, norm360 });
+  const { loadNatalFromcache, extractNatalLongitudes, extractNatalHouses } = createNatalService({ db, norm360 });
   const {
     attachSignsToSkyList,
     computeSkyStrataFromTransits,
@@ -164,14 +164,17 @@ function createStoryService({
     // ✅ public house focus (Tokyo / whole sign)
     const ascDeg = computeTokyoAscDeg(asOfISO);
     const ascSign = Number.isFinite(Number(ascDeg)) ? signFromLon(ascDeg) : null;
-    const ascIndex = ascSign ? signIndexFromKey(SIGNS, ascSign.sign_key) : null;
     const houseCounts = {};
-    if (ascIndex != null && publicObj.transit_signs) {
+    if (publicObj.transit_signs) {
       Object.values(publicObj.transit_signs).forEach((item) => {
         const signKey = item?.sign_key;
         if (!signKey) return;
-        const signIndex = signIndexFromKey(SIGNS, signKey);
-        const houseNo = houseNumberForSignIndex(signIndex, ascIndex);
+        const houseNo = resolveHouseNumber({
+          basis: HOUSE_BASIS.TRANSIT_PUBLIC,
+          signKey,
+          asOfISO,
+          dict: SIGNS,
+        });
         if (!houseNo) return;
         houseCounts[houseNo] = (houseCounts[houseNo] || 0) + 1;
       });
@@ -372,7 +375,7 @@ function createStoryService({
     return { element, modality, bodies_counted: counted };
   }
 
-  function buildPersonalStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg, touchPointsAll, natalLongitudes }) {
+  function buildPersonalStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg, touchPointsAll, natalLongitudes, natalHouses }) {
     const story = baseStory({ appUserId, displayName, dateLocal, asOfISO, transitInfo, rules, precisionDeg });
 
     // ✅ 三層にするには Top3 じゃなく候補も必要
@@ -395,6 +398,7 @@ function createStoryService({
 
       // ✅ ネイタル構造（元素/三区分）
       natal_summary: buildNatalSummaryFromLongitudes(natalLongitudes || {}),
+      natal_houses: natalHouses || null,
     };
 
     attachResonanceBullets(story, { allowPersonal: true });
@@ -484,9 +488,13 @@ function createStoryService({
       });
     }
 
+    const extractedHouses = extractNatalHouses(natalCache);
+
     const touchAll = buildTouchPoints({
       transitBodies: transitInfo.bodies,
       natalBodies: extracted.longitudes,
+      natalHouses: extractedHouses?.houses || null,
+      asOfISO,
       rules,
       withSigns: true,
     });
@@ -501,6 +509,7 @@ function createStoryService({
       precisionDeg: prec,
       touchPointsAll: touchAll,
       natalLongitudes: extracted.longitudes,
+      natalHouses: extractedHouses?.houses || null,
     });
   }
 
