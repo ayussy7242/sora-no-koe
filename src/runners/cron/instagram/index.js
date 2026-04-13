@@ -52,6 +52,18 @@ const {
 
 const IG_DENSITY_BOOST = 1.2;
 
+function resolveDensityBoost(env = {}, slotKey = "") {
+  const base = Number(env.IG_DENSITY_BOOST);
+  if (slotKey === "night") {
+    const night = Number(env.IG_NIGHT_DENSITY_BOOST);
+    if (Number.isFinite(night)) return night;
+    if (Number.isFinite(base)) return base;
+    return IG_DENSITY_BOOST * 2;
+  }
+  if (Number.isFinite(base)) return base;
+  return IG_DENSITY_BOOST;
+}
+
 function resolveBackgroundCache(env = {}) {
   const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
   const enabled = !["0", "false", "off", "no"].includes(enabledRaw);
@@ -298,7 +310,7 @@ async function runIgPost(deps, opts = {}) {
         : "cosmic_crimson";
     carousel.spaceConfig = applySpaceConfigBoost(
       buildCosmicSpaceConfig(presetName, carousel.spaceConfig),
-      { densityBoost: IG_DENSITY_BOOST }
+      { densityBoost: resolveDensityBoost(env2, slotKey) }
     );
     const topAspect = igOut?.source?.resonance_aspect || story?.public?.sky_top?.[0] || story?.public?.sky_all?.[0] || null;
     const caption = slotKey

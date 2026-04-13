@@ -17,6 +17,14 @@ const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../.
 
 const IG_DENSITY_BOOST = 1.2;
 
+function resolveStoryDensityBoost(env = {}) {
+  const story = Number(env.IG_STORY_DENSITY_BOOST);
+  if (Number.isFinite(story)) return story;
+  const base = Number(env.IG_DENSITY_BOOST);
+  if (Number.isFinite(base)) return base;
+  return IG_DENSITY_BOOST * 2;
+}
+
 function addDays(dateLocal, days = 1) {
   const base = new Date(`${dateLocal}T00:00:00+09:00`);
   if (Number.isNaN(base.getTime())) return null;
@@ -179,8 +187,8 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
   if (!textOnly && !storageClient && !localOnly) throw new Error("storage missing");
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
-  const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
   const asOfNowISO = opts.asOfNowISO || new Date().toISOString();
+  const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
   const tomorrowLocal = addDays(dateLocal, 1);
   const asOfTomorrowISO = opts.asOfTomorrowISO || (tomorrowLocal ? asOfIsoFromDateLocalJST(tomorrowLocal) : asOfISO);
   const dryRun = opts.dryRun === true || opts.dry_run === true;
@@ -273,7 +281,7 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
     if (!textOnly) {
       const baseSpaceConfig = applySpaceConfigBoost(
         buildCosmicSpaceConfig("cosmic_default"),
-        { densityBoost: IG_DENSITY_BOOST }
+        { densityBoost: resolveStoryDensityBoost(env2) }
       );
       const todaySpace = mergeSpaceConfig(baseSpaceConfig, buildTodaySpaceConfig({ story, dict }));
       const resonanceAspect =
