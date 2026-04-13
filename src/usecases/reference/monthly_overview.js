@@ -483,6 +483,19 @@ function buildPeaksFromAspects(aspects, maxItems) {
   return out;
 }
 
+function buildAspectPeaksForCalendar(aspects) {
+  const picked = new Map();
+  (aspects || []).forEach((aspect) => {
+    if (!aspect?.a || !aspect?.b || !aspect?.aspect_key) return;
+    const key = `${aspect.a}|${aspect.b}|${aspect.aspect_key}`;
+    const prev = picked.get(key);
+    if (!prev || Number(aspect.orb_deg) < Number(prev.orb_deg)) {
+      picked.set(key, aspect);
+    }
+  });
+  return Array.from(picked.values());
+}
+
 function buildHighlights({
   newMoon,
   fullMoon,
@@ -767,9 +780,9 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
         });
 
         const aspectByDate = new Map();
-        listByKey.aspects.forEach((aspect) => {
+        const aspectPeaks = buildAspectPeaksForCalendar(listByKey.aspects);
+        aspectPeaks.forEach((aspect) => {
           if (!aspect?.date_local) return;
-          if (String(aspect.aspect_key || "") !== "conjunction") return;
           const current = aspectByDate.get(aspect.date_local);
           if (!current || Number(aspect.orb_deg) < Number(current.orb_deg)) {
             aspectByDate.set(aspect.date_local, aspect);
