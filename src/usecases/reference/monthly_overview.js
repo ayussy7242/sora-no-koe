@@ -922,7 +922,8 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
           });
         });
 
-        listByKey.aspects.forEach((aspect) => {
+        const aspectPeaks = buildAspectPeaksForCalendar(listByKey.aspects);
+        aspectPeaks.forEach((aspect) => {
           const aLabel = planetLabelWithSign(useDict, aspect.a, aspect.date_local);
           const bLabel = planetLabelWithSign(useDict, aspect.b, aspect.date_local);
           const symbol = aspectSymbol(aspect.aspect_key);
