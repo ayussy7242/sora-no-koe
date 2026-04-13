@@ -37,9 +37,12 @@ const ASPECT_PLANETS = [
   "mars",
   "jupiter",
   "saturn",
+  "uranus",
+  "neptune",
+  "pluto",
 ];
 const ASPECT_ORB_LIMIT = 2;
-const ASPECT_MAX_ITEMS = 5;
+const ASPECT_MAX_ITEMS = 0;
 const PEAK_MAX_ITEMS = 3;
 const HIGHLIGHT_MAX_ITEMS = 6;
 const HIGHLIGHT_RETRO_LIMIT = 2;
@@ -437,7 +440,7 @@ function buildMonthlyAspects({ month, planets, aspects, orbLimit, maxItems }) {
         for (const aspect of aspects) {
           const orb = Math.abs(Number(dist) - Number(aspect.deg));
           if (!Number.isFinite(orb) || orb > orbLimit) continue;
-          const key = `${a}|${b}|${aspect.key}`;
+          const key = `${dateLocal}|${a}|${b}|${aspect.key}`;
           const prev = candidates.get(key);
           if (!prev || orb < prev.orb_deg) {
             candidates.set(key, {
@@ -455,7 +458,11 @@ function buildMonthlyAspects({ month, planets, aspects, orbLimit, maxItems }) {
   }
 
   const list = Array.from(candidates.values());
-  list.sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+  list.sort((a, b) => {
+    if (a.date_local !== b.date_local) return String(a.date_local).localeCompare(String(b.date_local));
+    return Number(a.orb_deg) - Number(b.orb_deg);
+  });
+  if (!Number.isFinite(Number(maxItems)) || Number(maxItems) <= 0) return list;
   return list.slice(0, maxItems);
 }
 
@@ -762,6 +769,7 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
         const aspectByDate = new Map();
         listByKey.aspects.forEach((aspect) => {
           if (!aspect?.date_local) return;
+          if (String(aspect.aspect_key || "") !== "conjunction") return;
           const current = aspectByDate.get(aspect.date_local);
           if (!current || Number(aspect.orb_deg) < Number(current.orb_deg)) {
             aspectByDate.set(aspect.date_local, aspect);
