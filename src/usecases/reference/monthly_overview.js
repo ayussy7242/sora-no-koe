@@ -41,6 +41,8 @@ const ASPECT_PLANETS = [
   "neptune",
   "pluto",
 ];
+const OUTER_PLANETS = new Set(["uranus", "neptune", "pluto"]);
+const PERSONAL_PLANETS = new Set(["sun", "moon", "mercury", "venus", "mars"]);
 const ASPECT_ORB_LIMIT = 2;
 const ASPECT_MAX_ITEMS = 0;
 const PEAK_MAX_ITEMS = 3;
@@ -496,6 +498,33 @@ function buildAspectPeaksForCalendar(aspects) {
   return Array.from(picked.values());
 }
 
+function hasOuterPlanet(aspect) {
+  const a = String(aspect?.a || "");
+  const b = String(aspect?.b || "");
+  return OUTER_PLANETS.has(a) || OUTER_PLANETS.has(b);
+}
+
+function hasPersonalPlanet(aspect) {
+  const a = String(aspect?.a || "");
+  const b = String(aspect?.b || "");
+  return PERSONAL_PLANETS.has(a) || PERSONAL_PLANETS.has(b);
+}
+
+function compareCalendarAspects(a, b) {
+  const orbA = Number(a?.orb_deg);
+  const orbB = Number(b?.orb_deg);
+  if (Number.isFinite(orbA) && Number.isFinite(orbB) && orbA !== orbB) {
+    return orbA - orbB;
+  }
+  const outerA = hasOuterPlanet(a);
+  const outerB = hasOuterPlanet(b);
+  if (outerA !== outerB) return outerA ? -1 : 1;
+  const personalA = hasPersonalPlanet(a);
+  const personalB = hasPersonalPlanet(b);
+  if (personalA !== personalB) return personalA ? -1 : 1;
+  return 0;
+}
+
 function buildHighlights({
   newMoon,
   fullMoon,
@@ -784,7 +813,7 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
         aspectPeaks.forEach((aspect) => {
           if (!aspect?.date_local) return;
           const current = aspectByDate.get(aspect.date_local);
-          if (!current || Number(aspect.orb_deg) < Number(current.orb_deg)) {
+          if (!current || compareCalendarAspects(aspect, current) < 0) {
             aspectByDate.set(aspect.date_local, aspect);
           }
         });
