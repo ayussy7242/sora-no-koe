@@ -220,12 +220,28 @@ async function generateXNightAiText({ story, dict, openai, maxRetries, maxChars 
     fallbackContext: { nextHint: nextHints },
   });
 
-  if (result?.ok && result.text && input.moonDisplayLabel && !String(result.text).includes(input.moonDisplayLabel)) {
-    const lead = `月は${input.moonDisplayLabel}にある。`;
-    const merged = `${lead}\n\n${result.text}`;
-    const formatted = formatXAiText(merged);
-    const capped = capToMaxChars(formatted, resolvedMaxChars);
-    return { ...result, text: capped, injected: true };
+  if (result?.ok && result.text && input.moonDisplayLabel) {
+    const text = String(result.text);
+    const hasFull = text.includes(input.moonDisplayLabel);
+    const hasCore = input.moonDisplayCore ? text.includes(input.moonDisplayCore) : false;
+    const hasSign = input.moon ? text.includes(input.moon) : false;
+    if (hasFull || (hasCore && hasSign)) return result;
+
+    let lead = "";
+    if (!hasCore && !hasSign) {
+      lead = `月は${input.moonDisplayLabel}にある。`;
+    } else if (!hasSign && input.moon) {
+      lead = `月は${input.moon}にある。`;
+    } else if (!hasCore && input.moonDisplayCore) {
+      lead = `月は${input.moonDisplayCore}。`;
+    }
+
+    if (lead) {
+      const merged = `${lead}\n\n${result.text}`;
+      const formatted = formatXAiText(merged);
+      const capped = capToMaxChars(formatted, resolvedMaxChars);
+      return { ...result, text: capped, injected: true };
+    }
   }
   return result;
 }
