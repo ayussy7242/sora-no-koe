@@ -7,7 +7,12 @@ const {
   SORA_AI_USER_GUIDE_IG_STORY_RESONANCE,
   SORA_AI_USER_GUIDE_IG_STORY_TOMORROW,
 } = require("../../../../content/prompts/sora/sora_core");
-const { buildMoonStatus, findNextMoonSignChangeDetailed, detectMoonEventLocal } = require("../../../../domain/moon");
+const {
+  buildMoonStatus,
+  findNextMoonSignChangeDetailed,
+  findPrevMoonSignChangeDetailed,
+  detectMoonEventLocal,
+} = require("../../../../domain/moon");
 const { formatDateYmdHm, calcTransitLon } = require("../../../../domain/astro");
 const { signKeyFromLon } = require("../../../../domain/moon/labels");
 const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
@@ -76,7 +81,15 @@ function buildAspectInput({ dict, aspect } = {}) {
   };
 }
 
-function buildTodayPrompt({ moonSign, phaseLabel, sunSign, aspectInput }) {
+function buildTodayPrompt({
+  moonSign,
+  phaseLabel,
+  sunSign,
+  aspectInput,
+  nowMoonSign,
+  nowPhaseLabel,
+  todayMoonMove,
+} = {}) {
   const a = aspectInput || {};
   const aspectSignature = buildResonanceSignature({ aspectInput: a });
   return [
@@ -88,6 +101,9 @@ function buildTodayPrompt({ moonSign, phaseLabel, sunSign, aspectInput }) {
     `SUN_SIGN: ${safeTrim(sunSign)}`,
     `TODAY_ASPECT_LABEL: ${safeTrim(a.aspectLabel)}`,
     `TODAY_ASPECT_SIGNATURE: ${safeTrim(aspectSignature)}`,
+    `NOW_MOON_SIGN: ${safeTrim(nowMoonSign)}`,
+    `NOW_PHASE_LABEL: ${safeTrim(nowPhaseLabel)}`,
+    `TODAY_MOON_MOVE: ${safeTrim(todayMoonMove)}`,
   ].join("\n");
 }
 
@@ -162,6 +178,21 @@ function resolveMoonMoveForDate({ dict, asOfISO, dateLocal } = {}) {
   const moveDateLocal = toDateLocalJST(move.date);
   if (!moveDateLocal || !dateLocal || moveDateLocal !== dateLocal) return null;
   return move;
+}
+
+function resolveTodayMoonMove({ dict, asOfISO, dateLocal } = {}) {
+  const move = findPrevMoonSignChangeDetailed({ dict, asOfISO });
+  if (!move?.date || !move?.to?.label) return null;
+  const moveDateLocal = toDateLocalJST(move.date);
+  if (!moveDateLocal || !dateLocal || moveDateLocal !== dateLocal) return null;
+  return move;
+}
+
+function formatMoonMoveLine(move) {
+  if (!move?.from?.label || !move?.to?.label || !move?.date) return "";
+  const time = formatJstTimeLabel(move.date, { fallback: "" });
+  if (!time) return "";
+  return `${move.from.label}→${move.to.label} ${time}`;
 }
 
 function detectSignIngressesForDate({ dateLocal, planets, dict } = {}) {
@@ -574,7 +605,22 @@ async function generateIgStoryTexts({
   const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
   const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
 
-  const todayPrompt = buildTodayPrompt({ moonSign, phaseLabel, sunSign, aspectInput: resonanceInput });
+  const nowBaseStory = nowStory || story;
+  const nowInfo = buildMoonStatus({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
+  const nowMoonSign = safeTrim(nowInfo?.signJa);
+  const nowPhaseLabel = safeTrim(nowInfo?.displayName || "");
+
+  const todayMove = resolveTodayMoonMove({ dict: useDict, asOfISO: asOfNowISO || asOfISO, dateLocal });
+  const todayMoveLine = formatMoonMoveLine(todayMove);
+  const todayPrompt = buildTodayPrompt({
+    moonSign,
+    phaseLabel,
+    sunSign,
+    aspectInput: resonanceInput,
+    nowMoonSign,
+    nowPhaseLabel,
+    todayMoonMove: todayMoveLine,
+  });
   const todayText = await generateTextWithRetry({
     userPrompt: todayPrompt,
     openai,
@@ -584,10 +630,6 @@ async function generateIgStoryTexts({
     maxTokens: 160,
   });
 
-  const nowBaseStory = nowStory || story;
-  const nowInfo = buildMoonStatus({ asOfISO: asOfNowISO || asOfISO, story: nowBaseStory, dict: useDict });
-  const nowMoonSign = safeTrim(nowInfo?.signJa);
-  const nowPhaseLabel = safeTrim(nowInfo?.displayName || "");
   const nowAspect = pickPreferredResonanceAspect(nowBaseStory, { resonanceMode, preferOutput: false });
   const nowAspectInput = buildAspectInput({ dict: useDict, aspect: nowAspect });
   const resonancePrompt = buildResonancePrompt({

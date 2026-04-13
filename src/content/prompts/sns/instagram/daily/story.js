@@ -121,7 +121,7 @@ Instagramストーリーの「今日の空」本文を生成する。
 月相とサインによる月の力学を書く
 
 5行目:
-次の月移動
+月の移動（次の月移動 または 今日すでに移動済みならその移動）
 
 6行目:
 共感やリアクションをひきだせそうな、やさしい問い
@@ -137,6 +137,7 @@ Instagramストーリーの「今日の空」本文を生成する。
 - 感情・心理を書かない
 - 「〜のような」「〜かもしれない」を使わない
 - 1文は短くする
+- NOW_MOON_SIGN と MOON_SIGN が異なる場合、5行目で「〜へ移動していました」を使う
 
 避けたい文:
 - 抽象語のみの文
@@ -150,6 +151,9 @@ INPUT:
 - PHASE_LABEL
 - TODAY_ASPECT_SIGNATURE
 - NEXT_MOON_SIGN_CHANGE
+- NOW_MOON_SIGN
+- NOW_PHASE_LABEL
+- TODAY_MOON_MOVE
 
 ${SORA_AI_PUBLIC_IG_COMMON}
 ${SORA_AI_PUBLIC_IG_SHORT_COMMON}
