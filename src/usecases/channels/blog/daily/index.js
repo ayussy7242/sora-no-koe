@@ -947,13 +947,13 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     const info = transit?.[key];
     if (!info) continue;
     const signKey = normalizeSignKey(info.sign_key || "");
-    const houseNo = resolveHouseNumber({
+    const resolvedHouseNo = resolveHouseNumber({
       basis: HOUSE_BASIS.TRANSIT_PUBLIC,
       signKey,
       asOfISO,
       dict,
     });
-    if (houseNo) bodyHouseMap.set(key, houseNo);
+    if (resolvedHouseNo) bodyHouseMap.set(key, resolvedHouseNo);
     const glyph = bodyGlyph(key);
     const bodyLabel = bodyLabelJa(dict, key);
     const retroSuffix = retroMap[key] ? "（R）" : "";
