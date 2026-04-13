@@ -383,6 +383,7 @@ function buildNightMoonSlide({ story, dateLocal, dict }) {
       swipeLabel: "Swipe →",
       moonIllumination: moon.moonIllumination,
       moonWaxing: moon.moonWaxing,
+      moonAgeDays: moon.moonAgeDays,
       moonSize: 520,
       cycleLabel,
     },

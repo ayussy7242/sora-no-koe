@@ -18,8 +18,8 @@ const PRESETS = {
     moon: {
       outputType: "plain_text",
       allowEmpty: true,
-      minChars: 70,
-      maxChars: 110,
+      minChars: 30,
+      maxChars: 200,
       normalizeRules: ["collapse_spaces"],
     },
     moon_night: {

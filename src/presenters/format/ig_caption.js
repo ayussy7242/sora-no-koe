@@ -443,7 +443,7 @@ function renderIGCaptionNight(story, deps = {}) {
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const moonText = String(parts.moon_caption || parts.moon || "").trim();
+  const moonText = String(parts.moon_caption || "").trim();
   const tags = normalizeHashtags(parts.hashtags_night, [
     "#占星術",
     "#月",
@@ -454,8 +454,10 @@ function renderIGCaptionNight(story, deps = {}) {
 
   const lines = [];
   lines.push(`🌌 ${dateLabel} 今日の夜の月`.trim());
-  lines.push("");
-  lines.push(moonText || "月の輪郭が静かに浮かびます。");
+  if (moonText) {
+    lines.push("");
+    lines.push(moonText);
+  }
   lines.push("");
   lines.push("LINEで毎朝星の配置配信中");
   lines.push("");

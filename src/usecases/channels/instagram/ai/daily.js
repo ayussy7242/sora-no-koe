@@ -58,7 +58,7 @@ async function generateIgDailyAiOutputs({
         dict,
         openai: openaiClient,
         asOfISO,
-        variant: "caption",
+        variant: "night_caption",
         maxRetries: 2,
       });
       if (moonCaption?.ok && moonCaption.text) {
