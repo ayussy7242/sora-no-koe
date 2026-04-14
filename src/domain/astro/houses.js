@@ -3,7 +3,18 @@
 const { swisseph } = require("../../config/swisseph");
 const { jdUtFromIso } = require("./ephemeris");
 const { norm360 } = require("./angles");
-const { signIndexFromKey, signKeyFromLon } = require("./signs");
+const signs = require("./signs");
+const signIndexFromKey = signs?.signIndexFromKey;
+// Defensive: avoid hard-crash if module export shape changes or loads partially.
+const signKeyFromLon =
+  typeof signs?.signKeyFromLon === "function"
+    ? signs.signKeyFromLon
+    : (lon) => {
+        if (!Number.isFinite(Number(lon))) return null;
+        const idx = Math.floor(norm360(Number(lon)) / 30);
+        const order = Array.isArray(signs?.SIGN_ORDER) ? signs.SIGN_ORDER : null;
+        return (order && order[idx]) || null;
+      };
 
 const TOKYO_LAT = 35.6895;
 const TOKYO_LON = 139.6917;
