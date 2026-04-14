@@ -3,18 +3,26 @@
 const { swisseph } = require("../../config/swisseph");
 const { jdUtFromIso } = require("./ephemeris");
 const { norm360 } = require("./angles");
-const signs = require("./signs");
-const signIndexFromKey = signs?.signIndexFromKey;
-// Defensive: avoid hard-crash if module export shape changes or loads partially.
-const signKeyFromLon =
-  typeof signs?.signKeyFromLon === "function"
-    ? signs.signKeyFromLon
-    : (lon) => {
-        if (!Number.isFinite(Number(lon))) return null;
-        const idx = Math.floor(norm360(Number(lon)) / 30);
-        const order = Array.isArray(signs?.SIGN_ORDER) ? signs.SIGN_ORDER : null;
-        return (order && order[idx]) || null;
-      };
+const { normalizeSignKey } = require("../canonical");
+
+// Root fix: keep houses computations self-contained so Cloud Run can't fail
+// due to a bad/cached module export shape. (This should match astro/signs.js)
+const SIGN_ORDER = [
+  "aries", "taurus", "gemini", "cancer", "leo", "virgo",
+  "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces",
+];
+
+function signIndexFromKey(dict, signKey) {
+  const order = dict?.SIGNS_V2?.order || dict?.SIGNS?.order || SIGN_ORDER;
+  const key = normalizeSignKey(signKey);
+  return Array.isArray(order) ? order.indexOf(key) : -1;
+}
+
+function signKeyFromLon(lon) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const idx = Math.floor(norm360(Number(lon)) / 30);
+  return SIGN_ORDER[idx] || null;
+}
 
 const TOKYO_LAT = 35.6895;
 const TOKYO_LON = 139.6917;
