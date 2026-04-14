@@ -60,8 +60,8 @@ const PRESETS = {
     resonance_caption: {
       outputType: "plain_text",
       allowEmpty: true,
-      minChars: 240,
-      maxChars: 320,
+      minChars: 260,
+      maxChars: 360,
       normalizeRules: ["normalize_newlines", "collapse_inline_spaces", "trim"],
     },
     carousel_caption: {
