@@ -74,6 +74,7 @@ async function sendDaily8(deps, opts = {}) {
   if (!accessToken && !localOnly) throw new Error("LINE_CHANNEL_ACCESS_TOKEN missing");
 
   const outboxRoot = db.collection("posts_daily_outbox").doc(dateLocal).collection("items");
+  console.log("[send8] start", { dateLocal, target, dryRun: runDry, localOnly });
 
   // ---------- owner ----------
   if (target === "owner") {
@@ -125,6 +126,12 @@ async function sendDaily8(deps, opts = {}) {
   const planned = qsnap.size;
   let sent = 0, failed = 0;
   const localItems = [];
+  const errors = [];
+  let lastError = null;
+
+  if (planned === 0) {
+    console.warn("[send8] outbox empty", { dateLocal, target });
+  }
 
   for (const doc of qsnap.docs) {
     const item = doc.data() || {};
@@ -151,7 +158,12 @@ async function sendDaily8(deps, opts = {}) {
       }
     } catch (_e) {
       failed++;
-      // ここで delivery ログ書くなら追加可能
+      const msg = _e?.message || String(_e);
+      lastError = msg;
+      if (errors.length < 5) {
+        errors.push({ app_user_id: doc.id, reason: msg });
+      }
+      console.warn("[send8] failed", { app_user_id: doc.id, reason: msg });
     }
   }
 
@@ -179,7 +191,7 @@ async function sendDaily8(deps, opts = {}) {
     };
   }
 
-  return {
+  const result = {
     ok: failed === 0,
     date_local: dateLocal,
     target,
@@ -187,7 +199,20 @@ async function sendDaily8(deps, opts = {}) {
     sent: runDry ? 0 : sent,
     failed,
     dry_run: runDry,
+    error: lastError || null,
+    errors: errors.length ? errors : null,
   };
+  console.log("[send8] summary", {
+    dateLocal,
+    target,
+    planned,
+    sent: result.sent,
+    failed,
+    dryRun: runDry,
+    localOnly,
+    error: lastError || null,
+  });
+  return result;
 }
 
 module.exports = { sendDaily8 };

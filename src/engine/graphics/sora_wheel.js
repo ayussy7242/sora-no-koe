@@ -163,6 +163,7 @@ function buildSoraWheelSvg({
   showAspects = true,
   showHouses = true,
   showCenterLines = null,
+  showAngleLabels = null,
   aspects = null,
   ascLonDeg = null,
   mcLonDeg = null,
@@ -268,6 +269,7 @@ function buildSoraWheelSvg({
     : (hasHighlight ? 0.25 : 1);
   const zodiacOpacityValue = 1;
   const showCenterLineValue = typeof showCenterLines === "boolean" ? showCenterLines : showAspects;
+  const showAngleLabelValue = typeof showAngleLabels === "boolean" ? showAngleLabels : true;
 
   const points = [];
   bodyOrder.forEach((key) => {
@@ -440,7 +442,7 @@ function buildSoraWheelSvg({
   }
 
   const angleLabels = [];
-  if (showHouses && hasAngleSource && Number.isFinite(Number(ascLon))) {
+  if (showAngleLabelValue && showHouses && hasAngleSource && Number.isFinite(Number(ascLon))) {
     const angles = [
       { key: "ASC", lon: Number(ascLon) },
       { key: "DC", lon: Number(ascLon) + 180 },

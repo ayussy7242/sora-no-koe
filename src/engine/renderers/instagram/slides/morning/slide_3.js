@@ -4,6 +4,7 @@ const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
 const { resolveColors } = require("../../theme");
+const { signIndexFromKey } = require("../../../../domain/astro/signs");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
@@ -108,6 +109,16 @@ function normalizeAspectType(raw) {
   return key.replace(/_\d+$/, "");
 }
 
+function resolveAscLonDeg(story) {
+  const ascKey =
+    story?.public?.house_focus?.asc_sign_key ||
+    story?.public?.transit_signs?.asc?.sign_key ||
+    "";
+  const idx = signIndexFromKey(null, ascKey);
+  if (!Number.isFinite(Number(idx)) || idx < 0) return null;
+  return idx * 30;
+}
+
 function limitAspects(story, maxLines = 10) {
   if (!story || !story.public) return story;
   const next = JSON.parse(JSON.stringify(story));
@@ -146,7 +157,15 @@ async function renderSlide2({ story, dateLabel, chartSize = TOK.chart.chartSize,
   const backgroundSvg = buildSlide2BaseSvg({ dateLabel, panel: null, space });
   const base = sharp(Buffer.from(backgroundSvg));
   const chartStory = limitAspects(story, 20);
-  const chartSvg = buildSoraWheelSvg({ story: chartStory, dateLabel, size: chartSize });
+  const ascLonDeg = resolveAscLonDeg(chartStory);
+  const chartSvg = buildSoraWheelSvg({
+    story: chartStory,
+    dateLabel,
+    size: chartSize,
+    ascLonDeg: Number.isFinite(Number(ascLonDeg)) ? ascLonDeg : null,
+    houseSystem: Number.isFinite(Number(ascLonDeg)) ? "whole_sign" : null,
+    showAngleLabels: false,
+  });
   const chartBuffer = Buffer.from(chartSvg);
   const composed = base.composite([{ input: chartBuffer, top, left }]);
   return composed.png({ compressionLevel: 9 }).toBuffer();
