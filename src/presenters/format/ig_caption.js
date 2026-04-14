@@ -443,7 +443,7 @@ function renderIGCaptionNight(story, deps = {}) {
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const moonText = String(parts.moon_caption || "").trim();
+  let moonText = String(parts.moon_caption || "").trim();
   const tags = normalizeHashtags(parts.hashtags_night, [
     "#占星術",
     "#月",
@@ -452,8 +452,20 @@ function renderIGCaptionNight(story, deps = {}) {
     "#astrology",
   ]);
 
+  // AI がタイトルを入れてきた場合、固定ヘッダと重複するので除去
+  const header = `🌌 ${dateLabel} 今日の夜の月`.trim();
+  if (moonText) {
+    const linesRaw = moonText.split("\n").map((l) => l.trim()).filter(Boolean);
+    const first = linesRaw[0] || "";
+    if (first === header) {
+      moonText = linesRaw.slice(1).join("\n").trim();
+    } else if (dateLabel && first.startsWith("🌌") && first.includes(dateLabel) && first.includes("今日の夜の月")) {
+      moonText = linesRaw.slice(1).join("\n").trim();
+    }
+  }
+
   const lines = [];
-  lines.push(`🌌 ${dateLabel} 今日の夜の月`.trim());
+  lines.push(header);
   if (moonText) {
     lines.push("");
     lines.push(moonText);
