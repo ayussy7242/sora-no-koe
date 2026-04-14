@@ -118,12 +118,20 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgResonancePrompt({ story, dict, variant }),
-    buildRetryNote: (reason) =>
-      isCaption
-        ? `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、3〜5行・余白を保って再出力。`
+    buildRetryNote: (reason, meta) => {
+      const len = Number.isFinite(Number(meta?.meta?.charCount)) ? Number(meta.meta.charCount) : null;
+      const firstErr = Array.isArray(meta?.errors) ? meta.errors[0] : null;
+      const min = Number.isFinite(Number(firstErr?.meta?.min)) ? Number(firstErr.meta.min) : null;
+      const max = Number.isFinite(Number(firstErr?.meta?.max)) ? Number(firstErr.meta.max) : null;
+      const lenLine = (len != null && (min != null || max != null))
+        ? `（いま${len}文字 → ${min != null ? `最低${min}` : ""}${(min != null && max != null) ? "〜" : ""}${max != null ? `最大${max}` : ""}文字）`
+        : "";
+      return isCaption
+        ? `前回は条件外でした（${reason || "unknown"}）${lenLine}。「あなた」を避けて、3〜5行・余白を保って再出力。`
         : isSplit
-        ? `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、2〜3文・短めで整えて再出力。`
-        : `前回は条件外でした（${reason || "unknown"}）。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`,
+          ? `前回は条件外でした（${reason || "unknown"}）${lenLine}。「あなた」を避けて、2〜3文・短めで整えて再出力。`
+          : `前回は条件外でした（${reason || "unknown"}）${lenLine}。「あなた」を避けて、120〜180文字・3〜4文を目安に整えて再出力。`;
+    },
     validate: ({ raw }) => {
       const preset = isCaption
         ? PRESETS.ig.resonance_caption
@@ -133,7 +141,15 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
         preset,
       });
       if (verdict.ok) return { ok: true, text: verdict.text };
-      return { ok: false, reason: verdict.reason || "" };
+      const firstErr = verdict?.errors?.[0] || null;
+      const min = Number.isFinite(Number(firstErr?.meta?.min)) ? Number(firstErr.meta.min) : null;
+      const max = Number.isFinite(Number(firstErr?.meta?.max)) ? Number(firstErr.meta.max) : null;
+      const len = Number.isFinite(Number(verdict?.meta?.charCount)) ? Number(verdict.meta.charCount) : null;
+      const reason2 = verdict.reason || "";
+      const detail = (len != null && (min != null || max != null))
+        ? `${reason2}|len:${len}|min:${min ?? ""}|max:${max ?? ""}`
+        : reason2;
+      return { ok: false, reason: detail, meta: verdict.meta, errors: verdict.errors };
     },
     createChatCompletion,
     openai: {
@@ -156,6 +172,8 @@ async function generateIgResonanceText({ story, dict, openai, maxRetries = 1, va
     reason: result.reason,
     last_text: result.lastText ? String(result.lastText).trim() : "",
     attempts: result.attempts,
+    validation_meta: result.lastMeta || null,
+    validation_errors: result.lastErrors || null,
   };
 }
 

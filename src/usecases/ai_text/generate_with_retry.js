@@ -50,6 +50,8 @@ async function generateWithRetry(opts = {}) {
   let retryNote = "";
   let lastReason = "";
   let lastText = "";
+  let lastMeta = null;
+  let lastErrors = null;
   let attempts = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -105,13 +107,17 @@ async function generateWithRetry(opts = {}) {
         reason: verdict.reason || "",
         attempts,
         lastText: rawText,
+        lastMeta: verdict?.meta || null,
+        lastErrors: verdict?.errors || null,
         error: null,
       };
     }
 
     lastReason = verdict?.reason || "invalid";
     lastText = rawText;
-    retryNote = buildRetryNote(buildRetryNoteFn, lastReason, { attempt, context, text, raw: rawText });
+    lastMeta = verdict?.meta || null;
+    lastErrors = verdict?.errors || null;
+    retryNote = buildRetryNote(buildRetryNoteFn, lastReason, { attempt, context, text, raw: rawText, meta: lastMeta, errors: lastErrors });
   }
 
   return {
@@ -120,6 +126,8 @@ async function generateWithRetry(opts = {}) {
     reason: lastReason || "retry_exceeded",
     attempts,
     lastText,
+    lastMeta,
+    lastErrors,
     error: lastReason || "retry_exceeded",
   };
 }
