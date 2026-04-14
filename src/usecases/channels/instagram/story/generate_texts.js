@@ -596,13 +596,20 @@ async function generateIgStoryTexts({
 } = {}) {
   if (!story) throw new Error("story missing");
   const useDict = dict || require("../../../../content/dict");
+  const { pickResonanceDailyRepresentative } = require("../../../../domain/resonance");
 
   const info = buildMoonStatus({ asOfISO, story, dict: useDict });
   const moonSign = safeTrim(info?.signJa);
   const phaseLabel = safeTrim(info?.displayName || "");
   const sunSign = safeTrim(story?.public?.transit_signs?.sun?.sign_ja);
 
-  const resonanceAspect = pickPreferredResonanceAspect(story, { resonanceMode });
+  const dailyRep = pickResonanceDailyRepresentative({
+    story,
+    dateLocal: dateLocal || resolveDateLocal(story),
+    resonanceMode,
+    stepMinutes: 60,
+  });
+  const resonanceAspect = dailyRep?.ok ? dailyRep.candidate : pickPreferredResonanceAspect(story, { resonanceMode });
   const resonanceInput = buildAspectInput({ dict: useDict, aspect: resonanceAspect });
 
   const nowBaseStory = nowStory || story;

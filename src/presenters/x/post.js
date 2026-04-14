@@ -403,7 +403,9 @@ function renderXResonance(story, deps = {}) {
   const raw = resolveResonanceRaw(story, dict, { fallback: false });
   if (!raw) return "";
 
+  const asOfISO = story?.meta?.as_of || null;
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
+  const timeLabel = formatJstTimeLabel(asOfISO);
   const aKey = normalizeBodyKey(raw?.a || "");
   const bKey = normalizeBodyKey(raw?.b || "");
   const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
@@ -430,7 +432,7 @@ function renderXResonance(story, deps = {}) {
   const infoLine = infoParts.join("｜");
 
   const lines = [
-    `🌌 星の配置｜${dateLabel}`,
+    `🌌 今の最大共鳴｜${[dateLabel, timeLabel].filter(Boolean).join(" ")}`.trim(),
     "",
     `${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSign ? `（${aSign}）` : ""}`,
     "×",

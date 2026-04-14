@@ -866,6 +866,7 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
   const dateLabel = String(dateLocal || "")
     .trim()
     .replace(/-/g, ".") || formatDateYmd(new Date(asOfISO));
+  const { pickResonanceDailyRepresentative } = require("../../../../domain/resonance");
 
   const retroMap = buildRetrogradeMap(asOfISO, BLOG_STRUCT_BODY_ORDER);
   const retroBodies = BLOG_STRUCT_BODY_ORDER.filter((k) => retroMap[k]);
@@ -910,6 +911,16 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     })
     .slice(0, 1);
 
+  // ✅ Blog uses "today's representative resonance" (peak within JST day)
+  const rep = pickResonanceDailyRepresentative({
+    story,
+    dateLocal,
+    resonanceMode: "core",
+    stepMinutes: 60,
+  });
+  const repCand = rep?.ok ? rep.candidate : null;
+  const repRow = repCand ? { ...repCand } : null;
+
   const { rows: houseRows } = buildHouseRowsPublic(story, asOfISO);
   const topHouses = houseRows.filter((r) => r.score > 0).slice(0, 3).map((r) => `第${r.houseNo}ハウス`);
 
@@ -917,12 +928,13 @@ async function generateLongV2({ story, dateLocal, runWithRetry, modelMain, model
     ? retroBodies.map((k) => `${bodyGlyph(k)} ${bodyLabelJa(dict, k)}`.trim()).join(" / ")
     : "なし";
 
+  const strongestRow = repRow || strongest;
   const overviewFacts = [
     `${elementLine}`,
     `${modalityLine}`,
     `逆行: ${retroList}`,
-    strongest
-      ? `強い角度: ${aspectLabelForLong(strongest.type, strongest.aspect_deg)} ${Math.round(strongest.aspect_deg)}°`
+    strongestRow
+      ? `強い角度: ${aspectLabelForLong(strongestRow.type, strongestRow.aspect_deg)} ${Math.round(strongestRow.aspect_deg)}°`
       : "強い角度: —",
   ];
 

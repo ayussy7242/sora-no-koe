@@ -26,6 +26,8 @@ const {
   pickResonanceForLine,
 } = require("./channel_policy");
 
+const { pickResonanceDailyRepresentative } = require("./daily_representative");
+
 const { REASONS } = require("./reasons");
 
 module.exports = {
@@ -46,5 +48,6 @@ module.exports = {
   pickResonanceForX,
   pickResonanceForInstagram,
   pickResonanceForLine,
+  pickResonanceDailyRepresentative,
   REASONS,
 };

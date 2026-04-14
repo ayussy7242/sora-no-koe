@@ -140,6 +140,7 @@ async function renderSoraLine(story, deps = {}) {
   const includeAspect = deps?.includeAspect !== false;
   const includeHouse = deps?.includeHouse === true;
   const isPaid = deps?.paid === true;
+  const resonanceDaily = deps?.resonanceDaily || null;
   const LINE_SORA_CFG = resolveChannelConfig("line_sora");
   const fallbackMode = deps?.deepMode ? "deep" : "core";
   const cfgMode = isPaid ? (LINE_SORA_CFG.useDeepPaid ? "deep" : "core") : (LINE_SORA_CFG.useDeepFree ? "deep" : "core");
@@ -233,7 +234,10 @@ async function renderSoraLine(story, deps = {}) {
     }
     listTitleAspect = SPEC.labels.sora.closestPaid(orbLimit);
   } else {
-    if (importantWithin.length) {
+    if (resonanceDaily) {
+      picked = [resonanceDaily];
+      listTitleAspect = SPEC.labels.sora.closest;
+    } else if (importantWithin.length) {
       const maxItems = Number.isFinite(Number(LINE_SORA_CFG.maxItemsFree))
         ? Number(LINE_SORA_CFG.maxItemsFree)
         : 1;

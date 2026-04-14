@@ -6,18 +6,23 @@ const { renderDistributionLine } = require("../../../presenters/line/distributio
 const { SPEC } = require("../../../config/sora_spec");
 const env = require("../../../config/env");
 const { formatDateLabel } = require("../../../utils/time");
+const { pickResonanceDailyRepresentative } = require("../../../domain/resonance");
 
 async function buildDailyLineMessage({ story, dict, isPaid500, deepMode } = {}) {
   if (!story) throw new Error("buildDailyLineMessage: story required");
 
   const useDict = dict || require("../../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local);
+  const dateLocal = story?.meta?.date_local || story?.public?.date_local || null;
+  const rep = pickResonanceDailyRepresentative({ story, dateLocal, resonanceMode: "core", stepMinutes: 60 });
+  const resonanceDaily = rep?.ok ? rep.candidate : null;
 
   const freeSoraBody = await renderSoraLine(story, {
     dict: useDict,
     includeHeader: false,
     includeHouse: isPaid500 === true,
     resonanceMode: "core",
+    resonanceDaily,
   });
   const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false });
   const paidBody = isPaid500
