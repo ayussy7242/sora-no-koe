@@ -147,6 +147,7 @@ async function renderXMorningWheelPng({
     story,
     dateLabel: dateLabelSafe,
     size: wheel,
+    showAngleLabels: false,
   });
 
   const base = sharp(Buffer.from(baseSvg));
@@ -240,6 +241,7 @@ async function renderXResonanceWheelPng({
     story,
     dateLabel: dateLabelSafe,
     size: wheel,
+    showAngleLabels: false,
     showAspects: true,
     aspects: [aspect],
     highlightBodies,

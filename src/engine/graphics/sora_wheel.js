@@ -468,6 +468,7 @@ function buildSoraWheelSvg({
     };
     angles.forEach((a) => {
       const baseR = zodiacR + 18;
+      const lonAdj = applyRotation(a.lon);
       const candidates = [
         { r: baseR, t: 0 },
         { r: baseR + 12, t: 0 },
@@ -481,14 +482,14 @@ function buildSoraWheelSvg({
       ];
       let chosen = null;
       for (const c of candidates) {
-        const pos = polarToCartesian(cx, cy, c.r, applyRotation(a.lon));
-        const shifted = c.t ? addTangentialOffset(pos.x, pos.y, a.lon, c.t) : pos;
+        const pos = polarToCartesian(cx, cy, c.r, lonAdj);
+        const shifted = c.t ? addTangentialOffset(pos.x, pos.y, lonAdj, c.t) : pos;
         if (isClear(shifted.x, shifted.y)) {
           chosen = shifted;
           break;
         }
       }
-      let fallback = chosen || polarToCartesian(cx, cy, baseR, applyRotation(a.lon));
+      let fallback = chosen || polarToCartesian(cx, cy, baseR, lonAdj);
       if (a.key === "ASC") {
         fallback = { x: fallback.x - 2, y: fallback.y };
       } else if (a.key === "DC") {
