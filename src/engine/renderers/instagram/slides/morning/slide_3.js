@@ -4,7 +4,7 @@ const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
 const { resolveColors } = require("../../theme");
-const { signIndexFromKey } = require("../../../../domain/astro/signs");
+const { signIndexFromKey } = require("../../../../../domain/astro/signs");
 
 function estimateTextWidth(line, size) {
   const text = String(line || "");
