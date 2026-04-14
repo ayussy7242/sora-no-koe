@@ -8,9 +8,9 @@ const { weightForBody, scoreForAspect } = require("../../../domain/touch_point/s
 const { computeOrbStats } = require("../../../domain/aspect/stats");
 const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point/selection");
 const { EXTENDED_PLANETS } = require("../../../domain/astro/constants");
+const { signKeyFromLon } = require("../../../domain/astro/signs");
 const {
   computeTokyoAscDeg,
-  signKeyFromLon,
   resolveHouseNumber,
   HOUSE_BASIS,
   formatDateYmd,
