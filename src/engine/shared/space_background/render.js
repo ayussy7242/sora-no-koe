@@ -353,19 +353,9 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   const milkyDustScale = Number(spaceConfig?.milkyDustScale) || 1;
   const milkyDustOpacityScale = clamp(0.75 + milkyDustScale * 0.45, 0.6, 1.8);
   const milkyDustSpreadScale = clamp(1 + (milkyDustScale - 1) * 0.2, 0.8, 1.4);
-  const variantStrengthMap = {
-    slide1: 1.0,
-    // IG carousel: keep consistent color density across slides
-    moon: 1.0,
-    slide2: 1.0,
-    slide3: 1.0,
-    slide4: 1.0,
-    slide5: 1.0,
-    story_today: 0.62,
-    story_resonance: 0.68,
-    story_tomorrow: 0.6,
-  };
-  const colorStrength = variantStrengthMap[variant] ?? 0.55;
+  // Global color density for the colored gas/nebula layer
+  // (world.colorBody opacity). Keep consistent across all variants.
+  const colorStrength = 0.77;
   const slide1Safe = {
     x: width * 0.06,
     y: height * 0.22,

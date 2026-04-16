@@ -58,7 +58,7 @@ const COSMIC_PRESETS = {
   cosmic_default: {
     space: {
       ...NEBULA_DEFAULTS,
-      starDensityScale: 1.15,
+      starDensityScale: 1.30,
       milkyIntensityScale: 1.25,
       milkyThicknessScale: 1.10,
       milkyDustScale: 1.20,
