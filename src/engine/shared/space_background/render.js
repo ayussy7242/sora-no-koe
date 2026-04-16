@@ -355,11 +355,12 @@ function renderSpaceSlice({ world, width, height, offsetX, variant, avoidRegions
   const milkyDustSpreadScale = clamp(1 + (milkyDustScale - 1) * 0.2, 0.8, 1.4);
   const variantStrengthMap = {
     slide1: 1.0,
-    moon: 0.5,
-    slide2: 0.35,
-    slide3: 0.7,
-    slide4: 0.5,
-    slide5: 0.28,
+    // IG carousel: keep consistent color density across slides
+    moon: 1.0,
+    slide2: 1.0,
+    slide3: 1.0,
+    slide4: 1.0,
+    slide5: 1.0,
     story_today: 0.62,
     story_resonance: 0.68,
     story_tomorrow: 0.6,
