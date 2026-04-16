@@ -464,20 +464,15 @@ function renderIGCaptionNight(story, deps = {}) {
     return l.startsWith("🌌") && l.includes("今日の夜の月") && /\d{4}\.\d{2}\.\d{2}/.test(l);
   };
 
-  // 先頭にタイトルが既にあるなら、それを使い、こちらでは付けない（重複防止）
-  let hasTitleInMoonText = false;
   if (moonText) {
     const linesRaw = moonText.split("\n").map((l) => l.trim()).filter(Boolean);
-    hasTitleInMoonText = isNightTitleLine(linesRaw[0]);
-    // もし AI がタイトルを2連発してたら、先頭側の重複は落とす（タイトルは1回だけ残す）
-    while (linesRaw.length >= 2 && isNightTitleLine(linesRaw[0]) && isNightTitleLine(linesRaw[1])) {
-      linesRaw.splice(1, 1);
-    }
+    // AI がタイトルを入れてきた場合は捨てる（タイトルは固定で付ける）
+    while (linesRaw.length && isNightTitleLine(linesRaw[0])) linesRaw.shift();
     moonText = linesRaw.join("\n").trim();
   }
 
   const lines = [];
-  if (!hasTitleInMoonText) lines.push(header);
+  lines.push(header);
   if (moonText) {
     lines.push("");
     lines.push(moonText);
