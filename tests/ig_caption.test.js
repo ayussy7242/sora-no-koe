@@ -70,3 +70,22 @@ test("renderIGCaptionNight removes duplicate title from AI moon_caption", () => 
   // should not repeat the same header again
   assert.equal(lines.filter((l) => l === header).length, 1);
 });
+
+test("renderIGCaptionNight keeps a single title when AI already includes it", () => {
+  const story = {
+    meta: { date_local: "2026-04-14" },
+    public: { date_local: "2026-04-14" },
+    outputs: {
+      ig: {
+        parts: {
+          moon_caption: "🌌 2026.04.14 今日の夜の月\n🌙 ここから本文。",
+          hashtags_night: [],
+        },
+      },
+    },
+  };
+
+  const caption = renderIGCaptionNight(story, { dict });
+  const header = "🌌 2026.04.14 今日の夜の月";
+  assert.equal(caption.split("\n").filter((l) => l.trim() === header).length, 1);
+});

@@ -101,14 +101,15 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
     },
     validate: ({ raw }) => {
       const key = String(variant || "").toLowerCase();
-      const preset = key === "caption" || key === "night_caption" || key === "night-caption"
-        ? PRESETS.ig.moon_night_caption
-        : PRESETS.ig.moon;
+      const isCaption = key === "caption" || key === "night_caption" || key === "night-caption";
+      const preset = isCaption ? PRESETS.ig.moon_night_caption : PRESETS.ig.moon;
       const verdict = runAiTextPipeline({
         rawText: raw,
         preset,
+        // IG caption は「AIの文面をそのまま出す」前提なので、文字数は厳密に縛らない
+        overrides: isCaption ? { minChars: 0, maxChars: null } : {},
       });
-      if (verdict.ok) return { ok: true, text: verdict.text };
+      if (verdict.ok) return { ok: true, text: verdict.text, meta: verdict.meta, errors: verdict.errors };
       return { ok: false, reason: verdict.reason || "" };
     },
     createChatCompletion,
@@ -127,17 +128,11 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
 
   if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
 
-  if (String(result.error || "").includes("missing") || String(result.error || "").startsWith("openai_error:")) {
-    return { ok: false, error: result.error || "retry_exceeded", reason: result.reason, attempts: result.attempts, last_text: result.lastText };
-  }
-
-  const fallback = buildMoonFallback({ moonSign, phaseLabel, variant });
+  // フォールバック文は使わず、失敗は失敗として返す（captionは長さ制限を緩めているので基本通る想定）
   return {
-    ok: true,
-    text: fallback,
-    model,
-    fallback: true,
-    fallback_reason: result.reason || result.error || "",
+    ok: false,
+    error: result.error || "retry_exceeded",
+    reason: result.reason,
     attempts: result.attempts,
     last_text: result.lastText,
   };

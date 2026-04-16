@@ -452,20 +452,32 @@ function renderIGCaptionNight(story, deps = {}) {
     "#astrology",
   ]);
 
-  // AI がタイトルを入れてきた場合、固定ヘッダと重複するので除去
   const header = `🌌 ${dateLabel} 今日の夜の月`.trim();
+  const normalizeLine = (s) => String(s || "").replace(/\s+/g, "").trim();
+  const isNightTitleLine = (line) => {
+    const l = String(line || "").trim();
+    if (!l) return false;
+    // Accept minor spacing variants: "🌌2026.04.14 今日の夜の月"
+    if (dateLabel && normalizeLine(l) === normalizeLine(header)) return true;
+    if (dateLabel && l.startsWith("🌌") && l.includes(dateLabel) && l.includes("今日の夜の月")) return true;
+    // Fallback: if line contains "今日の夜の月" and a date-like label
+    return l.startsWith("🌌") && l.includes("今日の夜の月") && /\d{4}\.\d{2}\.\d{2}/.test(l);
+  };
+
+  // 先頭にタイトルが既にあるなら、それを使い、こちらでは付けない（重複防止）
+  let hasTitleInMoonText = false;
   if (moonText) {
     const linesRaw = moonText.split("\n").map((l) => l.trim()).filter(Boolean);
-    const first = linesRaw[0] || "";
-    if (first === header) {
-      moonText = linesRaw.slice(1).join("\n").trim();
-    } else if (dateLabel && first.startsWith("🌌") && first.includes(dateLabel) && first.includes("今日の夜の月")) {
-      moonText = linesRaw.slice(1).join("\n").trim();
+    hasTitleInMoonText = isNightTitleLine(linesRaw[0]);
+    // もし AI がタイトルを2連発してたら、先頭側の重複は落とす（タイトルは1回だけ残す）
+    while (linesRaw.length >= 2 && isNightTitleLine(linesRaw[0]) && isNightTitleLine(linesRaw[1])) {
+      linesRaw.splice(1, 1);
     }
+    moonText = linesRaw.join("\n").trim();
   }
 
   const lines = [];
-  lines.push(header);
+  if (!hasTitleInMoonText) lines.push(header);
   if (moonText) {
     lines.push("");
     lines.push(moonText);
