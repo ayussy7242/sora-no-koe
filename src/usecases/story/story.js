@@ -33,6 +33,7 @@ const { createSkyService } = require("./sky");
 const { resolveDisplayNameFromUserDoc } = require("../../utils/text/display_name");
 const {
   computeTokyoAscDeg,
+  computeTokyoAnglesDeg,
   resolveHouseNumber,
   HOUSE_BASIS,
   pickApplyingUpcomingAspects,
@@ -164,9 +165,27 @@ function createStoryService({
     // ✅ public house focus (Tokyo / whole sign)
     const ascDeg = computeTokyoAscDeg(asOfISO);
     const ascSign = Number.isFinite(Number(ascDeg)) ? signFromLon(ascDeg) : null;
+
+    // ✅ angles (Tokyo)
+    const angles = computeTokyoAnglesDeg(asOfISO);
+    const angleTransits = {};
+    if (Number.isFinite(Number(angles?.asc))) {
+      const s = signFromLon(angles.asc);
+      angleTransits.asc = { ...s, lon_deg: toFixedPrecision(angles.asc, 0.01) };
+      angleTransits.dc = { ...signFromLon(norm360(Number(angles.asc) + 180)), lon_deg: toFixedPrecision(norm360(Number(angles.asc) + 180), 0.01) };
+    }
+    if (Number.isFinite(Number(angles?.mc))) {
+      const s = signFromLon(angles.mc);
+      angleTransits.mc = { ...s, lon_deg: toFixedPrecision(angles.mc, 0.01) };
+      angleTransits.ic = { ...signFromLon(norm360(Number(angles.mc) + 180)), lon_deg: toFixedPrecision(norm360(Number(angles.mc) + 180), 0.01) };
+    }
+    publicObj.transit_signs = { ...(publicObj.transit_signs || {}), ...angleTransits };
+
     const houseCounts = {};
     if (publicObj.transit_signs) {
-      Object.values(publicObj.transit_signs).forEach((item) => {
+      Object.entries(publicObj.transit_signs).forEach(([key, item]) => {
+        const k = String(key || "").toLowerCase();
+        if (["asc", "dc", "mc", "ic", "vertex"].includes(k)) return;
         const signKey = item?.sign_key;
         if (!signKey) return;
         const houseNo = resolveHouseNumber({

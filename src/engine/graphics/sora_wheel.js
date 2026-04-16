@@ -139,6 +139,22 @@ function normalizeDeg(deg) {
   return ((n % 360) + 360) % 360;
 }
 
+function toFiniteNumberOrNull(x) {
+  if (x === null || x === undefined) return null;
+  if (typeof x === "string" && x.trim() === "") return null;
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
+function escapeXmlText(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/\'/g, "&apos;");
+}
+
 function glyphPathForChar(fonts, ch, x, y, size, fill) {
   if (!ch) return "";
   for (const font of fonts || []) {
@@ -173,6 +189,7 @@ function buildSoraWheelSvg({
   highlightAspect = null,
   dimOpacity = null,
   zodiacOpacity = null,
+  debug = null,
 } = {}) {
   if (!story) throw new Error("buildSoraWheelSvg: story required");
 
@@ -220,27 +237,51 @@ function buildSoraWheelSvg({
   const transit = pub.transit_signs || {};
   const ascLonFromStory = Number(transit?.asc?.lon_deg);
   const mcLonFromStory = Number(transit?.mc?.lon_deg);
+  const ascLonInput = toFiniteNumberOrNull(ascLonDeg);
+  const mcLonInput = toFiniteNumberOrNull(mcLonDeg);
   const hasAngleSource = (
-    Number.isFinite(Number(ascLonDeg)) ||
-    Number.isFinite(Number(mcLonDeg)) ||
+    ascLonInput !== null ||
+    mcLonInput !== null ||
     Number.isFinite(Number(ascLonFromStory)) ||
     Number.isFinite(Number(mcLonFromStory))
   );
-  let ascLon = Number.isFinite(Number(ascLonDeg)) ? Number(ascLonDeg) : (Number.isFinite(ascLonFromStory) ? ascLonFromStory : null);
-  const mcLon = Number.isFinite(Number(mcLonDeg)) ? Number(mcLonDeg) : (Number.isFinite(mcLonFromStory) ? mcLonFromStory : null);
+  let ascLon = ascLonInput !== null ? ascLonInput : (Number.isFinite(Number(ascLonFromStory)) ? ascLonFromStory : null);
+  const mcLon = mcLonInput !== null ? mcLonInput : (Number.isFinite(Number(mcLonFromStory)) ? mcLonFromStory : null);
   if (!Number.isFinite(Number(ascLon)) && useCusps) {
     ascLon = normalizedCusps[0];
   }
-  if (!Number.isFinite(Number(ascLon))) {
-    const ascKey = String(pub?.house_focus?.asc_sign_key || "").toLowerCase();
-    const ascIndex = SIGN_INDEX.get(ascKey);
-    if (Number.isFinite(Number(ascIndex))) {
-      ascLon = ascIndex * 30;
-    }
+  const ascSignKeyFromFocus = String(pub?.house_focus?.asc_sign_key || "").toLowerCase();
+  const ascSignIndexFromFocus = SIGN_INDEX.get(ascSignKeyFromFocus);
+  if (!Number.isFinite(Number(ascLon)) && Number.isFinite(Number(ascSignIndexFromFocus))) {
+    ascLon = ascSignIndexFromFocus * 30;
   }
   if (!Number.isFinite(Number(ascLon)) && showHouses) {
     ascLon = 0;
   }
+
+  // House ring SSOT:
+  // Whole Sign houses are sign-based, so the 1H "cusp" must be the start of the ASC sign (0° of that sign),
+  // not the exact ASC degree. This keeps X/IG aligned when they share the same asc_sign_key basis.
+  const ascLonForHouseRing = (() => {
+    if (!Number.isFinite(Number(ascLon))) return null;
+    if (Number.isFinite(Number(ascSignIndexFromFocus))) return ascSignIndexFromFocus * 30;
+    if (isWholeSignSystem) return Math.floor(normalizeDeg(ascLon) / 30) * 30;
+    return ascLon;
+  })();
+
+  const debugMeta = debug === "angles"
+    ? {
+      ascLonDeg: ascLonInput,
+      mcLonDeg: mcLonInput,
+      ascLonFromStory: Number.isFinite(Number(ascLonFromStory)) ? Number(ascLonFromStory) : null,
+      mcLonFromStory: Number.isFinite(Number(mcLonFromStory)) ? Number(mcLonFromStory) : null,
+      ascLon: Number.isFinite(Number(ascLon)) ? Number(ascLon) : null,
+      mcLon: Number.isFinite(Number(mcLon)) ? Number(mcLon) : null,
+      ascLonForHouseRing: Number.isFinite(Number(ascLonForHouseRing)) ? Number(ascLonForHouseRing) : null,
+      isWholeSignSystem,
+      useCusps,
+    }
+    : null;
 
   const bodyOrder = [
     "sun",
@@ -428,13 +469,13 @@ function buildSoraWheelSvg({
         const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(mid));
         houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
       }
-    } else if (Number.isFinite(Number(ascLon))) {
+    } else if (Number.isFinite(Number(ascLonForHouseRing))) {
       for (let i = 0; i < 12; i += 1) {
-        const deg = Number(ascLon) + i * 30;
+        const deg = Number(ascLonForHouseRing) + i * 30;
         const p1 = polarToCartesian(cx, cy, houseInnerR, applyRotation(deg));
         const p2 = polarToCartesian(cx, cy, houseOuterR, applyRotation(deg));
         houseLines.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
-        const labelDeg = Number(ascLon) + i * 30 + 15;
+        const labelDeg = Number(ascLonForHouseRing) + i * 30 + 15;
         const pos = polarToCartesian(cx, cy, houseLabelR, applyRotation(labelDeg));
         houseLabels.push({ x: pos.x, y: pos.y, text: String(i + 1) });
       }
@@ -442,12 +483,12 @@ function buildSoraWheelSvg({
   }
 
   const angleLabels = [];
-  if (showAngleLabelValue && showHouses && hasAngleSource && Number.isFinite(Number(ascLon))) {
+  if (showAngleLabelValue && showHouses && hasAngleSource && ascLon !== null && Number.isFinite(Number(ascLon))) {
     const angles = [
       { key: "ASC", lon: Number(ascLon) },
       { key: "DC", lon: Number(ascLon) + 180 },
     ];
-    if (Number.isFinite(Number(mcLon))) {
+    if (mcLon !== null && Number.isFinite(Number(mcLon))) {
       angles.push({ key: "MC", lon: Number(mcLon) });
       angles.push({ key: "IC", lon: Number(mcLon) + 180 });
     }
@@ -624,6 +665,10 @@ function buildSoraWheelSvg({
 
   const labelDate = formatDateLabel(dateLabel || story?.meta?.date_local);
 
+  const debugDesc = debugMeta
+    ? `<desc id="wheelDebug">${escapeXmlText(JSON.stringify(debugMeta))}</desc>`
+    : "";
+
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`,
     `<defs><style>${fontFaceCss()}</style>` +
@@ -631,6 +676,7 @@ function buildSoraWheelSvg({
       `<filter id="wheelGlowMed" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>` +
       `<filter id="wheelGlowWeak" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.4"/></filter>` +
     `</defs>`,
+    debugDesc,
     `<!-- astroFonts:${astroFontCount} -->`,
     `<g>`,
     circleOuterGlow,

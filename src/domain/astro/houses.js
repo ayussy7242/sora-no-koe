@@ -95,6 +95,20 @@ function computeTokyoAscDeg(asOfISO) {
   return Number.isFinite(Number(asc)) ? norm360(asc) : null;
 }
 
+function computeTokyoAnglesDeg(asOfISO) {
+  if (!swisseph || typeof swisseph.swe_houses !== "function") return { asc: null, mc: null, vertex: null };
+  const jdUt = jdUtFromIso(asOfISO);
+  if (!Number.isFinite(Number(jdUt))) return { asc: null, mc: null, vertex: null };
+  const hsRaw = swisseph.swe_houses(jdUt, TOKYO_LAT, TOKYO_LON, HOUSE_SYSTEM_WHOLE_SIGN);
+  const { ascmc } = normalizeHousesResult(hsRaw);
+  const { asc, mc, vertex } = pickascmcvertex(ascmc);
+  return {
+    asc: Number.isFinite(Number(asc)) ? norm360(asc) : null,
+    mc: Number.isFinite(Number(mc)) ? norm360(mc) : null,
+    vertex: Number.isFinite(Number(vertex)) ? norm360(vertex) : null,
+  };
+}
+
 function houseNumberForSignIndex(signIndex, ascIndex) {
   if (signIndex < 0 || ascIndex < 0) return null;
   return ((signIndex - ascIndex + 12) % 12) + 1;
@@ -207,6 +221,7 @@ module.exports = {
   normalizeHousesResult,
   pickascmcvertex,
   computeTokyoAscDeg,
+  computeTokyoAnglesDeg,
   houseNumberForSignIndex,
   normalizeCusps,
   houseNumberForLonWholeSign,
