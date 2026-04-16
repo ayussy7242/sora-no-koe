@@ -789,8 +789,11 @@ async function runXNightPost(deps, opts = {}) {
       const nightImageSupersample = Number.isFinite(Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE))
         ? Number(env2.X_NIGHT_IMAGE_SUPERSAMPLE)
         : (Number.isFinite(Number(env2.X_POST_IMAGE_SUPERSAMPLE)) ? Number(env2.X_POST_IMAGE_SUPERSAMPLE) : 2);
-      const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
-        || "story_tomorrow";
+  const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
+    || "story_tomorrow";
+  // Align X night moon glyph with IG night: use a stable per-day timestamp (JST noon).
+  // Using "now" can make the terminator drift slightly vs daily assets.
+  const moonAsOfISO = `${dateLocal}T12:00:00+09:00`;
       const png = await renderXNightMoonPng({
         story,
         dateLabel: dateLocal,
@@ -798,7 +801,7 @@ async function runXNightPost(deps, opts = {}) {
         height: nightImageHeight,
         variant: nightImageVariant,
         dict,
-        asOfISO,
+        asOfISO: moonAsOfISO,
         supersample: nightImageSupersample,
         spaceConfig: buildCosmicSpaceConfig("cosmic_vivid"),
       });
@@ -836,6 +839,7 @@ async function runXNightPost(deps, opts = {}) {
     : (Number.isFinite(Number(env2.X_POST_IMAGE_SUPERSAMPLE)) ? Number(env2.X_POST_IMAGE_SUPERSAMPLE) : 2);
   const nightImageVariant = String(env2.X_NIGHT_IMAGE_VARIANT || env2.X_POST_IMAGE_VARIANT || "story_tomorrow").trim()
     || "story_tomorrow";
+  const moonAsOfISO = `${dateLocal}T12:00:00+09:00`;
 
   let nightMediaId = null;
   let nightImageInfo = null;
@@ -855,7 +859,7 @@ async function runXNightPost(deps, opts = {}) {
           height: nightImageHeight,
           variant: nightImageVariant,
           dict,
-          asOfISO,
+          asOfISO: moonAsOfISO,
           supersample: nightImageSupersample,
           spaceConfig: buildCosmicSpaceConfig("cosmic_vivid"),
         });
