@@ -14,7 +14,7 @@ const {
   renderMonthlyOverviewFrame,
   renderMonthlyOverviewOutroFrame,
   exportMonthlyOverviewVideo,
-} = require("../../../renderers/instagram/reel/monthly_overview");
+} = require("../../../engine/renderers/instagram/reel/monthly_overview");
 const {
   createVideoContainer,
   publishMedia,

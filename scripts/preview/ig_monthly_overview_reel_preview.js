@@ -9,7 +9,7 @@ const {
   renderMonthlyOverviewFrame,
   renderMonthlyOverviewOutroFrame,
   exportMonthlyOverviewVideo,
-} = require("../../src/renderers/instagram/reel/monthly_overview");
+} = require("../../src/engine/renderers/instagram/reel/monthly_overview");
 const { buildPublicStorySnapshot } = require("../../src/usecases/story/store");
 const { createStoryService } = require("../../src/usecases/story/story");
 const { swisseph } = require("../../src/config/swisseph");

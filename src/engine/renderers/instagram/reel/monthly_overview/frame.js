@@ -1,9 +1,9 @@
 "use strict";
 
 const sharp = require("sharp");
-const { buildSoraWheelSvg } = require("../../../../engine/graphics/sora_wheel");
-const { fontFaceCss } = require("../../../../engine/renderers/instagram/assets/fonts");
-const { escapeXml } = require("../../../../utils/data/xml");
+const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
+const { fontFaceCss } = require("../../assets/fonts");
+const { escapeXml } = require("../../../../../utils/data/xml");
 const {
   CANVAS,
   SAFE,

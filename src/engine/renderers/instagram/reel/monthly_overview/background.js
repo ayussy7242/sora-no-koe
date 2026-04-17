@@ -5,7 +5,7 @@ const {
   buildSpaceBackground,
   buildSpaceSeedLabel,
   buildCosmicSpaceConfig,
-} = require("../../../../engine/shared/space_background");
+} = require("../../../../shared/space_background");
 const { CANVAS } = require("./shared");
 
 const DEFAULT_VARIANT = "monthly_overview_reel";
