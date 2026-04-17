@@ -2,6 +2,7 @@
 
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
+const { buildPublicWholeSignChartOptions } = require("../../../../graphics/public_chart_options");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 
@@ -146,7 +147,12 @@ async function renderSlide2({ story, dateLabel, chartSize = TOK.chart.chartSize,
   const backgroundSvg = buildSlide2BaseSvg({ dateLabel, panel: null, space });
   const base = sharp(Buffer.from(backgroundSvg));
   const chartStory = limitAspects(story, 20);
-  const chartSvg = buildSoraWheelSvg({ story: chartStory, dateLabel, size: chartSize });
+  const chartSvg = buildSoraWheelSvg({
+    story: chartStory,
+    dateLabel,
+    size: chartSize,
+    ...buildPublicWholeSignChartOptions(chartStory),
+  });
   const chartBuffer = Buffer.from(chartSvg);
   const composed = base.composite([{ input: chartBuffer, top, left }]);
   return composed.png({ compressionLevel: 9 }).toBuffer();

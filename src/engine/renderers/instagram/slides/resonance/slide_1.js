@@ -2,6 +2,7 @@
 
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
+const { buildPublicWholeSignChartOptions } = require("../../../../graphics/public_chart_options");
 const { CANVAS, TOK, escapeXml, baseSvg } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 
@@ -178,6 +179,7 @@ async function renderSlideResonanceWheel({
     story,
     dateLabel,
     size: wheel,
+    ...buildPublicWholeSignChartOptions(story),
     showAspects: !!aspect,
     aspects: aspect ? [aspect] : [],
     highlightBodies,

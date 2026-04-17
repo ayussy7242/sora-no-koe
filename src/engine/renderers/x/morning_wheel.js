@@ -2,6 +2,7 @@
 
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../graphics/sora_wheel");
+const { buildPublicWholeSignChartOptions } = require("../../graphics/public_chart_options");
 const { buildSpaceBackground, buildSpaceSeedLabel } = require("../../shared/space_background");
 const { fontFaceCss } = require("../instagram/assets/fonts");
 const { formatDateLabel } = require("../../../utils/time");
@@ -147,7 +148,7 @@ async function renderXMorningWheelPng({
     story,
     dateLabel: dateLabelSafe,
     size: wheel,
-    showAngleLabels: false,
+    ...buildPublicWholeSignChartOptions(story),
   });
 
   const base = sharp(Buffer.from(baseSvg));
@@ -241,6 +242,7 @@ async function renderXResonanceWheelPng({
     story,
     dateLabel: dateLabelSafe,
     size: wheel,
+    ...buildPublicWholeSignChartOptions(story),
     showAngleLabels: false,
     showAspects: true,
     aspects: [aspect],

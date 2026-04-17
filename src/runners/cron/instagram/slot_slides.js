@@ -228,6 +228,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     dateLabel,
     header: "今日の配置",
     subLabel: "today's placements",
+    houseSystem: "whole_sign",
     lines: placements,
     brand: "sora-no-koe",
   };
@@ -311,7 +312,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
       { kind: "placements", data: slidePlacements },
       { kind: "moon", data: slideMoon },
       { kind: "resonance", data: slide3 },
-      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart" } },
+      { kind: "chart", data: { story, dateLabel, footerLabel: "sky chart", subLabel: "today's chart", houseSystem: "whole_sign" } },
       ...(withCta ? [{ kind: "cta", data: slide5 }] : []),
     ],
   };

@@ -3,6 +3,7 @@
 const sharp = require("sharp");
 const { createWpClient } = require("../../../integrations/wordpress/client");
 const { buildSoraWheelSvg } = require("../../../engine/graphics/sora_wheel");
+const { buildPublicWholeSignChartOptions } = require("../../../engine/graphics/public_chart_options");
 const {
   generateDailyDraft,
   buildDailyTitle,
@@ -49,7 +50,12 @@ async function buildDailyPlan({ env, storyService, dateLocal, asOfISO, runDry = 
         const dateLabel = String(dateLocal || story?.meta?.date_local || story?.public?.date_local || "")
           .trim()
           .replace(/-/g, ".");
-        const svg = buildSoraWheelSvg({ story, dateLabel, size: 1200 });
+        const svg = buildSoraWheelSvg({
+          story,
+          dateLabel,
+          size: 1200,
+          ...buildPublicWholeSignChartOptions(story),
+        });
         const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
         const filename = `sora-wheel-${dateLocal || dateLabel || Date.now()}.png`;
         mark("wheel_upload_before");
