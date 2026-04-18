@@ -91,7 +91,7 @@ function buildMoonSignChangeState({
   asOfISO,
   dict,
   justIngressDeg = 1.0,
-  imminentHours = 3,
+  imminentHours = 4,
   maxHours = 72,
   stepMinutes = 60,
 } = {}) {

@@ -10,6 +10,7 @@ const { escapeXml } = require("../../../utils/data/xml");
 const { clamp } = require("../../../utils/data/math");
 const { resolveColors } = require("../instagram/theme");
 const { buildMoonStatus } = require("../../../domain/moon/summary");
+const { resolveMoonCycleLabel } = require("../../../domain/moon/phase");
 const { detectMoonEventLocal, fullMoonNameJaFromDate, isSecondMoonInMonth } = require("../../../domain/moon/events");
 
 const DEFAULT_X_NIGHT_CANVAS = Object.freeze({
@@ -44,12 +45,13 @@ function buildMoonPhaseGlyph(opts) {
 function buildMoonText({ status, asOfISO, dateLocal, dict }) {
   const phaseName = String(status?.phaseName || "").trim() || "—";
   const waName = String(status?.waName || "").trim();
+  const displayName = String(status?.displayName || "").trim();
   const signJa = String(status?.signJa || "").trim();
   const moonAge = Number.isFinite(Number(status?.moonAge)) ? Number(status.moonAge) : null;
   const illumination = Number.isFinite(Number(status?.illumination)) ? Number(status.illumination) : null;
 
-  const isFull = phaseName === "満月";
-  const isNew = phaseName === "新月";
+  const isFull = phaseName === "満月" && (!displayName || displayName === "満月");
+  const isNew = phaseName === "新月" && (!displayName || displayName === "新月");
   const waxing = Number.isFinite(Number(moonAge)) ? Number(moonAge) < 14.765 : true;
 
   const event = (isFull || isNew)
@@ -80,10 +82,13 @@ function buildMoonText({ status, asOfISO, dateLocal, dict }) {
       smallLabel = eventName || (isBlackMoon ? "ブラックムーン" : "");
     }
   } else {
-    const phaseFallback = ["満ちゆく月", "欠けゆく月"].includes(phaseName) ? "" : phaseName;
-    const core = waName || phaseFallback;
+    const core = String(displayName || waName || phaseName || "").trim();
     mainLabel = [core, signJa].filter(Boolean).join(" ");
-    smallLabel = waxing ? "満ちゆくサイクル" : "欠けゆくサイクル";
+    smallLabel = resolveMoonCycleLabel({
+      phaseName,
+      moonAge,
+      illumination,
+    }) || (waxing ? "満ちゆく月" : "欠けゆく月");
   }
 
   const moonAgeLabel = moonAge != null ? `月齢 ${moonAge.toFixed(1)}` : "";

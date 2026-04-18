@@ -11,8 +11,8 @@ const {
   waNameFromMoonAge,
   formatMoonPhaseLabel,
   normalizeMoonPhaseByIllumination,
-  isMoonCyclePhaseName,
-  resolveMoonPhaseDisplayName,
+  resolveMoonCycleLabel,
+  resolveMoonDisplayName,
 } = require("./phase");
 const { signLabelJa, signKeyFromLon, degInSignFromLon } = require("./labels");
 
@@ -69,11 +69,16 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   const waNameRaw = waNameFromMoonAge(moonInfo.moonAge);
   let waName = waNameRaw && waNameRaw !== phaseName ? waNameRaw : "";
 
-  // 新月・満月のときは月相名を優先しつつ、晦のみ補足表示する
+  // 新月・満月の瞬間だけは月相名を優先する。
+  // そこを離れたら和名（例: 二日月 / 十六夜）を使ってよい。
   if (phaseName === "新月") {
-    waName = waNameRaw === "晦" ? "晦" : "";
+    if (moonInfo.moonAge != null && Number(moonInfo.moonAge) < 0.5) {
+      waName = waNameRaw === "晦" ? "晦" : "";
+    }
   } else if (phaseName === "満月") {
-    waName = "";
+    if (moonInfo.moonAge != null && Number(moonInfo.moonAge) < 14.9) {
+      waName = "";
+    }
   }
 
   const signJa = moonInfo.moonSign || "—";
@@ -81,7 +86,13 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
   const illumination = Number.isFinite(Number(moonInfo.illumination)) ? Number(moonInfo.illumination) : null;
 
   const phaseLabel = formatMoonPhaseLabel({ phaseName, waName });
-  const displayNameRaw = resolveMoonPhaseDisplayName({ phaseName, waName, allowCycleName: false });
+  const displayNameRaw = resolveMoonDisplayName({
+    phaseName,
+    waName,
+    moonAge,
+    illumination,
+    allowCycleName: false,
+  });
   const displayName = displayNameRaw === "—" ? "" : displayNameRaw;
   const line1 = `${phaseSymbol} ${phaseLabel}｜${signJa}`.trim();
   const moonAgeText = Number.isFinite(moonAge) ? moonAge.toFixed(1) : "—";
@@ -90,9 +101,8 @@ function buildMoonStatus({ asOfISO, story, dict, info }) {
     ? `月齢 ${moonAgeText}｜照度 ${illuminationPct}%`
     : `月齢 ${moonAgeText}`;
   const waxing = Number.isFinite(moonAge) ? moonAge < 14.765 : true;
-  const cycleLabel = isMoonCyclePhaseName(phaseName)
-    ? (waxing ? "満ちゆく月のサイクル" : "欠けゆく月のサイクル")
-    : "";
+  const cycleCore = resolveMoonCycleLabel({ phaseName, moonAge, illumination });
+  const cycleLabel = cycleCore || "";
 
   return {
     info: moonInfo,

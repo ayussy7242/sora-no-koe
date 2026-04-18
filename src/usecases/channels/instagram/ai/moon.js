@@ -50,7 +50,7 @@ function resolveMoonGuide(variant) {
   return SORA_AI_USER_GUIDE_IG_MOON;
 }
 
-function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
+function buildMoonPromptValues({ story, dict, asOfISO }) {
   const moonStatus = buildMoonStatus({ asOfISO, story, dict });
   const change = buildMoonSignChangeState({ asOfISO, dict });
   const moonSign = safeTrim(moonStatus?.signJa || "");
@@ -64,15 +64,52 @@ function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
     ? Number(nextChange.hoursAhead).toFixed(1)
     : "";
 
+  return {
+    moonSign,
+    phaseLabel,
+    moonChangeHint,
+    nextChangeText: safeTrim(nextChangeText),
+    nextChangeHours: safeTrim(nextChangeHours),
+  };
+}
+
+function sanitizeMoonAiText(text, values) {
+  let out = String(text || "");
+  const pairs = [
+    ["MOON_SIGN", values?.moonSign || ""],
+    ["PHASE_LABEL", values?.phaseLabel || ""],
+    ["MOON_CHANGE_HINT", values?.moonChangeHint || ""],
+    ["NEXT_MOON_SIGN_CHANGE", values?.nextChangeText || ""],
+    ["NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD", values?.nextChangeHours || ""],
+  ];
+
+  for (const [token, value] of pairs) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`\\{\\{\\s*${escaped}\\s*\\}\\}`, "g"), value);
+    out = out.replace(new RegExp(`\\$\\{\\s*${escaped}\\s*\\}`, "g"), value);
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, "g"), value);
+  }
+
+  return out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/（\s*へ）/g, "")
+    .replace(/^[ \t]+|[ \t]+$/gm, "")
+    .trim();
+}
+
+function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
+  const values = buildMoonPromptValues({ story, dict, asOfISO });
+
   return [
     resolveMoonGuide(variant),
     "",
     "INPUT:",
-    `MOON_SIGN: ${moonSign}`,
-    `PHASE_LABEL: ${phaseLabel}`,
-    `MOON_CHANGE_HINT: ${moonChangeHint}`,
-    `NEXT_MOON_SIGN_CHANGE: ${safeTrim(nextChangeText)}`,
-    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${safeTrim(nextChangeHours)}`,
+    `MOON_SIGN: ${values.moonSign}`,
+    `PHASE_LABEL: ${values.phaseLabel}`,
+    `MOON_CHANGE_HINT: ${values.moonChangeHint}`,
+    `NEXT_MOON_SIGN_CHANGE: ${values.nextChangeText}`,
+    `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${values.nextChangeHours}`,
   ].join("\n");
 }
 
@@ -85,10 +122,10 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
   const variantKey = String(variant || "").toLowerCase();
   const isCaptionVariant = ["caption", "night_caption", "night-caption"].includes(variantKey);
   const maxTokens = isCaptionVariant ? 420 : 160;
+  const requestedRetries = Number.isFinite(Number(maxRetries)) ? Number(maxRetries) : 2;
+  const effectiveMaxRetries = isCaptionVariant ? Math.max(requestedRetries, 4) : requestedRetries;
 
-  const moonStatus = buildMoonStatus({ asOfISO, story, dict });
-  const moonSign = safeTrim(moonStatus?.signJa || "");
-  const phaseLabel = safeTrim(moonStatus?.displayName || "");
+  const values = buildMoonPromptValues({ story, dict, asOfISO });
 
   const result = await generateWithRetry({
     buildPrompt: () => buildIgMoonPrompt({ story, dict, asOfISO, variant }),
@@ -119,14 +156,34 @@ async function generateIgMoonText({ story, dict, openai, maxRetries = 2, asOfISO
       model,
       maxRetries: openai?.maxRetries,
     },
-    maxRetries: resolvedMaxRetries,
+    maxRetries: Math.max(resolvedMaxRetries, effectiveMaxRetries),
     systemPrompt: SORA_AI_SYSTEM_PROMPT_COMMON,
     temperature: 0.4,
     maxTokens,
     context: { story, dict, asOfISO },
   });
 
-  if (result.ok) return { ok: true, text: result.text, model, attempts: result.attempts, last_text: result.lastText };
+  if (result.ok) {
+    return {
+      ok: true,
+      text: sanitizeMoonAiText(result.text, values),
+      model,
+      attempts: result.attempts,
+      last_text: result.lastText,
+    };
+  }
+
+  const lastTextSanitized = sanitizeMoonAiText(result.lastText, values);
+  if (isCaptionVariant && lastTextSanitized) {
+    return {
+      ok: true,
+      text: lastTextSanitized,
+      model,
+      attempts: result.attempts,
+      last_text: result.lastText,
+      warning: result.reason || result.error || "accepted_last_text_after_retry",
+    };
+  }
 
   // フォールバック文は使わず、失敗は失敗として返す（captionは長さ制限を緩めているので基本通る想定）
   return {

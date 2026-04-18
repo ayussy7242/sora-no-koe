@@ -18,8 +18,7 @@ function estimateTextWidth(line, size) {
 }
 
 function resolveBodyMaxChars(size) {
-  const pad = Number.isFinite(Number(TOK.bodyPadX)) ? Number(TOK.bodyPadX) : 0;
-  const available = CANVAS.width - TOK.marginX * 2 - pad;
+  const available = CANVAS.width - TOK.marginX * 2;
   const perChar = size * 0.95;
   return Math.max(16, Math.floor(available / perChar));
 }

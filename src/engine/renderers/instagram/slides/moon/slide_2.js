@@ -2,6 +2,7 @@
 const { buildMoonPhaseGlyph: buildMoonPhaseGlyphShared } = require("../../../../shared/moon_glyph");
 
 const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { measureTextWidth } = require("../common/glyph_layout");
 const { resolveColors } = require("../../theme");
 const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
 const { clamp } = require("../../../../../utils/data/math");
@@ -16,10 +17,135 @@ function estimateTextWidth(line, size) {
 }
 
 function resolveBodyMaxChars(size) {
-  const pad = Number.isFinite(Number(TOK.bodyPadX)) ? Number(TOK.bodyPadX) : 0;
-  const available = CANVAS.width - TOK.marginX * 2 - pad;
+  const available = CANVAS.width - TOK.marginX * 2;
   const perChar = size * 0.95;
   return Math.max(16, Math.floor(available / perChar));
+}
+
+function resolveObservationMaxWidth() {
+  return CANVAS.width - TOK.marginX * 2;
+}
+
+function measureBodyTextWidth(text, size) {
+  const raw = String(text || "");
+  if (!raw) return 0;
+  return Math.max(size * 2, measureTextWidth(raw, size, "body"));
+}
+
+function segmentObservationText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const protectedDateTime = /\d{4}年\d{1,2}月\d{1,2}日\d{2}:\d{2}/y;
+  const chunks = [];
+  let buffer = "";
+  let i = 0;
+
+  while (i < raw.length) {
+    protectedDateTime.lastIndex = i;
+    const dt = protectedDateTime.exec(raw);
+    if (dt && dt.index === i) {
+      if (buffer) {
+        chunks.push(buffer);
+        buffer = "";
+      }
+      chunks.push(dt[0]);
+      i += dt[0].length;
+      continue;
+    }
+
+    const ch = raw[i];
+    buffer += ch;
+    if (/[。、！？!?]/.test(ch)) {
+      chunks.push(buffer);
+      buffer = "";
+    }
+    i += 1;
+  }
+
+  if (buffer) chunks.push(buffer);
+  return chunks.filter(Boolean);
+}
+
+function findSafeSplitIndex(token, size, maxWidth) {
+  const chars = Array.from(String(token || ""));
+  if (!chars.length) return 0;
+  let best = 0;
+  let current = "";
+
+  for (let i = 0; i < chars.length; i += 1) {
+    const next = current + chars[i];
+    if (measureBodyTextWidth(next, size) > maxWidth) break;
+    current = next;
+    best = i + 1;
+  }
+
+  if (best <= 0) return 1;
+
+  const minBacktrack = Math.max(1, best - 8);
+  for (let i = best; i >= minBacktrack; i -= 1) {
+    const head = chars.slice(0, i).join("");
+    const tail = chars.slice(i).join("");
+    if (!head || !tail) continue;
+    if (/[、。！？!?]$/.test(head)) return i;
+    if (/[0-9年月日時:.]/.test(chars[i - 1]) && /[0-9年月日時:.]/.test(chars[i])) continue;
+    if (/(てい|ます|でした|します|でしたが|ますが|ですが|へは|には|とは|では)$/.test(head)) continue;
+    if (/^(ます|でした|します|が、|が。|が|は|を|に|へ|と|で|の)/.test(tail)) continue;
+    if (/[ぁ-んァ-ンー]$/.test(head) && /^[ぁ-んァ-ンー]/.test(tail)) continue;
+    return i;
+  }
+
+  return best;
+}
+
+function wrapObservationLines(text, size, maxLines = 5) {
+  const chunks = segmentObservationText(text);
+  if (!chunks.length) return [];
+  const maxWidth = resolveObservationMaxWidth();
+  const lines = [];
+  let current = "";
+
+  const pushCurrent = () => {
+    const trimmed = current.trim();
+    if (trimmed) lines.push(trimmed);
+    current = "";
+  };
+
+  for (const chunk of chunks) {
+    const candidate = current ? `${current}${chunk}` : chunk;
+    if (measureBodyTextWidth(candidate, size) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    const currentWidth = measureBodyTextWidth(current, size);
+    if (current && currentWidth < maxWidth * 0.72) {
+      const splitAt = findSafeSplitIndex(candidate, size, maxWidth);
+      lines.push(Array.from(candidate).slice(0, splitAt).join("").trim());
+      current = Array.from(candidate).slice(splitAt).join("").trimStart();
+      if (lines.length >= maxLines) return lines.slice(0, maxLines);
+      continue;
+    }
+
+    if (current) pushCurrent();
+
+    let rest = chunk;
+    while (rest) {
+      if (measureBodyTextWidth(rest, size) <= maxWidth) {
+        current = rest;
+        rest = "";
+        break;
+      }
+      const splitAt = findSafeSplitIndex(rest, size, maxWidth);
+      lines.push(Array.from(rest).slice(0, splitAt).join("").trim());
+      rest = Array.from(rest).slice(splitAt).join("").trimStart();
+      if (lines.length >= maxLines) return lines.slice(0, maxLines);
+    }
+
+    if (lines.length >= maxLines) return lines.slice(0, maxLines);
+  }
+
+  if (current && lines.length < maxLines) pushCurrent();
+  return lines.slice(0, maxLines);
 }
 
 function resolveNextLayout({ nextOffsetY = 0, lineCount = 2 } = {}) {
@@ -120,7 +246,7 @@ function getAvoidRegions({
     }));
   }
   const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
-  const observationLines = wrapLines(observation, observationMaxChars, 5);
+  const observationLines = wrapObservationLines(observation, TOK.moon.observationSize, 5);
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
     fields.push(makeField({
@@ -234,7 +360,7 @@ function buildSlideMoonSvg({
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
   const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
-  const observationLines = wrapLines(observation, observationMaxChars, 5);
+  const observationLines = wrapObservationLines(observation, TOK.moon.observationSize, 5);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);

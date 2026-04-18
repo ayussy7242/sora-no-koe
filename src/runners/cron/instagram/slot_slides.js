@@ -15,6 +15,7 @@ const { BODY_META, BODY_ORDER_BASIC } = require("./shared/bodies");
 const { calcTransitLon } = require("../../../domain/astro/ephemeris");
 const { signKeyFromLon } = require("../../../domain/astro/signs");
 const { normalizeSignKey } = require("../../../domain/canonical");
+const { resolveMoonCycleLabel } = require("../../../domain/moon/phase");
 
 function plainMoonSymbol(kind) {
   if (kind === "new") return "●";
@@ -98,15 +99,22 @@ function findNextMoonSignChange({ asOfISO, dict, maxHours = 72, stepMinutes = 30
   return null;
 }
 
+function resolveMoonAsOfISO({ story, dateLocal } = {}) {
+  const storyAsOf = String(story?.meta?.as_of || "").trim();
+  if (storyAsOf) return storyAsOf;
+  if (dateLocal) return `${dateLocal}T12:00:00+09:00`;
+  return new Date().toISOString();
+}
+
 function buildMoonSlide({ story, dateLabel, dateLocal, dict }) {
-  const asOfISO = `${dateLocal}T12:00:00+09:00`;
+  const asOfISO = resolveMoonAsOfISO({ story, dateLocal });
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
   const moonStatus = buildMoonStatus({ asOfISO, story, dict });
   const phaseLabelBase = String(moonStatus?.phaseLabel || "").trim();
   const phaseName = String(moonStatus?.phaseName || "").trim();
   const waName = String(moonStatus?.waName || "").trim();
-  const phaseLabelDisplay = (phaseName === "満月" || phaseName === "新月") ? phaseName : waName;
+  const phaseLabelDisplay = String(moonStatus?.displayName || waName || phaseName || "").trim();
   const moonSign = String(moonStatus?.signJa || "").trim();
   const moonElement = elementFromSign(dict, story?.public?.moon?.sign_key || story?.public?.transit_signs?.moon?.sign_key || "");
   const phaseSymbol = moonStatus?.phaseSymbol || "🌙";
@@ -373,7 +381,12 @@ function buildResonanceCarouselSlides({ story, dateLocal, dict }) {
 function buildNightMoonSlide({ story, dateLocal, dict }) {
   const dateLabel = formatDateLabel(dateLocal);
   const moon = buildMoonSlide({ story, dateLabel, dateLocal, dict });
-  const cycleLabel = moon.moonWaxing ? "満ちゆく月のサイクル" : "欠けゆく月のサイクル";
+  const cycleCore = resolveMoonCycleLabel({
+    phaseName: moon.phaseName,
+    moonAge: moon.moonAgeDays,
+    illumination: moon.moonIllumination,
+  }) || (moon.moonWaxing ? "満ちゆく月" : "欠けゆく月");
+  const cycleLabel = cycleCore;
   return {
     kind: "night_moon",
     data: {

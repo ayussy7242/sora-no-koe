@@ -5,6 +5,10 @@ function smoothstep01(t) {
   return x * x * (3 - 2 * x);
 }
 
+function accelerateNearNewMoon(t, factor = 1.55) {
+  return smoothstep01(Math.max(0, Math.min(1, Number(t) * Number(factor))));
+}
+
 function interpolateKeyframes(frames, age) {
   if (!Array.isArray(frames) || frames.length === 0) {
     return {
@@ -71,5 +75,6 @@ function interpolateKeyframes(frames, age) {
 
 module.exports = {
   smoothstep01,
+  accelerateNearNewMoon,
   interpolateKeyframes,
 };

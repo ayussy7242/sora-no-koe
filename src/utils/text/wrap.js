@@ -1,5 +1,37 @@
 "use strict";
 
+function charLength(value) {
+  return Array.from(String(value || "")).length;
+}
+
+function isPreferredBreakChar(ch) {
+  return /[。、．，…！？!?\s]/.test(String(ch || ""));
+}
+
+function isProtectedTimeChar(ch) {
+  return /[0-9:./年月日時分+\-]/.test(String(ch || ""));
+}
+
+function resolveBreakIndex(chars, maxChars) {
+  const limit = Math.min(chars.length, Math.max(1, Number(maxChars) || chars.length));
+  if (chars.length <= limit) return chars.length;
+  const minBacktrack = Math.max(1, limit - 20);
+
+  for (let i = limit; i >= minBacktrack; i -= 1) {
+    if (isPreferredBreakChar(chars[i - 1])) return i;
+  }
+
+  let idx = limit;
+  while (
+    idx > minBacktrack &&
+    isProtectedTimeChar(chars[idx - 1]) &&
+    isProtectedTimeChar(chars[idx])
+  ) {
+    idx -= 1;
+  }
+  return Math.max(1, idx);
+}
+
 function wrapByChars(text, maxChars, maxLines = 2) {
   const raw = String(text || "").trim();
   if (!raw) return [];
@@ -8,16 +40,16 @@ function wrapByChars(text, maxChars, maxLines = 2) {
   const max = Number.isFinite(Number(maxLines)) ? Number(maxLines) : 2;
   if (chars.length <= limit) return [raw];
   const lines = [];
-  let buf = "";
-  for (const ch of chars) {
-    if (Array.from(buf).length >= limit) {
-      lines.push(buf);
-      buf = "";
-      if (lines.length >= max) break;
+  let remaining = chars.slice();
+  while (remaining.length && lines.length < max) {
+    if (remaining.length <= limit) {
+      lines.push(remaining.join(""));
+      break;
     }
-    buf += ch;
+    const cut = resolveBreakIndex(remaining, limit);
+    lines.push(remaining.slice(0, cut).join("").trimEnd());
+    remaining = remaining.slice(cut);
   }
-  if (buf && lines.length < max) lines.push(buf);
   return lines.slice(0, max);
 }
 
@@ -49,16 +81,16 @@ function wrapLines(text, maxCharsOrOpts, maxLinesMaybe) {
       lines.push(trimmed);
       return;
     }
-    let current = "";
-    for (const ch of chars) {
-      if (Array.from(current).length >= maxChars) {
-        lines.push(current);
-        current = "";
-        if (lines.length >= maxLines) break;
+    let remaining = chars.slice();
+    while (remaining.length && lines.length < maxLines) {
+      if (remaining.length <= maxChars) {
+        lines.push(remaining.join(""));
+        break;
       }
-      current += ch;
+      const cut = resolveBreakIndex(remaining, maxChars);
+      lines.push(remaining.slice(0, cut).join("").trimEnd());
+      remaining = remaining.slice(cut);
     }
-    if (current && lines.length < maxLines) lines.push(current);
   };
 
   segments.forEach(pushWrapped);

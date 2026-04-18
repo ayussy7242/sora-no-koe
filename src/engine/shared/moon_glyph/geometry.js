@@ -3,7 +3,7 @@
 const { clamp } = require("../../../utils/data/math");
 const { MODELS, DEFAULT_GEOMETRY_OPTIONS } = require("./constants");
 const { KEYFRAMES, SYNODIC_MONTH } = require("./keyframes");
-const { interpolateKeyframes } = require("./interpolate");
+const { interpolateKeyframes, accelerateNearNewMoon } = require("./interpolate");
 
 const AGE_SPECS = Object.freeze([
   { family: "new", strength: 0, side: "none" },               // 0
@@ -55,6 +55,33 @@ function resolveAgeStrengthInterpolated(ageDays) {
 
   const isShadowFamily = (family) =>
     family === "waxing_shadow" || family === "waning_shadow";
+
+  if (familyA === "new" && isShadowFamily(familyB)) {
+    const acceleratedT = accelerateNearNewMoon(t);
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength: strengthB * acceleratedT,
+      strengthA,
+      strengthB,
+      family: acceleratedT <= 0 ? familyA : familyB,
+      side: acceleratedT <= 0 ? sideA : sideB,
+    };
+  }
+  if (isShadowFamily(familyA) && familyB === "new") {
+    const acceleratedT = accelerateNearNewMoon(1 - t);
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength: strengthA * acceleratedT,
+      strengthA,
+      strengthB,
+      family: acceleratedT <= 0 ? familyB : familyA,
+      side: acceleratedT <= 0 ? sideB : sideA,
+    };
+  }
 
   // Special-case quarter <-> shadow transitions so strength maps to "shadow depth"
   // rather than averaging across different family meanings.
@@ -112,9 +139,9 @@ function resolveIllumFromFamily(family, strength) {
     case "gibbous":
       return 0.55 + t * 0.45;
     case "waxing_shadow":
-      return clamp(0.5 - t * 0.45, 0.02, 0.5);
+      return clamp(0.5 * Math.pow(1 - t, 1.8), 0.022, 0.5);
     case "waning_shadow":
-      return clamp(0.5 - t * 0.45, 0.02, 0.5);
+      return clamp(0.5 * Math.pow(1 - t, 1.8), 0.022, 0.5);
     default:
       return 0.0;
   }

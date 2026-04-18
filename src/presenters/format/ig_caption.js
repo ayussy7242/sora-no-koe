@@ -4,7 +4,7 @@ const { normalizeBodyKey } = require("../../domain/canonical");
 const { bodyLabelJa } = require("../shared/text/tokens");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
 const { formatJstTimeLabel } = require("../../utils/time");
-const { refinePeakTime } = require("../../domain/aspect/proximity");
+const { buildMoonStatus } = require("../../domain/moon");
 const {
   buildObservationAxisSummary,
   formatObservationFallback,
@@ -133,26 +133,9 @@ function formatAspectBlockForCaption({ dict, aspect, transitSigns }) {
   ].filter((line) => line !== "");
 }
 
-function buildResonancePeakLabel({ dict, aspect, dateLocal, asOfISO }) {
-  if (!aspect) return { dateLabel: formatDateLabel(dateLocal || ""), timeLabel: "" };
-  const info = aspectInfo(dict, aspect?.type || aspect?.aspect, aspect?.aspect_deg);
-  const deg = Number.isFinite(Number(info?.deg)) ? Number(info.deg) : safeNumber(aspect?.aspect_deg);
-  const aKey = normalizeBodyKey(aspect?.a || "");
-  const bKey = normalizeBodyKey(aspect?.b || "");
-  const seedISO = aspect?.peak_at || aspect?.peak_at_iso || aspect?.peak_at_utc || null;
-  const fallbackISO = asOfISO || (dateLocal ? `${dateLocal}T12:00:00+09:00` : undefined);
-  const peakTime = Number.isFinite(Number(deg))
-    ? refinePeakTime({
-      kind: "transit-transit",
-      aKey,
-      bKey,
-      aspectDeg: deg,
-      seedISO,
-      fallbackISO,
-    })
-    : null;
+function buildResonanceHeaderLabel({ dateLocal, asOfISO }) {
   const dateLabel = formatDateLabel(dateLocal || "");
-  const timeLabel = peakTime ? formatJstTimeLabel(peakTime, { fallback: "" }) : "";
+  const timeLabel = asOfISO ? formatJstTimeLabel(asOfISO, { fallback: "" }) : "";
   return { dateLabel, timeLabel };
 }
 
@@ -380,6 +363,25 @@ function normalizeHashtags(raw, fallback = []) {
   return out.slice(0, 5);
 }
 
+function stripTrailingHashtagLines(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const lines = raw.split(/\r?\n/);
+  while (lines.length) {
+    const last = String(lines[lines.length - 1] || "").trim();
+    if (!last) {
+      lines.pop();
+      continue;
+    }
+    if (/^(?:[#＃][^\s#＃]+(?:\s+|$))+$/u.test(last)) {
+      lines.pop();
+      continue;
+    }
+    break;
+  }
+  return lines.join("\n").trim();
+}
+
 function renderIGCaptionResonance(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
@@ -399,17 +401,15 @@ function renderIGCaptionResonance(story, deps = {}) {
   const resonanceText = String(parts.resonance_caption || parts.resonance || "").trim();
   const fallback = resonanceText
     ? resonanceText
-    : (resonanceLines.length ? "配置が重なることで、流れが一時的に揺れやすくなります。" : "共鳴の角度は、静かに輪郭を残します。");
-  const peak = buildResonancePeakLabel({
-    dict,
-    aspect: resonance,
+    : (resonanceLines.length ? "この角度が、空の中で別の向きを同時に立ち上げています。" : "共鳴の角度が、静かに輪郭を置いています。");
+  const header = buildResonanceHeaderLabel({
     dateLocal: story?.meta?.date_local || story?.public?.date_local || "",
     asOfISO,
   });
-  const peakHeader = [peak.dateLabel, peak.timeLabel].filter(Boolean).join(" ").trim();
+  const headerLabel = [header.dateLabel, header.timeLabel].filter(Boolean).join(" ").trim();
 
   const lines = [];
-  lines.push(`🪐 今日の共鳴 ${peakHeader || dateLabel}`.trim());
+  lines.push(`🪐 今日の共鳴 ${headerLabel || dateLabel}`.trim());
   lines.push("");
   lines.push("【今日の共鳴】");
   resonanceLines.forEach((l) => lines.push(l));
@@ -451,7 +451,22 @@ function renderIGCaptionNight(story, deps = {}) {
     const linesRaw = moonText.split("\n").map((l) => l.trim()).filter(Boolean);
     // AI がタイトルを入れてきた場合は捨てる（タイトルは固定で付ける）
     while (linesRaw.length && isNightTitleLine(linesRaw[0])) linesRaw.shift();
-    moonText = linesRaw.join("\n").trim();
+    moonText = stripTrailingHashtagLines(linesRaw.join("\n"));
+  }
+
+  if (!moonText) {
+    const asOfISO =
+      story?.meta?.as_of ||
+      (story?.meta?.date_local || story?.public?.date_local
+        ? `${story?.meta?.date_local || story?.public?.date_local}T21:00:00+09:00`
+        : "");
+    const moonStatus = asOfISO ? buildMoonStatus({ asOfISO, story, dict }) : null;
+    const signJa = String(moonStatus?.signJa || "").trim() || "—";
+    const displayName = String(moonStatus?.displayName || moonStatus?.phaseLabel || "").trim() || "静かな月相";
+    const nextLine = moonStatus?.cycleLabel
+      ? `${moonStatus.cycleLabel}の内側で、輪郭だけがかすかに残ります。`
+      : "輪郭だけが静かに残り、次の移り変わりへ向かいます。";
+    moonText = `${signJa}の${displayName}。\n${nextLine}`;
   }
 
   const lines = [];

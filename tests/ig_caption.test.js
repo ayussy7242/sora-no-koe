@@ -93,6 +93,51 @@ test("renderIGCaptionNight keeps a single title when AI already includes it", ()
   assert.equal(caption.split("\n").filter((l) => l.trim() === header).length, 1);
 });
 
+test("renderIGCaptionNight strips hashtag lines from AI body before appending final tags", () => {
+  const story = {
+    meta: { date_local: "2026-04-18" },
+    public: { date_local: "2026-04-18" },
+    outputs: {
+      ig: {
+        parts: {
+          moon_caption: "本文です🌙\n#今日の月 #夜の空 #月の配置",
+          hashtags_night: ["#今日の月", "#夜の空", "#月の配置"],
+        },
+      },
+    },
+  };
+
+  const caption = renderIGCaptionNight(story, { dict });
+  assert.equal((caption.match(/#今日の月/g) || []).length, 1);
+  assert.equal((caption.match(/#夜の空/g) || []).length, 1);
+});
+
+test("renderIGCaptionNight falls back to moon summary when AI caption is empty", () => {
+  const story = {
+    meta: {
+      date_local: "2026-04-18",
+      as_of: "2026-04-18T21:00:00+09:00",
+    },
+    public: {
+      date_local: "2026-04-18",
+      moon: { sign_ja: "牡牛座", sign_key: "taurus" },
+    },
+    outputs: {
+      ig: {
+        parts: {
+          moon_caption: "",
+          hashtags_night: [],
+        },
+      },
+    },
+  };
+
+  const caption = renderIGCaptionNight(story, { dict });
+  assert.match(caption, /牡牛座の/);
+  assert.ok(caption.includes("輪郭"));
+  assert.ok(caption.indexOf("牡牛座の") < caption.indexOf("LINEで毎朝星の配置配信中"));
+});
+
 test("renderIGCaptionResonance ends without CTA copy", () => {
   const story = {
     meta: {
