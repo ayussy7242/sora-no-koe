@@ -3,11 +3,12 @@
 const { safeEqual } = require("../../../../utils/data/equal");
 const { createBlueprintLightService } = require("..");
 const { createLineApi } = require("../../../../integrations/line/api");
-const { setLineUserState } = require("../../../../integrations/line/state");
+const { setLineUserBlueprintPhase } = require("../../../../integrations/line/state");
 const { LINE_COPY } = require("../../../../content/copy");
 const dict = require("../../../../content/dict");
 const { resolveDisplayNameFromLineUserDoc } = require("../../../../utils/text/display_name");
 const { toBool } = require("../../../../utils/data/bool");
+const { BLUEPRINT_PHASE, JOB_STATUS, normalizeCompletionStatus } = require("../../../../domain/lifecycle/enums");
 const { enqueueBlueprintJob, enqueueBlueprintPdfJob } = require("./queue");
 const {
   getJobRef,
@@ -167,27 +168,27 @@ async function handleGenerate(req, res, deps) {
 
   const forceRegen = toBool(req.body?.forceRegen || req.body?.force);
   let shouldEnqueue = true;
-  let currentStatus = "queued";
+  let currentStatus = JOB_STATUS.QUEUED;
   let currentSignedUrl = null;
   const now = admin.firestore.FieldValue.serverTimestamp();
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(jobRef);
     const job = snap.exists ? snap.data() : null;
-    if (job?.status === "done" && !forceRegen) {
-      currentStatus = "done";
+    if (normalizeCompletionStatus(job?.status) === JOB_STATUS.SUCCESS && !forceRegen) {
+      currentStatus = JOB_STATUS.SUCCESS;
       shouldEnqueue = false;
       return;
     }
-    if (job?.status === "running" && isLeaseActive(job, nowMs)) {
-      currentStatus = "running";
+    if (normalizeCompletionStatus(job?.status) === JOB_STATUS.RUNNING && isLeaseActive(job, nowMs)) {
+      currentStatus = JOB_STATUS.RUNNING;
       shouldEnqueue = false;
       return;
     }
     tx.set(
       jobRef,
       {
-        status: "queued",
+        status: JOB_STATUS.QUEUED,
         line_user_id: lineUserId,
         product: "blueprint_light_v1",
         error: null,
@@ -199,14 +200,14 @@ async function handleGenerate(req, res, deps) {
       },
       { merge: true }
     );
-    currentStatus = "queued";
+    currentStatus = JOB_STATUS.QUEUED;
     shouldEnqueue = true;
   });
 
-  if (currentStatus === "done") {
+  if (currentStatus === JOB_STATUS.SUCCESS) {
     const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
     if (signed?.ok && signed?.url) currentSignedUrl = signed.url;
-    return res.status(200).json({ ok: true, status: "done", signed_url: currentSignedUrl });
+    return res.status(200).json({ ok: true, status: JOB_STATUS.SUCCESS, signed_url: currentSignedUrl });
   }
   if (!shouldEnqueue) {
     return res.status(202).json({ ok: true, status: currentStatus });
@@ -217,16 +218,16 @@ async function handleGenerate(req, res, deps) {
       db,
       admin,
       lineUserId,
-      status: "queued",
+      status: JOB_STATUS.QUEUED,
       stage: "enqueue",
       attempts: 0,
     });
-    return res.status(202).json({ ok: true, status: "queued", job_id: lineUserId });
+    return res.status(202).json({ ok: true, status: JOB_STATUS.QUEUED, job_id: lineUserId });
   } catch (e) {
     console.log("[blueprint] enqueue failed:", e?.message || String(e));
     await jobRef.set(
       {
-        status: "failed",
+        status: JOB_STATUS.FAILED,
         error: e?.message || String(e),
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
         stage: "enqueue_failed",
@@ -237,7 +238,7 @@ async function handleGenerate(req, res, deps) {
       db,
       admin,
       lineUserId,
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       stage: "enqueue_failed",
       error: e?.message || String(e),
     });
@@ -260,19 +261,20 @@ async function handleStatus(req, res, deps) {
     return res.status(200).json({ ok: true, status: "not_ready" });
   }
   const job = snap.data() || {};
+  job.status = normalizeCompletionStatus(job.status);
   const nowMs = getNowMillis();
 
   // Delay notice (running too long)
-  if (job.status === "running") {
+  if (job.status === JOB_STATUS.RUNNING) {
     await maybeSendDelayNotice({ env, db, admin, lineUserId, job }).catch(() => {});
   }
 
-  if (job.status === "running" && !isLeaseActive(job, nowMs)) {
+  if (job.status === JOB_STATUS.RUNNING && !isLeaseActive(job, nowMs)) {
     const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
     if (exists?.ok && exists.exists) {
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
       const updates = {
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         error: signed?.ok ? null : signed?.error || job.error || null,
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
         finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -284,13 +286,13 @@ async function handleStatus(req, res, deps) {
         db,
         admin,
         lineUserId,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "status_finalize",
         attempts: toNumberSafe(job.attempts),
       });
       return res.status(200).json({
         ok: true,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         signed_url: signed?.ok ? signed.url : (job.signed_url || null),
         error: signed?.ok ? null : (signed?.error || "signing_failed"),
       });
@@ -302,7 +304,7 @@ async function handleStatus(req, res, deps) {
       await enqueueBlueprintJob({ env, lineUserId, forceRegen: true });
       await jobRef.set(
         {
-          status: "queued",
+          status: JOB_STATUS.QUEUED,
           stage: "retry_queued",
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -315,16 +317,16 @@ async function handleStatus(req, res, deps) {
         db,
         admin,
         lineUserId,
-        status: "queued",
+        status: JOB_STATUS.QUEUED,
         stage: "retry_queued",
         error: "stale_running",
         attempts,
       });
-      return res.status(202).json({ ok: true, status: "queued", code: "retry_stale" });
+      return res.status(202).json({ ok: true, status: JOB_STATUS.QUEUED, code: "retry_stale" });
     }
     await jobRef.set(
       {
-        status: "failed",
+        status: JOB_STATUS.FAILED,
         stage: "failed_stale",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
         finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -337,20 +339,20 @@ async function handleStatus(req, res, deps) {
       db,
       admin,
       lineUserId,
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       stage: "failed_stale",
       error: job.error || "stale_running",
       attempts,
     });
-    job.status = "failed";
+    job.status = JOB_STATUS.FAILED;
   }
-  if (job.status !== "done") {
+  if (job.status !== JOB_STATUS.SUCCESS) {
     const exists = await blueprint.hasPdf({ lineUserId, variant: "mobile" }).catch(() => null);
     if (exists?.ok && exists.exists) {
       const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
       await jobRef.set(
         {
-          status: "done",
+          status: JOB_STATUS.SUCCESS,
           error: signed?.ok ? null : (signed?.error || null),
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -363,14 +365,14 @@ async function handleStatus(req, res, deps) {
         db,
         admin,
         lineUserId,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "status_finalize",
         attempts: toNumberSafe(job.attempts),
       });
-      return res.status(200).json({ ok: true, status: "done", signed_url: signed?.ok ? signed.url : null });
+      return res.status(200).json({ ok: true, status: JOB_STATUS.SUCCESS, signed_url: signed?.ok ? signed.url : null });
     }
   }
-  if (job.status === "done") {
+  if (job.status === JOB_STATUS.SUCCESS) {
     const signed = await blueprint.getOrCreateSignedUrl({ lineUserId, variant: "mobile" });
     if (signed?.ok && signed?.url) {
       await jobRef.set(
@@ -381,32 +383,32 @@ async function handleStatus(req, res, deps) {
         db,
         admin,
         lineUserId,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "status_refresh",
         attempts: toNumberSafe(job.attempts),
       });
-      return res.status(200).json({ ok: true, status: "done", signed_url: signed.url });
+      return res.status(200).json({ ok: true, status: JOB_STATUS.SUCCESS, signed_url: signed.url });
     }
     if (signed?.code === "signing_failed") {
       await logBlueprintEvent({
         db,
         admin,
         lineUserId,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "status_signing_failed",
         error: signed?.error || "signing_failed",
         attempts: toNumberSafe(job.attempts),
       });
       return res.status(200).json({
         ok: true,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         signed_url: job.signed_url || null,
         error: signed?.error || "signing_failed",
       });
     }
     await jobRef.set(
       {
-        status: "queued",
+        status: JOB_STATUS.QUEUED,
         error: "file_not_ready",
         updated_at: admin.firestore.FieldValue.serverTimestamp(),
         stage: "queued_file_not_ready",
@@ -417,7 +419,7 @@ async function handleStatus(req, res, deps) {
       db,
       admin,
       lineUserId,
-      status: "queued",
+      status: JOB_STATUS.QUEUED,
       stage: "queued_file_not_ready",
       error: "file_not_ready",
       attempts: toNumberSafe(job.attempts),
@@ -426,9 +428,9 @@ async function handleStatus(req, res, deps) {
   }
   return res.status(200).json({
     ok: true,
-    status: job.status || "queued",
+    status: job.status || JOB_STATUS.QUEUED,
     signed_url: job.signed_url || null,
-    error: job.status === "failed" ? job.error || null : null,
+    error: job.status === JOB_STATUS.FAILED ? job.error || null : null,
   });
 }
 
@@ -502,11 +504,11 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
     await db.runTransaction(async (tx) => {
     const snap = await tx.get(jobRef);
     const job = snap.exists ? snap.data() : null;
-    if (job?.status === "done" && !forceRun) {
+    if (normalizeCompletionStatus(job?.status) === JOB_STATUS.SUCCESS && !forceRun) {
       shouldRun = false;
       return;
     }
-    if (job?.status === "running" && isLeaseActive(job, nowMs)) {
+    if (normalizeCompletionStatus(job?.status) === JOB_STATUS.RUNNING && isLeaseActive(job, nowMs)) {
       shouldRun = false;
       return;
     }
@@ -515,7 +517,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
     tx.set(
       jobRef,
       {
-        status: "running",
+        status: JOB_STATUS.RUNNING,
         error: null,
         stage: "running",
         attempts: attemptCount,
@@ -534,15 +536,15 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
     db,
     admin,
     lineUserId,
-    status: "running",
+    status: JOB_STATUS.RUNNING,
     stage: "running",
     attempts: attemptCount,
   });
-  await setLineUserState({
+  await setLineUserBlueprintPhase({
     db,
     admin,
     lineUserId,
-    state: "running_blueprint",
+    phase: BLUEPRINT_PHASE.RUNNING_BLUEPRINT,
     eventType: "blueprint_running",
   });
 
@@ -601,7 +603,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
             db,
             admin,
             lineUserId,
-            status: "done",
+            status: JOB_STATUS.SUCCESS,
             stage: "line_push_skipped",
             attempts: attemptCount,
           });
@@ -609,7 +611,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
       }
       await jobRef.set(
         {
-          status: "done",
+          status: JOB_STATUS.SUCCESS,
           stage: "done",
           file_path_mobile: genPdf?.filePath || null,
           signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
@@ -623,15 +625,15 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
         db,
         admin,
         lineUserId,
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "done",
         attempts: attemptCount,
       });
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "blueprint_done",
+        phase: BLUEPRINT_PHASE.BLUEPRINT_DONE,
         eventType: "blueprint_done",
       });
       return res.json({ ok: true, code: "pdf_generated" });
@@ -658,7 +660,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
       });
       await jobRef.set(
         {
-          status: "queued_pdf",
+          status: BLUEPRINT_PHASE.QUEUED_PDF,
           stage: "queued_pdf",
           file_path_mobile: genMobile?.filePath || null,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -670,7 +672,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
         db,
         admin,
         lineUserId,
-        status: "queued_pdf",
+        status: BLUEPRINT_PHASE.QUEUED_PDF,
         stage: "queued_pdf",
         attempts: attemptCount,
       });
@@ -726,7 +728,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
           db,
           admin,
           lineUserId,
-          status: "done",
+          status: JOB_STATUS.SUCCESS,
           stage: "line_push_skipped",
           attempts: attemptCount,
         });
@@ -734,7 +736,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
     }
     await jobRef.set(
       {
-        status: "done",
+        status: JOB_STATUS.SUCCESS,
         stage: "done",
         file_path_mobile: genMobile?.filePath || null,
         signed_url_mobile: signedMobile?.ok ? signedMobile.url : null,
@@ -748,15 +750,15 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
       db,
       admin,
       lineUserId,
-      status: "done",
+      status: JOB_STATUS.SUCCESS,
       stage: "done",
       attempts: attemptCount,
     });
-    await setLineUserState({
+    await setLineUserBlueprintPhase({
       db,
       admin,
       lineUserId,
-      state: "blueprint_done",
+      phase: BLUEPRINT_PHASE.BLUEPRINT_DONE,
       eventType: "blueprint_done",
     });
     return res.json({ ok: true, code: genMobile?.skipped ? "already_exists" : "generated" });
@@ -786,7 +788,7 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
         });
         await jobRef.set(
           {
-            status: "queued_pdf",
+            status: BLUEPRINT_PHASE.QUEUED_PDF,
             error: message,
             stage: "queued_pdf_retry",
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -798,17 +800,17 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
           db,
           admin,
           lineUserId,
-          status: "queued_pdf",
+          status: BLUEPRINT_PHASE.QUEUED_PDF,
           stage: "queued_pdf_retry",
           error: message,
           attempts: attemptCount,
           extra: { pdf_attempt: pdfAttempt + 1 },
         });
-        await setLineUserState({
+        await setLineUserBlueprintPhase({
           db,
           admin,
           lineUserId,
-          state: "queued_blueprint",
+          phase: BLUEPRINT_PHASE.QUEUED_BLUEPRINT,
           eventType: "blueprint_retry_queued",
         });
         return res.status(200).json({ ok: true, code: "queued_pdf_retry" });
@@ -830,11 +832,11 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
         error: message,
         attempts: attemptCount,
       });
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "blueprint_failed",
+        phase: BLUEPRINT_PHASE.BLUEPRINT_FAILED,
         eventType: "blueprint_failed",
       });
       return res.status(200).json({ ok: false, nonRetry: true, error: message });
@@ -863,11 +865,11 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
         error: message,
         attempts,
       });
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "queued_blueprint",
+        phase: BLUEPRINT_PHASE.QUEUED_BLUEPRINT,
         eventType: "blueprint_retry_queued",
       });
       return res.status(202).json({ ok: true, code: "retry_queued" });
@@ -887,11 +889,11 @@ function createWorkerHandler({ pdfOnlyRequired = false } = {}) {
       error: message,
       attempts,
     });
-    await setLineUserState({
+    await setLineUserBlueprintPhase({
       db,
       admin,
       lineUserId,
-      state: "blueprint_failed",
+      phase: BLUEPRINT_PHASE.BLUEPRINT_FAILED,
       eventType: "blueprint_failed",
     });
     return res.status(500).json({ ok: false, error: "internal_error" });

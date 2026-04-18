@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { CRON_STATUS, normalizeCompletionStatus } = require("../../domain/lifecycle/enums");
 
 function nowIso(ms = Date.now()) {
   return new Date(ms).toISOString();
@@ -33,9 +34,7 @@ function serverTimestamp(admin) {
 }
 
 function normalizeStatus(status) {
-  const s = String(status || "").toLowerCase();
-  if (s === "done") return "success";
-  return s;
+  return normalizeCompletionStatus(status);
 }
 
 function resolveUpdatedMs(data = {}) {
@@ -78,10 +77,10 @@ async function acquireCronLockCore({
       const status = normalizeStatus(data.status || "");
       const updatedMs = resolveUpdatedMs(data);
       const stale = Number.isFinite(updatedMs) ? (nowMs - updatedMs) > ttlMs : false;
-      if (status === "success" && !force) {
+      if (status === CRON_STATUS.SUCCESS && !force) {
         return { ok: false, reason: "done", data, ref };
       }
-      if (status === "running" && !stale) {
+      if (status === CRON_STATUS.RUNNING && !stale) {
         return { ok: false, reason: "running", data, ref };
       }
     }
@@ -91,7 +90,7 @@ async function acquireCronLockCore({
       : 1;
 
     const payload = {
-      status: "running",
+      status: CRON_STATUS.RUNNING,
       runId,
       startedAtMs: nowMs,
       startedAt: nowIso(nowMs),

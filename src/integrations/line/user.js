@@ -18,6 +18,7 @@
  */
 
 const crypto = require("crypto");
+const { USER_FLOW_STATE, USER_STATUS } = require("../../domain/lifecycle/enums");
 const {
   getLineUserState: getLineUserStateShared,
   setLineUserState: setLineUserStateShared,
@@ -31,18 +32,7 @@ function createLineUser({ db, admin, config = {} }) {
   const PROJECT = config.PROJECT || "sora-no-koe";
   const SCHEMA_VERSION = config.SCHEMA_VERSION || "1.0.0";
 
-  const FLOW_STATE = Object.freeze({
-    PENDING_BIRTH_DATE: "pending_birth_date",
-    PENDING_BIRTH_TIME: "pending_birth_time",
-    PENDING_BIRTH_PLACE: "pending_birth_place",
-    QUEUED_NATAL_CALC: "queued_natal_calc",
-    RUNNING_NATAL_CALC: "running_natal_calc",
-    QUEUED_BLUEPRINT: "queued_blueprint",
-    RUNNING_BLUEPRINT: "running_blueprint",
-    BLUEPRINT_DONE: "blueprint_done",
-    BLUEPRINT_FAILED: "blueprint_failed",
-    READY: "ready",
-  });
+  const FLOW_STATE = USER_FLOW_STATE;
 
   function serverNow() {
     return admin.firestore.FieldValue.serverTimestamp();
@@ -80,7 +70,7 @@ function createLineUser({ db, admin, config = {} }) {
       tx.set(
         userRef,
         {
-          status: "active",
+          status: USER_STATUS.ACTIVE,
           profile: {
             display_name: mergedLineProfile.display_name ?? existing?.profile?.display_name ?? null,
             timezone: existing?.profile?.timezone ?? DEFAULT_TZ,
@@ -161,7 +151,7 @@ function createLineUser({ db, admin, config = {} }) {
     await db.collection("users").doc(appUserId).set(
       {
         updated_at: serverNow(),
-        status: "active",
+        status: USER_STATUS.ACTIVE,
         profile: { display_name: displayName, timezone: DEFAULT_TZ },
       },
       { merge: true }
@@ -220,7 +210,7 @@ function createLineUser({ db, admin, config = {} }) {
     );
 
     if (appUserId) {
-      batch.set(db.collection("users").doc(appUserId), { status: "active", updated_at: now }, { merge: true });
+      batch.set(db.collection("users").doc(appUserId), { status: USER_STATUS.ACTIVE, updated_at: now }, { merge: true });
     }
     await batch.commit();
   }

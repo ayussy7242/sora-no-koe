@@ -1,10 +1,11 @@
 "use strict";
 
 const { minutes, nowMs, nowDate } = require("./utils");
+const { JOB_STATUS } = require("../../../domain/lifecycle/enums");
 
 async function resetStaleRunningJobs({ db, admin, jobsCol, limit = 10 }) {
   const staleQ = await jobsCol
-    .where("status", "==", "running")
+    .where("status", "==", JOB_STATUS.RUNNING)
     .where("lease_expires_at", "<", nowDate())
     .limit(limit)
     .get();
@@ -16,7 +17,7 @@ async function resetStaleRunningJobs({ db, admin, jobsCol, limit = 10 }) {
     batch.set(
       d.ref,
       {
-        status: "queued",
+        status: JOB_STATUS.QUEUED,
         last_error: "stale lease reset",
         worker_id: null,
         lease_expires_at: null,
@@ -40,7 +41,7 @@ async function lockOneQueuedJob({ db, admin, jobsCol, maxAttempts, leaseMinutes,
 
   await db.runTransaction(async (tx) => {
     const q = await tx.get(
-      jobsCol.where("status", "==", "queued").orderBy("created_at", "asc").limit(1)
+      jobsCol.where("status", "==", JOB_STATUS.QUEUED).orderBy("created_at", "asc").limit(1)
     );
     if (q.empty) return;
 
@@ -53,7 +54,7 @@ async function lockOneQueuedJob({ db, admin, jobsCol, maxAttempts, leaseMinutes,
       tx.set(
         ref,
         {
-          status: "failed",
+          status: JOB_STATUS.FAILED,
           last_error: `max attempts reached (${attempts})`,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
         },
@@ -62,14 +63,14 @@ async function lockOneQueuedJob({ db, admin, jobsCol, maxAttempts, leaseMinutes,
       return;
     }
 
-    if (job.status !== "queued") return;
+    if (job.status !== JOB_STATUS.QUEUED) return;
 
     const leaseExpiresAt = new Date(nowMs() + minutes(leaseMinutes));
 
     tx.set(
       ref,
       {
-        status: "running",
+        status: JOB_STATUS.RUNNING,
         attempts: attempts + 1,
         worker_id: workerId,
         lease_expires_at: leaseExpiresAt,
@@ -91,7 +92,7 @@ async function lockOneQueuedJob({ db, admin, jobsCol, maxAttempts, leaseMinutes,
 async function finalizeJobDone({ admin, lockedRef, workerId }) {
   await lockedRef.set(
     {
-      status: "done",
+      status: JOB_STATUS.SUCCESS,
       last_error: null,
       worker_id: workerId,
       finished_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -105,7 +106,7 @@ async function finalizeJobDone({ admin, lockedRef, workerId }) {
 async function finalizeJobFailed({ admin, lockedRef, workerId, error }) {
   await lockedRef.set(
     {
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       last_error: error?.message ? String(error.message) : String(error),
       worker_id: workerId,
       finished_at: admin.firestore.FieldValue.serverTimestamp(),

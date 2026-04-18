@@ -1,6 +1,7 @@
 "use strict";
 
 const { acquireCronLockCore, markCronLockCore } = require("./locks");
+const { CRON_STATUS } = require("../../domain/lifecycle/enums");
 
 async function claimCronLock({ db, admin, id, ttlMs = 30 * 60 * 1000 } = {}) {
   const res = await acquireCronLockCore({ db, admin, id, ttlMs });
@@ -18,12 +19,12 @@ async function claimCronLock({ db, admin, id, ttlMs = 30 * 60 * 1000 } = {}) {
 
 async function markCronLockSuccess({ ref, admin, extra } = {}) {
   if (!ref) return;
-  await markCronLockCore({ ref, admin, status: "success", patch: extra });
+  await markCronLockCore({ ref, admin, status: CRON_STATUS.SUCCESS, patch: extra });
 }
 
 async function markCronLockFailed({ ref, admin, error, extra } = {}) {
   if (!ref) return;
-  await markCronLockCore({ ref, admin, status: "failed", patch: { error: String(error || "unknown"), ...(extra || {}) } });
+  await markCronLockCore({ ref, admin, status: CRON_STATUS.FAILED, patch: { error: String(error || "unknown"), ...(extra || {}) } });
 }
 
 module.exports = {

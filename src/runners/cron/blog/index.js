@@ -7,6 +7,7 @@ const { acquireCronLock, markCronLock } = require("../shared/locks");
 const { writeTextFile, writeJsonFile } = require("../shared/io");
 const { buildDailyPlan } = require("./planning");
 const { publishDailyPost } = require("./publish");
+const { CRON_STATUS } = require("../../../domain/lifecycle/enums");
 
 const BLOG_LOCK_TTL_MS = 20 * 60 * 1000;
 
@@ -154,7 +155,7 @@ async function runDailyBlog(
       mark,
     });
     if (lockId) {
-      await markCronLock(db, lockId, { status: "done", runId: lockRunId, wpPostId: result?.id || null });
+      await markCronLock(db, lockId, { status: CRON_STATUS.SUCCESS, runId: lockRunId, wpPostId: result?.id || null });
     }
     mark("end", { ok: true, ...(result?.updated ? { updated: true } : {}), ...(result?.created ? { created: true } : {}) });
     return result;
@@ -162,7 +163,7 @@ async function runDailyBlog(
     console.error("[cron/blog/daily] failed:", e?.message || String(e));
     if (e?.stack) console.error(e.stack);
     if (lockId) {
-      await markCronLock(db, lockId, { status: "failed", runId: lockRunId, error: e?.message || String(e) });
+      await markCronLock(db, lockId, { status: CRON_STATUS.FAILED, runId: lockRunId, error: e?.message || String(e) });
     }
     throw e;
   }

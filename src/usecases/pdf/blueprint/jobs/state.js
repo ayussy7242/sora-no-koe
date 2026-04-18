@@ -1,5 +1,7 @@
 "use strict";
 
+const { JOB_STATUS } = require("../../../../domain/lifecycle/enums");
+
 function getJobRef(db, lineUserId) {
   return db.collection("jobs").doc("blueprint_light").collection("items").doc(lineUserId);
 }
@@ -9,7 +11,7 @@ async function markFailed({ db, admin, lineUserId, stage, error, extra } = {}) {
   const ref = getJobRef(db, lineUserId);
   await ref.set(
     {
-      status: "failed",
+      status: JOB_STATUS.FAILED,
       stage: stage || "worker",
       error: String(error || "unknown_error"),
       extra: extra || null,

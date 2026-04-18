@@ -103,7 +103,9 @@ async function main() {
     const ref = db.collection("line_users").doc(line_user_id);
     await ref.set(
       {
-        status: "pending_birth_date",
+        state: "pending_birth_date",
+        blueprint_phase: admin.firestore.FieldValue.delete(),
+        natal_phase: admin.firestore.FieldValue.delete(),
         profile: admin.firestore.FieldValue.delete(), // 入力済みプロフィール消す
         meta: {
           last_reset_at: nowTs(),

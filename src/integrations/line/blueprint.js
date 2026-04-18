@@ -3,7 +3,8 @@
 const { createBlueprintLightService } = require("../../usecases/pdf/blueprint");
 const { enqueueBlueprintGenerate } = require("../cloudtasks/tasks_queue");
 const { LINE_COPY } = require("../../content/copy");
-const { setLineUserState } = require("./state");
+const { setLineUserBlueprintPhase } = require("./state");
+const { BLUEPRINT_PHASE } = require("../../domain/lifecycle/enums");
 
 async function handleBlueprintLight({
   appUserId,
@@ -56,11 +57,11 @@ async function handleBlueprintLight({
     const code = resultMobile?.code || "";
     if (code === "not_ready") {
       await enqueueBlueprintGenerate({ env, lineUserId, blueprintType: "light" }).catch(() => {});
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "queued_blueprint",
+        phase: BLUEPRINT_PHASE.QUEUED_BLUEPRINT,
         eventType: "blueprint_queued",
       });
     }

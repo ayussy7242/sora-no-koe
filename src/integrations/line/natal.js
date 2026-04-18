@@ -15,6 +15,7 @@ const { isunknown } = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
 const { parseYYYYMMDD, parseHHMM } = require("../../utils/data/parse");
 const { safeLineText } = require("./line_utils");
+const { NATAL_PHASE, USER_FLOW_STATE, USER_STATUS, JOB_STATUS } = require("../../domain/lifecycle/enums");
 
 function createLineNatal({ db, admin, geocoder = null, renderers, config = {} }) {
   if (!db) throw new Error("db is required");
@@ -25,18 +26,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
   const DEFAULT_TZ = config.DEFAULT_TZ || "Asia/Tokyo";
   const MAX_LINE_TEXT = Number(config.MAX_LINE_TEXT || 4800);
 
-  const FLOW_STATE = Object.freeze({
-    PENDING_BIRTH_DATE: "pending_birth_date",
-    PENDING_BIRTH_TIME: "pending_birth_time",
-    PENDING_BIRTH_PLACE: "pending_birth_place",
-    QUEUED_NATAL_CALC: "queued_natal_calc",
-    RUNNING_NATAL_CALC: "running_natal_calc",
-    QUEUED_BLUEPRINT: "queued_blueprint",
-    RUNNING_BLUEPRINT: "running_blueprint",
-    BLUEPRINT_DONE: "blueprint_done",
-    BLUEPRINT_FAILED: "blueprint_failed",
-    READY: "ready",
-  });
+  const FLOW_STATE = USER_FLOW_STATE;
 
   function serverNow() {
     return admin.firestore.FieldValue.serverTimestamp();
@@ -105,7 +95,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       await db.collection("users").doc(appUserId).set(
         {
           updated_at: serverNow(),
-          status: "active",
+          status: USER_STATUS.ACTIVE,
           natal: {
             enabled: true,
             completed_at: serverNow(),
@@ -117,7 +107,20 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     }
 
     // line_users.state は READY
-    if (lineUserId && nextState) await setLineState(lineUserId, nextState);
+    if (lineUserId && nextState) {
+      const ref = db.collection("line_users").doc(lineUserId);
+      const payload = {
+        updated_at: serverNow(),
+        meta: { last_event_type: "natal_state", last_seen_at: serverNow() },
+      };
+      if (nextState === NATAL_PHASE.QUEUED_NATAL_CALC || nextState === NATAL_PHASE.RUNNING_NATAL_CALC) {
+        payload.state = USER_FLOW_STATE.READY;
+        payload.natal_phase = nextState;
+      } else {
+        payload.state = nextState;
+      }
+      await ref.set(payload, { merge: true });
+    }
   }
 
   async function resetNatal(appUserId, lineUserId) {
@@ -147,7 +150,18 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       await db.collection("jobs_natal_calc").doc(appUserId).delete().catch(() => { });
     }
 
-    if (lineUserId) await setLineState(lineUserId, FLOW_STATE.PENDING_BIRTH_DATE);
+    if (lineUserId) {
+      await db.collection("line_users").doc(lineUserId).set(
+        {
+          state: USER_FLOW_STATE.PENDING_BIRTH_DATE,
+          natal_phase: admin.firestore.FieldValue.delete(),
+          blueprint_phase: admin.firestore.FieldValue.delete(),
+          updated_at: serverNow(),
+          meta: { last_event_type: "natal_reset", last_seen_at: serverNow() },
+        },
+        { merge: true }
+      );
+    }
   }
 
   // --------------------
@@ -191,7 +205,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
     const b = user?.natal?.birth || {};
 
     const job = {
-      status: "queued",
+      status: JOB_STATUS.QUEUED,
       attempts: 0,
       created_at: admin.firestore.Timestamp.now(),
       updated_at: serverNow(),
@@ -314,7 +328,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
       if (isunknown(rawText)) {
         await saveBirthPlace(appUserId, { placeText: null, geo: null });
         await enqueueNatalCalcJob(appUserId);
-        await finalizeNatal(appUserId, lineUserId, { nextState: FLOW_STATE.QUEUED_NATAL_CALC });
+        await finalizeNatal(appUserId, lineUserId, { nextState: NATAL_PHASE.QUEUED_NATAL_CALC });
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 
@@ -325,7 +339,7 @@ function createLineNatal({ db, admin, geocoder = null, renderers, config = {} })
 
       if (geo?.ok) {
         await enqueueNatalCalcJob(appUserId);
-        await finalizeNatal(appUserId, lineUserId, { nextState: FLOW_STATE.QUEUED_NATAL_CALC });
+        await finalizeNatal(appUserId, lineUserId, { nextState: NATAL_PHASE.QUEUED_NATAL_CALC });
         return { text: LINE_COPY.NATAL_RECEIVED || LINE_COPY.NATAL_DONE };
       }
 

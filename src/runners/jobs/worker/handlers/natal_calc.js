@@ -3,7 +3,8 @@
 const { createRenderers } = require("../../../../presenters/shared/text");
 const dict = require("../../../../content/dict");
 const { enqueueBlueprintGenerate } = require("../../../../integrations/cloudtasks/tasks_queue");
-const { setLineUserState } = require("../../../../integrations/line/state");
+const { setLineUserBlueprintPhase, setLineUserNatalPhase } = require("../../../../integrations/line/state");
+const { BLUEPRINT_PHASE, NATAL_PHASE } = require("../../../../domain/lifecycle/enums");
 const { norm360 } = require("../../../../domain/astro/angles");
 const {
   randomId,
@@ -63,11 +64,11 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   const lineUserId = user?.channels?.line?.line_user_id || null;
 
   if (lineUserId) {
-    await setLineUserState({
+    await setLineUserNatalPhase({
       db,
       admin,
       lineUserId,
-      state: "running_natal_calc",
+      phase: NATAL_PHASE.RUNNING_NATAL_CALC,
       eventType: "natal_calc_running",
     });
   }
@@ -323,11 +324,11 @@ async function processOneNatalJob(deps = {}, opts = {}) {
           null;
         const shouldEnqueue = String(lastEnqueuedHash || "") !== String(birthHash);
         if (shouldEnqueue) {
-          await setLineUserState({
+          await setLineUserBlueprintPhase({
             db,
             admin,
             lineUserId,
-            state: "queued_blueprint",
+            phase: BLUEPRINT_PHASE.QUEUED_BLUEPRINT,
             eventType: "blueprint_queued",
           });
           console.log("[worker] blueprint enqueue", {
@@ -360,11 +361,11 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   } catch (e) {
     console.log("[worker] blueprint enqueue skipped/failed:", e?.message || String(e));
     if (lineUserId) {
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "blueprint_failed",
+        phase: BLUEPRINT_PHASE.BLUEPRINT_FAILED,
         eventType: "blueprint_enqueue_failed",
       });
     }

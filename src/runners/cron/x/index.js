@@ -19,6 +19,7 @@ const {
 const { renderXNightMoonPng } = require("../../../engine/renderers/x/night_moon");
 const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { CRON_STATUS } = require("../../../domain/lifecycle/enums");
 const {
   acquireXPostLock,
   markXPostLock,
@@ -627,7 +628,7 @@ async function runXResonancePost(deps, opts = {}) {
     });
     if (!dryRun && !localOnly) {
       await markXPostLock(db, "resonance", dateLocal, {
-        status: "done",
+        status: CRON_STATUS.SUCCESS,
         runId: lockInfo?.runId || null,
         tweet_ids: res?.id ? [res.id] : [],
         ok_count: res?.id ? 1 : 0,
@@ -884,7 +885,7 @@ async function runXNightPost(deps, opts = {}) {
 
   if (!dryRun && !localOnly) {
     await markXPostLock(db, "night", dateLocal, {
-      status: "done",
+      status: CRON_STATUS.SUCCESS,
       runId: lockInfo?.runId || null,
       tweet_ids: [res?.id || ""],
     }).catch(() => {});

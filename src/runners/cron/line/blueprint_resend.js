@@ -7,8 +7,9 @@ const { getLineUserIdFromUserDoc, pickTarget } = require("../cron_utils");
 const { createLineApi } = require("../../../integrations/line/api");
 const { createBlueprintLightService } = require("../../../usecases/pdf/blueprint");
 const { enqueueBlueprintGenerate } = require("../../../integrations/cloudtasks/tasks_queue");
-const { setLineUserState } = require("../../../integrations/line/state");
+const { getLineUserBlueprintPhase, setLineUserBlueprintPhase } = require("../../../integrations/line/state");
 const { LINE_COPY } = require("../../../content/copy");
+const { BLUEPRINT_PHASE, JOB_STATUS, normalizeCompletionStatus } = require("../../../domain/lifecycle/enums");
 
 function isNatalCacheComplete(cache) {
   if (!cache || typeof cache !== "object") return false;
@@ -34,7 +35,7 @@ function isNatalCacheComplete(cache) {
 function buildNatalJobFromUser({ user, appUserId, admin, defaultTz }) {
   const b = user?.natal?.birth || {};
   return {
-    status: "queued",
+    status: JOB_STATUS.QUEUED,
     attempts: 0,
     created_at: admin.firestore.Timestamp.now(),
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -131,7 +132,8 @@ async function runBlueprintResend(deps = {}, opts = {}) {
     const jobSnap = await jobRef.get();
     if (jobSnap.exists) {
       const job = jobSnap.data() || {};
-      if (job?.status === "queued" || job?.status === "running") {
+      const jobStatus = normalizeCompletionStatus(job?.status);
+      if (jobStatus === JOB_STATUS.QUEUED || jobStatus === JOB_STATUS.RUNNING) {
         skipped += 1;
         pushResult({ app_user_id: appUserId, reason: "natal_job_already_queued" });
         return { ok: false, reason: "natal_job_already_queued" };
@@ -159,11 +161,11 @@ async function runBlueprintResend(deps = {}, opts = {}) {
         extraPayload: { forcePush: true },
       });
       queuedBlueprint += 1;
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "queued_blueprint",
+        phase: BLUEPRINT_PHASE.QUEUED_BLUEPRINT,
         eventType: "blueprint_retry_queued",
       });
       pushResult({ line_user_id: lineUserId, reason: "blueprint_queued" });
@@ -199,13 +201,13 @@ async function runBlueprintResend(deps = {}, opts = {}) {
       return true;
     }
 
-    const state = String(lineUser?.state || "");
-    if (!includeDone && state === "blueprint_done") {
+    const blueprintPhase = String((await getLineUserBlueprintPhase({ db, lineUserId })) || "");
+    if (!includeDone && blueprintPhase === BLUEPRINT_PHASE.BLUEPRINT_DONE) {
       skipped += 1;
       pushResult({ app_user_id: appUserId, line_user_id: lineUserId, reason: "already_done" });
       return true;
     }
-    if (state === "queued_blueprint" || state === "running_blueprint") {
+    if (blueprintPhase === BLUEPRINT_PHASE.QUEUED_BLUEPRINT || blueprintPhase === BLUEPRINT_PHASE.RUNNING_BLUEPRINT) {
       skipped += 1;
       pushResult({ app_user_id: appUserId, line_user_id: lineUserId, reason: "already_queued" });
       return true;
@@ -287,11 +289,11 @@ async function runBlueprintResend(deps = {}, opts = {}) {
         },
         { merge: true }
       );
-      await setLineUserState({
+      await setLineUserBlueprintPhase({
         db,
         admin,
         lineUserId,
-        state: "blueprint_done",
+        phase: BLUEPRINT_PHASE.BLUEPRINT_DONE,
         eventType: "blueprint_resend_done",
       });
     }
