@@ -139,8 +139,9 @@ function normalizeSignKey(input) {
   return SIGN_ALIAS_MAP.get(norm) || norm;
 }
 
-function normalizeAspectKey(input, aspectDeg = null) {
-  const deg = Number.isFinite(Number(aspectDeg)) ? Math.round(Number(aspectDeg)) : null;
+function normalizeAspectKey(input, aspectDeg) {
+  const hasAspectDeg = aspectDeg !== null && aspectDeg !== undefined && String(aspectDeg).trim() !== "";
+  const deg = hasAspectDeg && Number.isFinite(Number(aspectDeg)) ? Math.round(Number(aspectDeg)) : null;
   if (deg != null && ASPECT_DEG_MAP.has(deg)) return ASPECT_DEG_MAP.get(deg);
   const norm = normToken(input);
   if (!norm && deg != null && ASPECT_DEG_MAP.has(deg)) return ASPECT_DEG_MAP.get(deg);

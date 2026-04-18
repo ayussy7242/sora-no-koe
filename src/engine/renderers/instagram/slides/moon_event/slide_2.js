@@ -3,6 +3,7 @@
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
 const { buildPublicWholeSignChartOptions } = require("../../../../graphics/public_chart_options");
+const { isMajorAspect } = require("../../../../../domain/aspect/canonical");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 
@@ -103,12 +104,6 @@ function getAvoidRegions({ dateLabel, footerLabel = "sky chart", subLabel = "tod
   return fields;
 }
 
-function normalizeAspectType(raw) {
-  const key = String(raw || "").toLowerCase().trim();
-  if (!key) return "";
-  return key.replace(/_\d+$/, "");
-}
-
 function limitAspects(story, maxLines = 10) {
   if (!story || !story.public) return story;
   const next = JSON.parse(JSON.stringify(story));
@@ -116,8 +111,7 @@ function limitAspects(story, maxLines = 10) {
   const skyTop = Array.isArray(pub.sky_top) ? pub.sky_top : [];
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
   const base = skyAll.length > 0 ? skyAll : skyTop;
-  const major = new Set(["conjunction", "sextile", "square", "trine", "opposition"]);
-  let list = base.filter((row) => major.has(normalizeAspectType(row?.type || row?.aspect)));
+  let list = base.filter((row) => isMajorAspect(row?.type || row?.aspect));
   if (!list.length) list = base;
   list.sort((a, b) => Number(a?.orb_deg) - Number(b?.orb_deg));
   pub.sky_all = list.slice(0, Math.max(1, maxLines));

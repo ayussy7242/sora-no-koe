@@ -1,5 +1,7 @@
 "use strict";
 
+const { RELATION_EXTRA_BODIES } = require("../../../domain/astro/constants");
+
 const COLOR_A = "#F59E0B"; // orange
 const COLOR_B = "#14B8A6"; // greenish blue
 const ELEMENT_COLORS = {
@@ -238,7 +240,7 @@ const HOUSE_BODY_WEIGHT = {
 };
 
 const AXIS_BODIES = new Set(["asc", "mc", "ic", "dc"]);
-const DEEP_BODIES = new Set(["north_node", "south_node", "chiron", "lilith"]);
+const RELATION_EXTRA_BODY_SET = new Set(RELATION_EXTRA_BODIES);
 const CORE_BODIES = new Set([
   "sun",
   "moon",
@@ -267,10 +269,7 @@ const BODY_ORDER = [
   "dc",
   "mc",
   "ic",
-  "north_node",
-  "south_node",
-  "chiron",
-  "lilith",
+  ...RELATION_EXTRA_BODIES,
 ];
 
 const BODY_ORDER_MAP = new Map(BODY_ORDER.map((key, idx) => [key, idx]));
@@ -398,7 +397,7 @@ module.exports = {
   HOUSE_LABELS,
   HOUSE_BODY_WEIGHT,
   AXIS_BODIES,
-  DEEP_BODIES,
+  RELATION_EXTRA_BODY_SET,
   CORE_BODIES,
   BODY_ORDER,
   BODY_ORDER_MAP,

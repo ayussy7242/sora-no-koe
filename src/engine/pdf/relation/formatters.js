@@ -1,6 +1,7 @@
 "use strict";
 
 const { buildGlyphImgTag } = require("../blueprint_v25/glyphs");
+const { normalizeAspectType } = require("../../../domain/aspect/canonical");
 const {
   AXIS_SYMBOLS,
   BODY_SHORT_LABELS,
@@ -85,29 +86,28 @@ function shortName(name, max = 15) {
   return `${text.slice(0, max)}...`;
 }
 
-function normalizeAspectKey(aspectRaw) {
+function normalizeRelationAspectKey(aspectRaw) {
   const raw = String(aspectRaw || "").toLowerCase().trim();
   if (!raw) return "";
-  const key = raw.replace(/\s+/g, "_").replace(/-/g, "_");
-  const alias = {
-    same_sign: "conjunction",
-    same_element: "trine",
-    inconjunct: "quincunx",
-    semi_sextile: "semisextile",
-    semi_square: "semisquare",
-    sesqui_square: "sesquiquadrate",
-    sesquisquare: "sesquiquadrate",
-    bi_quintile: "biquintile",
-    quadra_novile: "quadnovile",
-    quad_novile: "quadnovile",
-    tri_novile: "quadnovile",
-    bi_novile: "binovile",
-    septile_series: "septile",
-    tri_septile: "triseptile",
-    bi_septile: "biseptile",
-    tri_decile: "tridecile",
+  if (raw === "same_sign") return "conjunction";
+  if (raw === "same_element") return "trine";
+
+  const key = normalizeAspectType(raw);
+  const legacyMap = {
+    quincunx_150: "quincunx",
+    semi_sextile_30: "semisextile",
+    semi_square_45: "semisquare",
+    sesqui_square_135: "sesquiquadrate",
+    quintile_72: "quintile",
+    biquintile_144: "biquintile",
+    novile_40: "novile",
+    binovile_80: "binovile",
+    quadranovile_160: "quadnovile",
+    septile_family: "septile",
+    decile_36: "decile",
+    tridecile_108: "tridecile",
   };
-  return alias[key] || key;
+  return legacyMap[key] || key;
 }
 
 function formatOrbValue(orbRaw) {
@@ -137,7 +137,7 @@ function formatConnectionSideHtml(side) {
 }
 
 function formatAspectDisplay(aspectRaw, orbRaw) {
-  const key = normalizeAspectKey(aspectRaw);
+  const key = normalizeRelationAspectKey(aspectRaw);
   const meta = ASPECT_DISPLAY[key] || { symbol: "※", ja: "セプタイル系" };
   const orb = formatOrbValue(orbRaw);
   return { symbol: meta.symbol, label: meta.ja, orb: `${orb}°` };
@@ -174,7 +174,7 @@ module.exports = {
   topTwoFromCounts,
   formatAspectLabel,
   shortName,
-  normalizeAspectKey,
+  normalizeAspectKey: normalizeRelationAspectKey,
   formatOrbValue,
   formatConnectionSideHtml,
   formatAspectDisplay,

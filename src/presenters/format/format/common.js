@@ -3,8 +3,8 @@
 const {
   normalizeBodyKey,
   normalizeSignKey,
-  normalizeAspectKey,
 } = require("../../../domain/canonical");
+const { normalizeAspectType, getAspectMeta } = require("../../../domain/aspect/canonical");
 const { formatDateLabel } = require("../../../utils/time");
 const {
   bodyGlyph,
@@ -24,59 +24,16 @@ function signJa(dict, signKey) {
   return signLabelJa(dict, signKey);
 }
 
-function aspectMetaFromDict(dict, key) {
-  if (!key) return null;
-  const v2 = dict?.ASPECTS_V2 || {};
-  const v1 = dict?.ASPECTS_V1 || {};
-  const pools = [
-    { group: "major", pool: v2.major },
-    { group: "deep", pool: v2.deep_space },
-    { group: "craft", pool: v2.craft_space },
-    { group: "major", pool: v1.major },
-    { group: "deep", pool: v1.deep_space },
-    { group: "craft", pool: v1.craft_space },
-  ];
-  for (const { group, pool } of pools) {
-    if (pool && pool[key]) return { meta: pool[key], group };
-  }
-  return null;
-}
-
 function aspectInfo(dict, rawType, aspectDeg) {
-  const k = normalizeAspectKey(rawType, aspectDeg);
-  let resolved = aspectMetaFromDict(dict, k);
-  let meta = resolved?.meta || null;
-  let group = resolved?.group || "unknown";
-
-  if (!meta && Number.isFinite(Number(aspectDeg))) {
-    const target = Number(aspectDeg);
-    const v2 = dict?.ASPECTS_V2 || {};
-    const v1 = dict?.ASPECTS_V1 || {};
-    const pools = [
-      { group: "major", pool: v2.major },
-      { group: "deep", pool: v2.deep_space },
-      { group: "craft", pool: v2.craft_space },
-      { group: "major", pool: v1.major },
-      { group: "deep", pool: v1.deep_space },
-      { group: "craft", pool: v1.craft_space },
-    ];
-    for (const { group: g, pool } of pools) {
-      if (!pool) continue;
-      for (const v of Object.values(pool)) {
-        if (Number.isFinite(Number(v?.deg)) && Number(v.deg) === target) {
-          meta = v;
-          group = g;
-          break;
-        }
-      }
-      if (meta) break;
-    }
-  }
+  const normalized = normalizeAspectType(rawType, aspectDeg);
+  const resolved = getAspectMeta(dict, rawType, aspectDeg);
+  const meta = resolved?.meta || null;
+  const group = resolved?.group || "unknown";
 
   return {
     label_ja: meta?.label_ja || "",
     deg: Number.isFinite(Number(meta?.deg)) ? Number(meta.deg) : null,
-    key: meta?.key || k || "",
+    key: meta?.key || resolved?.key || normalized || "",
     group,
     is_known_aspect: Boolean(meta && (meta?.label_ja || Number.isFinite(Number(meta?.deg)))),
   };

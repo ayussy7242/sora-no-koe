@@ -15,7 +15,7 @@ const {
   HOUSE_BODY_WEIGHT,
   AXIS_SYMBOLS,
   AXIS_BODIES,
-  DEEP_BODIES,
+  RELATION_EXTRA_BODY_SET,
   ASPECT_DISPLAY,
 } = require("./constants");
 const {

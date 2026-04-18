@@ -2,7 +2,7 @@
 
 const { normalizeBodyKey } = require("../canonical");
 const { listWithOrb, filterWithinOrb, sortByOrb } = require("../aspect/selection");
-const { CORE_PLANETS, DEEP_BODIES } = require("../astro/constants");
+const { CORE_PLANETS, MINOR_BODIES } = require("../astro/constants");
 const { aspectInfo, signJa } = require("../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../presenters/shared/text/tokens");
 
@@ -12,7 +12,7 @@ function resolveResonanceMode(story, resonanceMode) {
 
 function splitResonancePools(pool = []) {
   const coreBodies = new Set(CORE_PLANETS);
-  const deepBodies = new Set(DEEP_BODIES);
+  const deepBodies = new Set(MINOR_BODIES);
   const corePool = [];
   const deepPool = [];
 

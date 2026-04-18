@@ -1,6 +1,7 @@
 "use strict";
 
 const { normalizeBodyKey } = require("../../../domain/canonical");
+const { normalizeAspectType } = require("../../../domain/aspect/canonical");
 const { absAngularDistance, norm360 } = require("../../story/math");
 const { createSignHelpers } = require("../../story/signs");
 const { bodyGlyph, bodyLabelJa, signGlyph, signLabelJa } = require("../../../presenters/shared/text/tokens");
@@ -115,8 +116,8 @@ function buildAspectList(dict) {
     ? src.major_list.filter((a) => Number.isFinite(Number(a?.deg)))
     : [];
   if (fromMajorList.length) {
-    const list = fromMajorList.map((a) => ({ type: a.type || a.key, deg: Number(a.deg) }));
-    if (!list.some((a) => a.type === "quincunx")) list.push({ type: "quincunx", deg: 150 });
+    const list = fromMajorList.map((a) => ({ type: normalizeAspectType(a.type || a.key, a.deg), deg: Number(a.deg) }));
+    if (!list.some((a) => normalizeAspectType(a.type, a.deg) === "quincunx_150")) list.push({ type: "quincunx_150", deg: 150 });
     return list;
   }
 
@@ -124,10 +125,10 @@ function buildAspectList(dict) {
   for (const [k, v] of Object.entries(major)) {
     const deg = Number(v?.deg);
     if (!Number.isFinite(deg)) continue;
-    out.push({ type: v?.key || k, deg });
+    out.push({ type: normalizeAspectType(v?.key || k, deg), deg });
   }
   if (out.length) {
-    if (!out.some((a) => a.type === "quincunx")) out.push({ type: "quincunx", deg: 150 });
+    if (!out.some((a) => normalizeAspectType(a.type, a.deg) === "quincunx_150")) out.push({ type: "quincunx_150", deg: 150 });
     return out;
   }
 
@@ -137,7 +138,7 @@ function buildAspectList(dict) {
     { type: "square", deg: 90 },
     { type: "trine", deg: 120 },
     { type: "opposition", deg: 180 },
-    { type: "quincunx", deg: 150 },
+    { type: "quincunx_150", deg: 150 },
   ];
 }
 
@@ -387,10 +388,12 @@ function buildConnections({
   signFromLon,
 }) {
   const aspectListAll = buildAspectList(dict);
-  const allowed = Array.isArray(rules?.aspects_used) ? rules.aspects_used.map((v) => String(v)) : null;
-  if (allowed && !allowed.includes("quincunx")) allowed.push("quincunx");
+  const allowed = Array.isArray(rules?.aspects_used)
+    ? rules.aspects_used.map((v) => normalizeAspectType(String(v || ""))).filter(Boolean)
+    : null;
+  if (allowed && !allowed.includes("quincunx_150")) allowed.push("quincunx_150");
   const aspectList = allowed && allowed.length
-    ? aspectListAll.filter((a) => allowed.includes(a.type))
+    ? aspectListAll.filter((a) => allowed.includes(normalizeAspectType(a.type, a.deg)))
     : aspectListAll;
 
   const orbMax = Number(rules?.orb_max_deg ?? 6);
@@ -980,6 +983,7 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
       rules: rules || null,
       ai_inputs: aiInputs,
       ai_texts: {},
+      ai_meta: {},
       status: status || null,
       schema_version: "relation_view_v1",
       updated_at: nowServer(),
@@ -992,6 +996,7 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
         const aiResult = await generateRelationAiTexts({ env, aiInputs: view.ai_inputs });
         if (aiResult?.ok && aiResult?.texts) {
           view.ai_texts = aiResult.texts;
+          view.ai_meta = aiResult.meta || {};
         }
       } catch (e) {
         console.log("[relation_ai] generate failed:", e?.message || String(e));

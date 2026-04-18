@@ -10,7 +10,7 @@ const {
   HOUSE_LABELS,
   HOUSE_BODY_WEIGHT,
   AXIS_BODIES,
-  DEEP_BODIES,
+  RELATION_EXTRA_BODY_SET,
   CORE_BODIES,
   BODY_ORDER,
   BODY_ORDER_MAP,
@@ -216,7 +216,7 @@ function scoreConnection(conn, category = "", bonus = 0) {
     if (AXIS_BODIES.has(aKey) || AXIS_BODIES.has(bKey)) categoryScore += 6;
   }
   if (category === "deep") {
-    if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) categoryScore += 6;
+    if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) categoryScore += 6;
   }
 
   return orbScore + weight * 3 + aspectWeight * 2 + pairScore * 3 + categoryScore + bonus;
@@ -360,7 +360,7 @@ function buildHouseOverlayRows({ ownerPlanets = [], guestPlanets = [], ownerHous
   for (const row of guestPlanets) {
     if (!row?.body_key || !Number.isFinite(Number(row?.lon_deg))) continue;
     if (AXIS_BODIES.has(row.body_key)) continue;
-    if (DEEP_BODIES.has(row.body_key)) continue;
+    if (RELATION_EXTRA_BODY_SET.has(row.body_key)) continue;
     const house = houseNumberForLon(row.lon_deg, ascLon, cusps);
     if (!Number.isFinite(Number(house))) continue;
     const label = row?.body_glyph || row?.body_ja || formatBodyKeyShort(row?.body_key);
@@ -885,7 +885,7 @@ function deriveRelationData(view) {
       allow: (c) => {
         const aKey = c?.a?.body_key || "";
         const bKey = c?.b?.body_key || "";
-        if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) return false;
+        if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) return false;
         if (AXIS_BODIES.has(aKey) && AXIS_BODIES.has(bKey)) return false;
         if ((aKey === "jupiter" || bKey === "jupiter") && Number(c?.orb || 99) > 1.2) return false;
         return true;
@@ -908,7 +908,7 @@ function deriveRelationData(view) {
       const aKey = c?.a?.body_key || "";
       const bKey = c?.b?.body_key || "";
       if (AXIS_BODIES.has(aKey) || AXIS_BODIES.has(bKey)) return false;
-      if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) return false;
+      if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) return false;
       if (!commBodies.has(aKey) || !commBodies.has(bKey)) return false;
       if (!(commMain.has(aKey) || commMain.has(bKey))) return false;
       return true;
@@ -929,7 +929,7 @@ function deriveRelationData(view) {
       const aKey = c?.a?.body_key || "";
       const bKey = c?.b?.body_key || "";
       if (AXIS_BODIES.has(aKey) || AXIS_BODIES.has(bKey)) return false;
-      if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) return false;
+      if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) return false;
       if (!attractionBodies.has(aKey) || !attractionBodies.has(bKey)) return false;
       if (!(attractionMain.has(aKey) || attractionMain.has(bKey))) return false;
       return true;
@@ -949,7 +949,7 @@ function deriveRelationData(view) {
       const bKey = c?.b?.body_key || "";
       const aspect = String(c?.aspect || "").toLowerCase();
       if (HARD_ASPECTS.has(aspect)) return false;
-      if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) return false;
+      if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) return false;
       if (aspect === "conjunction") {
         const heavy = new Set(["saturn", "pluto", "uranus", "neptune"]);
         if (heavy.has(aKey) || heavy.has(bKey)) return false;
@@ -974,7 +974,7 @@ function deriveRelationData(view) {
       const aKey = c?.a?.body_key || "";
       const bKey = c?.b?.body_key || "";
       if (AXIS_BODIES.has(aKey) || AXIS_BODIES.has(bKey)) return false;
-      if (DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)) return false;
+      if (RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)) return false;
       return true;
     },
   });
@@ -998,7 +998,7 @@ function deriveRelationData(view) {
   });
 
   const deepList = assignConnections({
-    candidates: filterConnections(connectionsAll, (c, aKey, bKey) => DEEP_BODIES.has(aKey) || DEEP_BODIES.has(bKey)),
+    candidates: filterConnections(connectionsAll, (c, aKey, bKey) => RELATION_EXTRA_BODY_SET.has(aKey) || RELATION_EXTRA_BODY_SET.has(bKey)),
     category: "deep",
     max: 3,
     used,

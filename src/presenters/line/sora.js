@@ -4,7 +4,7 @@ const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveChannelConfig } = require("../../config/aspect_channel_config");
 const { normalizeBodyKey } = require("../../domain/canonical");
-const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
+const { CORE_PLANETS, EXTENDED_PLANETS, MINOR_BODIES } = require("../../domain/astro/constants");
 const { listImportantResonances, applyLineBias } = require("../../domain/resonance");
 const {
   formatDateLabel,
@@ -62,7 +62,7 @@ function buildLineResonanceDebug(story, deps = {}) {
   const pub = story?.public || {};
   const skyAll = Array.isArray(pub.sky_all) ? pub.sky_all : [];
   const coreBodies = new Set(CORE_PLANETS);
-  const deepBodies = new Set(DEEP_BODIES);
+  const deepBodies = new Set(MINOR_BODIES);
   const allWithOrb = listWithOrb(skyAll);
   const coreList = allWithOrb.filter((r) => {
     const aKey = normalizeBodyKey(r?.a || "");
@@ -195,7 +195,7 @@ async function renderSoraLine(story, deps = {}) {
   });
 
   const coreBodies = new Set(CORE_PLANETS);
-  const deepBodies = new Set(DEEP_BODIES);
+  const deepBodies = new Set(MINOR_BODIES);
   const allWithOrb = listWithOrb(skyAll);
   const coreList = allWithOrb.filter((r) => {
     const aKey = normalizeBodyKey(r?.a || "");

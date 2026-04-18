@@ -8,31 +8,7 @@
  * - normElement/normModality は signMeta の element/modality を安全に揃える
  */
 
-// deep_space alias（短キー→V1の長キー）
-const ASPECT_TYPE_ALIAS = Object.freeze({
-  semi_sextile: "semi_sextile_30",
-  semi_square: "semi_square_45",
-  sesquisquare: "sesqui_square_135",
-  sesqui_square: "sesqui_square_135",
-  inconjunct: "quincunx_150",
-  quincunx: "quincunx_150",
-  quintile: "quintile_72",
-  biquintile: "biquintile_144",
-  septile: "septile_family",
-  biseptile: "septile_family",
-  triseptile: "septile_family",
-  novile: "novile_40",
-  binovile: "binovile_80",
-  quadranovile: "quadranovile_160",
-  decile: "decile_36",
-  tridecile: "tridecile_108",
-});
-
-function normalizeAspectType(type) {
-  const k = String(type || "").trim().toLowerCase();
-  if (!k) return "";
-  return ASPECT_TYPE_ALIAS[k] || k;
-}
+const { normalizeAspectType } = require("../../domain/aspect/canonical");
 
 function normElement(e) {
   const x = String(e || "").toLowerCase().trim();
@@ -52,7 +28,6 @@ function normModality(m) {
 }
 
 module.exports = {
-  ASPECT_TYPE_ALIAS,
   normalizeAspectType,
   normElement,
   normModality,

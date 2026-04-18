@@ -10,7 +10,7 @@ const { buildRetrogradeMap } = require("../../domain/astro/retrograde");
 const { SPEC } = require("../../config/sora_spec");
 const { resolveProximityConfig } = require("../../config/aspect_channel_config");
 const { normalizeBodyKey } = require("../../domain/canonical");
-const { CORE_PLANETS, EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
+const { CORE_PLANETS, EXTENDED_PLANETS, MINOR_BODIES } = require("../../domain/astro/constants");
 const {
   formatDateLabel,
   glyphForBody,
@@ -149,7 +149,7 @@ function renderXThread(story, deps = {}) {
 
   const resonanceMode = deps?.resonanceMode || story?.meta?.resonance_mode || "core";
   const resonanceCore = new Set(CORE_PLANETS);
-  const resonanceDeep = new Set(DEEP_BODIES);
+  const resonanceDeep = new Set(MINOR_BODIES);
   const resonanceAll = listWithOrb(skyAll);
   const coreItems = resonanceAll.filter((row) => {
     const aKey = normalizeBodyKey(row?.a || "");

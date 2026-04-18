@@ -22,6 +22,7 @@ const fmt = require("../../format/format");
 const dist = require("../../format/data/dist");
 const pickersPublic = require("../../format/data/pickers_public");
 const { pickStable, getUserId } = require("../../format/utils/seed");
+const { normalizeAspectType } = require("../../../domain/aspect/canonical");
 
 // channels
 const chLineToday = require("../../line/today");
@@ -48,47 +49,6 @@ try {
 
 function safeStr(v) {
   return v === null || v === undefined ? "" : String(v);
-}
-function normalizeAspectType(raw) {
-  const x = safeStr(raw).toLowerCase().trim();
-  if (!x) return "";
-
-  // すでに辞書キーならそのまま（deep_space含む）
-  if (
-    x === "conjunction" ||
-    x === "sextile" ||
-    x === "square" ||
-    x === "trine" ||
-    x === "opposition" ||
-    x === "semi_sextile_30" ||
-    x === "semi_square_45" ||
-    x === "sesqui_square_135" ||
-    x === "quincunx_150" ||
-    x === "quintile_72" ||
-    x === "biquintile_144" ||
-    x === "septile_family"
-  ) {
-    return x;
-  }
-
-  // 角度サフィックスを落としてベースに寄せる
-  const base = x.replace(/_\d+$/, "");
-
-  const map = {
-    // inconjunct / quincunx 系 → quincunx_150
-    inconjunct: "quincunx_150",
-    quincunx: "quincunx_150",
-
-    // semisquare 系 → semi_square_45
-    semisquare: "semi_square_45",
-    semi_square: "semi_square_45",
-
-    // sesquisquare 系 → sesqui_square_135
-    sesquisquare: "sesqui_square_135",
-    sesqui_square: "sesqui_square_135",
-  };
-
-  return map[base] || base; // majorはここでそのまま帰る
 }
 
 

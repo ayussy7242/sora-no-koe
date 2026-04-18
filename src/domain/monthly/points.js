@@ -2,14 +2,14 @@
 
 const { listWithOrb } = require("../aspect/selection");
 const { normalizeBodyKey } = require("../canonical");
-const { CORE_PLANETS, DEEP_BODIES } = require("../astro/constants");
+const { CORE_PLANETS, MINOR_BODIES } = require("../astro/constants");
 const { aspectInfo, signJa } = require("../../presenters/format/format/common");
 const { bodyLabelJa } = require("../../presenters/shared/text/tokens");
 
 function collectMonthlyPoints({ story, resonanceMode } = {}) {
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
   const coreBodies = new Set(CORE_PLANETS);
-  const deepBodies = new Set(DEEP_BODIES);
+  const deepBodies = new Set(MINOR_BODIES);
   const mode = resonanceMode || story?.meta?.resonance_mode || "core";
   const all = listWithOrb(skyAll);
   const corePool = all.filter((row) => {

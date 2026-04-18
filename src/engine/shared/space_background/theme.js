@@ -2,6 +2,7 @@
 
 const dict = require("../../../content/dict");
 const { buildRetrogradeMap } = require("../../../domain/astro/retrograde");
+const { normalizeAspectType, isHardAspect } = require("../../../domain/aspect/canonical");
 const {
   ELEMENT_PALETTES,
   ELEMENT_MIST_COLORS,
@@ -221,12 +222,12 @@ function computeSpaceMoodProfile({ story, theme }) {
 
   if (aspect && orb != null) {
     const tight = clamp(1 - orb / 4, 0, 1);
-    const type = String(aspect?.type || aspect?.aspect || "").toLowerCase();
-    if (type.includes("conj")) glow += 0.12 * tight;
-    if (type.includes("opp")) ridge += 0.15 * tight;
-    if (type.includes("square")) ridge += 0.18 * tight;
-    if (type.includes("trine")) filament += 0.1 * tight;
-    if (type.includes("sextile")) filament += 0.05 * tight;
+    const type = normalizeAspectType(aspect?.type || aspect?.aspect || "", aspect?.aspect_deg);
+    if (type === "conjunction") glow += 0.12 * tight;
+    if (type === "opposition") ridge += 0.15 * tight;
+    if (type === "square" || type === "semi_square_45" || type === "sesqui_square_135") ridge += 0.18 * tight;
+    if (type === "trine") filament += 0.1 * tight;
+    if (type === "sextile") filament += 0.05 * tight;
   }
 
   if (concentration > 0.5) {
@@ -240,8 +241,8 @@ function computeSpaceMoodProfile({ story, theme }) {
       modality === "fixed" ? "clustered_void" :
         modality === "mutable" ? "split_stream" :
           "single_stream";
-  const aspectType = String(aspect?.type || aspect?.aspect || "").toLowerCase();
-  const useBandCross = aspectType.includes("opp") || aspectType.includes("square");
+  const aspectType = normalizeAspectType(aspect?.type || aspect?.aspect || "", aspect?.aspect_deg);
+  const useBandCross = aspectType === "opposition" || isHardAspect(aspectType);
   const resolvedFlowType = useBandCross ? "band_cross" : flowType;
 
   const heroRegionType = ["cluster", "filament"];

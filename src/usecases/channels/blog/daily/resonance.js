@@ -2,6 +2,7 @@
 
 const dict = require("../../../../content/dict");
 const { normalizeBodyKey } = require("../../../../domain/canonical");
+const { normalizeAspectType } = require("../../../../domain/aspect/canonical");
 const { BLOG_TITLE_EXCLUDE_BODIES, BLOG_TITLE_BODY_RANK } = require("./constants");
 
 function isResonanceBodyExcluded(row) {
@@ -38,21 +39,6 @@ function leadAspectFromResonancePool(skyAll, orbLimit) {
     .filter((item) => !isResonanceBodyExcluded(item))
     .sort(compareResonanceItems);
   return filtered[0] || null;
-}
-
-function normalizeAspectType(raw) {
-  const x = String(raw || "").trim().toLowerCase();
-  if (!x) return "";
-  const base = x.replace(/_\d+$/, "");
-  const map = {
-    inconjunct: "quincunx_150",
-    quincunx: "quincunx_150",
-    semisquare: "semi_square_45",
-    semi_square: "semi_square_45",
-    sesquisquare: "sesqui_square_135",
-    sesqui_square: "sesqui_square_135",
-  };
-  return map[base] || base;
 }
 
 const ASPECTS_META = {

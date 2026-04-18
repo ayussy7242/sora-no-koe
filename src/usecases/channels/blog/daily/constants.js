@@ -1,7 +1,7 @@
 "use strict";
 
 const dict = require("../../../../content/dict");
-const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../../../domain/astro/constants");
+const { EXTENDED_PLANETS, MINOR_BODIES } = require("../../../../domain/astro/constants");
 const { resolveProximityConfig } = require("../../../../config/aspect_channel_config");
 
 const BLOG_BANNED_TERMS = [
@@ -30,7 +30,7 @@ const BLOG_BANNED_TERMS = [
   "実行しました",
 ];
 
-const BLOG_TITLE_EXCLUDE_BODIES = new Set(DEEP_BODIES);
+const BLOG_TITLE_EXCLUDE_BODIES = new Set(MINOR_BODIES);
 const BLOG_TITLE_BODY_ORDER = EXTENDED_PLANETS;
 const BLOG_TITLE_BODY_RANK = BLOG_TITLE_BODY_ORDER.reduce((acc, key, idx) => {
   acc[key] = idx + 1;

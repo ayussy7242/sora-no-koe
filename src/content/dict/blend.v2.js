@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeAspectType, getAspectLabel } = require("../../domain/aspect/canonical");
+
 /**
  * blend.v2 (SSOT / FULL INTEGRATED + A-line final) — 2026.02 (SKY policy patched)
  *
@@ -303,53 +305,6 @@ function _normAspectLabelJa(k) {
     return String(k || "").trim();
 }
 
-// aspect type normalize (local, no external deps)
-function normalizeAspectTypeKey(raw) {
-    const x = String(raw || "").toLowerCase().trim();
-    if (!x) return "";
-
-    if (
-        x === "conjunction" ||
-        x === "sextile" ||
-        x === "square" ||
-        x === "trine" ||
-        x === "opposition" ||
-        x === "semi_sextile_30" ||
-        x === "semi_square_45" ||
-        x === "sesqui_square_135" ||
-        x === "quincunx_150" ||
-        x === "quintile_72" ||
-        x === "biquintile_144" ||
-        x === "novile_40" ||
-        x === "binovile_80" ||
-        x === "quadranovile_160" ||
-        x === "decile_36" ||
-        x === "tridecile_108"
-    ) {
-        return x;
-    }
-
-    const base = x.replace(/_\d+$/, "");
-    const map = {
-        inconjunct: "quincunx_150",
-        quincunx: "quincunx_150",
-        semisextile: "semi_sextile_30",
-        semi_sextile: "semi_sextile_30",
-        semisquare: "semi_square_45",
-        semi_square: "semi_square_45",
-        sesquisquare: "sesqui_square_135",
-        sesqui_square: "sesqui_square_135",
-        quintile: "quintile_72",
-        biquintile: "biquintile_144",
-        novile: "novile_40",
-        binovile: "binovile_80",
-        quadranovile: "quadranovile_160",
-        decile: "decile_36",
-        tridecile: "tridecile_108",
-    };
-    return map[base] || base;
-}
-
 function _hash32(str) {
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) {
@@ -435,31 +390,10 @@ function _finalizeAlineJa(s) {
 // ============================================================
 // aspect key（英語/内部キー）→ 日本語ラベルへ寄せる
 // ============================================================
-function _normalizeAspectTypeKey(t) {
-    const k = String(t || "").toLowerCase().trim();
-    if (!k) return "";
-    const map = {
-        conjunction: "コンジャンクション",
-        opposition: "オポジション",
-        square: "スクエア",
-        trine: "トライン",
-        sextile: "セクスタイル",
-        quincunx: "インコンジャンクト",
-        semisextile: "セミセクスタイル",
-        semisquare: "セミスクエア",
-        sesquisquare: "セスキスクエア",
-        quintile: "クインタイル",
-        biquintile: "バイクインタイル",
-
-        // underscored variants
-        semi_square_45: "セミスクエア",
-        sesqui_square_135: "セスキスクエア",
-        semi_sextile_30: "セミセクスタイル",
-        biquintile_144: "バイクインタイル",
-        quintile_72: "クインタイル",
-        quincunx_150: "インコンジャンクト",
-    };
-    return map[k] || t;
+function _aspectLabelJaFromType(dict, t) {
+    const key = normalizeAspectType(t);
+    if (!key) return "";
+    return getAspectLabel(dict, key, null, t);
 }
 
 function _getSignFlavor(dict) {
@@ -769,10 +703,10 @@ function resolveAspectRelationJa(dict, aspectLabelJa, seedStr, aspectType) {
 
 function resolveAspectDynamicsJa(dict, aspectTypeOrLabelJa, seedStr = "") {
     const key = String(aspectTypeOrLabelJa || "").trim();
-    const keyNorm = _normalizeAspectTypeKey(key);
+    const keyNorm = normalizeAspectType(key);
 
     const ent = _findAspectEntryByKeyOrLabel(dict, key) || _findAspectEntryByKeyOrLabel(dict, keyNorm);
-    const labelJa = _trim(ent?.label_ja, "");
+    const labelJa = _trim(ent?.label_ja, "") || _aspectLabelJaFromType(dict, key);
 
     const m = BLEND_V2?.fusion?.aspect_dynamics_ja || {};
     const raw = m[labelJa] ?? m[keyNorm] ?? m[key];
@@ -1206,7 +1140,8 @@ function buildAlineSkyFusionJa(params = {}) {
     const tail = hasEasy ? "。" : `${tendency}。`;
 
     const sameField = A_field && B_field && A_field === B_field;
-    const isConjunction = normalizeAspectTypeKey(aspectType) === "conjunction";
+    // Spec compare: canonicalized key after SSOT normalization.
+    const isConjunction = normalizeAspectType(aspectType) === "conjunction";
 
     let head;
 

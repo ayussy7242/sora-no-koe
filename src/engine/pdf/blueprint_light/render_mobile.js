@@ -9,6 +9,7 @@ const { contentWidth } = require("./layout");
 const { drawTextBlock, sanitizeText } = require("./core/components");
 const { BODY_GLYPH } = require("./shared");
 const { COLORS } = require("./assets");
+const { normalizeAspectType } = require("../../domain/aspect/canonical");
 const { pickSymbolFontName } = require("./symbols");
 const puppeteer = require("puppeteer");
 const { buildBlueprintV25WireframeHtml, PAGE_WIDTH, PAGE_HEIGHT } = require("../blueprint_v25/wireframe");
@@ -144,12 +145,12 @@ function renderV25AspectNetwork(doc, layout, aspects, { size = 340 } = {}) {
     });
   });
   const colorByType = (type) => {
-    const t = String(type || "").toLowerCase();
-    if (t.includes("conjunction")) return COLORS.textMainLight;
-    if (t.includes("trine")) return "#66cdaa";
-    if (t.includes("square")) return "#ff7b7b";
-    if (t.includes("opposition")) return "#f0c36d";
-    if (t.includes("sextile")) return "#7aa7ff";
+    const t = normalizeAspectType(type);
+    if (t === "conjunction") return COLORS.textMainLight;
+    if (t === "trine") return "#66cdaa";
+    if (t === "square" || t === "semi_square_45" || t === "sesqui_square_135") return "#ff7b7b";
+    if (t === "opposition") return "#f0c36d";
+    if (t === "sextile") return "#7aa7ff";
     return COLORS.textSub;
   };
   doc.save();

@@ -15,11 +15,11 @@ const {
 } = require("../../domain/canonical");
 const { formatTodayMoonLines, buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../domain/moon");
 const { resolveHouseNumber, HOUSE_BASIS } = require("../../domain/astro/compute");
-const { EXTENDED_PLANETS, DEEP_BODIES } = require("../../domain/astro/constants");
+const { EXTENDED_PLANETS, MINOR_BODIES } = require("../../domain/astro/constants");
 
 const BODY_ORDER = EXTENDED_PLANETS;
 
-const RESONANCE_EXCLUDE_BODIES = new Set(DEEP_BODIES);
+const RESONANCE_EXCLUDE_BODIES = new Set(MINOR_BODIES);
 
 function aspectMeta(typeRaw, deg) {
   const key = normalizeAspectKey(typeRaw, deg);

@@ -1,6 +1,6 @@
 "use strict";
 
-const { DEEP_BODIES } = require("../../domain/astro/constants");
+const { MINOR_BODIES } = require("../../domain/astro/constants");
 
 function createTransitsService({ swisseph, signFromLon, toFixedPrecision, norm360, safeNumber }) {
   function jdUtFromIso(asOfISO) {
@@ -75,7 +75,7 @@ function createTransitsService({ swisseph, signFromLon, toFixedPrecision, norm36
 
     const bodies = {};
     const bodies_signs = {};
-    const optionalBodies = new Set(DEEP_BODIES);
+    const optionalBodies = new Set(MINOR_BODIES);
 
     for (const body of TRANSIT_TARGETS) {
       try {
