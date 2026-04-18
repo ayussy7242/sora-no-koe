@@ -5,6 +5,7 @@ const dict = require("../../../../content/dict");
 const { enqueueBlueprintGenerate } = require("../../../../integrations/cloudtasks/tasks_queue");
 const { setLineUserBlueprintPhase, setLineUserNatalPhase } = require("../../../../integrations/line/state");
 const { BLUEPRINT_PHASE, NATAL_PHASE } = require("../../../../domain/lifecycle/enums");
+const { NATAL_SCHEMA_VERSION } = require("../../../../domain/schema/versions");
 const { norm360 } = require("../../../../domain/astro/angles");
 const {
   randomId,
@@ -255,7 +256,7 @@ async function processOneNatalJob(deps = {}, opts = {}) {
   }
 
   const patch = {
-    schema_version: "1.0.0",
+    schema_version: NATAL_SCHEMA_VERSION,
     app_user_id: appUserId,
 
     birth: {

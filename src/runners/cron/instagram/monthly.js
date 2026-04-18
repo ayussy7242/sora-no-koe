@@ -22,6 +22,7 @@ const { swisseph } = require("../../../config/swisseph");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const { writeLocalCarousel, writeLocalJson, renderAndUploadCarouselSlides } = require("./io");
 const dictDefault = require("../../../content/dict");
+const { STORY_SCHEMA_VERSION } = require("../../../domain/schema/versions");
 
 function resolveBackgroundCache(env = {}) {
   const enabledRaw = String(env.IG_BG_CACHE ?? "true").toLowerCase();
@@ -127,7 +128,7 @@ function buildStoryServiceSafe(dict) {
       ASPECTS_DEEP,
       DEFAULT_TZ: "Asia/Tokyo",
       PROJECT: "sora-no-koe",
-      SCHEMA_VERSION: "1.0.0",
+      SCHEMA_VERSION: STORY_SCHEMA_VERSION,
     });
   } catch (e) {
     console.error("[monthly_overview] storyService disabled:", e?.message || String(e));

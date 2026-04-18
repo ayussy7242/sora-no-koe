@@ -5,6 +5,7 @@ require("../_load_env");
 const crypto = require("crypto");
 const { admin, getDb } = require("../../src/integrations/firebase/firebase");
 const env = require("../../src/config/env");
+const { RELATION_SCHEMA_VERSION } = require("../../src/domain/schema/versions");
 const { createRelationService } = require("../../src/usecases/relations");
 const { createGeocoder } = require("../../src/integrations/geocode");
 const { Storage } = require("@google-cloud/storage");
@@ -148,7 +149,7 @@ function newRelationUserId() {
         orb_max_deg: 8,
       },
       status: { is_valid: false, missing: ["b_min_bodies"], reason: "natal_calc_pending" },
-      schema_version: "1.1.0",
+      schema_version: RELATION_SCHEMA_VERSION,
       updated_at: now,
     },
     { merge: true }

@@ -14,6 +14,7 @@ const { buildPublicStorySnapshot } = require("../../src/usecases/story/store");
 const { createStoryService } = require("../../src/usecases/story/story");
 const { swisseph } = require("../../src/config/swisseph");
 const dictDefault = require("../../src/content/dict");
+const { STORY_SCHEMA_VERSION } = require("../../src/domain/schema/versions");
 
 function parseArgs(argv) {
   const out = {};
@@ -69,7 +70,7 @@ function buildStoryServiceSafe(dict) {
       ASPECTS_DEEP: dict?.ASPECTS?.deep_space || [],
       DEFAULT_TZ: "Asia/Tokyo",
       PROJECT: "sora-no-koe",
-      SCHEMA_VERSION: "1.0.0",
+      SCHEMA_VERSION: STORY_SCHEMA_VERSION,
     });
   } catch (e) {
     console.error("[monthly_overview_reel] storyService disabled:", e?.message || String(e));

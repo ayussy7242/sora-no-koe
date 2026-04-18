@@ -3,6 +3,7 @@
 const crypto = require("crypto");
 const intent = require("./intent");
 const { LINE_COPY } = require("../../content/copy");
+const { RELATION_SCHEMA_VERSION } = require("../../domain/schema/versions");
 const { resolveDisplayNameFromUserDoc } = require("../../utils/text/display_name");
 const {
   parseYYYYMMDD,
@@ -295,7 +296,7 @@ function createLineRelation({ db, admin, relationService, geocoder = null, confi
             orb_max_deg: 8,
           },
           status: { is_valid: false, missing: ["b_min_bodies"], reason: "natal_calc_pending" },
-          schema_version: "1.1.0",
+          schema_version: RELATION_SCHEMA_VERSION,
           updated_at: serverNow(),
         },
         { merge: true }

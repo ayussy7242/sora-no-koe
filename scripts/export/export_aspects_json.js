@@ -64,6 +64,7 @@ const { ELEMENTS_V1 } = require("../../src/content/dict/elements.v1");
 const { MODALITIES_V1 } = require("../../src/content/dict/modalities.v1");
 const { ORB_RULES_V1 } = require("../../src/content/dict/orb_rules.v1");
 const { TONE_VARIANTS_V1 } = require("../../src/content/dict/tone_variants.v1");
+const { DICTIONARIES_BUNDLE_SCHEMA_VERSION } = require("../../src/domain/schema/versions");
 
 // --------------------
 // Build payload
@@ -74,7 +75,7 @@ function buildBundle() {
   // bundle meta
   const meta = {
     project: "sora-no-koe",
-    schema_version: "dictionaries.bundle.v1",
+    schema_version: DICTIONARIES_BUNDLE_SCHEMA_VERSION,
     generated_at_utc,
   };
 

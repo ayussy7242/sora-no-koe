@@ -41,6 +41,7 @@ const {
   formatDateYmdHm,
 } = require("../../domain/astro/compute");
 const { normalizeAspectKey } = require("../../domain/canonical");
+const { STORY_SCHEMA_VERSION } = require("../../domain/schema/versions");
 
 function createStoryService({
   db,
@@ -59,7 +60,7 @@ function createStoryService({
   // env/meta
   DEFAULT_TZ = "Asia/Tokyo",
   PROJECT = "sora-no-koe",
-  SCHEMA_VERSION = "1.0.0",
+  SCHEMA_VERSION = STORY_SCHEMA_VERSION,
 
   // optional
   buildResonanceBullets,

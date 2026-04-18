@@ -15,6 +15,7 @@ const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 const { saveGcsFile, getGcsSignedUrl, fileExists } = require("../../../utils/infra/gcs_upload");
 const { normalizeCusps, houseNumberForLonCusps, houseNumberForLonWholeSign } = require("../../../domain/astro/houses");
+const { RELATION_VIEW_SCHEMA_VERSION } = require("../../../domain/schema/versions");
 
 const DEFAULT_RELATION_BODY_KEYS = [
   "sun",
@@ -985,7 +986,7 @@ function createRelationService({ db, admin, dict, storage, env } = {}) {
       ai_texts: {},
       ai_meta: {},
       status: status || null,
-      schema_version: "relation_view_v1",
+      schema_version: RELATION_VIEW_SCHEMA_VERSION,
       updated_at: nowServer(),
     };
 
