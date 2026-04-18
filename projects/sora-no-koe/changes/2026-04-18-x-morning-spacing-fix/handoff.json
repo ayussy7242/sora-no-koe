@@ -1,0 +1,64 @@
+{
+  "version": "0.1",
+  "project_id": "sora-no-koe",
+  "change_id": "2026-04-18-x-morning-spacing-fix",
+  "intent": {
+    "title": "X morning output spacing fix",
+    "goal": "X朝投稿の表示整形を改善し、意味やtruthを変えずに読みやすさだけを整える"
+  },
+  "approval": {
+    "required": true,
+    "approved": true,
+    "approved_by": "human",
+    "approved_at": "2026-04-18T00:00:00+09:00"
+  },
+  "execution": {
+    "executor": "codex",
+    "sandbox_mode": "workspace-write",
+    "subagents": ["architect", "validator", "renderer"]
+  },
+  "scope": {
+    "include": [
+      "x morning presentation formatting",
+      "renderer or presenter layer only",
+      "line-break, spacing, and header/body layout tuning"
+    ],
+    "exclude": [
+      "story pipeline changes",
+      "astronomical truth changes",
+      "aspect/sign/house recomputation",
+      "channel meaning changes",
+      "AI prompt rewrites",
+      "multi-channel edits"
+    ],
+    "affected_paths": [
+      "src/presenters/x/post.js",
+      "src/runners/cron/x/planning.js"
+    ]
+  },
+  "spec_refs": [
+    "README.md",
+    "docs/astro_ssot.md",
+    "docs/sora_shiso_v3_1.md",
+    "docs/testing.md",
+    "docs/test_commands.md"
+  ],
+  "acceptance": {
+    "must": [
+      "output remains observation-first",
+      "no fortune-telling wording is introduced",
+      "no future certainty is introduced",
+      "presentation becomes more readable",
+      "truth and upstream data remain unchanged"
+    ],
+    "verify_dimensions": ["completeness", "correctness", "coherence"]
+  },
+  "verification": {
+    "required": true,
+    "commands": [
+      "curl -s \"$BASE/stories?app_user_id=public&mode=public&format=text&channel=x_morning&outputs=true\"",
+      "curl -s -X POST \"$BASE/cron/x/morning?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/morning\" -H \"x-cron-token: $CRON_TOKEN\""
+    ],
+    "notes": "Prefer safe output checks only. Do not post externally."
+  }
+}

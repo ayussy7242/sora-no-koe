@@ -9,6 +9,7 @@ const {
   buildObservationAxisSummary,
   formatObservationFallback,
 } = require("./ig_observation");
+const { normalizeSpacing } = require("./spacing");
 
 function safeNumber(x) {
   const n = Number(x);
@@ -266,17 +267,9 @@ function renderIGCaption(story, deps = {}) {
   lines.push("星は答えを示さず、");
   lines.push("構造だけを置いています。");
   lines.push("");
-  lines.push("解釈はあなたのもの。");
-  lines.push("");
-  lines.push("LINEでは毎朝、");
-  lines.push("ソラの配置とネイタルとの重なりも届けています🌌");
-  lines.push("");
-  lines.push("登録時には、");
-  lines.push("生まれた瞬間の配置をまとめた設計図（Blueprint）もお届けしています🌙");
-  lines.push("");
   tags.forEach((tag) => lines.push(tag));
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return normalizeSpacing(lines.join("\n"), "ig");
 }
 
 function buildObservationLine(story, observationRaw, dict, resonance) {
@@ -339,21 +332,13 @@ function renderIGCaptionMorning(story, deps = {}) {
   lines.push("星は答えを示さず、");
   lines.push("構造だけを置いています。");
   lines.push("");
-  lines.push("解釈はあなたのもの。");
-  lines.push("");
-  lines.push("LINEでは毎朝、");
-  lines.push("ソラの配置とネイタルとの重なりも届けています🌌");
-  lines.push("");
-  lines.push("登録時には、");
-  lines.push("生まれた瞬間の配置をまとめた設計図（Blueprint）もお届けしています🌙");
-  lines.push("");
   lines.push("#占星術");
   lines.push("#ホロスコープ");
   lines.push("#星読み");
   lines.push("#西洋占星術");
   lines.push("#astrology");
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return normalizeSpacing(lines.join("\n"), "ig");
 }
 
 function buildCaptionFallbackForMorning({ story, dict, sunSign, moonSign, resonance }) {
@@ -431,11 +416,9 @@ function renderIGCaptionResonance(story, deps = {}) {
   lines.push("");
   lines.push(resonanceText || fallback);
   lines.push("");
-  lines.push("LINE登録であなたの星の設計図(PDF)プレゼント中🎁");
-  lines.push("");
   tags.forEach((tag) => lines.push(tag));
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return normalizeSpacing(lines.join("\n"), "ig");
 }
 
 function renderIGCaptionNight(story, deps = {}) {
@@ -482,7 +465,7 @@ function renderIGCaptionNight(story, deps = {}) {
   lines.push("");
   tags.forEach((tag) => lines.push(tag));
 
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
+  return normalizeSpacing(lines.join("\n"), "ig");
 }
 
 function splitSentences(text) {

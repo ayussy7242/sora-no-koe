@@ -24,8 +24,33 @@ const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
 const { detectMoonEvent } = require("../../usecases/channels/x/ai/moon_event");
 const { buildMonthlyContext } = require("../../usecases/channels/x/ai/monthly");
 const { buildNext30DaysContext } = require("../../usecases/channels/x/ai/next_30_days");
+const { normalizeSpacing } = require("../format/spacing");
 
 const SEP = "────────";
+const X_MORNING_FOLLOWUP_LINES = [
+  "続けて、今日の配置一覧を置きます。",
+  "続けて、空の配置一覧を置きます。",
+  "このあとの投稿に、配置一覧を置きます。",
+  "続けて、配置の全体像を置きます。",
+].map((line) => line.trim());
+
+function pickDailyVariant(items, seed) {
+  const list = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!list.length) return "";
+  const key = String(seed || "");
+  let sum = 0;
+  for (const ch of key) sum += ch.charCodeAt(0);
+  return list[sum % list.length];
+}
+
+function rewriteXMorningFollowup(text, dateLocal) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const followup = pickDailyVariant(X_MORNING_FOLLOWUP_LINES, dateLocal || "unknown-date");
+  if (!followup) return raw;
+  const replaced = raw.replace(/(?:この空|配置)の続きは[↓\s]*[^\n。！？]*$/u, followup);
+  return replaced === raw ? `${raw}\n\n${followup}` : replaced;
+}
 
 function formatRangeShort(start, end) {
   if (!(start instanceof Date) || Number.isNaN(start.getTime())) return "";
@@ -352,17 +377,17 @@ function renderXMorning(story, deps = {}) {
 function renderXMorningMain(story, deps = {}) {
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.morning || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
   const asOfISO = story?.meta?.as_of || null;
   const dateLocal = story?.meta?.date_local || story?.public?.date_local ||
     (asOfISO ? toDateLocalJST(new Date(asOfISO)) : "");
+  const ai = rawAi ? rewriteXMorningFollowup(formatXAiText(rawAi), dateLocal) : "";
   const dateLabel = formatDateLabel(dateLocal);
   const timeLabel = formatJstTimeLabel(asOfISO);
   const header = `🌌 今日の空｜${[dateLabel, timeLabel].filter(Boolean).join(" ")}`.trim();
 
   const baseLines = [header];
   if (ai) baseLines.push("", ai);
-  return joinLines(baseLines);
+  return normalizeSpacing(joinLines(baseLines, { trim: true, collapseBlank: true }), "x");
 }
 
 function renderXMorningLog(story, deps = {}) {

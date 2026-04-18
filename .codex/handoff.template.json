@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "project": "sora-no-koe",
+  "status": "draft",
+  "execution": {
+    "executor": "codex",
+    "sandbox_mode": "workspace-write",
+    "subagents": ["architect", "validator", "renderer"]
+  },
+  "request": {
+    "goal": "",
+    "change_type": "presentation-only",
+    "channel": "",
+    "summary": ""
+  },
+  "scope": {
+    "in_scope": [],
+    "out_of_scope": [],
+    "affected_paths": []
+  },
+  "spec_refs": [
+    "README.md",
+    "docs/astro_ssot.md",
+    "docs/sora_shiso_v3_1.md",
+    "docs/testing.md",
+    "docs/test_commands.md"
+  ],
+  "rules": [
+    "Do not turn outputs into fortune telling.",
+    "Do not introduce future certainty, destiny claims, or action instructions.",
+    "Keep truth in shared story or natal sources; renderers only format.",
+    "Do not implement unapproved scope."
+  ],
+  "acceptance_criteria": [
+    "Change stays within the approved layer and affected paths.",
+    "Presentation changes do not alter story, natal, sign, house, or aspect truth.",
+    "Output remains structure-first and avoids instruction or prediction tone.",
+    "Relevant targeted verification is recorded."
+  ],
+  "verification": {
+    "required": true,
+    "commands": [],
+    "notes": ""
+  },
+  "approval": {
+    "required": true,
+    "approved": false,
+    "approved_by": "",
+    "approved_at": ""
+  }
+}

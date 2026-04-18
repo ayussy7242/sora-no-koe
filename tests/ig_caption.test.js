@@ -3,8 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { renderIGCaption } = require("../src/presenters/format/ig_caption");
-const { renderIGCaptionNight } = require("../src/presenters/format/ig_caption");
+const { renderIGCaption, renderIGCaptionResonance, renderIGCaptionNight } = require("../src/presenters/format/ig_caption");
 const dict = require("../src/content/dict");
 
 test("renderIGCaption includes key blocks", () => {
@@ -46,6 +45,10 @@ test("renderIGCaption includes key blocks", () => {
   assert.ok(caption.includes("✦ 今日のソラ属性"));
   assert.ok(caption.includes("🔥 火3"));
   assert.ok(caption.includes("🏃 活動4"));
+  assert.ok(caption.includes("星は答えを示さず、"));
+  assert.ok(caption.includes("構造だけを置いています。"));
+  assert.ok(!caption.includes("LINEでは毎朝、"));
+  assert.ok(!caption.includes("Blueprint"));
 });
 
 test("renderIGCaptionNight removes duplicate title from AI moon_caption", () => {
@@ -88,4 +91,42 @@ test("renderIGCaptionNight keeps a single title when AI already includes it", ()
   const caption = renderIGCaptionNight(story, { dict });
   const header = "🌌 2026.04.14 今日の夜の月";
   assert.equal(caption.split("\n").filter((l) => l.trim() === header).length, 1);
+});
+
+test("renderIGCaptionResonance ends without CTA copy", () => {
+  const story = {
+    meta: {
+      date_local: "2026-04-18",
+      as_of: "2026-04-18T11:59:35+09:00",
+    },
+    public: {
+      date_local: "2026-04-18",
+      transit_signs: {},
+    },
+    outputs: {
+      ig: {
+        parts: {
+          resonance_caption: "静かな共鳴が、輪郭を残しています。",
+        },
+        source: {
+          resonance_aspect: {
+            a: "mercury",
+            b: "neptune",
+            type: "conjunction",
+            aspect_deg: 0,
+            orb_deg: 0.17,
+            a_sign_key: "aries",
+            a_sign_ja: "牡羊座",
+            b_sign_key: "aries",
+            b_sign_ja: "牡羊座",
+          },
+        },
+      },
+    },
+  };
+
+  const caption = renderIGCaptionResonance(story, { dict });
+  assert.ok(caption.includes("【今日の共鳴】"));
+  assert.ok(caption.includes("静かな共鳴が、輪郭を残しています。"));
+  assert.ok(!caption.includes("LINE登録であなたの星の設計図"));
 });
