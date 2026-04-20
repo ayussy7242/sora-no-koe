@@ -21,9 +21,12 @@ test("normalizeMoonPhaseByIllumination keeps post-new-moon phases on the waxing 
 test("resolveMoonCycleLabel maps all lunar families into the shared six labels", () => {
   assert.equal(resolveMoonCycleLabel({ phaseName: "新月", moonAge: 0.1, illumination: 0.001 }), "新月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "新月", moonAge: 0.7, illumination: 0.006 }), "満ちゆく月");
+  assert.equal(resolveMoonCycleLabel({ phaseName: "新月", moonAge: 28.0, illumination: 0.03 }), "欠けゆく月");
+  assert.equal(resolveMoonCycleLabel({ phaseName: "新月", moonAge: 28.7, illumination: 0.003 }), "欠けゆく月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "三日月" }), "満ちゆく月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "満ちゆく月" }), "満ちゆく月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "上弦" }), "上弦の月");
+  assert.equal(resolveMoonCycleLabel({ phaseName: "満月", moonAge: 13.8, illumination: 0.97 }), "満ちゆく月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "満月", moonAge: 14.8, illumination: 0.999 }), "満月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "満月", moonAge: 15.5, illumination: 0.98 }), "欠けゆく月");
   assert.equal(resolveMoonCycleLabel({ phaseName: "欠けゆく月" }), "欠けゆく月");
@@ -35,6 +38,8 @@ test("resolveMoonDisplayName prefers wa-name except for new/full moon", () => {
   assert.equal(resolveMoonDisplayName({ phaseName: "新月", waName: "", moonAge: 0.1, illumination: 0.001, allowCycleName: false }), "新月");
   assert.equal(resolveMoonDisplayName({ phaseName: "新月", waName: "二日月", moonAge: 0.7, illumination: 0.006, allowCycleName: false }), "二日月");
   assert.equal(resolveMoonDisplayName({ phaseName: "三日月", waName: "二日月", moonAge: 1.1, illumination: 0.01, allowCycleName: false }), "二日月");
+  assert.equal(resolveMoonDisplayName({ phaseName: "三日月", waName: "", moonAge: 3.0, illumination: 0.1, allowCycleName: false }), "満ちゆく月");
+  assert.equal(resolveMoonDisplayName({ phaseName: "三日月", waName: "", moonAge: 3.4, illumination: 0.13, allowCycleName: true }), "満ちゆく月");
   assert.equal(resolveMoonDisplayName({ phaseName: "上弦", waName: "", moonAge: 7.2, illumination: 0.5, allowCycleName: false }), "上弦の月");
 });
 
@@ -63,4 +68,96 @@ test("buildMoonGeometry keeps the waxing sliver almost invisible right after new
   assert.equal(geometry.meta?.family, "waxing_shadow");
   assert.ok(Number(geometry.illum) <= 0.04);
   assert.ok(Number(geometry.illum) >= 0.02);
+});
+
+test("buildMoonGeometry renders day-3 and day-4 moons with a fuller body", () => {
+  const day3 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 3,
+    waxing: true,
+    illumination: 0.1,
+  });
+  const day4 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 4,
+    waxing: true,
+    illumination: 0.17,
+  });
+
+  assert.equal(day3.meta?.family, "waxing_shadow");
+  assert.equal(day4.meta?.family, "waxing_shadow");
+  assert.ok(Number(day3.illum) >= 0.09);
+  assert.ok(Number(day3.illum) <= 0.15);
+  assert.ok(Number(day4.illum) >= 0.16);
+  assert.ok(Number(day4.illum) <= 0.26);
+});
+
+test("buildMoonGeometry keeps the post-quarter band smooth", () => {
+  const day8 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 8,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day9 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 9,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day10 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 10,
+    waxing: true,
+    illumination: 0.5,
+  });
+
+  assert.equal(day8.meta?.family, "quarter");
+  assert.equal(day9.meta?.family, "gibbous");
+  assert.equal(day10.meta?.family, "gibbous");
+  assert.ok(Number(day9.illum) > Number(day8.illum));
+  assert.ok(Number(day10.illum) > Number(day9.illum));
+  assert.ok(Number(day9.illum) >= 0.58);
+  assert.ok(Number(day9.illum) <= 0.62);
+});
+
+test("buildMoonGeometry keeps day-1 and day-29 equally thin", () => {
+  const day1 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 1,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day29 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 29,
+    waxing: false,
+    illumination: 0.5,
+  });
+
+  assert.equal(day1.meta?.family, "waxing_shadow");
+  assert.equal(day29.meta?.family, "waning_shadow");
+  assert.equal(Number(day1.meta?.strength), Number(day29.meta?.strength));
+  assert.equal(Number(day1.illum), Number(day29.illum));
+});
+
+test("buildMoonGeometry keeps day-28 close to day-2 but slightly slimmer", () => {
+  const day2 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 2,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day28 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 28,
+    waxing: false,
+    illumination: 0.5,
+  });
+
+  assert.equal(day2.meta?.family, "waxing_shadow");
+  assert.equal(day28.meta?.family, "waning_shadow");
+  assert.ok(Number(day28.meta?.strength) > Number(day2.meta?.strength));
+  assert.ok(Number(day28.illum) < Number(day2.illum));
+  assert.ok(Number(day28.illum) > 0.022);
 });

@@ -8,34 +8,34 @@ const { interpolateKeyframes, accelerateNearNewMoon } = require("./interpolate")
 const AGE_SPECS = Object.freeze([
   { family: "new", strength: 0, side: "none" },               // 0
   { family: "waxing_shadow", strength: 0.95, side: "right" }, // 1
-  { family: "waxing_shadow", strength: 0.73, side: "right" }, // 2
-  { family: "waxing_shadow", strength: 0.53, side: "right" }, // 3
-  { family: "waxing_shadow", strength: 0.34, side: "right" }, // 4
-  { family: "waxing_shadow", strength: 0.18, side: "right" }, // 5
+  { family: "waxing_shadow", strength: 0.76, side: "right" }, // 2
+  { family: "waxing_shadow", strength: 0.60, side: "right" }, // 3
+  { family: "waxing_shadow", strength: 0.42, side: "right" }, // 4
+  { family: "waxing_shadow", strength: 0.24, side: "right" }, // 5
   { family: "waxing_shadow", strength: 0.04, side: "right" }, // 6
   { family: "waxing_shadow", strength: 0.02, side: "right" }, // 7
   { family: "quarter", strength: 1, side: "right" },          // 8
-  { family: "gibbous", strength: 0.40, side: "right" },       // 9
-  { family: "gibbous", strength: 0.50, side: "right" },       // 10
-  { family: "gibbous", strength: 0.64, side: "right" },       // 11
-  { family: "gibbous", strength: 0.74, side: "right" },       // 12
-  { family: "gibbous", strength: 0.84, side: "right" },       // 13
+  { family: "gibbous", strength: 0.12, side: "right" },       // 9
+  { family: "gibbous", strength: 0.40, side: "right" },       // 10
+  { family: "gibbous", strength: 0.56, side: "right" },       // 11
+  { family: "gibbous", strength: 0.70, side: "right" },       // 12
+  { family: "gibbous", strength: 0.82, side: "right" },       // 13
   { family: "gibbous", strength: 0.92, side: "right" },       // 14
   { family: "full", strength: 1, side: "none" },              // 15
   { family: "gibbous", strength: 0.92, side: "left" },        // 16
-  { family: "gibbous", strength: 0.84, side: "left" },        // 17
-  { family: "gibbous", strength: 0.74, side: "left" },        // 18
-  { family: "gibbous", strength: 0.64, side: "left" },        // 19
-  { family: "gibbous", strength: 0.50, side: "left" },        // 20
-  { family: "gibbous", strength: 0.40, side: "left" },        // 21
+  { family: "gibbous", strength: 0.82, side: "left" },        // 17
+  { family: "gibbous", strength: 0.70, side: "left" },        // 18
+  { family: "gibbous", strength: 0.56, side: "left" },        // 19
+  { family: "gibbous", strength: 0.40, side: "left" },        // 20
+  { family: "gibbous", strength: 0.12, side: "left" },        // 21
   { family: "quarter", strength: 1, side: "left" },           // 22
-  { family: "waning_shadow", strength: 0.04, side: "left" },  // 23
-  { family: "waning_shadow", strength: 0.18, side: "left" },  // 24
-  { family: "waning_shadow", strength: 0.34, side: "left" },  // 25
-  { family: "waning_shadow", strength: 0.55, side: "left" },  // 26
-  { family: "waning_shadow", strength: 0.73, side: "left" },  // 27
-  { family: "waning_shadow", strength: 0.95, side: "left" },  // 28
-  { family: "new", strength: 0, side: "none" },               // 29
+  { family: "waning_shadow", strength: 0.02, side: "left" },  // 23
+  { family: "waning_shadow", strength: 0.04, side: "left" },  // 24
+  { family: "waning_shadow", strength: 0.42, side: "left" },  // 25
+  { family: "waning_shadow", strength: 0.60, side: "left" },  // 26
+  { family: "waning_shadow", strength: 0.76, side: "left" },  // 27
+  { family: "waning_shadow", strength: 0.82, side: "left" },  // 28
+  { family: "waning_shadow", strength: 0.95, side: "left" },  // 29
 ]);
 
 function resolveAgeStrengthInterpolated(ageDays) {
