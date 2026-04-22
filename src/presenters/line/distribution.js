@@ -4,7 +4,7 @@ const {
   buildBunpuTop5,
   buildHouseBlock,
   buildTsukijiBlock,
-  buildKinjitsuBlock,
+  buildRetrogradeOnlyBlock,
 } = require("../../usecases/channels/line/paid_500");
 const { SPEC } = require("../../config/sora_spec");
 
@@ -14,22 +14,21 @@ async function renderDistributionLine(story, deps = {}) {
 
   const lines = ["🔵 観測ログ＋", ""];
 
-  const { bunpuLines, uraLines } = buildBunpuTop5(story, dict);
+  const { bunpuLines } = buildBunpuTop5(story, dict);
   lines.push(...bunpuLines);
   lines.push("", SPEC.separators.section, "");
 
-  lines.push("🏠 はうす（接点あり）", "");
+  lines.push("🏠 あなたのはうす（全ハウス）", "");
   lines.push(...buildHouseBlock(story, dict, asOfISO));
   lines.push("", SPEC.separators.section, "");
 
-  lines.push("🌙 つきじ（最大3）", "");
+  lines.push("🌙 近日の共鳴", "");
   lines.push(...buildTsukijiBlock(story, dict, asOfISO));
   lines.push("", SPEC.separators.section, "");
 
-  lines.push(...buildKinjitsuBlock(story, dict, asOfISO));
+  lines.push(...buildRetrogradeOnlyBlock(dict, asOfISO));
   lines.push("", SPEC.separators.section, "");
-
-  lines.push(...uraLines);
+  lines.push("あなたのほし×きょうのそら の全共鳴は", "コマンド「うら」で確認できます🌌");
 
   return lines.join("\n").trim();
 }

@@ -13,7 +13,7 @@
 
 const { LINE_COPY } = require("../../content/copy");
 const { normalizeStoryArgs } = require("../../usecases/story/args");
-const { ymdInTimeZone } = require("../../utils/time");
+const { ymdInTimeZone, asOfIsoFromDateLocalJST } = require("../../utils/time");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { safeLineText } = require("./line_utils");
 
@@ -86,6 +86,21 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
     return buildStory({ appUserId, mode: "auto", renderer: renderers.renderLine });
   }
 
+  async function buildTodayAtDate({ appUserId, dateLocal }) {
+    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
+    const story = await storyService.buildStoryForUser(
+      normalizeStoryArgs({
+        appUserId,
+        mode: "auto",
+        dateLocal,
+        asOfISO,
+        orbMaxDeg: ORB_MAX_DEG,
+        precisionDeg: PRECISION_DEG,
+      })
+    );
+    return { story, dateLocal, asOfISO };
+  }
+
   function appendTail(text, tail) {
     if (!tail) return safeLineText(text, MAX_LINE_TEXT);
     return safeLineText(`${text}\n\n${tail}`, MAX_LINE_TEXT);
@@ -148,6 +163,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   return {
     buildSky,
     buildToday,
+    buildTodayAtDate,
     renderFallback,
     renderWelcome,
     handleUtilities,

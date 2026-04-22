@@ -21,10 +21,11 @@ async function buildDailyLineMessage({ story, dict, isPaid500, deepMode } = {}) 
     dict: useDict,
     includeHeader: false,
     includeHouse: isPaid500 === true,
+    paid: isPaid500 === true,
     resonanceMode: "core",
     resonanceDaily,
   });
-  const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false });
+  const freeTodayBody = await renderLine(story, { dict: useDict, includeHeader: false, paid: isPaid500 === true });
   const paidBody = isPaid500
     ? await renderDistributionLine(story, { dict: useDict })
     : null;

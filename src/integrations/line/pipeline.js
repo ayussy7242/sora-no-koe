@@ -10,17 +10,13 @@ const {
   isPaidAllowed,
   paidOnlyMessage,
   getPaidStatus,
-  createCheckoutUrlForLine500,
-  formatEpochDate,
-  createPortalUrl,
 } = require("./payment");
 const { handleBlueprintLight } = require("./blueprint");
 const {
   buildBunpuTop5,
   buildHouseBlock,
   buildTsukijiBlock,
-  buildElementModalityBlock,
-  buildKinjitsuBlock,
+  buildSevenDayLogBlock,
 } = require("../../usecases/channels/line/paid_500");
 const { buildAndStoreSoraWheel } = require("../../engine/graphics/sora_wheel");
 
@@ -44,8 +40,6 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     intent.INTENT.PLUS_MENU,
     intent.INTENT.PLUS_JOIN,
     intent.INTENT.PLUS_CANCEL,
-    intent.INTENT.PLUS_STATUS,
-    intent.INTENT.PLUS_EXPIRE,
   ]);
 
   if (plusIntents.has(intentKey)) {
@@ -88,7 +82,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PLUS_MENU || intentKey === intent.INTENT.PLUS_JOIN) {
-    if (!plusEnabled) {
+    if (!plusEnabled || intentKey === intent.INTENT.PLUS_MENU) {
       return {
         text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
         stage: "plus_menu_paused",
@@ -125,37 +119,15 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PLUS_CANCEL) {
-    if (!lineUserId) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_cancel" };
-    }
-    if (!plusEnabled) {
-      return {
-        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
-        stage: "plus_cancel_paused",
-      };
-    }
-    const portal = await createPortalUrl({ lineUserId, db });
-    if (!portal?.ok || !portal.url) {
-      return {
-        text: "解約はStripeの管理画面から行えます。お手数ですがサポートにご連絡ください。",
-        stage: "plus_cancel_unavailable",
-      };
-    }
     return {
-      text: "解約はこちら👇\n" + portal.url,
-      stage: "plus_cancel",
+      text: LINE_COPY.PLUS_UNAVAILABLE || "いま入会導線の準備中だよ。",
+      stage: "plus_cancel_paused",
     };
   }
 
   if (intentKey === intent.INTENT.PLUS_STATUS) {
     if (!lineUserId) {
       return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_status" };
-    }
-    if (!plusEnabled) {
-      return {
-        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
-        stage: "plus_status_paused",
-      };
     }
     const sub = await getLineSubscription(db, lineUserId);
     const status = sub?.subscription_status || "inactive";
@@ -167,21 +139,10 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PLUS_EXPIRE) {
-    if (!lineUserId) {
-      return { text: LINE_COPY.BLUEPRINT_NEED_LINE || "この操作はLINEから使ってね。", stage: "plus_expire" };
-    }
-    if (!plusEnabled) {
-      return {
-        text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
-        stage: "plus_expire_paused",
-      };
-    }
-    const sub = await getLineSubscription(db, lineUserId);
-    const date = formatEpochDate(sub?.current_period_end);
-    if (!date) {
-      return { text: "期限情報が見つかりませんでした。", stage: "plus_expire_missing" };
-    }
-    return { text: `次回更新日：${date}`, stage: "plus_expire" };
+    return {
+      text: LINE_COPY.PLUS_UNAVAILABLE || "いま入会導線の準備中だよ。",
+      stage: "plus_expire_paused",
+    };
   }
 
   if (intentKey === intent.INTENT.RELATION) {
@@ -284,7 +245,10 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     intentKey === intent.INTENT.BUNPU ||
     intentKey === intent.INTENT.HOUSE ||
     intentKey === intent.INTENT.TSUKIJI ||
-    intentKey === intent.INTENT.SORAZU
+    intentKey === intent.INTENT.SORAZU ||
+    intentKey === intent.INTENT.URA ||
+    intentKey === intent.INTENT.SEVEN_DAY_LOG ||
+    intentKey === intent.INTENT.SEVEN_DAY_VISION
   ) {
     const hasPersonal = await natal.hasNatal(appUserId);
     if (!hasPersonal) {
@@ -314,8 +278,30 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
       return { text: lines.join("\n").trim(), stage: "paid_bunpu" };
     }
 
+    if (intentKey === intent.INTENT.URA) {
+      const { uraLines } = buildBunpuTop5(storyObj, dict);
+      const lines = ["🌑 うら｜共鳴一覧", "", ...uraLines.slice(2)];
+      return { text: lines.join("\n").trim(), stage: "paid_ura" };
+    }
+
+    if (intentKey === intent.INTENT.SEVEN_DAY_LOG || intentKey === intent.INTENT.SEVEN_DAY_VISION) {
+      if (typeof modules?.story?.buildTodayAtDate !== "function") {
+        return { text: "ななにちログの準備中だよ。", stage: "paid_seven_day_log_missing" };
+      }
+      const isVision = intentKey === intent.INTENT.SEVEN_DAY_VISION;
+      const lines = await buildSevenDayLogBlock({
+        storyBuilder: ({ appUserId: targetAppUserId, dateLocal }) => modules.story.buildTodayAtDate({ appUserId: targetAppUserId, dateLocal }),
+        appUserId,
+        centerDateLocal: storyObj?.meta?.date_local,
+        dict,
+        offsets: isVision ? [1, 2, 3, 4, 5, 6, 7] : [-6, -5, -4, -3, -2, -1, 0],
+        title: isVision ? "🌌 ななにちビジョン" : "🌌 ななにちログ",
+      });
+      return { text: lines.join("\n").trim(), stage: isVision ? "paid_seven_day_vision" : "paid_seven_day_log" };
+    }
+
     if (intentKey === intent.INTENT.HOUSE) {
-      const lines = [`🏠 はうす（全ハウス）｜${dateLabel}`, "", ...buildHouseBlock(storyObj, dict, asOfISO)];
+      const lines = [`🏠 あなたのはうす（全ハウス）｜${dateLabel}`, "", ...buildHouseBlock(storyObj, dict, asOfISO)];
       return { text: lines.join("\n").trim(), stage: "paid_house" };
     }
 

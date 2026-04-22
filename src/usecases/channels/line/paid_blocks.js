@@ -4,15 +4,14 @@ const { isRetrograde, buildRetrogradeMap } = require("../../../domain/astro/retr
 const { buildNextMoonEvents, orderedMoonEvents, formatMoonEventDisplay } = require("../../../domain/moon");
 const { SPEC } = require("../../../config/sora_spec");
 const { resolveChannelConfig, resolveProximityConfig } = require("../../../config/aspect_channel_config");
-const { weightForBody, scoreForAspect } = require("../../../domain/touch_point/scoring");
+const { ymdInTimeZone } = require("../../../utils/time");
+const { scoreForAspect } = require("../../../domain/touch_point/scoring");
 const { computeOrbStats } = require("../../../domain/aspect/stats");
 const { scoreTouchPoints, sortScoredTouchPoints, dedupeTouchPoints, touchPointKey } = require("../../../domain/touch_point/selection");
 const { EXTENDED_PLANETS } = require("../../../domain/astro/constants");
-const { signKeyFromLon } = require("../../../domain/astro/signs");
 const {
-  computeTokyoAscDeg,
-  resolveHouseNumber,
-  HOUSE_BASIS,
+  absAngularDistance,
+  calcTransitLon,
   formatDateYmd,
   findAspectWindow,
   findTransitTransitWindow,
@@ -30,6 +29,8 @@ const {
 const { formatBunpu } = require("../../../presenters/line/paid/bunpu");
 const { formatHouse } = require("../../../presenters/line/paid/house");
 const { formatTsukiji } = require("../../../presenters/line/paid/tsukiji");
+const { formatRetrogradeBlock } = require("../../../presenters/line/paid/retrograde");
+const { formatSevenDayLog } = require("../../../presenters/line/paid/seven_day_log");
 const { formatKinjitsu } = require("../../../presenters/line/paid/kinjitsu");
 const { formatElements } = require("../../../presenters/line/paid/elements");
 const { formatUra } = require("../../../presenters/line/paid/ura");
@@ -38,20 +39,42 @@ const SLOW_TRANSITS = new Set(["saturn", "uranus", "neptune", "pluto"]);
 const LINE_PAID_CFG = resolveChannelConfig("line_paid");
 const LINE_PAID_PROXIMITY = resolveProximityConfig("line_paid");
 const TSUKIJI_MIN_DAYS = LINE_PAID_CFG.tsukijiMinDays ?? SPEC.tsukiji.minDays;
-const TSUKIJI_ORB_LIMIT = LINE_PAID_CFG.tsukijiOrbLimit ?? SPEC.orb.paid;
-const TSUKIJI_MAX_ITEMS = LINE_PAID_CFG.tsukijiMaxItems ?? SPEC.tsukiji.maxItems;
-const TSUKIJI_RETRO_KEYS = ["mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+const TSUKIJI_ORB_LIMIT = 2.0;
+const TSUKIJI_MAX_ITEMS = 2;
+const TSUKIJI_PEAK_WINDOW_DAYS = 5;
+const RETROGRADE_LOOKAHEAD_DAYS = 14;
+const RETROGRADE_KEYS = ["mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+const SEVEN_DAY_LOG_ORB_LIMIT = 2.0;
+
+function refineTransitNatalPeakTime({ transitKey, natalLon, aspectDeg, seedDate, fallbackISO }) {
+  const center = seedDate instanceof Date && !Number.isNaN(seedDate.getTime())
+    ? seedDate
+    : new Date(fallbackISO);
+  if (Number.isNaN(center.getTime()) || !Number.isFinite(Number(natalLon))) return center;
+  let best = { orb: Infinity, time: center };
+  const windowMs = 18 * 60 * 60 * 1000;
+  const stepMs = 5 * 60 * 1000;
+  for (let t = center.getTime() - windowMs; t <= center.getTime() + windowMs; t += stepMs) {
+    const iso = new Date(t).toISOString();
+    const lon = calcTransitLon(transitKey, iso);
+    if (!Number.isFinite(Number(lon))) continue;
+    const orb = Math.abs(absAngularDistance(lon, Number(natalLon)) - Number(aspectDeg));
+    if (orb < best.orb) best = { orb, time: new Date(t) };
+  }
+  return best.time;
+}
 
 function buildBunpuTop5(story, dict) {
   const tps = Array.isArray(story?.personal?.touch_points_all)
     ? story.personal.touch_points_all
     : [];
 
+  const BUNPU_ORB_LIMIT = 2.0;
+  const bunpuTouchPoints = tps.filter((tp) => Number.isFinite(Number(tp?.orb_deg)) && Number(tp.orb_deg) <= BUNPU_ORB_LIMIT);
   const asOfISO = story?.meta?.as_of || null;
-  const dateLabel = String(story?.meta?.date_local || "").replace(/-/g, ".") || null;
 
   const scored = sortScoredTouchPoints(
-    scoreTouchPoints(tps, { orbLimit: LINE_PAID_CFG.orbLimitPaid ?? SPEC.orb.paid, scoreForAspect }),
+    scoreTouchPoints(bunpuTouchPoints, { orbLimit: BUNPU_ORB_LIMIT, scoreForAspect }),
     { isPaid: true }
   );
 
@@ -85,7 +108,6 @@ function buildBunpuTop5(story, dict) {
 
   const stats = computeOrbStats(scored.map((row) => Number(row?.item?.orb_deg)));
   const quality = { same: 0, tension: 0, harmony: 0 };
-  const houseCounts = {};
   const micro = { c30_150: 0, c45_135: 0, c72_144: 0, c40_80_160: 0 };
 
   scored.forEach((row) => {
@@ -97,15 +119,6 @@ function buildBunpuTop5(story, dict) {
     else if (degRaw === 45 || degRaw === 135) micro.c45_135 += 1;
     else if (degRaw === 72 || degRaw === 144) micro.c72_144 += 1;
     else if (degRaw === 40 || degRaw === 80 || degRaw === 160) micro.c40_80_160 += 1;
-
-    const house = Number(
-      row?.item?.natal_house_focus ??
-      row?.item?.house_focus ??
-      row?.item?.transit_house_focus
-    );
-    if (Number.isFinite(house) && house >= 1 && house <= 12) {
-      houseCounts[house] = (houseCounts[house] || 0) + 1;
-    }
   });
 
   const retroMap = buildRetrogradeMap(
@@ -114,12 +127,10 @@ function buildBunpuTop5(story, dict) {
   );
 
   const bunpuLines = formatBunpu({
-    dateLabel: dateLabel || (asOfISO ? formatDateYmd(new Date(asOfISO)) : "-"),
     totalCount: scored.length,
     stats,
     quality,
     micro,
-    houseCounts,
   });
 
   const uraLines = formatUra({ ura, retroMap, dict });
@@ -128,80 +139,35 @@ function buildBunpuTop5(story, dict) {
 }
 
 function buildHouseBlock(story, dict, asOfISO) {
-  const ascDeg = asOfISO ? computeTokyoAscDeg(asOfISO) : null;
-  const ascSignKey = Number.isFinite(Number(ascDeg)) ? signKeyFromLon(Number(ascDeg)) : null;
-  const signOrder =
-    dict?.SIGNS_V2?.order ||
-    dict?.SIGNS?.order ||
-    [
-      "aries",
-      "taurus",
-      "gemini",
-      "cancer",
-      "leo",
-      "virgo",
-      "libra",
-      "scorpio",
-      "sagittarius",
-      "capricorn",
-      "aquarius",
-      "pisces",
-    ];
-  const ascIndex = ascSignKey ? signOrder.indexOf(ascSignKey) : null;
-
-  const transitSigns = story?.public?.transit_signs || {};
-  const bodyOrder = EXTENDED_PLANETS;
-
+  const HOUSE_ORB_LIMIT = 2.0;
+  const tps = Array.isArray(story?.personal?.touch_points_all) ? story.personal.touch_points_all : [];
   const houseBuckets = new Map();
-  for (let i = 1; i <= 12; i++) houseBuckets.set(i, { items: [], score: 0, signKey: null, signJa: null, signGlyph: null });
+  for (let i = 1; i <= 12; i++) houseBuckets.set(i, { houseNo: i, count: 0, score: 0 });
 
-  const retroMap = buildRetrogradeMap(asOfISO, bodyOrder);
-
-  if (ascIndex != null && ascIndex >= 0) {
-    for (let h = 1; h <= 12; h++) {
-      const key = signOrder[(ascIndex + h - 1) % 12];
-      const signLabel = signJa(dict, key);
-      const bucket = houseBuckets.get(h);
-      bucket.signKey = key;
-      bucket.signJa = signLabel || "";
-    }
-  }
-
-  bodyOrder.forEach((key) => {
-    const signKeyRaw = transitSigns?.[key]?.sign_key || "";
-    const signKey = String(signKeyRaw || "").toLowerCase();
-    const signJaLabel = transitSigns?.[key]?.sign_ja || signJa(dict, signKey || "");
-    const houseNo = resolveHouseNumber({
-      basis: HOUSE_BASIS.TRANSIT_PUBLIC,
-      signKey,
-      asOfISO,
-      dict,
+  tps
+    .filter((tp) => Number.isFinite(Number(tp?.orb_deg)) && Number(tp.orb_deg) <= HOUSE_ORB_LIMIT)
+    .forEach((tp) => {
+      const houseNo = Number(
+        tp?.natal_house_focus ??
+        tp?.house_focus ??
+        tp?.natal_house ??
+        null
+      );
+      if (!Number.isFinite(houseNo) || houseNo < 1 || houseNo > 12) return;
+      const bucket = houseBuckets.get(houseNo);
+      bucket.count += 1;
+      bucket.score += 1;
     });
-    if (!houseNo) return;
-    const glyph = glyphForBody(key);
-    const retro = retroMap[key] ? `${SPEC.retro.joiner}${SPEC.retro.short}` : "";
-    const bodyJa = dict?.PLANETS_V2?.bodies?.[key]?.label_ja || dict?.POINTS_V1?.points?.[key]?.label_ja || key;
-    const entry = `${bodyJa}（${signJaLabel}${retro}）`;
-    const bucket = houseBuckets.get(houseNo);
-    bucket.items.push(entry);
-    bucket.score += weightForBody(key);
-  });
 
   const rows = [];
   for (let h = 1; h <= 12; h++) {
     const bucket = houseBuckets.get(h);
     if (!bucket) continue;
-    rows.push({
-      houseNo: h,
-      signKey: bucket.signKey,
-      signJa: bucket.signJa,
-      score: bucket.score,
-      items: bucket.items,
-    });
+    rows.push(bucket);
   }
 
-  rows.sort((a, b) => b.score - a.score);
-  return formatHouse({ rows });
+  rows.sort((a, b) => (b.score - a.score) || (a.houseNo - b.houseNo));
+  return formatHouse({ rows: rows.filter((row) => row.count > 0).slice(0, 3), dict });
 }
 
 function buildTsukijiBlock(story, dict, asOfISO) {
@@ -217,7 +183,7 @@ function buildTsukijiBlock(story, dict, asOfISO) {
     .filter((tp) => Number.isFinite(Number(tp?.orb_deg)))
     .filter((tp) => Number(tp.orb_deg) <= TSUKIJI_ORB_LIMIT);
 
-  const approachRows = [];
+  const personalRows = [];
 
   candidates.forEach((tp) => {
     const tKey = String(tp?.transit_body || tp?.b || "").toLowerCase();
@@ -247,38 +213,35 @@ function buildTsukijiBlock(story, dict, asOfISO) {
       orbLimit: TSUKIJI_ORB_LIMIT,
     });
 
-    if (!window?.start || !window?.end) return;
-    const durationMs = window.end.getTime() - window.start.getTime();
-    const durationDays = Math.ceil(durationMs / 86400000);
-    if (!Number.isFinite(durationDays) || durationDays < TSUKIJI_MIN_DAYS) return;
-    if (!(window.start <= now && now <= window.end)) return;
+    if (!window?.peak) return;
+    const peakAt = refineTransitNatalPeakTime({
+      transitKey: tKey,
+      natalLon: Number(tp?.natal_lon_deg),
+      aspectDeg,
+      seedDate: window.peak,
+      fallbackISO: baseISO,
+    });
+    const diffDays = Math.abs((peakAt.getTime() - now.getTime()) / 86400000);
+    if (diffDays > TSUKIJI_PEAK_WINDOW_DAYS) return;
 
-    const startText = window?.start ? formatDateYmd(window.start) : "-";
-    const endText = window?.end ? formatDateYmd(window.end) : "-";
-    const remainingDays = Math.max(0, Math.ceil((window.end.getTime() - now.getTime()) / 86400000));
-
-    approachRows.push({
-      orb,
-      data: {
-        aKind: "T",
-        bKind: "N",
-        aKey: tKey,
-        bKey: nKey,
-        aSignKey: tp?.transit_sign_key || tp?.transit_sign || null,
-        bSignKey: tp?.natal_sign_key || tp?.natal_sign || null,
-        aSign: tSign,
-        bSign: nSign,
-        aspectType: aspectTypeNorm,
-        aspectDeg,
-        orb,
-        startText,
-        endText,
-        remainingDays,
-      },
+    personalRows.push({
+      aKind: "T",
+      bKind: "N",
+      aKey: tKey,
+      bKey: nKey,
+      aSignKey: tp?.transit_sign_key || tp?.transit_sign || null,
+      bSignKey: tp?.natal_sign_key || tp?.natal_sign || null,
+      aSign: tSign,
+      bSign: nSign,
+      aspectType: aspectTypeNorm,
+      aspectDeg,
+      orbDeg: orb,
+      peakAt,
     });
   });
 
   const skyAll = Array.isArray(story?.public?.sky_all) ? story.public.sky_all : [];
+  const skyRows = [];
   skyAll
     .filter((r) => Number.isFinite(Number(r?.orb_deg)))
     .filter((r) => Number(r.orb_deg) <= TSUKIJI_ORB_LIMIT)
@@ -297,89 +260,178 @@ function buildTsukijiBlock(story, dict, asOfISO) {
         maxDays: 240,
         orbLimit: TSUKIJI_ORB_LIMIT,
       });
-      if (!window?.start || !window?.end) return;
-      const durationMs = window.end.getTime() - window.start.getTime();
-      const durationDays = Math.ceil(durationMs / 86400000);
-      if (!Number.isFinite(durationDays) || durationDays < TSUKIJI_MIN_DAYS) return;
-      if (!(window.start <= now && now <= window.end)) return;
+      if (!window?.peak) return;
+      const peakAt = refinePeakTime({
+        kind: "transit-transit",
+        aKey,
+        bKey,
+        aspectDeg,
+        seedISO: window.peak.toISOString(),
+        fallbackISO: baseISO,
+        windowMs: 18 * 60 * 60 * 1000,
+        stepMs: 5 * 60 * 1000,
+      });
+      const diffDays = Math.abs((peakAt.getTime() - now.getTime()) / 86400000);
+      if (diffDays > TSUKIJI_PEAK_WINDOW_DAYS) return;
 
-      const startText = window?.start ? formatDateYmd(window.start) : "-";
-      const endText = window?.end ? formatDateYmd(window.end) : "-";
-      const remainingDays = Math.max(0, Math.ceil((window.end.getTime() - now.getTime()) / 86400000));
-
-      approachRows.push({
-        orb: Number.isFinite(Number(r?.orb_deg)) ? Number(r.orb_deg) : null,
-        data: {
-          aKind: "T",
-          bKind: "T",
-          aKey,
-          bKey,
-          aSignKey: r?.a_sign_key || null,
-          bSignKey: r?.b_sign_key || null,
-          aSign: r?.a_sign_ja || null,
-          bSign: r?.b_sign_ja || null,
-          aspectType: aspectTypeNorm,
-          aspectDeg,
-          orb: Number.isFinite(Number(r?.orb_deg)) ? Number(r.orb_deg) : null,
-          startText,
-          endText,
-          remainingDays,
-        },
+      skyRows.push({
+        aKind: "T",
+        bKind: "T",
+        aKey,
+        bKey,
+        aSignKey: r?.a_sign_key || null,
+        bSignKey: r?.b_sign_key || null,
+        aSign: r?.a_sign_ja || null,
+        bSign: r?.b_sign_ja || null,
+        aspectType: aspectTypeNorm,
+        aspectDeg,
+        orbDeg: Number.isFinite(Number(r?.orb_deg)) ? Number(r.orb_deg) : null,
+        peakAt,
       });
     });
 
-  const approachData = approachRows
-    .sort((a, b) => Number(a.orb || 0) - Number(b.orb || 0))
-    .map((row) => row.data);
-
-  const uniqApproach = [];
-  const seenApproach = new Set();
-  approachData.forEach((row) => {
-    const key = [
-      row?.aKind, row?.bKind,
-      row?.aKey, row?.bKey,
-      row?.aspectType, row?.aspectDeg,
-      row?.aSignKey, row?.bSignKey,
-      row?.startText, row?.endText,
-    ].join("|");
-    if (seenApproach.has(key)) return;
-    seenApproach.add(key);
-    uniqApproach.push(row);
-  });
-
-  const approachLimited = uniqApproach
+  const sortPeak = (rows) => rows
     .slice()
     .sort((a, b) => {
-      const da = Number(a?.remainingDays ?? Infinity);
-      const db = Number(b?.remainingDays ?? Infinity);
+      const da = a?.peakAt instanceof Date ? a.peakAt.getTime() : Infinity;
+      const db = b?.peakAt instanceof Date ? b.peakAt.getTime() : Infinity;
       if (da !== db) return da - db;
-      const oa = Number(a?.orb ?? 99);
-      const ob = Number(b?.orb ?? 99);
+      const oa = Number(a?.orbDeg ?? 99);
+      const ob = Number(b?.orbDeg ?? 99);
       return oa - ob;
     })
     .slice(0, TSUKIJI_MAX_ITEMS);
 
-  const retroData = [];
-  TSUKIJI_RETRO_KEYS.forEach((key) => {
-    if (!isRetrograde(key, baseISO)) return;
-    const window = findRetrogradeWindow(key, baseISO, 500);
-    if (!window?.start || !window?.end) return;
-    const startText = formatDateYmd(window.start);
-    const endText = formatDateYmd(window.end);
-    const remainingDays = Math.max(0, Math.ceil((window.end.getTime() - now.getTime()) / 86400000));
-    retroData.push({
-      bodyKey: key,
-      startText,
-      endText,
-      remainingDays,
-    });
-  });
-
   return formatTsukiji({
-    approachRows: approachLimited,
-    retroRows: retroData,
+    personalRows: sortPeak(personalRows),
+    skyRows: sortPeak(skyRows),
     dict,
   });
+}
+
+function findNextRetrogradeStart(bodyKey, baseISO, maxDays = 500) {
+  const base = new Date(baseISO);
+  if (Number.isNaN(base.getTime())) return null;
+  const todayIso = toIsoAtJstNoon(base);
+  if (!todayIso) return null;
+  let prevRetro = isRetrograde(bodyKey, todayIso);
+  for (let i = 1; i <= maxDays; i += 1) {
+    const day = new Date(base.getTime() + i * 86400000);
+    const iso = toIsoAtJstNoon(day);
+    if (!iso) continue;
+    const currentRetro = isRetrograde(bodyKey, iso);
+    if (!prevRetro && currentRetro) return day;
+    prevRetro = currentRetro;
+  }
+  return null;
+}
+
+function buildRetrogradeOnlyBlock(dict, asOfISO) {
+  const baseISO = asOfISO || new Date().toISOString();
+
+  const activeRows = RETROGRADE_KEYS
+    .filter((key) => isRetrograde(key, baseISO))
+    .map((bodyKey) => {
+      const window = findRetrogradeWindow(bodyKey, baseISO, 500);
+      if (!window?.start || !window?.end) return null;
+      return { bodyKey, startDate: window.start, endDate: window.end };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+  const upcomingRows = RETROGRADE_KEYS
+    .filter((key) => !isRetrograde(key, baseISO))
+    .map((bodyKey) => {
+      const startDate = findNextRetrogradeStart(bodyKey, baseISO, 500);
+      if (!startDate) return null;
+      const daysUntil = Math.ceil((startDate.getTime() - new Date(baseISO).getTime()) / 86400000);
+      if (!Number.isFinite(daysUntil) || daysUntil < 0 || daysUntil > RETROGRADE_LOOKAHEAD_DAYS) return null;
+      const window = findRetrogradeWindow(bodyKey, startDate.toISOString(), 500);
+      if (!window?.start || !window?.end) return null;
+      return { bodyKey, startDate: window.start, endDate: window.end };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+    .slice(0, 2);
+
+  return formatRetrogradeBlock({ activeRows, upcomingRows, dict });
+}
+
+function normalizeSevenDayTouchPoint(tp, dict) {
+  const transitKey = String(tp?.transit_body || tp?.b || "").toLowerCase();
+  const natalKey = String(tp?.natal_body_or_point || tp?.natal_body || tp?.a || "").toLowerCase();
+  const transitLabel = dict?.PLANETS_V2?.bodies?.[transitKey]?.label_ja || dict?.POINTS_V1?.points?.[transitKey]?.label_ja || transitKey;
+  const natalLabel = dict?.PLANETS_V2?.bodies?.[natalKey]?.label_ja || dict?.POINTS_V1?.points?.[natalKey]?.label_ja || natalKey;
+  const transitSignJa = tp?.transit_sign_ja || signJa(dict, tp?.transit_sign_key || tp?.transit_sign || "");
+  const natalSignJa = tp?.natal_sign_ja || signJa(dict, tp?.natal_sign_key || tp?.natal_sign || "");
+  const aspectDeg = Number.isFinite(Number(tp?.aspect_deg)) ? Math.round(Number(tp.aspect_deg)) : null;
+  const orbDeg = Number(tp?.orb_deg);
+  return {
+    transitLabel,
+    natalLabel,
+    transitSign: transitSignJa ? `（${transitSignJa}）` : "",
+    natalSign: natalSignJa ? `（${natalSignJa}）` : "",
+    aspectDeg,
+    orbDeg,
+  };
+}
+
+function countElementsAndModalities(items, dict) {
+  const elementCounts = { fire: 0, earth: 0, air: 0, water: 0 };
+  const modalityCounts = { cardinal: 0, fixed: 0, mutable: 0 };
+  (items || []).forEach((tp) => {
+    const signKeys = [
+      String(tp?.natal_sign_key || tp?.natal_sign || "").toLowerCase(),
+      String(tp?.transit_sign_key || tp?.transit_sign || "").toLowerCase(),
+    ].filter(Boolean);
+    signKeys.forEach((signKey) => {
+      const meta = dict?.SIGNS_V2?.signs?.[signKey] || dict?.SIGNS?.signs?.[signKey] || null;
+      const element = meta?.element || null;
+      const modality = meta?.modality || null;
+      if (element && Object.prototype.hasOwnProperty.call(elementCounts, element)) elementCounts[element] += 1;
+      if (modality && Object.prototype.hasOwnProperty.call(modalityCounts, modality)) modalityCounts[modality] += 1;
+    });
+  });
+  return { elementCounts, modalityCounts };
+}
+
+async function buildSevenDayLogBlock({ storyBuilder, appUserId, centerDateLocal, dict, offsets = [-6, -5, -4, -3, -2, -1, 0], title = "🌌 ななにちログ" }) {
+  const center = new Date(`${centerDateLocal}T00:00:00+09:00`);
+  if (Number.isNaN(center.getTime())) return ["該当なし"];
+
+  const resonanceRows = [];
+  const elementRows = [];
+  const modalityRows = [];
+
+  for (const offset of offsets) {
+    const date = new Date(center.getTime() + offset * 86400000);
+    const dateLocal = ymdInTimeZone(date, "Asia/Tokyo");
+    const built = await storyBuilder({ appUserId, dateLocal });
+    const story = built?.story || null;
+    const tps = Array.isArray(story?.personal?.touch_points_all) ? story.personal.touch_points_all : [];
+    const within = tps
+      .filter((tp) => Number.isFinite(Number(tp?.orb_deg)) && Number(tp.orb_deg) <= SEVEN_DAY_LOG_ORB_LIMIT)
+      .sort((a, b) => Number(a.orb_deg) - Number(b.orb_deg));
+    const top = within[0] ? normalizeSevenDayTouchPoint(within[0], dict) : null;
+    const { elementCounts, modalityCounts } = countElementsAndModalities(within, dict);
+
+    resonanceRows.push({ dateLocal, item: top });
+    elementRows.push({
+      dateLocal,
+      fire: elementCounts.fire,
+      earth: elementCounts.earth,
+      air: elementCounts.air,
+      water: elementCounts.water,
+    });
+    modalityRows.push({
+      dateLocal,
+      cardinal: modalityCounts.cardinal,
+      fixed: modalityCounts.fixed,
+      mutable: modalityCounts.mutable,
+    });
+  }
+
+  return formatSevenDayLog({ title, resonanceRows, elementRows, modalityRows });
 }
 
 function buildElementModalityBlock(story) {
@@ -440,6 +492,8 @@ module.exports = {
   buildBunpuTop5,
   buildHouseBlock,
   buildTsukijiBlock,
+  buildRetrogradeOnlyBlock,
+  buildSevenDayLogBlock,
   buildElementModalityBlock,
   buildKinjitsuBlock,
 };

@@ -10,6 +10,7 @@ const HOUSES_V1 = {
   houses: {
     1: {
       label_ja: "第1ハウス",
+      focus_short: "自己・始点",
       core: "自己・身体・入口",
       sora_short: "入口の領域。",
       sora: "自分の立ち姿や、世界との接点がテーマとして浮かびやすい領域。",
@@ -18,6 +19,7 @@ const HOUSES_V1 = {
     },
     2: {
       label_ja: "第2ハウス",
+      focus_short: "所有・資源",
       core: "価値・所有・感覚",
       sora_short: "価値の領域。",
       sora: "何を大切にし、何を持ち、どう安心を作るかが浮かびやすい領域。",
@@ -26,6 +28,7 @@ const HOUSES_V1 = {
     },
     3: {
       label_ja: "第3ハウス",
+      focus_short: "思考・やりとり",
       core: "言葉・学び・日常の移動",
       sora_short: "言葉の領域。",
       sora: "情報や会話、学びの循環がテーマとして浮かびやすい領域。",
@@ -34,6 +37,7 @@ const HOUSES_V1 = {
     },
     4: {
       label_ja: "第4ハウス",
+      focus_short: "基盤・内側",
       core: "居場所・家・ルーツ",
       sora_short: "居場所の領域。",
       sora: "安心の拠点や、内側の基盤がテーマとして浮かびやすい領域。",
@@ -42,6 +46,7 @@ const HOUSES_V1 = {
     },
     5: {
       label_ja: "第5ハウス",
+      focus_short: "創造・表現",
       core: "表現・創造・遊び",
       sora_short: "創造の領域。",
       sora: "自分の温度を表現し、創造として置きやすい領域。",
@@ -50,6 +55,7 @@ const HOUSES_V1 = {
     },
     6: {
       label_ja: "第6ハウス",
+      focus_short: "日常・整え",
       core: "習慣・整える・役割",
       sora_short: "整える領域。",
       sora: "日々の習慣や手入れ、現実の整え直しがテーマになりやすい領域。",
@@ -58,6 +64,7 @@ const HOUSES_V1 = {
     },
     7: {
       label_ja: "第7ハウス",
+      focus_short: "対人・関係",
       core: "関係・対等・契約",
       sora_short: "関係の領域。",
       sora: "他者との鏡合わせや、対等さがテーマとして浮かびやすい領域。",
@@ -66,6 +73,7 @@ const HOUSES_V1 = {
     },
     8: {
       label_ja: "第8ハウス",
+      focus_short: "共有・深部",
       core: "共有・境界・深層",
       sora_short: "深層の領域。",
       sora: "共有や境界、心理の奥がテーマとして浮かびやすい領域。",
@@ -74,6 +82,7 @@ const HOUSES_V1 = {
     },
     9: {
       label_ja: "第9ハウス",
+      focus_short: "拡張・探求",
       core: "探求・世界観・遠く",
       sora_short: "探求の領域。",
       sora: "視野を広げる学びや、世界観がテーマとして浮かびやすい領域。",
@@ -82,6 +91,7 @@ const HOUSES_V1 = {
     },
     10: {
       label_ja: "第10ハウス",
+      focus_short: "社会・役割",
       core: "社会・到達点・役割",
       sora_short: "社会の領域。",
       sora: "役割や到達点、外側の輪郭がテーマとして浮かびやすい領域。",
@@ -90,6 +100,7 @@ const HOUSES_V1 = {
     },
     11: {
       label_ja: "第11ハウス",
+      focus_short: "仲間・未来",
       core: "仲間・未来・ネットワーク",
       sora_short: "つながりの領域。",
       sora: "仲間や未来像、ネットワークがテーマとして浮かびやすい領域。",
@@ -98,6 +109,7 @@ const HOUSES_V1 = {
     },
     12: {
       label_ja: "第12ハウス",
+      focus_short: "内側・潜在",
       core: "無意識・余白・溶解",
       sora_short: "余白の領域。",
       sora: "見えない層や余白、言葉にならない感覚がテーマになりやすい領域。",

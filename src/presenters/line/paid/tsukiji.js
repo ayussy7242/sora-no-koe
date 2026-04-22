@@ -1,19 +1,29 @@
 "use strict";
 
 const { glyphForBody, signJa, formatAspectDisplay } = require("../../format/format/common");
-const { SPEC } = require("../../../config/sora_spec");
 
-function formatTsukiji({ approachRows = [], retroRows = [], dict }) {
-  if (!approachRows.length && !retroRows.length) return ["該当なし"];
+function formatPeakLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "-";
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  const mm = String(jst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(jst.getUTCDate()).padStart(2, "0");
+  const hh = String(jst.getUTCHours()).padStart(2, "0");
+  const mi = String(jst.getUTCMinutes()).padStart(2, "0");
+  return `${mm}.${dd} ${hh}:${mi}`;
+}
 
-  const lines = [];
+function formatTsukiji({ personalRows = [], skyRows = [], dict }) {
+  if (!personalRows.length && !skyRows.length) return ["該当なし"];
 
-  if (approachRows.length) {
-    lines.push(SPEC.labels.tsukiji.approach);
-    approachRows.forEach((row, idx) => {
+  const lines = ["🌙 近日の共鳴", ""];
+
+  const renderRows = (title, rows) => {
+    if (!rows.length) return;
+    lines.push(`${title}：`);
+    rows.forEach((row, idx) => {
       if (idx > 0) lines.push("");
       const aKind = row.aKind || "T";
-      const bKind = row.bKind || "T";
+      const bKind = row.bKind || "N";
       const aKey = row.aKey;
       const bKey = row.bKey;
       const aGlyph = glyphForBody(aKey);
@@ -28,32 +38,21 @@ function formatTsukiji({ approachRows = [], retroRows = [], dict }) {
         dict,
         rawType: row.aspectType,
         aspectDeg: row.aspectDeg,
-        orbDeg: row.orb,
+        orbDeg: row.orbDeg,
         orbPrecision: 1,
       });
-      const degText = aspectMeta.degText || "";
-      const orbText = aspectMeta.orbText ? `orb ${aspectMeta.orbText}` : "";
       lines.push(`${idx + 1}) (${aKind}) ${aGlyph ? `${aGlyph} ` : ""}${aLabel}${aSignText}`);
       lines.push(`   × (${bKind}) ${bGlyph ? `${bGlyph} ` : ""}${bLabel}${bSignText}`);
-      lines.push(`   ${aspectMeta.label} ${degText}`.trim());
-      if (orbText) lines.push(`   ${orbText}`);
-      lines.push(`   ${row.startText} → ${row.endText}`);
-      lines.push(`   ${SPEC.labels.tsukiji.remaining} ${row.remainingDays}日`);
+      lines.push(`   ${aspectMeta.degText || ""}｜${Number(row.orbDeg || 0).toFixed(1)}°`);
+      lines.push(`   最接近：${formatPeakLabel(row.peakAt)}`);
     });
-  }
+    lines.push("");
+  };
 
-  if (retroRows.length) {
-    if (lines.length) lines.push("");
-    lines.push(SPEC.labels.tsukiji.retro);
-    retroRows.forEach((row, idx) => {
-      if (idx > 0) lines.push("");
-      const glyph = glyphForBody(row.bodyKey);
-      const label = dict?.PLANETS_V2?.bodies?.[row.bodyKey]?.label_ja || row.bodyKey;
-      lines.push(`${glyph ? `${glyph} ` : ""}${label} ${SPEC.retro.short}`);
-      lines.push(`${row.startText} → ${row.endText}`);
-      lines.push(`${SPEC.labels.tsukiji.remaining} ${row.remainingDays}日`);
-    });
-  }
+  renderRows("個人", personalRows);
+  renderRows("空", skyRows);
+
+  if (lines[lines.length - 1] === "") lines.pop();
 
   return lines;
 }

@@ -1,12 +1,12 @@
 "use strict";
 
 const express = require("express");
-const Stripe = require("stripe");
 const rawBody = require("../middleware/rawBody");
-const { getPurchaseToken } = require("../integrations/firebase/purchase_tokens");
 const { enqueueBlueprintGenerate } = require("../integrations/cloudtasks/tasks_queue");
 const { createLineApi } = require("../integrations/line/api");
 const { LINE_COPY } = require("../content/copy");
+
+const Stripe = require("stripe");
 
 function createStripeClient(env) {
   if (!env?.STRIPE_SECRET_KEY) {
@@ -15,11 +15,6 @@ function createStripeClient(env) {
   return new Stripe(env.STRIPE_SECRET_KEY, {
     apiVersion: "2024-04-10",
   });
-}
-
-function pickUrl(env, key, fallback) {
-  const v = env?.[key];
-  return v && String(v).trim() ? String(v).trim() : fallback;
 }
 
 function createStripeRouter(deps = {}) {
@@ -36,56 +31,11 @@ function createStripeRouter(deps = {}) {
   // checkout (LIGHT)
   // --------------------
   router.post("/checkout/light", express.json({ limit: "1mb" }), async (req, res) => {
-    try {
-      const token = String(req.body?.token || "").trim();
-      if (!token) return res.status(400).json({ ok: false, error: "token is required" });
-
-      const tokenDoc = await getPurchaseToken({ db, token });
-      if (!tokenDoc?.exists) return res.status(404).json({ ok: false, error: "token not found" });
-      if (tokenDoc.data?.used) return res.status(409).json({ ok: false, error: "token already used" });
-
-      const priceId = env.STRIPE_PRICE_ID_LIGHT || null;
-      const paymentLink = env.STRIPE_PAYMENT_LINK_LIGHT || null;
-
-      const successUrl =
-        pickUrl(env, "STRIPE_SUCCESS_URL", null) ||
-        pickUrl(env, "PUBLIC_BASE_URL", null) ||
-        "https://example.com";
-      const cancelUrl =
-        pickUrl(env, "STRIPE_CANCEL_URL", null) ||
-        pickUrl(env, "PUBLIC_BASE_URL", null) ||
-        "https://example.com";
-
-      if (paymentLink && !priceId) {
-        const url = paymentLink.includes("?")
-          ? `${paymentLink}&client_reference_id=${encodeURIComponent(token)}`
-          : `${paymentLink}?client_reference_id=${encodeURIComponent(token)}`;
-        return res.json({ ok: true, url, mode: "payment_link" });
-      }
-
-      if (!priceId) {
-        return res.status(500).json({ ok: false, error: "STRIPE_PRICE_ID_LIGHT is not set" });
-      }
-
-      const stripe = createStripeClient(env);
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        client_reference_id: token,
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        metadata: {
-          product: "blueprint_light",
-          token,
-          line_user_id: tokenDoc.data?.line_user_id || "",
-        },
-      });
-
-      return res.json({ ok: true, url: session.url, session_id: session.id, mode: "checkout_session" });
-    } catch (e) {
-      console.error("[stripe] checkout light failed:", e);
-      return res.status(500).json({ ok: false, error: e?.message || String(e) });
-    }
+    return res.status(410).json({
+      ok: false,
+      error: "blueprint_light_checkout_disabled",
+      message: "Blueprint は登録特典として提供されています。",
+    });
   });
 
   // --------------------
