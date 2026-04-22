@@ -17,10 +17,13 @@ const { createSchemaValidator } = require("../../../utils/schema/validator");
 const { buildMonthlyOverviewReference, buildMonthlyOverviewDeck } = require("../../../usecases/reference/monthly_overview");
 const { generateIgMonthlyCaptionText, formatMonthDot, buildCaptionFallback } = require("../../../usecases/channels/instagram/ai/monthly_overview");
 const { createStoryService } = require("../../../usecases/story/story");
-const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { resolvePublicStory } = require("../../../usecases/story/resolve");
 const { swisseph } = require("../../../config/swisseph");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const { writeLocalCarousel, writeLocalJson, renderAndUploadCarouselSlides } = require("./io");
+const { resolveInstagramExecutionPolicy } = require("../shared/policy/execution");
+const { withExecutionLock } = require("../shared/lock");
+const { withExecutionResultMarking } = require("../shared/marking");
 const dictDefault = require("../../../content/dict");
 const { STORY_SCHEMA_VERSION } = require("../../../domain/schema/versions");
 
@@ -142,12 +145,7 @@ async function buildMonthStory({ month, day = 15, dict }) {
   const dateLocal = `${month}-${String(day).padStart(2, "0")}`;
   const asOfISO = new Date(`${dateLocal}T12:00:00+09:00`).toISOString();
   try {
-    const { story } = await buildPublicStorySnapshot({
-      storyService,
-      dateLocal,
-      asOfISO,
-      save: false,
-    });
+    const story = await resolvePublicStory({ storyService, dateLocal, asOfISO });
     return story || null;
   } catch (e) {
     console.error("[monthly_overview] story build failed:", e?.message || String(e));
@@ -268,23 +266,42 @@ async function runIgMonthlyPost(deps, opts = {}) {
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 60 * 60 * 1000;
   let lockRef = null;
   const lockId = `ig_monthly_${month}`;
+  const policy = resolveInstagramExecutionPolicy({ runner: "monthly", month, dryRun, localOnly, force });
 
-  if (!dryRun && !localOnly && db && !force) {
-    const lock = await claimCronLock({ db, admin, id: lockId, ttlMs: lockTtlMs });
-    if (!lock.ok) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: lock.reason || "already_posted",
-        month,
-        date_local: dateLocal,
-        as_of: asOfISO,
-      };
-    }
-    lockRef = lock.ref;
-  }
+  const lockOutcome = await withExecutionLock({
+    policy,
+    acquire: () => claimCronLock({ db, admin, id: lockId, ttlMs: lockTtlMs }),
+    onSkip: (lock) => ({
+      ok: true,
+      skipped: true,
+      reason: lock.reason || "already_posted",
+      policy,
+      month,
+      date_local: dateLocal,
+      as_of: asOfISO,
+    }),
+  }, async (lock) => {
+    lockRef = lock?.ref || null;
+    return null;
+  });
+  if (lockOutcome) return lockOutcome;
 
-  try {
+  return withExecutionResultMarking({
+    markSuccess: async (result) => {
+      if (lockRef) {
+        await markCronLockSuccess({
+          ref: lockRef,
+          admin,
+          extra: { month, date_local: dateLocal, media_id: result?.media_id || null },
+        });
+      }
+    },
+    markFailed: async (e) => {
+      if (lockRef) {
+        await markCronLockFailed({ ref: lockRef, admin, error: e?.message || String(e) });
+      }
+    },
+  }, async () => {
     const templatePath = env2.IG_MONTHLY_TEMPLATE_PATH
       || path.resolve(process.cwd(), "src/content/templates/instagram/monthly_overview.v1.json");
 
@@ -337,6 +354,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
         ok: true,
         dry_run: true,
         local_only: true,
+        policy,
         month,
         date_local: dateLocal,
         as_of: asOfISO,
@@ -438,6 +456,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
 
     const result = {
       ok: true,
+      policy,
       month,
       date_local: dateLocal,
       as_of: asOfISO,
@@ -449,21 +468,8 @@ async function runIgMonthlyPost(deps, opts = {}) {
       child_container_ids: childIds,
     };
 
-    if (lockRef) {
-      await markCronLockSuccess({
-        ref: lockRef,
-        admin,
-        extra: { month, date_local: dateLocal, media_id: result.media_id || null },
-      });
-    }
-
     return result;
-  } catch (e) {
-    if (lockRef) {
-      await markCronLockFailed({ ref: lockRef, admin, error: e?.message || String(e) });
-    }
-    throw e;
-  }
+  });
 }
 
 module.exports = { runIgMonthlyPost };

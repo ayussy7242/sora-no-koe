@@ -1,7 +1,6 @@
 "use strict";
 
-const { normalizeStoryArgs } = require("./args");
-const { buildPublicStorySnapshot } = require("./store");
+const { resolveStory } = require("./resolve");
 
 const ROUTER_BUILD = "routes/stories.js v2026-01-27 safe-outputs + single-render";
 
@@ -18,21 +17,15 @@ async function buildStoryContext({ db, storyService, request }) {
     aiDebugOn,
   } = request;
 
-  let story = null;
-  if (appUserId === "public" && String(mode || "").toLowerCase() === "public") {
-    story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
-  } else {
-    story = await storyService.buildStoryForUser(
-      normalizeStoryArgs({
-        appUserId,
-        mode,       // public | auto
-        dateLocal,  // 表示用
-        asOfISO,    // ✅ ここが NOW
-        orbMaxDeg,
-        precisionDeg,
-      })
-    );
-  }
+  const story = await resolveStory({
+    storyService,
+    appUserId,
+    mode,
+    dateLocal,
+    asOfISO,
+    orbMaxDeg,
+    precisionDeg,
+  });
 
   if (resonanceMode) {
     story.meta = story.meta && typeof story.meta === "object" ? story.meta : {};

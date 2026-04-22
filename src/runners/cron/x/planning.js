@@ -116,7 +116,7 @@ async function buildResonancePost({
 
   const candidates = listResonanceCandidates({ story, maxOrbDeg, resonanceMode: story?.meta?.resonance_mode });
   if (!candidates.length) {
-    return { post: null, hasResonance: false, errors, skipReason: "no_resonance" };
+    return { post: null, hasResonance: false, errors, skipReason: "no_candidate" };
   }
 
   const excluded = Array.isArray(excludeKeys) ? new Set(excludeKeys.filter(Boolean)) : new Set();
@@ -253,7 +253,7 @@ async function buildResonancePost({
     post,
     hasResonance: !!(post && post.text),
     errors,
-    skipReason: post ? null : "no_resonance",
+    skipReason: post ? null : "no_candidate",
     picked,
     pickedKey: picked?.raw ? buildResonanceKey(picked.raw) : "",
     debug,

@@ -10,7 +10,7 @@ const {
 } = require("../../usecases/reference/monthly_overview");
 const { createSchemaValidator } = require("../../utils/schema/validator");
 const { createStoryService } = require("../../usecases/story/story");
-const { buildPublicStorySnapshot } = require("../../usecases/story/store");
+const { resolvePublicStory } = require("../../usecases/story/resolve");
 const { swisseph } = require("../../config/swisseph");
 const dict = require("../../content/dict");
 const { STORY_SCHEMA_VERSION } = require("../../domain/schema/versions");
@@ -143,12 +143,7 @@ async function buildMonthStory({ month, day = 15 }) {
   const dateLocal = `${month}-${String(day).padStart(2, "0")}`;
   const asOfISO = new Date(`${dateLocal}T12:00:00+09:00`).toISOString();
   try {
-    const { story } = await buildPublicStorySnapshot({
-      storyService,
-      dateLocal,
-      asOfISO,
-      save: false,
-    });
+    const story = await resolvePublicStory({ storyService, dateLocal, asOfISO });
     return story || null;
   } catch (e) {
     console.error("[monthly_overview] story build failed:", e?.message || String(e));

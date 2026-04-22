@@ -7,7 +7,7 @@ const { toBool } = require("../../../utils/data/bool");
 const { resolveEnv } = require("../../../utils/env");
 const { createStorageClient } = require("../../../utils/infra/gcs_storage");
 const { uploadGcsFile } = require("../../../utils/infra/gcs_upload");
-const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { resolvePublicStory } = require("../../../usecases/story/resolve");
 const { buildMonthlyOverviewReelPlan } = require("../../../usecases/channels/instagram/monthly_overview_reel");
 const {
   renderMonthlyBackground,
@@ -22,6 +22,9 @@ const {
 } = require("../../../integrations/instagram/graph");
 const { writeJsonFile, writeTextFile } = require("../shared/io");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
+const { resolveInstagramExecutionPolicy } = require("../shared/policy/execution");
+const { withExecutionLock } = require("../shared/lock");
+const { withExecutionResultMarking } = require("../shared/marking");
 
 function ensureDir(dir) {
   if (!dir) return;
@@ -81,23 +84,36 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 2 * 60 * 60 * 1000;
   let lockRef = null;
   const lockId = `ig_monthly_reel_${month}`;
+  const policy = resolveInstagramExecutionPolicy({ runner: "monthly_overview_reel", month, dryRun, localOnly, force });
 
-  if (!dryRun && !localOnly && db && !force) {
-    const lock = await claimCronLock({ db, admin, id: lockId, ttlMs: lockTtlMs });
-    if (!lock.ok) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: lock.reason || "already_posted",
-        month,
-        date_local: dateLocal,
-        as_of: asOfISO,
-      };
-    }
-    lockRef = lock.ref;
-  }
+  const lockOutcome = await withExecutionLock({
+    policy,
+    acquire: () => claimCronLock({ db, admin, id: lockId, ttlMs: lockTtlMs }),
+    onSkip: (lock) => ({
+      ok: true,
+      skipped: true,
+      reason: lock.reason || "already_posted",
+      policy,
+      month,
+      date_local: dateLocal,
+      as_of: asOfISO,
+    }),
+  }, async (lock) => {
+    lockRef = lock?.ref || null;
+    return null;
+  });
+  if (lockOutcome) return lockOutcome;
 
-  try {
+  return withExecutionResultMarking({
+    markSuccess: async (result) => {
+      if (lockRef) await markCronLockSuccess(lockRef, { result }).catch(() => {});
+    },
+    markFailed: async (err) => {
+      if (lockRef) {
+        await markCronLockFailed(lockRef, { error: err?.message || String(err) }).catch(() => {});
+      }
+    },
+  }, async () => {
     ensureDir(outDir);
     ensureDir(framesDir);
 
@@ -113,11 +129,10 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
     fs.writeFileSync(bgPath, bgBuffer);
 
     for (const day of plan.days) {
-      const { story } = await buildPublicStorySnapshot({
+      const story = await resolvePublicStory({
         storyService,
         dateLocal: day.dateLocal,
         asOfISO: day.asOfISO,
-        save: false,
       });
       const buffer = await renderMonthlyOverviewFrame({
         story,
@@ -158,6 +173,7 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
 
     const meta = {
       ok: true,
+      policy,
       month,
       date_local: dateLocal,
       as_of: asOfISO,
@@ -175,7 +191,6 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
     writeJsonFile({ outDir, filename: "meta.json", data: meta, space: 2 });
 
     if (localOnly) {
-      if (lockRef) await markCronLockSuccess(lockRef, { result: { ok: true, local_only: true } }).catch(() => {});
       return { ...meta, local_only: true, dry_run: dryRun };
     }
 
@@ -242,7 +257,7 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
       });
 
       if (lockRef) {
-        await markCronLockSuccess(lockRef, { result: { ok: true, publish } }).catch(() => {});
+        
       }
 
       return {
@@ -253,19 +268,13 @@ async function runIgMonthlyOverviewReel(deps, opts = {}) {
       };
     }
 
-    if (lockRef) await markCronLockSuccess(lockRef, { result: { ok: true, dry_run: dryRun } }).catch(() => {});
     return {
       ...meta,
       video_url: videoUrl,
       upload_path: uploadPath,
       dry_run: dryRun,
     };
-  } catch (err) {
-    if (lockRef) {
-      await markCronLockFailed(lockRef, { error: err?.message || String(err) }).catch(() => {});
-    }
-    throw err;
-  }
+  });
 }
 
 module.exports = {

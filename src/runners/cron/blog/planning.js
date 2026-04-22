@@ -9,7 +9,7 @@ const {
   buildDailyTitle,
   markdownToHtml,
 } = require("../../../usecases/channels/blog/daily");
-const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { resolvePublicStory } = require("../../../usecases/story/resolve");
 
 const WHEEL_MARKER = "<!--SORA_WHEEL_MEDIA-->";
 
@@ -17,7 +17,7 @@ async function buildDailyPlan({ env, storyService, dateLocal, asOfISO, runDry = 
   if (!storyService) throw new Error("storyService is required");
 
   mark("story_before");
-  const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+  const story = await resolvePublicStory({ storyService, dateLocal, asOfISO });
   mark("story_after");
 
   mark("openai_before");

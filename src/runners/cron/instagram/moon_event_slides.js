@@ -13,9 +13,9 @@ const {
 } = require("../../../domain/moon");
 const { resolveHouseNumber, HOUSE_BASIS } = require("../../../domain/astro/compute");
 const { pickMoonResonanceAspect } = require("./moon_event");
-const { aspectLabelJa, aspectCircuitLabel } = require("./shared/aspects");
-const { signLabelEnFromKey } = require("./shared/signs");
-const { BODY_META } = require("./shared/bodies");
+const { aspectLabelJa, aspectCircuitLabel } = require("../../../usecases/channels/instagram/shared/aspects");
+const { signLabelEnFromKey } = require("../../../usecases/channels/instagram/shared/signs");
+const { BODY_META } = require("../../../usecases/channels/instagram/shared/bodies");
 const { planetLine } = require("./shared/lines");
 
 function safeCount(v) {
