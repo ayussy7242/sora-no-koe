@@ -86,10 +86,37 @@ test("buildMoonGeometry renders day-3 and day-4 moons with a fuller body", () =>
 
   assert.equal(day3.meta?.family, "waxing_shadow");
   assert.equal(day4.meta?.family, "waxing_shadow");
-  assert.ok(Number(day3.illum) >= 0.09);
-  assert.ok(Number(day3.illum) <= 0.15);
-  assert.ok(Number(day4.illum) >= 0.16);
-  assert.ok(Number(day4.illum) <= 0.26);
+  assert.ok(Number(day3.illum) >= 0.07);
+  assert.ok(Number(day3.illum) <= 0.11);
+  assert.ok(Number(day4.illum) >= 0.14);
+  assert.ok(Number(day4.illum) <= 0.20);
+});
+
+test("buildMoonGeometry keeps day-5 to day-7 on the slimmer side", () => {
+  const day5 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 5,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day6 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 6,
+    waxing: true,
+    illumination: 0.5,
+  });
+  const day7 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 7,
+    waxing: true,
+    illumination: 0.5,
+  });
+
+  assert.ok(Number(day5.illum) < 0.24);
+  assert.ok(Number(day6.illum) < 0.39);
+  assert.ok(Number(day7.illum) < 0.45);
+  assert.ok(Number(day6.illum) > Number(day5.illum));
+  assert.ok(Number(day7.illum) > Number(day6.illum));
 });
 
 test("buildMoonGeometry keeps the post-quarter band smooth", () => {
@@ -160,4 +187,36 @@ test("buildMoonGeometry keeps day-28 close to day-2 but slightly slimmer", () =>
   assert.ok(Number(day28.meta?.strength) > Number(day2.meta?.strength));
   assert.ok(Number(day28.illum) < Number(day2.illum));
   assert.ok(Number(day28.illum) > 0.022);
+});
+
+test("buildMoonGeometry keeps waning days 24 to 27 aligned with the slimmer waxing band", () => {
+  const day24 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 24,
+    waxing: false,
+    illumination: 0.5,
+  });
+  const day25 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 25,
+    waxing: false,
+    illumination: 0.5,
+  });
+  const day26 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 26,
+    waxing: false,
+    illumination: 0.5,
+  });
+  const day27 = buildMoonGeometry({
+    size: 160,
+    moonAgeDays: 27,
+    waxing: false,
+    illumination: 0.5,
+  });
+
+  assert.ok(Number(day24.illum) < 0.39);
+  assert.ok(Number(day25.illum) < 0.24);
+  assert.ok(Number(day26.illum) < 0.20);
+  assert.ok(Number(day27.illum) < 0.03);
 });
