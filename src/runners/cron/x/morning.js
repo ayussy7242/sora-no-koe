@@ -29,6 +29,7 @@ const {
   resolvePublishOutcomePolicy,
   RESULT_REASON,
 } = require("../shared/policy/x_result");
+const { resolveXMorningOptions } = require("./options");
 
 async function runXMorningPost(deps, opts = {}) {
   const { env, storyService, renderers, dict, db } = deps || {};
@@ -38,35 +39,19 @@ async function runXMorningPost(deps, opts = {}) {
     throw new Error("renderers.renderXMorningMain/renderXMorningLog/renderXResonance missing");
   }
 
-  const env2 = resolveEnv(env);
-  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
-  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
-  const localOnly = toBool(
-    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
-    false
-  );
+  const runOpts = resolveXMorningOptions({ env, opts });
+  const { env2, dryRun, useAi, localOnly, force, asOfISO, dateLocal, localOutDir, resonanceOrbMax } = runOpts;
   const includeResonance = false;
-
-  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
-  const dateLocal = isYYYYMMDD(opts.dateLocal)
-    ? String(opts.dateLocal)
-    : toDateLocalJST(new Date(asOfISO));
-  const localOutDir = String(
-    opts.localOutDir ||
-    opts.local_out_dir ||
-    env2.X_POST_LOCAL_OUT_DIR ||
-    path.join(process.cwd(), "tmp", "x", "morning", dateLocal || "unknown")
-  );
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
   let lockInfo = null;
-  const policy = resolveXExecutionPolicy({ runner: "morning", dateLocal, dryRun, localOnly, force: !!opts.force });
+  const policy = resolveXExecutionPolicy({ runner: "morning", dateLocal, dryRun, localOnly, force });
   const lockOutcome = await withExecutionLock({
     policy,
-    acquire: () => acquireXPostLock(db, "morning", dateLocal, { force: !!opts.force }),
+    acquire: () => acquireXPostLock(db, "morning", dateLocal, { force }),
     onSkip: (lock) => ({
       ok: true,
       skipped: true,
@@ -114,8 +99,8 @@ async function runXMorningPost(deps, opts = {}) {
       Number.isFinite(Number(env2.X_POST_RESONANCE_MAX_CHARS)) ? Number(env2.X_POST_RESONANCE_MAX_CHARS) : env2.X_POST_MAX_CHARS
     );
 
-    const maxOrb = Number.isFinite(Number(opts.resonanceOrbMax))
-      ? Number(opts.resonanceOrbMax)
+    const maxOrb = Number.isFinite(Number(resonanceOrbMax))
+      ? Number(resonanceOrbMax)
       : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
         ? Number(env2.X_RESONANCE_ORB_MAX)
         : Number(SPEC?.orb?.free ?? 1.5);

@@ -56,16 +56,29 @@ const dict = require("../content/dict");
 
 // -------------------- Geo --------------------
 const { createGeocoder } = require("../integrations/geocode");
-const geocoder = createGeocoder({
-  apiKey: env.GOOGLE_MAPS_API_KEY,
-  db,
-  project: env.PROJECT,
-  cacheCollection: env.GEO_CACHE_COLLECTION || "geo_cache",
-  cacheTtlDays: Number(env.GEO_CACHE_TTL_DAYS || 180),
-  defaultLanguage: env.GEO_DEFAULT_LANGUAGE || "ja",
-  defaultRegion: env.GEO_DEFAULT_REGION || "jp",
-  strict: false,
-});
+let geocoderInstance = null;
+let geocoderResolved = false;
+
+function getGeocoder() {
+  if (geocoderResolved) return geocoderInstance;
+  geocoderResolved = true;
+  try {
+    geocoderInstance = createGeocoder({
+      apiKey: env.GOOGLE_MAPS_API_KEY,
+      db,
+      project: env.PROJECT,
+      cacheCollection: env.GEO_CACHE_COLLECTION || "geo_cache",
+      cacheTtlDays: Number(env.GEO_CACHE_TTL_DAYS || 180),
+      defaultLanguage: env.GEO_DEFAULT_LANGUAGE || "ja",
+      defaultRegion: env.GEO_DEFAULT_REGION || "jp",
+      strict: false,
+    });
+  } catch (e) {
+    console.error("[BOOT] geocoder disabled:", e?.message || String(e));
+    geocoderInstance = null;
+  }
+  return geocoderInstance;
+}
 
 // -------------------- Engine --------------------
 const { createStoryService } = require("../usecases/story/story");
@@ -146,18 +159,25 @@ const renderers = createRenderers({ dict });
 const storage = new Storage();
 
 // -------------------- relationService --------------------
-let relationService = null;
-try {
-  relationService = createRelationService({
-    db,
-    admin: fb.admin,
-    dict,
-    storage,
-    env,
-  });
-} catch (e) {
-  console.error("[BOOT] relationService disabled:", e?.message || String(e));
-  relationService = null;
+let relationServiceInstance = null;
+let relationServiceResolved = false;
+
+function getRelationService() {
+  if (relationServiceResolved) return relationServiceInstance;
+  relationServiceResolved = true;
+  try {
+    relationServiceInstance = createRelationService({
+      db,
+      admin: fb.admin,
+      dict,
+      storage,
+      env,
+    });
+  } catch (e) {
+    console.error("[BOOT] relationService disabled:", e?.message || String(e));
+    relationServiceInstance = null;
+  }
+  return relationServiceInstance;
 }
 
 // ---- tiny boot log (helps confirm “dict is actually used”) ----
@@ -179,11 +199,21 @@ const deps = {
   swisseph_setup,
   storyService,
   renderers,
-  geocoder,
   storage,
-  relationService,
   dict, // ←必要なら routes/debug で参照できる
 };
+
+Object.defineProperty(deps, "geocoder", {
+  enumerable: true,
+  configurable: false,
+  get: getGeocoder,
+});
+
+Object.defineProperty(deps, "relationService", {
+  enumerable: true,
+  configurable: false,
+  get: getRelationService,
+});
 
 const app = createApp(deps);
 app.locals.deps = deps;

@@ -81,6 +81,10 @@ function createCronRouter(deps = {}) {
     return { q, b, dateLocal, asOfISO };
   }
 
+  function registerCronRoutes(definitions = []) {
+    definitions.forEach((definition) => registerCronPostRoute(router, definition));
+  }
+
   router.get("/health", (_req, res) => {
     return res.json({
       ok: true,
@@ -189,148 +193,142 @@ function createCronRouter(deps = {}) {
     run: ({ opts }) => runDailyIgStoryDelivery({ env, storyService, storage, dict, db, admin }, opts),
   });
 
-  registerCronPostRoute(router, {
-    path: "/x/morning",
-    requireCronToken,
-    logLabel: "[cron/x/morning]",
-    logMeta: (phase, result) => phase === "start"
-      ? { endpoint: "x_morning" }
-      : { ok: result?.ok },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: true });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        orbMaxDeg: pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined }),
-        precisionDeg: pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined }),
-        resonanceOrbMax: pickNumberFlag({ q, b, keys: ["resonance_orb_max", "resonanceOrbMax"], defaultValue: undefined }),
-        image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-      };
+  registerCronRoutes([
+    {
+      path: "/x/morning",
+      requireCronToken,
+      logLabel: "[cron/x/morning]",
+      logMeta: (phase, result) => phase === "start" ? { endpoint: "x_morning" } : { ok: result?.ok },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: true });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          orbMaxDeg: pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined }),
+          precisionDeg: pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined }),
+          resonanceOrbMax: pickNumberFlag({ q, b, keys: ["resonance_orb_max", "resonanceOrbMax"], defaultValue: undefined }),
+          image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+        };
+      },
+      run: ({ opts }) => runXMorningPost({ env, storyService, renderers, dict, db }, opts),
     },
-    run: ({ opts }) => runXMorningPost({ env, storyService, renderers, dict, db }, opts),
-  });
+    {
+      path: "/x/resonance",
+      requireCronToken,
+      logLabel: "[cron/x/resonance]",
+      logMeta: (phase, result) => phase === "start" ? { endpoint: "x_resonance" } : { ok: result?.ok },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          resonanceOrbMax: pickNumberFlag({ q, b, keys: ["resonance_orb_max", "resonanceOrbMax"], defaultValue: undefined }),
+          resonanceTriggerOrbMax: pickNumberFlag({ q, b, keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"], defaultValue: undefined }),
+          debug: pickBoolFlag({ q, b, keys: ["debug"], defaultValue: false }),
+          image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+        };
+      },
+      run: ({ opts }) => runXResonancePost({ env, storyService, renderers, dict, db }, opts),
+    },
+    {
+      path: "/x/night",
+      requireCronToken,
+      logLabel: "[cron/x/night]",
+      logMeta: (phase, result) => phase === "start" ? { endpoint: "x_night" } : { ok: result?.ok },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          orbMaxDeg: pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined }),
+          precisionDeg: pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined }),
+          image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+        };
+      },
+      run: ({ opts }) => runXNightPost({ env, storyService, renderers, dict, db }, opts),
+    },
+    {
+      path: "/x/moon_event",
+      requireCronToken,
+      logLabel: "[cron/x/moon_event]",
+      logMeta: (phase, result) => phase === "start" ? { endpoint: "x_moon_event" } : { ok: result?.ok },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          dateOffsetDays: pickNumberFlag({ q, b, keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"], defaultValue: undefined }),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+        };
+      },
+      run: ({ opts }) => runXMoonEventPost({ env, storyService, renderers, dict, db }, opts),
+    },
+    {
+      path: "/x/next_30_days",
+      requireCronToken,
+      logLabel: "[cron/x/next_30_days]",
+      logMeta: (phase, result) => phase === "start" ? { endpoint: "x_next_30_days" } : { ok: result?.ok },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+        };
+      },
+      run: ({ opts }) => runXNext30DaysPost({ env, storyService, renderers, dict, db }, opts),
+    },
+  ]);
 
-  // ✅ POST /cron/x/resonance : X共鳴（単発）
-  registerCronPostRoute(router, {
-    path: "/x/resonance",
-    requireCronToken,
-    logLabel: "[cron/x/resonance]",
-    logMeta: (phase, result) => phase === "start" ? { endpoint: "x_resonance" } : { ok: result?.ok },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        resonanceOrbMax: pickNumberFlag({ q, b, keys: ["resonance_orb_max", "resonanceOrbMax"], defaultValue: undefined }),
-        resonanceTriggerOrbMax: pickNumberFlag({ q, b, keys: ["resonance_trigger_orb_max", "resonanceTriggerOrbMax"], defaultValue: undefined }),
-        debug: pickBoolFlag({ q, b, keys: ["debug"], defaultValue: false }),
-        image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-      };
+  registerCronRoutes([
+    {
+      path: "/ig/post",
+      requireCronToken,
+      logLabel: "[cron/ig/post]",
+      logMeta: (phase, result) => phase === "start"
+        ? { endpoint: "ig_post" }
+        : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+        };
+      },
+      run: ({ opts }) => runIgPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
     },
-    run: ({ opts }) => runXResonancePost({ env, storyService, renderers, dict, db }, opts),
-  });
-
-  // ✅ POST /cron/x/night : X夜投稿（単発）
-  registerCronPostRoute(router, {
-    path: "/x/night",
-    requireCronToken,
-    logLabel: "[cron/x/night]",
-    logMeta: (phase, result) => phase === "start" ? { endpoint: "x_night" } : { ok: result?.ok },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        orbMaxDeg: pickNumberFlag({ q, b, keys: ["orb_max_deg", "orbMaxDeg"], defaultValue: undefined }),
-        precisionDeg: pickNumberFlag({ q, b, keys: ["precision_deg", "precisionDeg"], defaultValue: undefined }),
-        image: pickBoolFlag({ q, b, keys: ["image", "with_image", "withImage", "image_enabled", "imageEnabled"] }),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-      };
-    },
-    run: ({ opts }) => runXNightPost({ env, storyService, renderers, dict, db }, opts),
-  });
-
-  // ✅ POST /cron/x/moon_event : X満月/新月イベント（該当日だけ投稿）
-  registerCronPostRoute(router, {
-    path: "/x/moon_event",
-    requireCronToken,
-    logLabel: "[cron/x/moon_event]",
-    logMeta: (phase, result) => phase === "start" ? { endpoint: "x_moon_event" } : { ok: result?.ok },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        dateOffsetDays: pickNumberFlag({ q, b, keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"], defaultValue: undefined }),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-      };
-    },
-    run: ({ opts }) => runXMoonEventPost({ env, storyService, renderers, dict, db }, opts),
-  });
-
-  // ✅ POST /cron/x/next_30_days : Xこれからの1ヶ月（いつでも）
-  registerCronPostRoute(router, {
-    path: "/x/next_30_days",
-    requireCronToken,
-    logLabel: "[cron/x/next_30_days]",
-    logMeta: (phase, result) => phase === "start" ? { endpoint: "x_next_30_days" } : { ok: result?.ok },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-      };
-    },
-    run: ({ opts }) => runXNext30DaysPost({ env, storyService, renderers, dict, db }, opts),
-  });
-
-  registerCronPostRoute(router, {
-    path: "/ig/post",
-    requireCronToken,
-    logLabel: "[cron/ig/post]",
-    logMeta: (phase, result) => phase === "start"
-      ? { endpoint: "ig_post" }
-      : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-      };
-    },
-    run: ({ opts }) => runIgPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
-  });
+  ]);
 
   registerCronPostRoute(router, {
     path: "/ig/monthly",
@@ -382,106 +380,106 @@ function createCronRouter(deps = {}) {
     run: ({ opts }) => runIgMonthlyOverviewReel({ db, admin, env, storyService, storage, dict }, opts),
   });
 
-  registerCronPostRoute(router, {
-    path: "/ig/morning",
-    requireCronToken,
-    logLabel: "[cron/ig/morning]",
-    logMeta: (phase, result) => phase === "start"
-      ? { endpoint: "ig_morning" }
-      : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-      };
+  registerCronRoutes([
+    {
+      path: "/ig/morning",
+      requireCronToken,
+      logLabel: "[cron/ig/morning]",
+      logMeta: (phase, result) => phase === "start"
+        ? { endpoint: "ig_morning" }
+        : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+        };
+      },
+      run: ({ opts }) => runIgMorningPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
     },
-    run: ({ opts }) => runIgMorningPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
-  });
+    {
+      path: "/ig/resonance",
+      requireCronToken,
+      logLabel: "[cron/ig/resonance]",
+      logMeta: (phase, result) => phase === "start"
+        ? { endpoint: "ig_resonance" }
+        : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+        };
+      },
+      run: ({ opts }) => runIgResonancePost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+    },
+    {
+      path: "/ig/night",
+      requireCronToken,
+      logLabel: "[cron/ig/night]",
+      logMeta: (phase, result) => phase === "start"
+        ? { endpoint: "ig_night" }
+        : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+          force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
+        };
+      },
+      run: ({ opts }) => runIgNightPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+    },
 
-  registerCronPostRoute(router, {
-    path: "/ig/resonance",
-    requireCronToken,
-    logLabel: "[cron/ig/resonance]",
-    logMeta: (phase, result) => phase === "start"
-      ? { endpoint: "ig_resonance" }
-      : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-      };
+    {
+      path: "/ig/moon_event",
+      requireCronToken,
+      buildOptions: (req) => {
+        const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
+        const fullFlag = pickBoolFlag({ q, b, keys: ["full", "full_moon", "fullMoon", "moon_full"], defaultValue: false });
+        const newFlag = pickBoolFlag({ q, b, keys: ["new", "new_moon", "newMoon", "moon_new"], defaultValue: false });
+        const eventKindRaw = b?.event_kind ?? q?.event_kind ?? b?.eventKind ?? q?.eventKind ?? b?.moon_event_kind ?? q?.moon_event_kind;
+        return {
+          dateLocal,
+          asOfISO,
+          dryRun: pickDryRun({ q, b }),
+          withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
+          dateOffsetDays: pickNumberFlag({ q, b, keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"], defaultValue: undefined }),
+          useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
+          forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+          local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
+          localOutDir: getLocalOutDir(q, b),
+          forceNext: pickBoolFlag({ q, b, keys: ["force_next", "forceNext", "use_next", "useNext"], defaultValue: false }),
+          eventKind: eventKindRaw
+            ? String(eventKindRaw)
+            : (fullFlag && !newFlag)
+              ? "full"
+              : (!fullFlag && newFlag)
+                ? "new"
+                : "",
+        };
+      },
+      run: ({ opts }) => runIgMoonEventPost({ env, storyService, storage, dict, db }, opts),
     },
-    run: ({ opts }) => runIgResonancePost({ db, admin, env, storyService, renderers, storage, dict }, opts),
-  });
-
-  registerCronPostRoute(router, {
-    path: "/ig/night",
-    requireCronToken,
-    logLabel: "[cron/ig/night]",
-    logMeta: (phase, result) => phase === "start"
-      ? { endpoint: "ig_night" }
-      : { ok: result?.ok, skipped: result?.skipped, reason: result?.reason, date_local: result?.date_local },
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-        force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
-      };
-    },
-    run: ({ opts }) => runIgNightPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
-  });
-
-  registerCronPostRoute(router, {
-    path: "/ig/moon_event",
-    requireCronToken,
-    buildOptions: (req) => {
-      const { q, b, dateLocal, asOfISO } = getBaseCronOptions(req, { fallbackNow: false });
-      const fullFlag = pickBoolFlag({ q, b, keys: ["full", "full_moon", "fullMoon", "moon_full"], defaultValue: false });
-      const newFlag = pickBoolFlag({ q, b, keys: ["new", "new_moon", "newMoon", "moon_new"], defaultValue: false });
-      const eventKindRaw = b?.event_kind ?? q?.event_kind ?? b?.eventKind ?? q?.eventKind ?? b?.moon_event_kind ?? q?.moon_event_kind;
-      return {
-        dateLocal,
-        asOfISO,
-        dryRun: pickDryRun({ q, b }),
-        withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
-        dateOffsetDays: pickNumberFlag({ q, b, keys: ["date_offset_days", "dateOffsetDays", "date_offset", "dateOffset"], defaultValue: undefined }),
-        useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
-        local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
-        localOutDir: getLocalOutDir(q, b),
-        forceNext: pickBoolFlag({ q, b, keys: ["force_next", "forceNext", "use_next", "useNext"], defaultValue: false }),
-        eventKind: eventKindRaw
-          ? String(eventKindRaw)
-          : (fullFlag && !newFlag)
-            ? "full"
-            : (!fullFlag && newFlag)
-              ? "new"
-              : "",
-      };
-    },
-    run: ({ opts }) => runIgMoonEventPost({ env, storyService, storage, dict, db }, opts),
-  });
+  ]);
 
   registerCronPostRoute(router, {
     path: "/blog/daily",

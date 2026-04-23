@@ -27,6 +27,7 @@ const {
   resolvePublishOutcomePolicy,
   RESULT_REASON,
 } = require("../shared/policy/x_result");
+const { resolveXNightOptions } = require("./options");
 
 async function runXNightPost(deps, opts = {}) {
   const { env, storyService, renderers, dict, db } = deps || {};
@@ -34,34 +35,18 @@ async function runXNightPost(deps, opts = {}) {
   if (!storyService?.buildStoryForUser) throw new Error("storyService.buildStoryForUser missing");
   if (!renderers?.renderXNight) throw new Error("renderers.renderXNight missing");
 
-  const env2 = resolveEnv(env);
-  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
-  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
-  const localOnly = toBool(
-    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
-    false
-  );
-
-  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
-  const dateLocal = isYYYYMMDD(opts.dateLocal)
-    ? String(opts.dateLocal)
-    : toDateLocalJST(new Date(asOfISO));
-  const localOutDir = String(
-    opts.localOutDir ||
-    opts.local_out_dir ||
-    env2.X_POST_LOCAL_OUT_DIR ||
-    path.join(process.cwd(), "tmp", "x", "night", dateLocal || "unknown")
-  );
+  const runOpts = resolveXNightOptions({ env, opts });
+  const { env2, dryRun, useAi, localOnly, force, asOfISO, dateLocal, localOutDir } = runOpts;
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
   let lockInfo = null;
-  const policy = resolveXExecutionPolicy({ runner: "night", dateLocal, dryRun, localOnly, force: !!opts.force });
+  const policy = resolveXExecutionPolicy({ runner: "night", dateLocal, dryRun, localOnly, force });
   const lockOutcome = await withExecutionLock({
     policy,
-    acquire: () => acquireXPostLock(db, "night", dateLocal, { force: !!opts.force }),
+    acquire: () => acquireXPostLock(db, "night", dateLocal, { force }),
     onSkip: (lock) => ({
       ok: true,
       skipped: true,

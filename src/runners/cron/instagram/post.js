@@ -39,6 +39,7 @@ const { withCronExecution } = require("../shared/execution");
 const { resolveInstagramExecutionPolicy } = require("../shared/policy/execution");
 const { withExecutionLock } = require("../shared/lock");
 const { withExecutionResultMarking } = require("../shared/marking");
+const { resolveInstagramPostOptions } = require("./options");
 
 const IG_DENSITY_BOOST = 1.2;
 
@@ -214,7 +215,19 @@ async function createChildContainerWithFallback({
 
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
-  const env2 = resolveEnv(env);
+  const runOpts = resolveInstagramPostOptions({ env, opts });
+  const {
+    env2,
+    asOfISO,
+    dateLocal,
+    slotKey,
+    useAi,
+    withCta,
+    dryRun,
+    localOnly,
+    localOutDir,
+    force,
+  } = runOpts;
   const storyService = deps?.storyService;
   const storage = deps?.storage;
   const storageClient = await createStorageClient({ storage, env: env2 });
@@ -223,20 +236,6 @@ async function runIgPost(deps, opts = {}) {
   const dict = deps?.dict || require("../../../content/dict");
 
   if (!storyService?.buildStoryForUser) throw new Error("storyService missing");
-
-  const now = opts.asOfISO ? new Date(opts.asOfISO) : new Date();
-  if (Number.isNaN(now.getTime())) throw new Error("invalid as_of");
-  const asOfISO = opts.asOfISO || now.toISOString();
-  const dateLocal = opts.dateLocal || toDateLocalJST(now);
-  const useAi = opts.useAi !== false;
-  const slotRaw = String(opts.slot || "").trim().toLowerCase();
-  const slotKey = ["morning", "resonance", "night"].includes(slotRaw) ? slotRaw : "";
-  const withCta = opts.withCta !== undefined
-    ? opts.withCta !== false
-    : slotKey
-      ? slotKey === "morning"
-      : true;
-  const dryRun = opts.dryRun === true || env2.IG_POST_DRY_RUN === true;
   const waitTimeoutMs = Number.isFinite(Number(env2.IG_CONTAINER_TIMEOUT_MS))
     ? Number(env2.IG_CONTAINER_TIMEOUT_MS)
     : 240000;
@@ -250,24 +249,9 @@ async function runIgPost(deps, opts = {}) {
   const mediaRetryDelayMs = Number.isFinite(Number(env2.IG_MEDIA_RETRY_DELAY_MS))
     ? Number(env2.IG_MEDIA_RETRY_DELAY_MS)
     : 1500;
-  const localOnly = toBool(
-    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.IG_POST_LOCAL_ONLY,
-    false
-  );
-  const localOutDir = String(
-    opts.localOutDir ||
-    opts.local_out_dir ||
-    env2.IG_POST_LOCAL_OUT_DIR ||
-    path.join(process.cwd(), "tmp", "ig", slotKey || "post", dateLocal)
-  );
   const backgroundCache = resolveBackgroundCache(env2);
   const proxyBase = String(env2.IG_PROXY_BASE_URL || env2.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
   const useProxy = toBool(env2.IG_PROXY_ENABLED, false) && !!proxyBase;
-  const force =
-    opts.force === true ||
-    opts.force_lock === true ||
-    opts.forceLock === true ||
-    env2.IG_POST_FORCE === true;
 
   const lockTtlMin = Number(env2.IG_POST_LOCK_TTL_MIN || 30);
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 30 * 60 * 1000;

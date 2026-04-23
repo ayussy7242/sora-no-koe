@@ -36,6 +36,7 @@ const {
   resolvePublishOutcomePolicy,
   RESULT_REASON,
 } = require("../shared/policy/x_result");
+const { resolveXResonanceOptions } = require("./options");
 
 async function runXResonancePost(deps, opts = {}) {
   const { env, storyService, renderers, dict, db } = deps || {};
@@ -45,35 +46,30 @@ async function runXResonancePost(deps, opts = {}) {
     throw new Error("renderers.renderXResonance missing");
   }
 
-  const env2 = resolveEnv(env);
-  const dryRun = toBool(opts.dryRun ?? opts.dry_run ?? env2.X_POST_DRY_RUN, false);
-  const useAi = opts.useAi === undefined ? true : toBool(opts.useAi, true);
-  const debugEnabled = toBool(opts.debug ?? opts.debugFlag ?? env2.X_POST_DEBUG, false);
-  const localOnly = toBool(
-    opts.local ?? opts.localOnly ?? opts.local_only ?? env2.X_POST_LOCAL_ONLY,
-    false
-  );
-
-  const asOfISO = String(opts.asOfISO || opts.as_of || "").trim() || new Date().toISOString();
-  const dateLocal = isYYYYMMDD(opts.dateLocal)
-    ? String(opts.dateLocal)
-    : toDateLocalJST(new Date(asOfISO));
-  const localOutDir = String(
-    opts.localOutDir ||
-    opts.local_out_dir ||
-    env2.X_POST_LOCAL_OUT_DIR ||
-    path.join(process.cwd(), "tmp", "x", "resonance", dateLocal || "unknown")
-  );
+  const runOpts = resolveXResonanceOptions({ env, opts });
+  const {
+    env2,
+    dryRun,
+    useAi,
+    debugEnabled,
+    localOnly,
+    force,
+    asOfISO,
+    dateLocal,
+    localOutDir,
+    resonanceOrbMax,
+    resonanceTriggerOrbMax,
+  } = runOpts;
 
   if (useAi && !String(env2.OPENAI_API_KEY || "").trim()) {
     throw new Error("OPENAI_API_KEY missing");
   }
 
   let lockInfo = null;
-  const policy = resolveXExecutionPolicy({ runner: "resonance", dateLocal, dryRun, localOnly, force: !!opts.force });
+  const policy = resolveXExecutionPolicy({ runner: "resonance", dateLocal, dryRun, localOnly, force });
   const lockOutcome = await withExecutionLock({
     policy,
-    acquire: () => acquireXPostLock(db, "resonance", dateLocal, { force: !!opts.force }),
+    acquire: () => acquireXPostLock(db, "resonance", dateLocal, { force }),
     onSkip: (lock) => ({
       ok: true,
       skipped: true,
@@ -120,14 +116,14 @@ async function runXResonancePost(deps, opts = {}) {
       180
     );
 
-    const maxOrb = Number.isFinite(Number(opts.resonanceOrbMax))
-      ? Number(opts.resonanceOrbMax)
+    const maxOrb = Number.isFinite(Number(resonanceOrbMax))
+      ? Number(resonanceOrbMax)
       : Number.isFinite(Number(env2.X_RESONANCE_ORB_MAX))
         ? Number(env2.X_RESONANCE_ORB_MAX)
         : Number(SPEC?.orb?.free ?? 1.5);
 
-    const triggerOrbMax = Number.isFinite(Number(opts.resonanceTriggerOrbMax))
-      ? Number(opts.resonanceTriggerOrbMax)
+    const triggerOrbMax = Number.isFinite(Number(resonanceTriggerOrbMax))
+      ? Number(resonanceTriggerOrbMax)
       : Number.isFinite(Number(env2.X_RESONANCE_TRIGGER_ORB_MAX))
         ? Number(env2.X_RESONANCE_TRIGGER_ORB_MAX)
         : 0.5;
