@@ -70,8 +70,8 @@ function buildObservationPrompt({ story, dict }) {
 
 function buildCaptionFallback({ story, dict, asOfISO }) {
   const transit = story?.public?.transit_signs || {};
-  const sunSign = safeText(transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || ""));
-  const moonSign = safeText(transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || ""));
+  const sunSign = safeTrim(transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || ""));
+  const moonSign = safeTrim(transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || ""));
   const resonance = buildResonanceMeta({ story, dict }) || {};
   const line1 = `${sunSign || "—"}の太陽と、${moonSign || "—"}の月。`;
   const line2 = `空の基調は静かに重なり、余白の層が残ります。`;

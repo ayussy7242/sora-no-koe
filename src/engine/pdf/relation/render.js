@@ -32,7 +32,7 @@ const {
   HOUSE_LABELS,
   HOUSE_BODY_WEIGHT,
   AXIS_BODIES,
-  DEEP_BODIES,
+  RELATION_EXTRA_BODY_SET,
   CORE_BODIES,
   BODY_ORDER,
   BODY_ORDER_MAP,
@@ -126,6 +126,7 @@ const {
   paginateDualListsFromEnd,
 } = require("./layout");
 const { deriveRelationData } = require("../../../usecases/pdf/relation/build_relation_data");
+const { houseNumberForLonCusps, houseNumberForLonWholeSign } = require("../../../domain/astro/houses");
 
 
 
@@ -220,6 +221,102 @@ function mapBodies(list = []) {
   return out;
 }
 
+function parseAiLines(text = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const byLine = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (byLine.length > 1) return byLine;
+  return raw
+    .split(/[。！？]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => (s.endsWith("。") ? s : `${s}。`));
+}
+
+function withAiLabel(text = "") {
+  const raw = String(text || "").trim();
+  return raw ? `AI文｜${raw}` : "AI文｜（サンプル文）";
+}
+
+function sampleSectionText(key = "") {
+  const map = {
+    relation_type: "この関係は、向かい合いと重なりが同時に存在する構造としてまとまりやすい。主軸となる接触が全体の空気を作り、張力のある角度が差異を表面に残しやすい。一方で流れとして通る接触もあるため、単純な衝突ではなく、引き合いとズレが交互に現れる形になりやすい。配置全体を見ると、互いの違いがそのまま関係の輪郭になり、映し合うように特徴が浮かび上がる型として読める。",
+    element_modality: "属性と区分の並びを見ると、温度感が近い部分と、動き方に差が出る部分が同時に存在している。片方が外へ押し出す力を持つところに、もう片方は受け止めたり溶かしたりする性質を重ねやすく、リズムの一致よりも、差の出方そのものが関係の個性になりやすい。要素と区分の偏りは、どこで噛み合い、どこで速度差が出るかを見せている。",
+    center: "重心は、ふたりの配置の中で自然に集まりやすいサインとハウスに現れる。支配サインと支配ハウスが示すのは、関係の中心がどの領域に寄りやすいかという構造であり、支配属性と支配区分は、その中心がどんな温度と速度を持つかを示している。重なりだけでなくズレも含めて、この関係の軸がどこに置かれやすいかが見えてくる。",
+    core: "主軸は関係の中心線として働きやすく、感情・在り方・行動のどこに骨組みがあるかを見せている。張力はズレや引っ張り合いの出やすい地点をつくり、通路は無理なく流れやすい接点として残る。全体の型は、これらの接触がどう組み合わさるかによって決まり、違いが対立ではなく輪郭として可視化される構造になりやすい。",
+    pattern_name: "鏡の型",
+    pattern_summary: "この関係は、中心線となる接触と、差を生みやすい角度が同時に存在することで輪郭が立ちやすい。重心は特定のサインやハウスに寄りながらも、流れと摩擦の両方を含んでいるため、一方向に固まるというより、互いを映しながら形を保つ構造として見えやすい。全体としては、重なりと対比が同時に働くことで、関係そのものの個性が立ち上がりやすい。",
+    structure_summary: "中心、核、回路、流入を並べて見ると、関係は単発の相性ではなく複数の接触が重なって成立していることがわかる。どこで自然に通り、どこでズレが残り、どの領域に刺激が集まりやすいかをまとめて読むことで、この関係の配置全体の形が見えてくる。",
+  };
+  return withAiLabel(map[key] || "このページでは、配置の差と重なりを構造として読むためのサンプル文が入ります。");
+}
+
+function sampleItemText(prefix = "") {
+  return withAiLabel(`${prefix}関係の中で現れやすい接触の出方を、構造として置くためのサンプル文です。`);
+}
+
+function houseNumberForLon(lon, ascLon, cusps) {
+  if (!Number.isFinite(Number(lon))) return null;
+  const byCusps = houseNumberForLonCusps(lon, cusps);
+  if (Number.isFinite(Number(byCusps))) return byCusps;
+  return houseNumberForLonWholeSign(lon, ascLon);
+}
+
+function buildHouseIngressItems({ ownerPlanets = [], guestPlanets = [], ownerHouses = null, fromLabel = "A", toLabel = "B", maxItems = 3 } = {}) {
+  const asc = ownerPlanets.find((p) => p?.body_key === "asc");
+  const ascLon = ownerHouses?.angles?.asc ?? asc?.lon_deg;
+  const cusps = ownerHouses?.cusps || null;
+  if (!Number.isFinite(Number(ascLon))) return [];
+
+  return (Array.isArray(guestPlanets) ? guestPlanets : [])
+    .filter((row) => row?.body_key && Number.isFinite(Number(row?.lon_deg)))
+    .filter((row) => !AXIS_BODIES.has(row.body_key))
+    .sort((a, b) => {
+      const ah = Number(a?.house || 99);
+      const bh = Number(b?.house || 99);
+      return ah - bh;
+    })
+    .slice(0, maxItems)
+    .map((row) => {
+      const targetHouse = houseNumberForLon(row.lon_deg, ascLon, cusps);
+      const sourceSign = row?.sign_ja || row?.sign_key || "—";
+      const sourceHouse = Number.isFinite(Number(row?.house)) ? `${row.house}H` : "—";
+      const targetHouseText = Number.isFinite(Number(targetHouse)) ? `${targetHouse}H` : "—";
+      const targetLabel = Number.isFinite(Number(targetHouse)) ? `（${HOUSE_LABELS[targetHouse] || ""}）` : "";
+      const body = row?.body_glyph ? `${row.body_glyph} ${row.body_ja || ""}`.trim() : (row?.body_ja || row?.body_key || "—");
+      return {
+        title: `${body} ${sourceSign} ${sourceHouse} → ${targetHouseText}${targetLabel}`,
+        ai: withAiLabel(`${fromLabel}が${toLabel}に対して、この天体の働きを${targetHouseText}へ持ち込みやすい配置として読むためのサンプル文です。`),
+      };
+    });
+}
+
+function buildHouseIngressPage({ pageTitle = "HOUSE", heading = "", items = [] } = {}) {
+  const rows = items.length
+    ? items.map((item) => `
+      <div class="house-flow-entry">
+        <div class="house-flow-title">${escapeHtml(item.title || "—")}</div>
+        <div class="house-flow-ai">${escapeHtml(item.ai || "")}</div>
+      </div>
+    `).join("")
+    : `<div class="house-flow-entry"><div class="house-flow-title">—</div></div>`;
+
+  return `
+    <div class="relation-house-flow">
+      <div class="chart-box relation-col">
+        <div class="card-head">${escapeHtml(pageTitle)}</div>
+        <div class="card-sub">${escapeHtml(heading)}</div>
+        <div class="house-flow-list">
+          ${rows}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function polarToCartesian(cx, cy, r, deg) {
   const rad = (Number(deg) - 90) * Math.PI / 180;
   return {
@@ -300,73 +397,73 @@ function replaceRelationGlyphsWithImages(html) {
 function getRelationMeta() {
   return [
     {
-      ja: "ふたりの星の構造図",
+      ja: "ふたりの星の設計図",
       en: "RELATION BLUEPRINT",
       intro: "ふたりの接触構造を読む設計図",
       type: "cover",
     },
     {
-      ja: "ふたりの配置一覧",
+      ja: "ふたりの星の配置",
       en: "FULL POSITION",
       intro: "それぞれが持つ配置を全体で確認します。",
     },
     {
-      ja: "関係タイプ",
+      ja: "ふたりの星の関係",
       en: "RELATION TYPE",
       intro: "この関係の型を解説します。",
     },
     {
-      ja: "属性・区分バランス",
+      ja: "ふたりの星の属性・区分",
       en: "ELEMENT / MODE BALANCE",
       intro: "要素と動き方の相性を見ていきます。",
     },
     {
-      ja: "関係の重心",
-      en: "RELATION CENTER",
-      intro: "重なりと方向の中心をまとめます。",
+      ja: "ふたりの星の重心",
+      en: "CENTER",
+      intro: "関係の中心に寄るサイン、ハウス、属性、区分をまとめます。",
     },
     {
-      ja: "関係の核",
+      ja: "ふたりの星の核",
       en: "CORE",
       intro: "この関係を形づくる中心線を抽出します。",
     },
     {
-      ja: "通る回路 / 張る回路",
+      ja: "ふたりの星の回路",
       en: "FLOW / FRICTION",
       intro: "流れやすさと張りやすさを並べます。",
     },
     {
-      ja: "会話・惹き合い",
+      ja: "ふたりの星の回路",
       en: "COMMUNICATION / ATTRACTION",
       intro: "人間的な体感の回路を整理します。",
     },
     {
-      ja: "パーソナル",
+      ja: "ふたりの天体同士",
       en: "PERSONAL",
       intro: "内側の機能の違いを見ます。",
     },
     {
-      ja: "ソーシャル / トランス",
+      ja: "ふたりの天体同士",
       en: "SOCIAL / TRANSPERSONAL",
       intro: "外側の機能と構造の違いを見ます。",
     },
     {
-      ja: "アクシス / ディープ",
+      ja: "ふたりの星の接触",
       en: "AXIS / DEEP",
       intro: "骨組みと深層の比較をまとめます。",
     },
     {
-      ja: "ハウス流入 A→B",
+      ja: "ふたりのハウスへの流入",
       en: "HOUSE (A → B)",
       intro: "AからBへ入る領域を整理します。",
     },
     {
-      ja: "ハウス流入 B→A",
+      ja: "ふたりのハウスへの流入",
       en: "HOUSE (B → A)",
       intro: "BからAへ入る領域を整理します。",
     },
     {
-      ja: "関係のパターン",
+      ja: "ふたりの星の関係",
       en: "RELATION PATTERN",
       intro: "この関係の型と総括を置きます。",
     },
@@ -424,7 +521,10 @@ function buildRelationDocumentHtml(pages = []) {
       .connection-name-left { grid-column: 1; justify-self: start; }
       .connection-name-right { grid-column: 3; justify-self: end; }
       .connection-list { margin-top: 12px; display: grid; gap: 0; width: 100%; }
+      .connection-item { padding: 0 0 12px; border-bottom: 1px solid rgba(237, 238, 255, 0.08); }
       .connection-row { display: grid; grid-template-columns: var(--col-left) var(--col-center) var(--col-right); column-gap: 26px; align-items: center; padding: 18px 0; border-bottom: 1px solid rgba(237, 238, 255, 0.08); }
+      .connection-item .connection-row { border-bottom: none; padding-bottom: 8px; }
+      .connection-item-ai { margin: 0 0 0 0; padding: 0 8px 8px; font-size: calc(var(--fs-body) - 1px); color: var(--muted); line-height: 1.7; }
       .connection-left { text-align: right; white-space: nowrap; overflow: visible; display: flex; align-items: center; justify-content: flex-start; }
       .connection-right { text-align: left; white-space: nowrap; overflow: visible; display: flex; align-items: center; justify-content: flex-end; }
       .connection-center { text-align: center; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; padding: 0 14px; font-size: calc(var(--fs-body) + 2px); color: var(--muted); }
@@ -444,6 +544,11 @@ function buildRelationDocumentHtml(pages = []) {
       .relation-block--deep .connection-orb { font-size: calc(var(--fs-body) - 2px); opacity: 0.7; }
       .relation-block--axis .card-sub { font-size: calc(var(--fs-sub) - 1px); opacity: 0.6; }
       .relation-house .card-sub { opacity: 0.6; }
+      .relation-house-flow .card-sub { opacity: 0.65; margin-top: 8px; }
+      .house-flow-list { margin-top: 20px; display: grid; gap: 22px; }
+      .house-flow-entry { display: grid; gap: 8px; }
+      .house-flow-title { font-size: calc(var(--fs-body) + 4px); line-height: 1.6; }
+      .house-flow-ai { font-size: calc(var(--fs-body) - 1px); color: var(--muted); line-height: 1.8; }
       .relation-house .relation-cols { margin-top: 46px; }
       .relation-cols--house { gap: var(--column-gap); }
       .house-list { margin-top: 12px; display: grid; gap: 12px; }
@@ -546,6 +651,22 @@ function buildRelationHtml(view, options = {}) {
   const frictionTop = frictionList.slice(0, 2);
   const commTop = commList.slice(0, 2);
   const attractionTop = attractionList.slice(0, 2);
+  const flowItems = flowTop.map((connection, idx) => ({
+    connection,
+    aiText: sampleItemText("FLOW｜"),
+  }));
+  const frictionItems = frictionTop.map((connection, idx) => ({
+    connection,
+    aiText: sampleItemText("FRICTION｜"),
+  }));
+  const commItems = commTop.map((connection, idx) => ({
+    connection,
+    aiText: sampleItemText("COMMUNICATION｜"),
+  }));
+  const attractionItems = attractionTop.map((connection, idx) => ({
+    connection,
+    aiText: sampleItemText("ATTRACTION｜"),
+  }));
   const houseSections = derived?.houseSections || [];
   const baseLines = Array.isArray(derived?.baseLines) ? derived.baseLines : [];
   const comparePairsEnsured = Array.isArray(derived?.comparePairsEnsured) ? derived.comparePairsEnsured : [];
@@ -581,7 +702,7 @@ function buildRelationHtml(view, options = {}) {
     pageClass: "page-full-position",
   });
 
-  const relationTypeText = view?.ai_texts?.relation_type_text || "";
+  const relationTypeText = sampleSectionText("relation_type");
   pageDefs.push({
     type: "page",
     meta: meta[2],
@@ -628,10 +749,7 @@ function buildRelationHtml(view, options = {}) {
       })(),
     },
   ];
-  const elementModalityAiText = view?.ai_texts?.element_modality_text || "";
-  const elementModalityBottomSections = elementModalityAiText
-    ? [{ label: "", text: elementModalityAiText }]
-    : elementModalityBottom;
+  const elementModalityBottomSections = [{ label: "", text: sampleSectionText("element_modality") }];
 
   pageDefs.push({
     type: "page",
@@ -658,12 +776,25 @@ function buildRelationHtml(view, options = {}) {
   const primaryHouseB = view?.primary_house?.b ? `${view.primary_house.b}H` : (topHouseB?.key ? `${topHouseB.key}H` : "—");
   const topHouseLabelA = primaryHouseA;
   const topHouseLabelB = primaryHouseB;
+  const houseItemsAB = buildHouseIngressItems({
+    ownerPlanets: aFull,
+    guestPlanets: bFull,
+    ownerHouses: view?.houses?.a || null,
+    fromLabel: "B",
+    toLabel: "A",
+    maxItems: 3,
+  });
+  const houseItemsBA = buildHouseIngressItems({
+    ownerPlanets: bFull,
+    guestPlanets: aFull,
+    ownerHouses: view?.houses?.b || null,
+    fromLabel: "A",
+    toLabel: "B",
+    maxItems: 3,
+  });
 
   const overlapLabel = [relationCenter?.shared_sign_label, relationCenter?.shared_house_cluster].filter(Boolean).join("｜") || "—";
-  const separationLabel = [topSignLabelA, topSignLabelB].filter(Boolean).join("｜") || "—";
-  const flowLabel = relationCenter?.direction_vector || "—";
-  const relationCenterAiText = view?.ai_texts?.relation_center || view?.ai_texts?.relation_center_summary || "";
-  const relationCenterBottomSections = relationCenterAiText ? [{ label: "", text: relationCenterAiText }] : [];
+  const relationCenterBottomSections = [{ label: "", text: sampleSectionText("center") }];
 
   pageDefs.push({
     type: "page",
@@ -674,43 +805,34 @@ function buildRelationHtml(view, options = {}) {
       <div class="relation-stack">
         ${buildBlockGrid([
           {
-            title: "A CENTER",
+            title: "A STRUCTURE",
             sub: shortName(aName),
             rows: [
               `支配サイン: ${topSignLabelA}`,
               `支配ハウス: ${topHouseLabelA}`,
-              `主成分: ${topElementA || "—"} / ${topModalityA || "—"}`,
+              `支配属性: ${topElementA || "—"}`,
+              `支配区分: ${topModalityA || "—"}`,
             ],
           },
           {
-            title: "B CENTER",
+            title: "B STRUCTURE",
             sub: shortName(bName),
             rows: [
               `支配サイン: ${topSignLabelB}`,
               `支配ハウス: ${topHouseLabelB}`,
-              `主成分: ${topElementB || "—"} / ${topModalityB || "—"}`,
+              `支配属性: ${topElementB || "—"}`,
+              `支配区分: ${topModalityB || "—"}`,
             ],
           },
         ], "relation-blocks--two")}
         ${buildSingleList({
-          title: "OVERLAP",
-          sub: overlapLabel,
+          title: "RELATION CENTER",
+          sub: overlapLabel === "—" ? "" : overlapLabel,
           rows: [
-            view?.ai_texts?.relation_center_overlap || relationCenter?.overlap_line || "重なりは分散しています。",
-          ],
-        })}
-        ${buildSingleList({
-          title: "SEPARATION",
-          sub: separationLabel,
-          rows: [
-            view?.ai_texts?.relation_center_separation || baseLines?.[1] || "分離帯は固定されません。",
-          ],
-        })}
-        ${buildSingleList({
-          title: "FLOW",
-          sub: flowLabel,
-          rows: [
-            view?.ai_texts?.relation_center_flow || baseLines?.[2] || "流れ帯は未確定です。",
+            `支配サイン: ${topSignLabelA} × ${topSignLabelB}`,
+            `支配ハウス: ${topHouseLabelA} × ${topHouseLabelB}`,
+            `支配属性: ${topElementA || "—"} × ${topElementB || "—"}`,
+            `支配区分: ${topModalityA || "—"} × ${topModalityB || "—"}`,
           ],
         })}
       </div>
@@ -726,35 +848,53 @@ function buildRelationHtml(view, options = {}) {
   const transpersonalRows = pickByKeys(["uranus", "neptune", "pluto"]);
   const axisRows = pickByKeys(["asc", "dc", "mc", "ic"]);
   const deepRows = pickByKeys(["north_node", "south_node", "lilith", "chiron"]);
+  const personalRowsWithAi = (() => {
+    return personalRows.map((row) => (row ? { ...row, ai_text: sampleItemText("PERSONAL｜") } : row)).filter(Boolean);
+  })();
+  const socialRowsWithAi = (() => {
+    return socialRows.map((row) => (row ? { ...row, ai_text: sampleItemText("SOCIAL｜") } : row)).filter(Boolean);
+  })();
+  const transpersonalRowsWithAi = (() => {
+    return transpersonalRows.map((row) => (row ? { ...row, ai_text: sampleItemText("TRANSPERSONAL｜") } : row)).filter(Boolean);
+  })();
+  const axisDeepItemAiEnabled = true;
+  const axisRowsWithAi = (() => {
+    if (!axisDeepItemAiEnabled) return axisRows;
+    return axisRows.map((row) => (row ? { ...row, ai_text: sampleItemText("AXIS｜") } : row)).filter(Boolean);
+  })();
+  const deepRowsWithAi = (() => {
+    if (!axisDeepItemAiEnabled) return deepRows;
+    return deepRows.map((row) => (row ? { ...row, ai_text: sampleItemText("DEEP｜") } : row)).filter(Boolean);
+  })();
   const personalBlock = {
     title: "PERSONAL",
     note: "内側の機能",
-    aiText: view?.ai_texts?.personal_text || "",
-    rows: personalRows,
+    aiText: "",
+    rows: personalRowsWithAi,
   };
   const socialBlock = {
     title: "SOCIAL",
     note: "外との接点",
-    aiText: view?.ai_texts?.social_text || "",
-    rows: socialRows,
+    aiText: "",
+    rows: socialRowsWithAi,
   };
   const transpersonalBlock = {
     title: "TRANSPERSONAL",
     note: "構造変化",
-    aiText: view?.ai_texts?.transpersonal_text || "",
-    rows: transpersonalRows,
+    aiText: "",
+    rows: transpersonalRowsWithAi,
   };
   const axisBlock = {
     title: "AXIS",
     note: "構造の骨",
-    aiText: view?.ai_texts?.axis_compare_text || "",
-    rows: axisRows,
+    aiText: "",
+    rows: axisRowsWithAi,
   };
   const deepBlock = {
     title: "DEEP",
     note: "地下構造",
-    aiText: view?.ai_texts?.deep_compare_text || "",
-    rows: deepRows,
+    aiText: "",
+    rows: deepRowsWithAi,
   };
 
   pageDefs.push({
@@ -763,7 +903,7 @@ function buildRelationHtml(view, options = {}) {
     leftRows: [],
     rightRows: [],
     middleHtml: buildCoreSection({ relationCore, coreConnections: coreList, aName, bName }),
-    bottomSections: [{ label: "", text: view?.ai_texts?.relation_core || buildRelationCoreText({ relationCore }) }],
+    bottomSections: [{ label: "", text: sampleSectionText("core") }],
     pageClass: "page-core",
   });
 
@@ -777,12 +917,11 @@ function buildRelationHtml(view, options = {}) {
       bName,
       leftTitle: "FLOW",
       rightTitle: "FRICTION",
-      leftNote: "流れやすい接触",
-      rightNote: "張りが生まれる接触",
-      leftAiText: view?.ai_texts?.flow_text || "",
-      rightAiText: view?.ai_texts?.friction_text || "",
-      leftConnections: flowTop,
-      rightConnections: frictionTop,
+      leftNote: "上位2件の FLOW アスペクト",
+      rightNote: "上位2件の FRICTION アスペクト",
+      leftItems: flowItems,
+      rightItems: frictionItems,
+      itemMode: true,
     }),
     bottomSections: [],
     variant: "slide3",
@@ -799,12 +938,11 @@ function buildRelationHtml(view, options = {}) {
       bName,
       leftTitle: "COMMUNICATION",
       rightTitle: "ATTRACTION",
-      leftNote: "会話・理解の接続",
-      rightNote: "惹き合いの回路",
-      leftAiText: view?.ai_texts?.comm_text || view?.ai_texts?.comm_attraction || "",
-      rightAiText: view?.ai_texts?.attraction_text || view?.ai_texts?.comm_attraction || "",
-      leftConnections: commTop,
-      rightConnections: attractionTop,
+      leftNote: "上位2件の COMMUNICATION アスペクト",
+      rightNote: "上位2件の ATTRACTION アスペクト",
+      leftItems: commItems,
+      rightItems: attractionItems,
+      itemMode: true,
     }),
     bottomSections: [],
     variant: "slide3",
@@ -841,15 +979,16 @@ function buildRelationHtml(view, options = {}) {
     pageClass: "page-axis-deep",
   });
 
-  const houseSectionBA = houseSections?.[0] || { heading: "", houses: [], summary: "" };
-  const houseSectionAB = houseSections?.[1] || { heading: "", houses: [], summary: "" };
-
   pageDefs.push({
     type: "page",
     meta: meta[11],
     leftRows: [],
     rightRows: [],
-    middleHtml: buildHouseBlock({ sections: [houseSectionAB] }),
+    middleHtml: buildHouseIngressPage({
+      pageTitle: "A→B HOUSE流入一覧",
+      heading: `${shortName(aName)} → ${shortName(bName)}`,
+      items: houseItemsBA,
+    }),
     bottomSections: [],
     pageClass: "page-house",
   });
@@ -859,7 +998,11 @@ function buildRelationHtml(view, options = {}) {
     meta: meta[12],
     leftRows: [],
     rightRows: [],
-    middleHtml: buildHouseBlock({ sections: [houseSectionBA] }),
+    middleHtml: buildHouseIngressPage({
+      pageTitle: "B→A HOUSE流入一覧",
+      heading: `${shortName(bName)} → ${shortName(aName)}`,
+      items: houseItemsAB,
+    }),
     bottomSections: [],
     pageClass: "page-house",
   });
@@ -870,9 +1013,9 @@ function buildRelationHtml(view, options = {}) {
     leftRows: [],
     rightRows: [],
     middleHtml: buildRelationPatternSection({
-      pattern: relationPattern,
+      pattern: { ...relationPattern, name: sampleSectionText("pattern_name") },
       evidence: relationPattern?.evidence || [],
-      text: view?.ai_texts?.relation_pattern || relationPatternText,
+      text: sampleSectionText("pattern_summary"),
     }),
     bottomSections: [],
     pageClass: "page-pattern",

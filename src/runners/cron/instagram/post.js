@@ -151,6 +151,67 @@ async function withIgRetry(fn, { retries = 2, delayMs = 1500, label = "" } = {})
   }
 }
 
+async function createChildContainerWithFallback({
+  igUserId,
+  accessToken,
+  graphVersion,
+  waitTimeoutMs,
+  mediaRetryCount,
+  mediaRetryDelayMs,
+  imageUrl,
+  fallbackImageUrl = "",
+  index = 0,
+} = {}) {
+  async function createAndWait(targetUrl, { source = "primary" } = {}) {
+    const created = await withIgRetry(
+      () =>
+        createImageContainer({
+          igUserId,
+          imageUrl: targetUrl,
+          accessToken,
+          version: graphVersion,
+        }),
+      { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: `create_image_container:${source}` }
+    );
+    const childId = created?.id;
+    if (!childId) throw new Error(`child container id missing (${source})`);
+    const wait = await waitForContainer({
+      creationId: childId,
+      accessToken,
+      version: graphVersion,
+      timeoutMs: waitTimeoutMs,
+    });
+    if (!wait.ok) {
+      const stageError = new Error(`child container not ready: ${childId}`);
+      stageError.stage = "wait_child_container";
+      stageError.source = source;
+      stageError.childId = childId;
+      stageError.status = wait?.status || null;
+      throw stageError;
+    }
+    return { childId, source, status: wait?.status || null };
+  }
+
+  try {
+    return await createAndWait(imageUrl, { source: "signed_url" });
+  } catch (err) {
+    const canFallback = fallbackImageUrl && fallbackImageUrl !== imageUrl;
+    console.warn("[cron/ig/post] child_container_failed", {
+      index,
+      source: err?.source || "signed_url",
+      stage: err?.stage || "create_child_container",
+      child_id: err?.childId || null,
+      message: err?.message || String(err),
+      status: err?.status || null,
+      can_fallback: canFallback,
+    });
+    if (!canFallback) throw err;
+  }
+
+  console.warn("[cron/ig/post] retry_with_proxy", { index });
+  return createAndWait(fallbackImageUrl, { source: "proxy_url" });
+}
+
 async function runIgPost(deps, opts = {}) {
   const env = deps?.env || {};
   const env2 = resolveEnv(env);
@@ -403,9 +464,11 @@ async function runIgPost(deps, opts = {}) {
     });
     console.log("[cron/ig/post] render_upload_done", { ms: Date.now() - tRender });
 
-    const imageUrls = useProxy
+    const directImageUrls = upload.urls;
+    const proxyImageUrls = proxyBase
       ? upload.paths.map((p) => `${proxyBase}/ig/proxy?path=${encodeURIComponent(p)}`)
-      : upload.urls;
+      : [];
+    const imageUrls = directImageUrls;
 
     if (dryRun) {
       return {
@@ -420,34 +483,30 @@ async function runIgPost(deps, opts = {}) {
         slide3_display_aspect: topAspect || null,
         ai_input_aspect: story?.outputs?.ig?.source?.resonance_aspect || null,
         caption,
-        image_urls: imageUrls,
-        gcs_paths: upload.paths,
-        resonance_debug: resonanceDebug,
-      };
+      image_urls: imageUrls,
+      image_urls_direct: directImageUrls,
+      image_urls_proxy: proxyImageUrls,
+      gcs_paths: upload.paths,
+      resonance_debug: resonanceDebug,
+    };
     }
 
     const childIds = [];
-    for (const imageUrl of imageUrls) {
-      const created = await withIgRetry(
-        () =>
-          createImageContainer({
-            igUserId,
-            imageUrl,
-            accessToken,
-            version: graphVersion,
-          }),
-        { retries: mediaRetryCount, delayMs: mediaRetryDelayMs, label: "create_image_container" }
-      );
-      const childId = created?.id;
-      if (!childId) throw new Error("child container id missing");
-      const wait = await waitForContainer({
-        creationId: childId,
+    for (let i = 0; i < imageUrls.length; i += 1) {
+      const imageUrl = imageUrls[i];
+      const fallbackImageUrl = useProxy ? (proxyImageUrls[i] || "") : "";
+      const child = await createChildContainerWithFallback({
+        igUserId,
         accessToken,
-        version: graphVersion,
-        timeoutMs: waitTimeoutMs,
+        graphVersion,
+        waitTimeoutMs,
+        mediaRetryCount,
+        mediaRetryDelayMs,
+        imageUrl,
+        fallbackImageUrl,
+        index: i + 1,
       });
-      if (!wait.ok) throw new Error(`child container not ready: ${childId}`);
-      childIds.push(childId);
+      childIds.push(child.childId);
     }
 
     const carouselContainer = await withIgRetry(

@@ -3,7 +3,7 @@
 const sharp = require("sharp");
 const { buildSoraWheelSvg } = require("../../../../graphics/sora_wheel");
 const { buildPublicWholeSignChartOptions } = require("../../../../graphics/public_chart_options");
-const { isMajorAspect } = require("../../../../domain/aspect/canonical");
+const { isMajorAspect } = require("../../../../../domain/aspect/canonical");
 const { CANVAS, TOK, escapeXml, baseSvg, buildRightFooter } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 

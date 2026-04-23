@@ -17,6 +17,37 @@ function enforceSentenceLimit(text, maxSentences) {
   return out;
 }
 
+function buildPromptWithGuidance(cfg = {}) {
+  const basePrompt = String(cfg?.prompt || "");
+  const guidance = cfg?.guidance || null;
+  if (!guidance) return `${basePrompt}\n\nINPUT:\n${JSON.stringify(cfg.input || {}, null, 2)}`;
+
+  const lines = [];
+  if (guidance.page || guidance.pageKey) {
+    lines.push(`#PDF文脈`);
+    if (guidance.page) lines.push(`- 対象ページ: ${guidance.page}`);
+    if (guidance.pageKey) lines.push(`- page_key: ${guidance.pageKey}`);
+  }
+  if (guidance.role) {
+    lines.push(`#このAI文の役割`);
+    lines.push(`- ${guidance.role}`);
+  }
+  if (Array.isArray(guidance.rule) && guidance.rule.length) {
+    lines.push(`#追加ルール`);
+    guidance.rule.forEach((rule) => lines.push(`- ${rule}`));
+  }
+
+  const guidanceText = lines.length ? `\n\n${lines.join("\n")}` : "";
+  return `${basePrompt}${guidanceText}\n\nINPUT:\n${JSON.stringify(cfg.input || {}, null, 2)}`;
+}
+
+function parseGeneratedItems(text = "") {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 async function generateRelationAiTexts({ env, aiInputs } = {}) {
   const apiKey = env?.OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
   if (!apiKey) return { ok: false, reason: "no_api_key" };
@@ -30,11 +61,12 @@ async function generateRelationAiTexts({ env, aiInputs } = {}) {
 
   const keys = Object.keys(aiInputs || {});
   const out = {};
+  const meta = {};
 
   for (const key of keys) {
     const cfg = aiInputs[key];
     if (!cfg?.prompt || !cfg?.input) continue;
-    const prompt = `${cfg.prompt}\n\nINPUT:\n${JSON.stringify(cfg.input || {}, null, 2)}`;
+    const prompt = buildPromptWithGuidance(cfg);
     const content = await createChatCompletion({
       apiKey,
       baseUrl,
@@ -63,9 +95,34 @@ async function generateRelationAiTexts({ env, aiInputs } = {}) {
     }
     const limited = enforceSentenceLimit(textOut, cfg?.limits?.sentences);
     out[key] = limited;
+    const items = parseGeneratedItems(limited);
+    meta[key] = {
+      key,
+      source: cfg?.guidance?.source || null,
+      role: cfg?.guidance?.role || null,
+      output_kind: cfg?.guidance?.output_kind || null,
+      item_count: cfg?.guidance?.item_count ?? null,
+      prompt_preview: prompt.slice(0, 1200),
+      output_length: Array.from(String(limited || "")).length,
+      generated_at: new Date().toISOString(),
+      items,
+      item_count_ok: cfg?.guidance?.output_kind === "lines"
+        ? items.length === Number(cfg?.guidance?.item_count || 0)
+        : null,
+      slots: Array.isArray(cfg?.guidance?.slots) ? cfg.guidance.slots.map((slot) => ({
+        slot: slot.slot,
+        source: slot.source,
+        role: slot.role || "",
+        rule: Array.isArray(slot.rule) ? slot.rule : [],
+        output_kind: slot.output_kind || "summary",
+        item_count: slot.item_count ?? null,
+        required: typeof slot.required === "boolean" ? slot.required : null,
+        length: slot.length || null,
+      })) : [],
+    };
   }
 
-  return { ok: true, texts: out };
+  return { ok: true, texts: out, meta };
 }
 
 module.exports = { generateRelationAiTexts };

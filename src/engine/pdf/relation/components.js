@@ -183,6 +183,55 @@ function buildConnectionList({ title = "", sub = "", note = "", aiText = "", con
   `;
 }
 
+function buildConnectionItemList({ title = "", sub = "", note = "", items = [], aName = "A", bName = "B", showNames = true } = {}) {
+  const safeA = shortName(aName);
+  const safeB = shortName(bName);
+  const rows = items.length
+    ? items.map((item) => {
+        const conn = item?.connection || item;
+        const left = formatConnectionSideHtml(conn?.a);
+        const right = formatConnectionSideHtml(conn?.b);
+        const aspect = formatAspectDisplay(conn?.aspect, conn?.orb);
+        const aiText = String(item?.aiText || item?.ai_summary || "").trim();
+        return `
+          <div class="connection-item">
+            <div class="connection-row">
+              <div class="connection-left">${left}</div>
+              <div class="connection-center">
+                <span class="connection-symbol">${escapeHtml(aspect.symbol)}</span>
+                <span class="connection-label">${escapeHtml(aspect.label)}</span>
+              </div>
+              <div class="connection-right">${right}</div>
+            </div>
+            ${aiText ? `<div class="connection-item-ai">${escapeHtml(aiText)}</div>` : ""}
+          </div>
+        `;
+      }).join("")
+    : `
+      <div class="connection-row connection-row--empty">
+        <div class="connection-center">—</div>
+      </div>
+    `;
+
+  return `
+    <div class="relation-cols relation-cols--single relation-cols--connection connection-grid">
+      <div class="chart-box relation-col">
+        <div class="card-head">${escapeHtml(title)}</div>
+        ${sub ? `<div class="card-sub">${escapeHtml(sub)}</div>` : ""}
+        ${note ? `<div class="card-note">${escapeHtml(note)}</div>` : ""}
+        ${showNames ? `
+        <div class="connection-names">
+          <span class="connection-name-left">${escapeHtml(safeA)}</span>
+          <span class="connection-name-right">${escapeHtml(safeB)}</span>
+        </div>` : ""}
+        <div class="connection-list">
+          ${rows}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function buildBlockGrid(blocks = [], className = "") {
   return `
     <div class="relation-blocks ${className || ""}">
@@ -417,11 +466,18 @@ function buildConnectionDualStack({
   rightAiText = "",
   leftConnections = [],
   rightConnections = [],
+  leftItems = [],
+  rightItems = [],
+  itemMode = false,
 } = {}) {
   return `
     <div class="relation-stack">
-      ${buildConnectionList({ title: leftTitle, sub: "", note: leftNote, aiText: leftAiText, connections: leftConnections, aName, bName, showNames: true })}
-      ${buildConnectionList({ title: rightTitle, sub: "", note: rightNote, aiText: rightAiText, connections: rightConnections, aName, bName, showNames: false })}
+      ${itemMode
+        ? buildConnectionItemList({ title: leftTitle, sub: "", note: leftNote, items: leftItems, aName, bName, showNames: true })
+        : buildConnectionList({ title: leftTitle, sub: "", note: leftNote, aiText: leftAiText, connections: leftConnections, aName, bName, showNames: true })}
+      ${itemMode
+        ? buildConnectionItemList({ title: rightTitle, sub: "", note: rightNote, items: rightItems, aName, bName, showNames: true })
+        : buildConnectionList({ title: rightTitle, sub: "", note: rightNote, aiText: rightAiText, connections: rightConnections, aName, bName, showNames: false })}
     </div>
   `;
 }

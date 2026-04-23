@@ -12,15 +12,23 @@ const {
   RELATION_SEGMENT_PROMPT_CORE,
   RELATION_SEGMENT_PROMPT_FLOW,
   RELATION_SEGMENT_PROMPT_FRICTION,
+  RELATION_SEGMENT_PROMPT_FLOW_ITEMS,
+  RELATION_SEGMENT_PROMPT_FRICTION_ITEMS,
   RELATION_SEGMENT_PROMPT_COMM,
   RELATION_SEGMENT_PROMPT_ATTRACTION,
+  RELATION_SEGMENT_PROMPT_COMM_ITEMS,
+  RELATION_SEGMENT_PROMPT_ATTRACTION_ITEMS,
   RELATION_SEGMENT_PROMPT_AXIS,
   RELATION_SEGMENT_PROMPT_DEEP,
   RELATION_SEGMENT_PROMPT_PERSONAL,
   RELATION_SEGMENT_PROMPT_SOCIAL,
   RELATION_SEGMENT_PROMPT_TRANSPERSONAL,
+  RELATION_SEGMENT_PROMPT_PERSONAL_ITEMS,
+  RELATION_SEGMENT_PROMPT_SOCIAL_ITEMS,
   RELATION_SEGMENT_PROMPT_AXIS_COMPARE,
   RELATION_SEGMENT_PROMPT_DEEP_COMPARE,
+  RELATION_SEGMENT_PROMPT_AXIS_COMPARE_LINES,
+  RELATION_SEGMENT_PROMPT_DEEP_COMPARE_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_SUMMARY,
   RELATION_SEGMENT_PROMPT_ELEMENT_MODE,
@@ -28,6 +36,7 @@ const {
   RELATION_SEGMENT_PROMPT_PATTERN,
 } = require("../../../content/prompts/pdf/relation");
 const { PROMPT_LIMITS } = require("./generation/limits");
+const { buildGuidanceForAiInputKey } = require("./page_config/ai_slot_lookup");
 
 const SIGN_ORDER = [
   "aries",
@@ -147,7 +156,7 @@ function buildRelationAiInputs({
   house_ingress_a,
   house_ingress_b,
 } = {}) {
-  return {
+  const inputs = {
     relation_center: {
       prompt: RELATION_SEGMENT_PROMPT_CENTER,
       limits: PROMPT_LIMITS.relation_center,
@@ -270,9 +279,19 @@ function buildRelationAiInputs({
       limits: PROMPT_LIMITS.flow_text,
       input: { flow },
     },
+    flow_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_FLOW_ITEMS,
+      limits: PROMPT_LIMITS.flow_items_lines,
+      input: { flow },
+    },
     friction_text: {
       prompt: RELATION_SEGMENT_PROMPT_FRICTION,
       limits: PROMPT_LIMITS.friction_text,
+      input: { friction },
+    },
+    friction_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_FRICTION_ITEMS,
+      limits: PROMPT_LIMITS.friction_items_lines,
       input: { friction },
     },
     axis_text: {
@@ -290,10 +309,23 @@ function buildRelationAiInputs({
       limits: PROMPT_LIMITS.personal_text,
       input: { personal },
     },
+    personal_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_PERSONAL_ITEMS,
+      limits: PROMPT_LIMITS.personal_items_lines,
+      input: { personal },
+    },
     social_text: {
       prompt: RELATION_SEGMENT_PROMPT_SOCIAL,
       limits: PROMPT_LIMITS.social_text,
       input: { social },
+    },
+    social_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_SOCIAL_ITEMS,
+      limits: PROMPT_LIMITS.social_items_lines,
+      input: { social: {
+        rows: [...(social?.rows || []), ...(transpersonal?.rows || [])],
+        count: Number(social?.count || 0) + Number(transpersonal?.count || 0),
+      } },
     },
     transpersonal_text: {
       prompt: RELATION_SEGMENT_PROMPT_TRANSPERSONAL,
@@ -305,9 +337,19 @@ function buildRelationAiInputs({
       limits: PROMPT_LIMITS.axis_compare_text,
       input: { axis_compare },
     },
+    axis_compare_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_AXIS_COMPARE_LINES,
+      limits: PROMPT_LIMITS.axis_compare_lines,
+      input: { axis_compare },
+    },
     deep_compare_text: {
       prompt: RELATION_SEGMENT_PROMPT_DEEP_COMPARE,
       limits: PROMPT_LIMITS.deep_compare_text,
+      input: { deep_compare },
+    },
+    deep_compare_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_DEEP_COMPARE_LINES,
+      limits: PROMPT_LIMITS.deep_compare_lines,
       input: { deep_compare },
     },
     comm_text: {
@@ -315,9 +357,19 @@ function buildRelationAiInputs({
       limits: PROMPT_LIMITS.comm_text,
       input: { comm },
     },
+    comm_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_COMM_ITEMS,
+      limits: PROMPT_LIMITS.comm_items_lines,
+      input: { comm },
+    },
     attraction_text: {
       prompt: RELATION_SEGMENT_PROMPT_ATTRACTION,
       limits: PROMPT_LIMITS.attraction_text,
+      input: { attraction },
+    },
+    attraction_items_lines: {
+      prompt: RELATION_SEGMENT_PROMPT_ATTRACTION_ITEMS,
+      limits: PROMPT_LIMITS.attraction_items_lines,
       input: { attraction },
     },
     relation_pattern: {
@@ -331,6 +383,13 @@ function buildRelationAiInputs({
       },
     },
   };
+
+  Object.keys(inputs).forEach((key) => {
+    const guidance = buildGuidanceForAiInputKey(key);
+    if (guidance) inputs[key].guidance = guidance;
+  });
+
+  return inputs;
 }
 
 module.exports = {

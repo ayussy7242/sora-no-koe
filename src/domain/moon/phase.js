@@ -1,7 +1,12 @@
 "use strict";
 
+const { SYNODIC_MONTH_DAYS } = require("./constants");
+
 const NEW_MOON_MOMENT_AGE_DAYS = 0.5;
 const FULL_MOON_MOMENT_AGE_DAYS = 14.9;
+const FULL_MOON_LABEL_WINDOW_DAYS = 0.5;
+const THIN_CRESCENT_MAX_AGE_DAYS = 2.4;
+const THIN_CRESCENT_MAX_ILLUMINATION = 0.08;
 
 function moonPhaseSymbolFromDeg(phaseDeg) {
   return astroPhaseFromDeg(phaseDeg).symbol;
@@ -98,11 +103,21 @@ function resolveMoonCycleLabel({ phaseName, moonAge, illumination } = {}) {
   const illum = Number.isFinite(Number(illumination)) ? Number(illumination) : null;
   if (!name) return "";
   if (name === "新月") {
-    if ((age != null && age >= NEW_MOON_MOMENT_AGE_DAYS) || (illum != null && illum > 0.01)) return "満ちゆく月";
+    if (age != null) {
+      if (age >= SYNODIC_MONTH_DAYS - 2) return "欠けゆく月";
+      if (age >= NEW_MOON_MOMENT_AGE_DAYS) return "満ちゆく月";
+      return "新月";
+    }
+    if (illum != null && illum > 0.01) return "満ちゆく月";
     return "新月";
   }
   if (name === "満月") {
-    if ((age != null && age >= FULL_MOON_MOMENT_AGE_DAYS) || (illum != null && illum < 0.99)) return "欠けゆく月";
+    if (age != null) {
+      if (Math.abs(age - FULL_MOON_MOMENT_AGE_DAYS) <= FULL_MOON_LABEL_WINDOW_DAYS) return "満月";
+      if (age < FULL_MOON_MOMENT_AGE_DAYS) return "満ちゆく月";
+      return "欠けゆく月";
+    }
+    if (illum != null && illum < 0.99) return "欠けゆく月";
     return "満月";
   }
   if (name === "上弦" || name === "上弦の月") return "上弦の月";
@@ -127,6 +142,14 @@ function resolveMoonDisplayName({ phaseName, waName, moonAge, illumination, allo
     if ((age != null && age < FULL_MOON_MOMENT_AGE_DAYS) || (illum != null && illum >= 0.99 && (age == null || age < FULL_MOON_MOMENT_AGE_DAYS))) return "満月";
     if (wa) return wa;
     return allowCycleName ? "欠けゆく月" : "満月直後";
+  }
+  if (phase === "三日月") {
+    const stillThinCrescent =
+      (age != null && age <= THIN_CRESCENT_MAX_AGE_DAYS)
+      || (illum != null && illum <= THIN_CRESCENT_MAX_ILLUMINATION);
+    if (!stillThinCrescent) return allowCycleName ? "満ちゆく月" : "満ちゆく月";
+    if (wa) return wa;
+    return "三日月";
   }
   if (wa) return wa;
   if (phase === "上弦" || phase === "上弦の月") return "上弦の月";

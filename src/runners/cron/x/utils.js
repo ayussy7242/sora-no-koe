@@ -56,6 +56,57 @@ function normalizeXError(err) {
   };
 }
 
+function classifyXError(err) {
+  const info = normalizeXError(err);
+  const haystack = [
+    info.message,
+    info.body,
+    info.code,
+    info.v2?.message,
+    info.v2?.body,
+    info.v2?.code,
+    info.v1?.message,
+    info.v1?.body,
+    info.v1?.code,
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+
+  const duplicate =
+    haystack.includes("duplicate content") ||
+    haystack.includes("duplicate tweet") ||
+    haystack.includes("duplicate post") ||
+    haystack.includes("status is a duplicate") ||
+    haystack.includes("\"code\":187") ||
+    haystack.includes("code 187");
+
+  if (duplicate) {
+    return {
+      kind: "duplicate_content",
+      isDuplicateContent: true,
+      summary: "duplicate content",
+      info,
+    };
+  }
+
+  const summary =
+    info.status && info.code
+      ? `${info.status} ${info.code}`
+      : info.status
+        ? String(info.status)
+        : info.code
+          ? String(info.code)
+          : (info.message || "unknown");
+
+  return {
+    kind: "unknown",
+    isDuplicateContent: false,
+    summary,
+    info,
+  };
+}
+
 module.exports = {
   X_HARD_MAX_CHARS,
   nowIso,
@@ -66,5 +117,6 @@ module.exports = {
   resolveXMaxChars,
   safePreview,
   normalizeXError,
+  classifyXError,
   ensureXMeta,
 };

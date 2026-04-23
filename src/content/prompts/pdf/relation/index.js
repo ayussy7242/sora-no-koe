@@ -391,6 +391,102 @@ ${OUTPUT_TEXT}
 - 100〜150字。
 `.trim();
 
+const RELATION_SEGMENT_PROMPT_FLOW_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- FLOW の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- flow
+
+#書くこと
+- top_links の順番に対応して、各項目に1行ずつ短文を書く。
+- なぜ自然に流れやすいかを構造として示す。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 70〜140字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_FRICTION_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- FRICTION の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- friction
+
+#書くこと
+- top_links の順番に対応して、各項目に1行ずつ短文を書く。
+- どこでズレやすいかを構造として示す。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 70〜140字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_COMM_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- COMMUNICATION の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- comm
+
+#書くこと
+- top_links の順番に対応して、各項目に1行ずつ短文を書く。
+- 言葉と受け取りの構造を書く。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 70〜140字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_ATTRACTION_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- ATTRACTION の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- attraction
+
+#書くこと
+- top_links の順番に対応して、各項目に1行ずつ短文を書く。
+- どこで惹かれやすいかを構造として示す。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 70〜140字。
+`.trim();
+
 const RELATION_SEGMENT_PROMPT_AXIS = `
 ${RELATION_BATCH_PREFIX}
 
@@ -516,6 +612,54 @@ ${OUTPUT_TEXT}
 - 100〜150字。
 `.trim();
 
+const RELATION_SEGMENT_PROMPT_PERSONAL_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- PERSONAL の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- personal
+
+#書くこと
+- rows の順番に対応して、各項目に1行ずつ短文を書く。
+- 同天体の違いを対比として示す。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 50〜120字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_SOCIAL_ITEMS = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- SOCIAL / TRANSPERSONAL の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- social
+
+#書くこと
+- rows の順番に対応して、各項目に1行ずつ短文を書く。
+- 社会層と構造変化の違いを簡潔に示す。
+
+#書かないこと
+- 助言・評価。
+- 単なる言い換えの反復。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 50〜120字。
+`.trim();
+
 const RELATION_SEGMENT_PROMPT_AXIS_COMPARE = `
 ${RELATION_BATCH_PREFIX}
 
@@ -564,6 +708,54 @@ ${OUTPUT_TEXT}
 
 #文字量
 - 100〜150字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_AXIS_COMPARE_LINES = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- AXIS（ASC/DC/MC/IC）の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- axis_compare
+
+#書くこと
+- rows の順番に対応して、各項目に1行ずつ短文を書く。
+- 同じ言い回しを繰り返さない。
+
+#書かないこと
+- 助言・評価。
+- 接続の列挙。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 40〜120字。
+`.trim();
+
+const RELATION_SEGMENT_PROMPT_DEEP_COMPARE_LINES = `
+${RELATION_BATCH_PREFIX}
+
+#役割
+- DEEP（ノード/リリス/キロン）の各項目に短文を付与する。
+
+${OUTPUT_LINES}
+
+#INPUT
+- deep_compare
+
+#書くこと
+- rows の順番に対応して、各項目に1行ずつ短文を書く。
+- 抽象に逃げず、構造として言い切る。
+
+#書かないこと
+- 助言・評価。
+- 接続の列挙。
+
+#文章ルール
+- 1行 = 1〜2文。
+- 各行 40〜120字。
 `.trim();
 
 const RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_LINES = `
@@ -714,15 +906,23 @@ module.exports = Object.freeze({
   RELATION_SEGMENT_PROMPT_CORE,
   RELATION_SEGMENT_PROMPT_FLOW,
   RELATION_SEGMENT_PROMPT_FRICTION,
+  RELATION_SEGMENT_PROMPT_FLOW_ITEMS,
+  RELATION_SEGMENT_PROMPT_FRICTION_ITEMS,
   RELATION_SEGMENT_PROMPT_COMM,
   RELATION_SEGMENT_PROMPT_ATTRACTION,
+  RELATION_SEGMENT_PROMPT_COMM_ITEMS,
+  RELATION_SEGMENT_PROMPT_ATTRACTION_ITEMS,
   RELATION_SEGMENT_PROMPT_AXIS,
   RELATION_SEGMENT_PROMPT_DEEP,
   RELATION_SEGMENT_PROMPT_PERSONAL,
   RELATION_SEGMENT_PROMPT_SOCIAL,
   RELATION_SEGMENT_PROMPT_TRANSPERSONAL,
+  RELATION_SEGMENT_PROMPT_PERSONAL_ITEMS,
+  RELATION_SEGMENT_PROMPT_SOCIAL_ITEMS,
   RELATION_SEGMENT_PROMPT_AXIS_COMPARE,
   RELATION_SEGMENT_PROMPT_DEEP_COMPARE,
+  RELATION_SEGMENT_PROMPT_AXIS_COMPARE_LINES,
+  RELATION_SEGMENT_PROMPT_DEEP_COMPARE_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_LINES,
   RELATION_SEGMENT_PROMPT_HOUSE_INGRESS_SUMMARY,
   RELATION_SEGMENT_PROMPT_ELEMENT_MODE,

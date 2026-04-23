@@ -50,7 +50,7 @@ function buildMoonAppearance({
     b: clamp(0.04 * glowBoostFar, 0, 0.22),
   };
 
-  const showDarkDisc = forceDark || illum <= 0.01;
+  const showDarkDisc = forceDark || illum <= 0.02;
   const showNewMoonRim = withRim && showDarkDisc;
 
   const glowSpreadWide = Math.max(0.6, r * (0.07 + 0.05 * illumBoost + 0.03 * illumBoostWide));

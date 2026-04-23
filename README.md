@@ -76,9 +76,14 @@ Outputs:
 - `src/integrations`：外部サービス接続（LINE / Firebase / GCS / IG など）
 - `src/presenters`：チャンネル向け整形（LINE / X / IG / Threads）
 - `src/engine`：描画・生成レイヤー（画像・SVG・PDFなど）
+- `src/middleware`：認証・raw body などHTTP前段の共通処理
+- `src/runners`：cron / jobs / reference build の実行入口
+- `src/server`：app組み立てと起動境界
+- `src/utils`：データ・文言・I/O・検証の共通ユーティリティ
+- `src/content`：辞書・プロンプト・スキーマ・テンプレートなど静的資材
 - `src/routes`：HTTP 入口（薄いルーティング層）
 
-`engine/renderers` で描画責務を統一。
+描画の本流は `src/engine/renderers` に統一。
 
 ---
 
@@ -115,44 +120,67 @@ src/
     story/
     cron/
     channels/
-      ig/
+      instagram/
       line/
       x/
       blog/
     pdf/
       blueprint/
-        compute/
-        render/
-        generation/
-        jobs/
       relation/
   integrations/
+    firebase/
     line/
-      api.js
-      blueprint.js
-      intent.js
-      messaging.js
-      state.js
-      user.js
+    openai/
+    stripe/
+    wordpress/
   presenters/
-    ig/
+    instagram/
     line/
     threads/
     x/
+    format/
+    shared/
   engine/
     renderers/
-      ig/
+      instagram/
         slides/
+        reel/
         story/
       x/
       blog/
     pdf/
+    shared/
+  middleware/
+  runners/
+    cron/
+    reference/
+  server/
+  utils/
   routes/
 ```
 
 補足
-- `presenters/ig.js` / `presenters/x.js` / `presenters/threads.js` は互換ラッパとして残している
-- `engine/renderers/ig/story/render_backgrounds.js` は IG story 背景描画のSSOT
+- `src/content/reference` は参照用の静的データ置き場
+- `src/runners` は route / cron から呼ばれる実行単位を置く
+- `src/server` は Express app の組み立て境界
+- `src/utils` は domain に入れない共通処理を置く
+- `src/engine/renderers/instagram/story/render_backgrounds.js` は IG story 背景描画のSSOT
+
+## 2.1 テキスト生成まわりの責務
+
+- `src/content/prompts/*`：AI に渡す素材と指示の SSOT
+- `src/usecases/ai_text`：AI 生成の実行・共通制御
+- `src/usecases/channels/*/ai`：チャンネル固有の入力組み立て
+- `src/presenters/format/*`：生成後の出力整形
+
+## 2.2 scripts の目安
+
+- `scripts/debug`：問題調査用
+- `scripts/preview`：見た目や出力の確認用
+- `scripts/ops`：運用作業用
+- `scripts/validate`：検証用
+- `scripts/export`：外部出力や辞書出力用
+- `scripts/jobs`：ジョブ実行補助
 
 ## 2.5 ドキュメント
 

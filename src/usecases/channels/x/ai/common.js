@@ -178,6 +178,7 @@ async function generateXAiWithRetry(opts = {}) {
       : 5;
   const fallbackFn = typeof opts.fallbackFactory === "function" ? opts.fallbackFactory : null;
   const allowFallback = opts.allowFallback !== false;
+  const acceptTooLongByTruncation = opts.acceptTooLongByTruncation === true;
   const fallbackContext = opts.fallbackContext || {};
   const story = opts.story;
   const dict = opts.dict;
@@ -266,6 +267,24 @@ async function generateXAiWithRetry(opts = {}) {
   if (result.ok) {
     const len = Array.from(String(result.text || "")).length;
     return { ok: true, text: result.text, model, len, attempts: result.attempts, last_text: result.lastText };
+  }
+
+  if (acceptTooLongByTruncation && String(result.reason || "").startsWith("too_long:") && result.lastText) {
+    const formatted = formatXAiText(result.lastText, { maxLineChars: opts.maxLineChars });
+    const trimmed = truncateToMaxChars(formatted, maxChars);
+    const verdict = validateXAiText(trimmed, { minChars, maxChars });
+    if (verdict.ok && verdict.text) {
+      return {
+        ok: true,
+        text: verdict.text,
+        model,
+        len: verdict.len,
+        attempts: result.attempts,
+        last_text: result.lastText,
+        truncated: true,
+        fallback: false,
+      };
+    }
   }
 
   if (fallbackFn && allowFallback) {

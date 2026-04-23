@@ -1,8 +1,23 @@
 # Safe Output Test Commands
 
-This doc lists safe, prod-like output checks. All commands avoid posting by using `dryRun=1` and/or `local=1`.
+This doc lists safe checks for both production and local use.
+
+Principles:
+- Prefer `dryRun=1` when verifying production behavior safely.
+- Prefer `local=1` and `local_out_dir=...` when verifying locally and keeping artifacts.
+- Production app logs are shown in Cloud Run / Google Cloud Console, not as verbose local terminal output.
 
 ## 0) Common Setup
+
+### Production
+
+```bash
+BASE="https://sora-no-koe-v2-256321662770.asia-northeast1.run.app"
+DATE="$(date +%Y-%m-%d)"
+CRON_TOKEN=sora-no-koe-daily-2025
+```
+
+### Local
 
 ```bash
 BASE=http://localhost:8080
@@ -11,13 +26,113 @@ OUT_DIR="$(pwd)/tmp/safe_prod_outputs/$DATE"
 CRON_TOKEN=sora-no-koe-daily-2025
 ```
 
-## 1) One-Click (All in One)
+## 1) Production Quick Checks
+
+### 1.1 One-Click (Production, safe dry-run)
+
+```bash
+BASE="$BASE" DATE="$DATE" CRON_TOKEN="$CRON_TOKEN" ./scripts/test/safe_prod_outputs.sh
+```
+
+### 1.2 Channel-by-Channel (Production)
+
+#### Stories (text)
+
+```bash
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=line&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=line_sora&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=line_distribution&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=line_natal&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=x&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=text&channel=threads&outputs=true"
+```
+
+#### Stories (json)
+
+```bash
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=json&channel=line&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=json&channel=x&outputs=true"
+curl -s "$BASE/stories?app_user_id=public&mode=public&format=json&channel=threads&outputs=true"
+```
+
+#### LINE
+
+Production-safe checks use `dryRun=1` where available.
+
+```bash
+curl -s -X POST "$BASE/cron/daily8?date_local=$DATE&dryRun=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/rebuild8?date_local=$DATE" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/send8?date_local=$DATE&dryRun=1" -H "x-cron-token: $CRON_TOKEN"
+```
+
+#### IG
+
+Production post commands are normally run without `dryRun`.
+
+```bash
+curl -s -X POST "$BASE/cron/ig/story/daily?date_local=$DATE&dryRun=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/morning?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/resonance?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/night?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/moon_event?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+```
+
+#### X
+
+Production post commands are normally run without `dryRun`.
+
+```bash
+curl -s -X POST "$BASE/cron/x/morning?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/resonance?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/night?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/moon_event?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/next_30_days?date_local=$DATE&ai=1" -H "x-cron-token: $CRON_TOKEN"
+```
+
+#### BLOG
+
+Use `publish=0` for check-only. `publish=1` publishes.
+
+```bash
+curl -s -X POST "$BASE/cron/blog/daily?date_local=$DATE&publish=0" -H "x-cron-token: $CRON_TOKEN"
+```
+
+### 1.3 Purpose-Based (Production AI checks)
+
+These are safe in production because they use `dryRun=1`.
+
+```bash
+# IG
+curl -s -X POST "$BASE/cron/ig/morning?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/resonance?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/night?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/moon_event?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+
+# X
+curl -s -X POST "$BASE/cron/x/morning?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/resonance?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/night?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/moon_event?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/next_30_days?date_local=$DATE&dryRun=1&ai=1" -H "x-cron-token: $CRON_TOKEN"
+
+# BLOG
+curl -s -X POST "$BASE/cron/blog/daily?date_local=$DATE&dryRun=1&publish=0" -H "x-cron-token: $CRON_TOKEN"
+```
+
+### 1.4 Production Logs
+
+- Production logs are emitted to Cloud Run / Google Cloud Console.
+- Local-style verbose terminal output does not appear during normal Cloud Run execution.
+
+## 2) Local Safe Output Checks
+
+### 2.1 One-Click (All in One)
 
 ```bash
 BASE=http://localhost:8080 DATE=$(date +%Y-%m-%d) CRON_TOKEN=sora-no-koe-daily-2025 ./scripts/test/safe_prod_outputs.sh
 ```
 
-## 2) Channel-by-Channel (Single Commands)
+### 2.2 Channel-by-Channel (Single Commands)
 
 ### Stories (text)
 
@@ -50,7 +165,9 @@ curl -s -X POST "$BASE/cron/send8?date_local=$DATE&dryRun=1&local=1&local_out_di
 
 ```bash
 curl -s -X POST "$BASE/cron/ig/story/daily?date_local=$DATE&dryRun=1&local=1&local_out_dir=$OUT_DIR/cron/ig/story" -H "x-cron-token: $CRON_TOKEN"
-curl -s -X POST "$BASE/cron/ig/post?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/post" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/morning?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/morning" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/resonance?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/resonance" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/night?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/night" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/moon_event?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/moon_event" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/monthly?date_local=$DATE&month=${DATE:0:7}&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/monthly" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/monthly_overview_reel?date_local=$DATE&month=${DATE:0:7}&dryRun=1&local=1&local_out_dir=$OUT_DIR/cron/ig/monthly_overview_reel&fps=2&outroSeconds=1.5" -H "x-cron-token: $CRON_TOKEN"
@@ -60,6 +177,7 @@ curl -s -X POST "$BASE/cron/ig/monthly_overview_reel?date_local=$DATE&month=${DA
 
 ```bash
 curl -s -X POST "$BASE/cron/x/morning?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/morning" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/resonance?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/resonance" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/night?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/night" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/moon_event?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/moon_event" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/next_30_days?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/next_30_days" -H "x-cron-token: $CRON_TOKEN"
@@ -77,11 +195,14 @@ These focus on AI generation outputs, saved locally.
 
 ```bash
 # IG
-curl -s -X POST "$BASE/cron/ig/post?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/post" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/morning?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/morning" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/resonance?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/resonance" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/ig/night?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/night" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/ig/moon_event?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/ig/moon_event" -H "x-cron-token: $CRON_TOKEN"
 
 # X
 curl -s -X POST "$BASE/cron/x/morning?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/morning" -H "x-cron-token: $CRON_TOKEN"
+curl -s -X POST "$BASE/cron/x/resonance?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/resonance" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/night?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/night" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/moon_event?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/moon_event" -H "x-cron-token: $CRON_TOKEN"
 curl -s -X POST "$BASE/cron/x/next_30_days?date_local=$DATE&dryRun=1&ai=1&local=1&local_out_dir=$OUT_DIR/cron/x/next_30_days" -H "x-cron-token: $CRON_TOKEN"

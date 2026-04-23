@@ -3,6 +3,7 @@
 const { toBool } = require("../../../utils/data/bool");
 const { writeTextFiles } = require("../shared/io");
 const { resolveEnv } = require("../../../utils/env");
+const { classifyXError } = require("./utils");
 
 function writeLocalPosts({ posts = [], outDir, prefix = "x_post" } = {}) {
   if (!outDir) return [];
@@ -52,11 +53,14 @@ async function notifyXPostFailure({ env, dateLocal, kind, errors, results } = {}
       .map((e) => e?.slot)
       .filter(Boolean)
       .join(", ") || "unknown";
+    const firstError = Array.isArray(errors) ? errors[0] : null;
+    const errorInfo = firstError ? classifyXError(firstError?.error || firstError) : null;
     const message = [
       "【X投稿エラー】",
       `種別: ${kind || "x"}`,
       `日付: ${dateLocal || "-"}`,
       `失敗: ${failedSlots}`,
+      ...(errorInfo?.summary ? [`理由: ${errorInfo.summary}`] : []),
       `件数: 成功${(Array.isArray(results) ? results.filter((r) => r.ok).length : 0)} / 失敗${Array.isArray(errors) ? errors.length : 0}`,
     ].join("\n");
 
