@@ -90,6 +90,20 @@ function asOfIsoFromDateLocalJST(dateLocal) {
   return `${dateLocal}T03:00:00.000Z`;
 }
 
+function runtimeAsOfIsoFromDateLocalJST(dateLocal, baseDate = new Date()) {
+  if (typeof dateLocal !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dateLocal)) return null;
+  const base = baseDate instanceof Date ? baseDate : new Date(baseDate);
+  if (Number.isNaN(base.getTime())) return null;
+
+  const parts = dateTimePartsInTimeZone(base, "Asia/Tokyo");
+  const hour = parts?.hour || "00";
+  const minute = parts?.minute || "00";
+  const second = parts?.second || "00";
+  const ms = String(base.getMilliseconds()).padStart(3, "0");
+
+  return `${dateLocal}T${hour}:${minute}:${second}.${ms}+09:00`;
+}
+
 function isYYYYMMDD(s) {
   return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
@@ -133,6 +147,7 @@ module.exports = {
   dateTimePartsInTimeZone,
   toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,
+  runtimeAsOfIsoFromDateLocalJST,
   isYYYYMMDD,
   isValidISO,
   normalizeDateTimeLocalJST,

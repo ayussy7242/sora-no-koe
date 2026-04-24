@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { runtimeAsOfIsoFromDateLocalJST } = require("../../../utils/time");
 const { renderInstagramCarousel } = require("../../../engine/renderers/instagram/carousel");
 const {
   createImageContainer,
@@ -143,7 +144,7 @@ async function buildMonthStory({ month, day = 15, dict }) {
   const storyService = buildStoryServiceSafe(dict);
   if (!storyService) return null;
   const dateLocal = `${month}-${String(day).padStart(2, "0")}`;
-  const asOfISO = new Date(`${dateLocal}T12:00:00+09:00`).toISOString();
+  const asOfISO = runtimeAsOfIsoFromDateLocalJST(dateLocal) || new Date(`${dateLocal}T12:00:00+09:00`).toISOString();
   try {
     const story = await resolvePublicStory({ storyService, dateLocal, asOfISO });
     return story || null;

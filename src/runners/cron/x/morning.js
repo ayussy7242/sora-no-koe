@@ -14,6 +14,7 @@ const {
 } = require("../../../engine/renderers/x/morning_wheel");
 const { buildCosmicSpaceConfig } = require("../../../engine/shared/space_background");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { buildObservationMeta } = require("../../../usecases/story/observation_meta");
 const { acquireXPostLock, markXPostLock } = require("./locks");
 const { buildMorningPosts } = require("./planning");
 const { truncateForX, resolveXMaxChars } = require("./utils");
@@ -84,6 +85,7 @@ async function runXMorningPost(deps, opts = {}) {
     },
   }, async () => {
     const story = (await buildPublicStorySnapshot({ storyService, dateLocal, asOfISO, save: false })).story;
+    const observationMeta = buildObservationMeta({ story, dict, asOfISO, dateLocal });
 
     const openai = {
       apiKey: env2.OPENAI_API_KEY,
@@ -217,6 +219,7 @@ async function runXMorningPost(deps, opts = {}) {
         local_dir: localOutDir,
         local_paths: localPaths,
         local_image: imagePath,
+        observation_meta: observationMeta,
       };
     }
 
@@ -269,6 +272,7 @@ async function runXMorningPost(deps, opts = {}) {
         has_resonance: hasResonance,
         image: imageInfo,
         result_policy: resolvePublishOutcomePolicy({ okCount: 1, errorCount: 0 }),
+        observation_meta: observationMeta,
       };
     }
 

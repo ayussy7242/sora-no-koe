@@ -3,7 +3,12 @@
 const { formatDateLabel } = require("../../../engine/renderers/instagram/carousel");
 const { pickObservationLine } = require("../../../presenters/format/ig_caption");
 const { aspectInfo } = require("../../../presenters/format/format/common");
-const { formatMonthDayHm, formatJstYmd, formatJstTimeLabel } = require("../../../utils/time");
+const {
+  formatMonthDayHm,
+  formatJstYmd,
+  formatJstTimeLabel,
+  runtimeAsOfIsoFromDateLocalJST,
+} = require("../../../utils/time");
 const { refinePeakTime } = require("../../../domain/aspect/proximity");
 const { buildMoonStatus, formatMoonEventDisplay } = require("../../../domain/moon");
 const { resolveHouseNumber, HOUSE_BASIS } = require("../../../domain/astro/compute");
@@ -102,7 +107,7 @@ function findNextMoonSignChange({ asOfISO, dict, maxHours = 72, stepMinutes = 30
 function resolveMoonAsOfISO({ story, dateLocal } = {}) {
   const storyAsOf = String(story?.meta?.as_of || "").trim();
   if (storyAsOf) return storyAsOf;
-  if (dateLocal) return `${dateLocal}T12:00:00+09:00`;
+  if (dateLocal) return runtimeAsOfIsoFromDateLocalJST(dateLocal);
   return new Date().toISOString();
 }
 
@@ -267,7 +272,7 @@ function buildCarouselSlides({ story, dateLocal, withCta, dict }) {
     return { aspectLine: line, deepLine: "", aspectDeg: Number.isFinite(deg) ? deg : null };
   })();
 
-  const asOfISO = story?.meta?.as_of || `${dateLocal}T12:00:00+09:00`;
+  const asOfISO = story?.meta?.as_of || runtimeAsOfIsoFromDateLocalJST(dateLocal) || new Date().toISOString();
   const peakTime = (topAspect && Number.isFinite(Number(aspectDeg)))
     ? refinePeakTime({
       kind: "transit-transit",

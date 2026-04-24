@@ -6,6 +6,7 @@ const {
   toDateLocalJST,
   toDateTimeLocalJST,
   asOfIsoFromDateLocalJST,
+  runtimeAsOfIsoFromDateLocalJST,
   isValidISO,
   normalizeDateTimeLocalJST,
 } = require("../../utils/time");
@@ -38,7 +39,9 @@ function pickAsOfISO({ q, b, dateLocal = null, fallbackFromDateLocal = false } =
   const dtLocal = normalizeDateTimeLocalJST(dtLocalRaw);
   if (dtLocal) return dtLocal;
 
-  if (fallbackFromDateLocal && dateLocal) return asOfIsoFromDateLocalJST(dateLocal);
+  if (fallbackFromDateLocal && dateLocal) {
+    return runtimeAsOfIsoFromDateLocalJST(dateLocal) || asOfIsoFromDateLocalJST(dateLocal);
+  }
   return toDateTimeLocalJST();
 }
 

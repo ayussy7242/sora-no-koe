@@ -16,6 +16,7 @@ const { normalizeBodyKey } = require("../../../domain/canonical");
 const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
+const { buildObservationMeta } = require("../../../usecases/story/observation_meta");
 const { ensureIgOutputs } = require("../../../usecases/story/output_helpers");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const {
@@ -384,6 +385,7 @@ async function runIgPost(deps, opts = {}) {
     const caption = slotKey
       ? (renderIGCaptionVariant(story, { dict, variant: slotKey }) || renderIGCaption(story, { dict }))
       : renderIGCaption(story, { dict });
+    const observationMeta = buildObservationMeta({ story, dict, asOfISO, dateLocal });
 
     if (localOnly) {
       const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
@@ -403,6 +405,7 @@ async function runIgPost(deps, opts = {}) {
           caption,
           carousel,
           resonance_debug: resonanceDebug,
+          observation_meta: observationMeta,
         },
         outDir: localOutDir,
         filename: "ig_post.json",
@@ -424,6 +427,7 @@ async function runIgPost(deps, opts = {}) {
         local_paths: localPaths,
         local_json: jsonPath,
         resonance_debug: resonanceDebug,
+        observation_meta: observationMeta,
       };
     }
 
@@ -474,9 +478,10 @@ async function runIgPost(deps, opts = {}) {
         caption,
       image_urls: imageUrls,
       image_urls_direct: directImageUrls,
-      image_urls_proxy: proxyImageUrls,
-      gcs_paths: upload.paths,
-      resonance_debug: resonanceDebug,
+        image_urls_proxy: proxyImageUrls,
+        gcs_paths: upload.paths,
+        resonance_debug: resonanceDebug,
+        observation_meta: observationMeta,
     };
     }
 

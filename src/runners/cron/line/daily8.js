@@ -30,6 +30,7 @@ const { toBool } = require("../../../utils/data/bool");
 const { resolveEnv } = require("../../../utils/env");
 const dict = require("../../../content/dict");
 const { buildDailyLinePayload } = require("./planning");
+const { buildObservationMeta } = require("../../../usecases/story/observation_meta");
 const { linePushText, linePushImage, writeDeliverySummary, writePerUserResult } = require("./publish");
 const { writeLocalLineOutputs } = require("./io");
 
@@ -128,7 +129,8 @@ async function runDaily8(deps, opts = {}) {
   const localItems = [];
 
   async function buildPayloadFor({ appUserId, lineUserId }) {
-    return buildDailyLinePayload({
+    const asOfISO = new Date().toISOString();
+    const payload = await buildDailyLinePayload({
       db,
       env: env2,
       storyService,
@@ -143,8 +145,17 @@ async function runDaily8(deps, opts = {}) {
       allowWheel: !DISABLE_DAILY8_SORA_IMAGE,
       allowWheelWhenLocal: true,
       localOnly,
-      asOfISO: new Date().toISOString(),
+      asOfISO,
     });
+    if (runDry || debugEnabled) {
+      payload.observation_meta = buildObservationMeta({
+        story: payload?.story || null,
+        dict,
+        asOfISO,
+        dateLocal,
+      });
+    }
+    return payload;
   }
 
   async function deliverOne({ appUserId, lineUserId }) {
@@ -166,6 +177,7 @@ async function runDaily8(deps, opts = {}) {
           mode,
           target,
           resonance_debug: resonanceDebug,
+          observation_meta: payload?.observation_meta || null,
         });
         return { ok: true };
       }
@@ -199,7 +211,7 @@ async function runDaily8(deps, opts = {}) {
       }
 
       if (runDry || debugEnabled) {
-        return { ok: true, resonance_debug: resonanceDebug };
+        return { ok: true, resonance_debug: resonanceDebug, observation_meta: payload?.observation_meta || null };
       }
       return { ok: true };
     } catch (e) {
@@ -278,6 +290,7 @@ async function runDaily8(deps, opts = {}) {
         mode,
         target,
         error: summary.last_error,
+        observation_meta: localItems[0]?.observation_meta || null,
       };
     }
 
@@ -286,6 +299,7 @@ async function runDaily8(deps, opts = {}) {
     const result = { ok: r.ok, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: summary.last_error };
     if (runDry || debugEnabled) {
       result.resonance_debug = r?.resonance_debug || null;
+      result.observation_meta = r?.observation_meta || null;
     }
     return result;
   }
@@ -360,12 +374,17 @@ async function runDaily8(deps, opts = {}) {
       mode,
       target,
       error: lastError,
+      observation_meta: localItems[0]?.observation_meta || null,
     };
   }
 
   await writeDeliverySummary({ db, admin, env, dateLocal, runId, summary, mode, target });
 
-  return { ok: failed === 0, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: lastError };
+  const result = { ok: failed === 0, date_local: dateLocal, run_id: runId, dry_run: runDry, targets: summary.targets, mode, target, error: lastError };
+  if (runDry || debugEnabled) {
+    result.observation_meta = localItems[0]?.observation_meta || null;
+  }
+  return result;
 }
 
 module.exports = { runDaily8 };

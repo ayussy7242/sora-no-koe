@@ -2,7 +2,12 @@
 
 const path = require("path");
 const { createStorageClient } = require("../../../../utils/infra/gcs_storage");
-const { asOfIsoFromDateLocalJST, toDateLocalJST, isYYYYMMDD } = require("../../../../utils/time");
+const {
+  asOfIsoFromDateLocalJST,
+  runtimeAsOfIsoFromDateLocalJST,
+  toDateLocalJST,
+  isYYYYMMDD,
+} = require("../../../../utils/time");
 const { resolveEnv } = require("../../../../utils/env");
 const { writeBufferFiles, writeJsonFile } = require("../../../../utils/infra/local_io");
 const { uploadGcsFiles } = require("../../../../utils/infra/gcs_upload");
@@ -188,9 +193,12 @@ async function runDailyIgStoryDelivery(deps, opts = {}) {
 
   const dateLocal = isYYYYMMDD(opts.dateLocal) ? String(opts.dateLocal) : toDateLocalJST();
   const asOfNowISO = opts.asOfNowISO || new Date().toISOString();
-  const asOfISO = opts.asOfISO || asOfIsoFromDateLocalJST(dateLocal);
+  const asOfISO = opts.asOfISO || runtimeAsOfIsoFromDateLocalJST(dateLocal) || asOfIsoFromDateLocalJST(dateLocal);
   const tomorrowLocal = addDays(dateLocal, 1);
-  const asOfTomorrowISO = opts.asOfTomorrowISO || (tomorrowLocal ? asOfIsoFromDateLocalJST(tomorrowLocal) : asOfISO);
+  const asOfTomorrowISO = opts.asOfTomorrowISO
+    || (tomorrowLocal
+      ? (runtimeAsOfIsoFromDateLocalJST(tomorrowLocal) || asOfIsoFromDateLocalJST(tomorrowLocal))
+      : asOfISO);
   const dryRun = opts.dryRun === true || opts.dry_run === true;
   const runDry = dryRun || localOnly;
   const localOutDir = String(

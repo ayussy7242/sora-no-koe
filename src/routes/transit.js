@@ -4,7 +4,13 @@
 
 const express = require("express");
 const { toNumberSafe, clamp } = require("../utils/data/parse");
-const { toDateLocalJST, asOfIsoFromDateLocalJST, isYYYYMMDD, isValidISO } = require("../utils/time");
+const {
+  toDateLocalJST,
+  asOfIsoFromDateLocalJST,
+  runtimeAsOfIsoFromDateLocalJST,
+  isYYYYMMDD,
+  isValidISO,
+} = require("../utils/time");
 
 function createTransitRouter(deps = {}) {
   const router = express.Router();
@@ -56,8 +62,10 @@ function createTransitRouter(deps = {}) {
         dateLocal = toDateLocalJST(new Date());
       }
 
-      // as_of 決定：無指定なら date_local JST正午固定
-      const asOfISO = asOfQ ? asOfQ : asOfIsoFromDateLocalJST(dateLocal);
+      // as_of 決定：無指定なら date_local に対する東京の実行時刻
+      const asOfISO = asOfQ
+        ? asOfQ
+        : (runtimeAsOfIsoFromDateLocalJST(dateLocal) || asOfIsoFromDateLocalJST(dateLocal));
       if (!isValidISO(asOfISO)) {
         return res.status(400).json({
           ok: false,

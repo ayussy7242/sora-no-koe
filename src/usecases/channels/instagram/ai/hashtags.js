@@ -60,7 +60,7 @@ function buildIgHashtagsPrompt({ story, dict, slot }) {
   const transit = story?.public?.transit_signs || {};
   const sunSign = transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || "");
   const moonSign = transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || "");
-  const asOfISO = date ? `${date}T12:00:00+09:00` : "";
+  const asOfISO = safeTrim(story?.meta?.as_of || "");
   const moonStatus = asOfISO ? buildMoonStatus({ asOfISO, story, dict }) : null;
   const moonPhase = safeTrim(moonStatus?.phaseLabel || "");
   const resonanceAspect = story?.outputs?.ig?.source?.resonance_aspect || null;

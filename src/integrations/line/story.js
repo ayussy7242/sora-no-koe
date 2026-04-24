@@ -13,7 +13,7 @@
 
 const { LINE_COPY } = require("../../content/copy");
 const { normalizeStoryArgs } = require("../../usecases/story/args");
-const { ymdInTimeZone, asOfIsoFromDateLocalJST } = require("../../utils/time");
+const { ymdInTimeZone, asOfIsoFromDateLocalJST, runtimeAsOfIsoFromDateLocalJST } = require("../../utils/time");
 const { buildPublicStorySnapshot } = require("../../usecases/story/store");
 const { safeLineText } = require("./line_utils");
 
@@ -87,7 +87,7 @@ function createLineStory({ db, storyService, renderers, natal = null, config = {
   }
 
   async function buildTodayAtDate({ appUserId, dateLocal }) {
-    const asOfISO = asOfIsoFromDateLocalJST(dateLocal);
+    const asOfISO = runtimeAsOfIsoFromDateLocalJST(dateLocal) || asOfIsoFromDateLocalJST(dateLocal);
     const story = await storyService.buildStoryForUser(
       normalizeStoryArgs({
         appUserId,
