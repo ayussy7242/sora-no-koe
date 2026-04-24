@@ -66,11 +66,12 @@ async function uploadCarouselSlide({
   if (!storage) throw new Error("storage missing");
   if (!bucketName) throw new Error("bucket missing");
   if (!buffer) throw new Error("buffer missing");
+  const filenameExt = String(contentType || "").toLowerCase() === "image/jpeg" ? "jpg" : "png";
   const item = await uploadGcsFile({
     storage,
     bucketName,
     basePath: path.posix.join("ig", "carousel", String(dateLocal)),
-    filename: `slide-${index}.png`,
+    filename: `slide-${index}.${filenameExt}`,
     buffer,
     contentType,
     index,

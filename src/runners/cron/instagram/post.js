@@ -252,6 +252,7 @@ async function runIgPost(deps, opts = {}) {
   const backgroundCache = resolveBackgroundCache(env2);
   const proxyBase = String(env2.IG_PROXY_BASE_URL || env2.PUBLIC_BASE_URL || "").trim().replace(/\/$/, "");
   const useProxy = toBool(env2.IG_PROXY_ENABLED, false) && !!proxyBase;
+  const forceMorningJpeg = toBool(env2.IG_MORNING_FORCE_JPEG, true);
 
   const lockTtlMin = Number(env2.IG_POST_LOCK_TTL_MIN || 30);
   const lockTtlMs = Number.isFinite(lockTtlMin) ? Math.max(1, lockTtlMin) * 60 * 1000 : 30 * 60 * 1000;
@@ -442,8 +443,12 @@ async function runIgPost(deps, opts = {}) {
       carousel,
       expiresDays: env2.IG_IMAGE_URL_EXPIRES_DAYS,
       backgroundCache,
-      normalize: mediaNormalize
-        ? { format: mediaFormat, flatten: mediaFlatten, flattenBg: mediaFlattenBg }
+      normalize: (mediaNormalize || (slotKey === "morning" && forceMorningJpeg))
+        ? {
+            format: slotKey === "morning" && forceMorningJpeg ? "jpeg" : mediaFormat,
+            flatten: slotKey === "morning" && forceMorningJpeg ? true : mediaFlatten,
+            flattenBg: mediaFlattenBg,
+          }
         : null,
     });
     console.log("[cron/ig/post] render_upload_done", { ms: Date.now() - tRender });
