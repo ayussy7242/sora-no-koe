@@ -6,6 +6,7 @@ const path = require("path");
 const sharp = require("sharp");
 const { buildMoonPhaseGlyph } = require("../../src/engine/shared/moon_glyph");
 const { buildMoonGeometry } = require("../../src/engine/shared/moon_glyph/geometry");
+const { SYNODIC_MONTH } = require("../../src/engine/shared/moon_glyph/keyframes");
 
 function parseArgs(argv) {
   const out = {};
@@ -41,8 +42,14 @@ function wrapSvg({ w, h, glyph }) {
   ].join("");
 }
 
+function illuminationFromMoonAge(day) {
+  const phaseDeg = (Math.max(0, Number(day)) / SYNODIC_MONTH) * 360;
+  return (1 - Math.cos((phaseDeg * Math.PI) / 180)) / 2;
+}
+
 async function renderGlyphPng({ day, size }) {
   const waxing = day < 15;
+  const illumination = illuminationFromMoonAge(day);
   const glyph = buildMoonPhaseGlyph({
     id: `day-${day}`,
     x: 0,
@@ -50,7 +57,7 @@ async function renderGlyphPng({ day, size }) {
     size,
     moonAgeDays: day,
     waxing,
-    illumination: 0.5,
+    illumination,
   });
   const svg = wrapSvg({ w: size, h: size, glyph });
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
@@ -90,11 +97,12 @@ async function main() {
     const y = pad + row * (cellSize + labelH + metaH);
     const moonX = x + Math.round((cellSize - moonSize) / 2);
     const moonY = y + 8;
+    const illumination = illuminationFromMoonAge(day);
     const geom = buildMoonGeometry({
       size: moonSize,
       moonAgeDays: day,
       waxing: day < 15,
-      illumination: 0.5,
+      illumination,
     });
     const png = await renderGlyphPng({ day, size: moonSize });
     composites.push({ input: png, left: moonX, top: moonY });

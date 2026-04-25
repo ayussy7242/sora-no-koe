@@ -111,6 +111,35 @@ function resolveAgeStrengthInterpolated(ageDays) {
     };
   }
 
+  // Quarter <-> gibbous transitions need their own mapping too.
+  // Quarter uses strength=1 as a semantic marker, while gibbous strength expresses
+  // post-quarter fullness. Averaging them directly makes late day-8 fuller than day-9.
+  if (familyA === "quarter" && familyB === "gibbous") {
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength: strengthB * t,
+      strengthA,
+      strengthB,
+      family: t === 0 ? "quarter" : familyB,
+      side: t === 0 ? sideA : sideB,
+    };
+  }
+  if (familyA === "gibbous" && familyB === "quarter") {
+    const strength = strengthA * (1 - t);
+    return {
+      ageFloor,
+      ageCeil,
+      t,
+      strength,
+      strengthA,
+      strengthB,
+      family: t === 1 ? "quarter" : familyA,
+      side: t === 1 ? sideB : sideA,
+    };
+  }
+
   const strength = strengthA + (strengthB - strengthA) * t;
 
   return {
@@ -145,6 +174,125 @@ function resolveIllumFromFamily(family, strength) {
     default:
       return 0.0;
   }
+}
+
+function resolveStrengthFromIllumination(family, illumination) {
+  const illum = clamp(Number(illumination), 0, 1);
+  switch (family) {
+    case "new":
+      return 0;
+    case "full":
+      return 1;
+    case "quarter":
+      return 1;
+    case "crescent":
+      return clamp((illum - 0.02) / 0.45, 0, 1);
+    case "gibbous":
+      return clamp((illum - 0.55) / 0.45, 0, 1);
+    case "waxing_shadow":
+    case "waning_shadow": {
+      const normalized = clamp(illum / 0.5, 0, 1);
+      const inv = 1 - Math.pow(normalized, 1 / 1.8);
+      return clamp(inv, 0, 1);
+    }
+    default:
+      return 0;
+  }
+}
+
+function resolvePhaseSpecFromIllumination({ illumination, waxing, halfEps, fullEps, newEps }) {
+  const illum = clamp(Number(illumination), 0, 1);
+  if (illum >= 1 - fullEps) {
+    return { family: "full", side: "none", strength: 1 };
+  }
+  if (illum <= newEps) {
+    return { family: "new", side: "none", strength: 0 };
+  }
+  if (Math.abs(illum - 0.5) <= halfEps) {
+    return {
+      family: "quarter",
+      side: waxing ? "right" : "left",
+      strength: 1,
+    };
+  }
+  const family = illum < 0.5
+    ? (waxing ? "waxing_shadow" : "waning_shadow")
+    : "gibbous";
+  const side = waxing ? "right" : "left";
+  return {
+    family,
+    side,
+    strength: resolveStrengthFromIllumination(family, illum),
+  };
+}
+
+function resolvePerceptualIllumination(illumination) {
+  const illum = clamp(Number(illumination), 0, 1);
+  if (illum <= 0) return 0;
+  if (illum >= 0.03) return illum;
+  const t = clamp(illum / 0.03, 0, 1);
+  return 0.04 + (0.08 - 0.04) * t;
+}
+
+function hasFiniteNumber(value) {
+  return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+}
+
+function buildIlluminationDrivenGeometry({
+  r,
+  illum,
+  waxing,
+  modelRequested,
+  modelUsed,
+  ageDays = null,
+  ageNorm = null,
+  ageMeta = {},
+  halfEps,
+  fullEps,
+  newEps,
+}) {
+  const illumSpec = resolvePhaseSpecFromIllumination({
+    illumination: illum,
+    waxing,
+    halfEps,
+    fullEps,
+    newEps,
+  });
+  const family = illumSpec.family || "new";
+  const side = illumSpec.side || "none";
+  const strength = illumSpec.strength;
+  const visualIllum = resolvePerceptualIllumination(illum);
+  const waxingResolved = side === "right" ? true : side === "left" ? false : waxing;
+  const { path, meta } = buildMoonPathFromSpec({
+    r,
+    family,
+    strength,
+    side,
+  });
+
+    return {
+      r,
+      illum: visualIllum,
+      waxing: waxingResolved,
+      modelRequested,
+      modelUsed,
+    shadowRadius: r,
+    dx: 0,
+    shift: 0,
+    litPath: path,
+    ageDays,
+    ageNorm,
+    meta: {
+      ...meta,
+      ...ageMeta,
+        family,
+        strength,
+        side,
+        illuminationDriven: true,
+        actualIllumination: illum,
+        visualIllumination: visualIllum,
+      },
+    };
 }
 
 function buildMoonPathFromSpec({ r, family, strength, side }) {
@@ -655,10 +803,7 @@ function buildLitPathCustomTerminator({
 }
 
 function resolveAgeInputs({ moonAgeDays, moonAgeNormalized, illumination, waxing }) {
-  const hasNumber = (value) =>
-    value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
-
-  if (hasNumber(moonAgeDays)) {
+  if (hasFiniteNumber(moonAgeDays)) {
     const days = Math.max(0, Number(moonAgeDays));
     return {
       ageDays: days,
@@ -666,7 +811,7 @@ function resolveAgeInputs({ moonAgeDays, moonAgeNormalized, illumination, waxing
       source: "days",
     };
   }
-  if (hasNumber(moonAgeNormalized)) {
+  if (hasFiniteNumber(moonAgeNormalized)) {
     const norm = clamp(Number(moonAgeNormalized), 0, 1);
     return {
       ageDays: norm * SYNODIC_MONTH,
@@ -960,6 +1105,7 @@ function buildMoonGeometry({
   const r = Number(size) / 2;
   const illum = clamp(Number(illumination), 0, 1);
   const modelUsed = model;
+  const hasIllumination = hasFiniteNumber(illumination);
 
   if (modelUsed === MODELS.AGE_BUCKETS) {
     const { ageDays, ageNorm, source } = resolveAgeInputs({
@@ -969,17 +1115,35 @@ function buildMoonGeometry({
       waxing,
     });
     const interp = resolveAgeStrengthInterpolated(ageDays);
+    if (hasIllumination) {
+      return buildIlluminationDrivenGeometry({
+        r,
+        illum,
+        waxing,
+        modelRequested: model,
+        modelUsed,
+        ageDays,
+        ageNorm,
+        ageMeta: {
+          ageSource: source,
+          ageFloor: interp.ageFloor,
+          ageCeil: interp.ageCeil,
+          ageT: interp.t,
+          strengthA: interp.strengthA,
+          strengthB: interp.strengthB,
+        },
+        halfEps,
+        fullEps,
+        newEps,
+      });
+    }
+
     const family = interp.family || "new";
     const side = interp.side || "none";
     const strength = interp.strength;
     const visualIllum = resolveIllumFromFamily(family, strength);
     const waxingResolved = side === "right" ? true : side === "left" ? false : waxing;
-    const { path, meta } = buildMoonPathFromSpec({
-      r,
-      family,
-      strength,
-      side,
-    });
+    const { path, meta } = buildMoonPathFromSpec({ r, family, strength, side });
     return {
       r,
       illum: visualIllum,
@@ -1003,6 +1167,7 @@ function buildMoonGeometry({
         strengthA: interp.strengthA,
         strengthB: interp.strengthB,
         side,
+        illuminationDriven: false,
       },
     };
   }
@@ -1018,6 +1183,21 @@ function buildMoonGeometry({
       illumination: illum,
       waxing,
     });
+    if (hasIllumination) {
+      return buildIlluminationDrivenGeometry({
+        r,
+        illum,
+        waxing,
+        modelRequested: model,
+        modelUsed,
+        ageDays,
+        ageNorm,
+        ageMeta: { ageSource: source },
+        halfEps,
+        fullEps,
+        newEps,
+      });
+    }
     const { path, meta } = buildLitPathKeyframed({
       r,
       ageDays,
