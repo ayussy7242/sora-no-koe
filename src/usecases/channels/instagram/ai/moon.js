@@ -8,6 +8,7 @@ const {
 } = require("../../../../content/prompts/sora/sora_core");
 const { buildMoonStatus, buildMoonSignChangeState } = require("../../../../domain/moon");
 const { formatDateYmdHm } = require("../../../../domain/astro/compute");
+const { formatAspectDisplay } = require("../../../../presenters/format/format/common");
 const { runAiTextPipeline, generateWithRetry } = require("../../../ai_text");
 const { PRESETS } = require("../../../ai_text/presets");
 const { resolveMaxRetries } = require("./utils");
@@ -21,12 +22,56 @@ function countSentences(text) {
 }
 
 
-function buildMoonFallback({ moonSign, phaseLabel, variant } = {}) {
+function resolveMoonPhaseFamily(status) {
+  const waxing = status?.waxing;
+  const phaseName = safeTrim(status?.phaseName || "");
+  if (phaseName === "新月") return "new";
+  if (phaseName === "満月") return "full";
+  if (phaseName === "上弦") return "waxing";
+  if (phaseName === "下弦") return "waning";
+  if (waxing === true) return "waxing";
+  if (waxing === false) return "waning";
+  return "";
+}
+
+function resolveSunMoonAspectValues({ dict, moonStatus } = {}) {
+  const phaseDeg = Number.isFinite(Number(moonStatus?.info?.phaseDeg))
+    ? Number(moonStatus.info.phaseDeg)
+    : null;
+  if (!Number.isFinite(phaseDeg)) return { angle: "", label: "" };
+
+  const roundedAngle = Math.round(phaseDeg);
+  const majorCandidates = [0, 60, 90, 120, 180];
+  let nearest = majorCandidates[0];
+  let minDiff = Math.abs(roundedAngle - nearest);
+  for (const candidate of majorCandidates.slice(1)) {
+    const diff = Math.abs(roundedAngle - candidate);
+    if (diff < minDiff) {
+      minDiff = diff;
+      nearest = candidate;
+    }
+  }
+  const label = minDiff <= 15
+    ? formatAspectDisplay({ dict, rawType: String(nearest), aspectDeg: nearest })?.label || ""
+    : "";
+  return {
+    angle: `${roundedAngle}°`,
+    label,
+  };
+}
+
+function buildMoonFallback({ moonSign, phaseLabel, phaseFamily, variant, nextChangeText } = {}) {
   const sign = safeTrim(moonSign) || "—";
   const phase = safeTrim(phaseLabel) || "静かな月相";
   const key = String(variant || "").toLowerCase();
   if (key === "caption" || key === "night_caption" || key === "night-caption") {
-    return `${sign}の${phase}。静かな輪郭のまま、次の位置へ向かいます。`;
+    const familyLine = phaseFamily === "waxing"
+      ? "満月へ向かう途中にあり 光がまだ広がる側です。"
+      : phaseFamily === "waning"
+        ? "満月を離れ 光を絞りながら新月側へ戻る途中です。"
+        : "静かな輪郭のまま 夜の中に置かれています。";
+    const nextLine = nextChangeText ? `${nextChangeText}。` : "";
+    return `${sign}の${phase}です。\n${familyLine}\n${nextLine}`.trim();
   }
   return `${sign}の月が空にあり、${phase}の輪郭が静かに残ります。月は余白として、景色に溶け込むように置かれます。`;
 }
@@ -55,6 +100,7 @@ function buildMoonPromptValues({ story, dict, asOfISO }) {
   const change = buildMoonSignChangeState({ asOfISO, dict });
   const moonSign = safeTrim(moonStatus?.signJa || "");
   const phaseLabel = safeTrim(moonStatus?.displayName || "");
+  const phaseFamily = resolveMoonPhaseFamily(moonStatus);
   const moonChangeHint = safeTrim(buildMoonChangeHint(change));
   const nextChange = change?.next || null;
   const nextChangeText = nextChange?.date
@@ -63,13 +109,21 @@ function buildMoonPromptValues({ story, dict, asOfISO }) {
   const nextChangeHours = Number.isFinite(Number(nextChange?.hoursAhead))
     ? Number(nextChange.hoursAhead).toFixed(1)
     : "";
+  const sunSign = safeTrim(story?.public?.transit_signs?.sun?.sign_ja || "");
+  const nextMoonSign = safeTrim(nextChange?.to?.label || "");
+  const sunMoonAspect = resolveSunMoonAspectValues({ dict, moonStatus });
 
   return {
     moonSign,
     phaseLabel,
+    phaseFamily,
     moonChangeHint,
     nextChangeText: safeTrim(nextChangeText),
     nextChangeHours: safeTrim(nextChangeHours),
+    sunSign,
+    nextMoonSign,
+    sunMoonAspectLabel: safeTrim(sunMoonAspect.label),
+    sunMoonAspectAngle: safeTrim(sunMoonAspect.angle),
   };
 }
 
@@ -78,7 +132,12 @@ function sanitizeMoonAiText(text, values) {
   const pairs = [
     ["MOON_SIGN", values?.moonSign || ""],
     ["PHASE_LABEL", values?.phaseLabel || ""],
+    ["MOON_PHASE_FAMILY", values?.phaseFamily || ""],
+    ["SUN_SIGN", values?.sunSign || ""],
+    ["SUN_MOON_ASPECT_LABEL", values?.sunMoonAspectLabel || ""],
+    ["SUN_MOON_ASPECT_ANGLE", values?.sunMoonAspectAngle || ""],
     ["MOON_CHANGE_HINT", values?.moonChangeHint || ""],
+    ["NEXT_MOON_SIGN", values?.nextMoonSign || ""],
     ["NEXT_MOON_SIGN_CHANGE", values?.nextChangeText || ""],
     ["NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD", values?.nextChangeHours || ""],
   ];
@@ -107,7 +166,12 @@ function buildIgMoonPrompt({ story, dict, asOfISO, variant }) {
     "INPUT:",
     `MOON_SIGN: ${values.moonSign}`,
     `PHASE_LABEL: ${values.phaseLabel}`,
+    `MOON_PHASE_FAMILY: ${values.phaseFamily}`,
+    `SUN_SIGN: ${values.sunSign}`,
+    `SUN_MOON_ASPECT_LABEL: ${values.sunMoonAspectLabel}`,
+    `SUN_MOON_ASPECT_ANGLE: ${values.sunMoonAspectAngle}`,
     `MOON_CHANGE_HINT: ${values.moonChangeHint}`,
+    `NEXT_MOON_SIGN: ${values.nextMoonSign}`,
     `NEXT_MOON_SIGN_CHANGE: ${values.nextChangeText}`,
     `NEXT_MOON_SIGN_CHANGE_HOURS_AHEAD: ${values.nextChangeHours}`,
   ].join("\n");
