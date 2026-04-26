@@ -1,6 +1,7 @@
 "use strict";
 
 const { signJa } = require("../../../../presenters/format/format/common");
+const { formatLeadingHouseFocus } = require("../../../../presenters/shared/house_focus");
 
 function resolveMaxRetries({ maxRetries, openaiMaxRetries, envKey = "IG_AI_MAX_RETRIES" } = {}) {
   const envRaw = process.env[envKey];
@@ -42,11 +43,7 @@ function buildElementCountsLine(story) {
 
 function buildHouseFocusLine(story) {
   const focus = story?.public?.house_focus || {};
-  const top = focus?.top?.[0];
-  if (!top) return "none";
-  const total = Number(focus?.total || 0);
-  const count = Number(top?.count || 0);
-  return `第${top.house_no}ハウス（${count}/${total}）`;
+  return formatLeadingHouseFocus(focus);
 }
 
 module.exports = {

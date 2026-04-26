@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { renderIGCaption, renderIGCaptionResonance, renderIGCaptionNight } = require("../src/presenters/format/ig_caption");
+const { renderIGCaption, renderIGCaptionMorning, renderIGCaptionResonance, renderIGCaptionNight } = require("../src/presenters/format/ig_caption");
 const dict = require("../src/content/dict");
 
 test("renderIGCaption includes key blocks", () => {
@@ -174,4 +174,43 @@ test("renderIGCaptionResonance ends without CTA copy", () => {
   assert.ok(caption.includes("【今日の共鳴】"));
   assert.ok(caption.includes("静かな共鳴が、輪郭を残しています。"));
   assert.ok(!caption.includes("LINE登録であなたの星の設計図"));
+});
+
+test("renderIGCaptionMorning appends morning event notice lines with single lead-in", () => {
+  const story = {
+    meta: {
+      date_local: "2026-04-18",
+      as_of: "2026-04-18T08:00:00+09:00",
+    },
+    public: {
+      date_local: "2026-04-18",
+      transit_signs: {
+        sun: { sign_ja: "牡羊座", sign_key: "aries" },
+        moon: { sign_ja: "牡牛座", sign_key: "taurus" },
+      },
+      sky_strata: {
+        element_count: { fire: 3, earth: 3, air: 1, water: 3 },
+        mode_count: { cardinal: 4, fixed: 3, mutable: 3 },
+      },
+    },
+    outputs: {
+      ig: {
+        parts: {},
+        source: {},
+      },
+    },
+  };
+
+  const caption = renderIGCaptionMorning(story, {
+    dict,
+    buildMorningEventNotice: () => [
+      "このあと 9:48ごろ、月は双子座へ移ります🌙",
+      "14:12ごろ、水星が牡牛座へ☿",
+    ],
+  });
+
+  assert.match(caption, /このあと 9:48ごろ、月は双子座へ移ります🌙/);
+  assert.match(caption, /14:12ごろ、水星が牡牛座へ☿/);
+  assert.equal((caption.match(/このあと/g) || []).length, 1);
+  assert.doesNotMatch(caption, /【今日の共鳴】/);
 });

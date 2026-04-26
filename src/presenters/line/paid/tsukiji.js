@@ -2,6 +2,13 @@
 
 const { glyphForBody, signJa, formatAspectDisplay } = require("../../format/format/common");
 
+function bodyLabelJa(dict, key) {
+  const k = String(key || "").toLowerCase();
+  if (k === "north_node") return "北ノード";
+  if (k === "south_node") return "南ノード";
+  return dict?.PLANETS_V2?.bodies?.[k]?.label_ja || dict?.POINTS_V1?.points?.[k]?.label_ja || key;
+}
+
 function formatPeakLabel(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "-";
   const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
@@ -15,11 +22,11 @@ function formatPeakLabel(date) {
 function formatTsukiji({ personalRows = [], skyRows = [], dict }) {
   if (!personalRows.length && !skyRows.length) return ["該当なし"];
 
-  const lines = ["🌙 近日の共鳴", ""];
+  const lines = [];
 
   const renderRows = (title, rows) => {
     if (!rows.length) return;
-    lines.push(`${title}：`);
+    lines.push(`✦ ${title}`);
     rows.forEach((row, idx) => {
       if (idx > 0) lines.push("");
       const aKind = row.aKind || "T";
@@ -28,8 +35,8 @@ function formatTsukiji({ personalRows = [], skyRows = [], dict }) {
       const bKey = row.bKey;
       const aGlyph = glyphForBody(aKey);
       const bGlyph = glyphForBody(bKey);
-      const aLabel = dict?.PLANETS_V2?.bodies?.[aKey]?.label_ja || dict?.POINTS_V1?.points?.[aKey]?.label_ja || aKey;
-      const bLabel = dict?.PLANETS_V2?.bodies?.[bKey]?.label_ja || dict?.POINTS_V1?.points?.[bKey]?.label_ja || bKey;
+      const aLabel = bodyLabelJa(dict, aKey);
+      const bLabel = bodyLabelJa(dict, bKey);
       const aSign = row.aSign || signJa(dict, row.aSignKey || "");
       const bSign = row.bSign || signJa(dict, row.bSignKey || "");
       const aSignText = aSign ? `（${aSign}）` : "";

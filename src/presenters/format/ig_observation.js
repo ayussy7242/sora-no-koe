@@ -1,6 +1,7 @@
 "use strict";
 
 const { signJa } = require("./format/common");
+const { pickLeadingHouseFocus } = require("../shared/house_focus");
 
 const DEFAULT_TIE_THRESHOLD = 0.03;
 const ELEMENT_LABELS = {
@@ -91,22 +92,27 @@ function buildTopElement({ skyStrata }) {
 }
 
 function buildTopHouse({ houseFocus }) {
-  const counts = { ...(houseFocus?.counts || {}) };
-  if (!Object.keys(counts).length && Array.isArray(houseFocus?.top)) {
-    houseFocus.top.forEach((row) => {
-      const no = Number(row?.house_no);
-      if (!Number.isFinite(no)) return;
-      counts[no] = safeNumber(row?.count);
-    });
+  const selected = pickLeadingHouseFocus(houseFocus);
+  const total = Number.isFinite(Number(houseFocus?.total)) ? safeNumber(houseFocus?.total) : null;
+  if (selected.length) {
+    return {
+      labels: selected
+        .map((row) => Number(row?.house_no))
+        .filter((no) => Number.isFinite(no) && no > 0)
+        .map((no) => `第${no}ハウス`),
+      count: safeNumber(selected[0]?.count),
+      total: total ?? selected.reduce((sum, row) => sum + safeNumber(row?.count), 0),
+      ratio: ratioOf(selected[0]?.count, total),
+    };
   }
 
+  const counts = { ...(houseFocus?.counts || {}) };
   const labeledCounts = {};
   Object.entries(counts).forEach(([houseNo, count]) => {
     const no = Number(houseNo);
     if (!Number.isFinite(no) || no <= 0) return;
     labeledCounts[`第${no}ハウス`] = safeNumber(count);
   });
-  const total = Number.isFinite(Number(houseFocus?.total)) ? safeNumber(houseFocus?.total) : null;
   return buildTopFromCounts({ counts: labeledCounts, totalOverride: total });
 }
 

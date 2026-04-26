@@ -2,14 +2,16 @@
 
 const { normalizeBodyKey } = require("../../domain/canonical");
 const { bodyLabelJa } = require("../shared/text/tokens");
+const { buildMorningEventNotice } = require("../shared/text/morning_event_notice");
 const { formatDateLabel, glyphForBody, signJa, aspectInfo } = require("./format/common");
 const { formatJstTimeLabel } = require("../../utils/time");
 const { buildMoonStatus } = require("../../domain/moon");
+const { pickLeadingHouseFocus } = require("../shared/house_focus");
 const {
   buildObservationAxisSummary,
   formatObservationFallback,
 } = require("./ig_observation");
-const { normalizeSpacing } = require("./spacing");
+const { normalizeSpacing, spreadSentenceSpacing } = require("./spacing");
 
 function safeNumber(x) {
   const n = Number(x);
@@ -233,7 +235,7 @@ function renderIGCaption(story, deps = {}) {
   lines.push(`☉ 太陽｜${sunSign || ""}`.trim());
   lines.push(`☽ 月｜${moonSign || ""}`.trim());
   lines.push("");
-  const captionBlock = captionCenter || buildCaptionFallback();
+  const captionBlock = spreadSentenceSpacing(captionCenter || buildCaptionFallback());
   captionBlock.split(/\n/).forEach((l) => lines.push(l));
   lines.push("");
   const resonanceLines = formatAspectBlockForCaption({ dict, aspect: resonance, transitSigns: transit });
@@ -241,7 +243,7 @@ function renderIGCaption(story, deps = {}) {
   resonanceLines.forEach((l) => lines.push(l));
   lines.push("");
   lines.push("✦ 観測ポイント");
-  lines.push(observation || buildObservationFallback());
+  lines.push(spreadSentenceSpacing(observation || buildObservationFallback()));
   lines.push("");
   lines.push("✦ 今日のソラ属性");
   lines.push(elementLine);
@@ -276,16 +278,41 @@ function buildObservationLine(story, observationRaw, dict, resonance) {
   return "内側の変化が、外側の流れに静かに重なる配置。";
 }
 
+function buildObservationLineForMorning(story, observationRaw) {
+  const raw = String(observationRaw || "").trim();
+  if (raw) {
+    const lines = raw.split(/\r?\n/).map((l) => l.trim());
+    while (lines.length && !lines[0]) lines.shift();
+    if (lines[0] && /^✦\s*観測ポイント/.test(lines[0])) {
+      lines.shift();
+      while (lines.length && !lines[0]) lines.shift();
+    }
+    const joined = lines.join("\n").trim();
+    if (joined) return joined;
+  }
+
+  const top = story?.public?.house_focus?.top || {};
+  const leading = pickLeadingHouseFocus(story?.public?.house_focus);
+  const houseLabels = leading
+    .map((row) => {
+      const houseNo = Number(row?.house_no);
+      return Number.isFinite(houseNo) ? `第${houseNo}ハウス` : "";
+    })
+    .filter(Boolean);
+  if (houseLabels.length === 1) return `${houseLabels[0]}に天体が集まり、重心が静かに残る空。`;
+  if (houseLabels.length >= 2) return `${houseLabels.slice(0, 2).join("と")}に天体が集まり、重心が静かに残る空。`;
+  return "天体集中の重心が、今日の空の輪郭として残る配置。";
+}
+
 function renderIGCaptionMorning(story, deps = {}) {
   const dict = deps?.dict || require("../../content/dict");
+  const resolveMorningEventNotice = deps?.buildMorningEventNotice || buildMorningEventNotice;
   const dateLabel = formatDateLabel(story?.meta?.date_local || story?.public?.date_local || "");
   const transit = story?.public?.transit_signs || {};
   const sunSign = transit?.sun?.sign_ja || signJa(dict, transit?.sun?.sign_key || "");
   const moonSign = transit?.moon?.sign_ja || signJa(dict, transit?.moon?.sign_key || "");
   const igOut = story?.outputs?.ig || {};
   const parts = igOut?.parts || {};
-  const resonance = story?.outputs?.ig?.source?.resonance_aspect || null;
-
   const skyStrata = story?.public?.sky_strata || {};
   const elementCount = skyStrata?.element_count || {};
   const modeCount = skyStrata?.mode_count || skyStrata?.modality_count || {};
@@ -294,8 +321,11 @@ function renderIGCaptionMorning(story, deps = {}) {
 
   const captionCenterRaw = parts.caption_center || "";
   const captionCenter = String(captionCenterRaw || "").trim();
-  const captionBlock = captionCenter || buildCaptionFallbackForMorning({ story, dict, sunSign, moonSign, resonance });
-  const observation = buildObservationLine(story, parts.caption_observation, dict, resonance);
+  const captionBlock = spreadSentenceSpacing(
+    captionCenter || buildCaptionFallbackForMorning({ sunSign, moonSign })
+  );
+  const observation = spreadSentenceSpacing(buildObservationLineForMorning(story, parts.caption_observation));
+  const morningNoticeLines = resolveMorningEventNotice(story, { dict });
 
   const lines = [];
   lines.push(`🌌 ${dateLabel} 今日の星の配置`.trim());
@@ -304,6 +334,10 @@ function renderIGCaptionMorning(story, deps = {}) {
   lines.push(`☽ 月｜${moonSign || ""}`.trim());
   lines.push("");
   captionBlock.split(/\n/).forEach((l) => lines.push(l));
+  if (morningNoticeLines.length) {
+    lines.push("");
+    morningNoticeLines.forEach((line) => lines.push(line));
+  }
   lines.push("");
   lines.push("✦ 観測ポイント");
   lines.push(observation);
@@ -324,20 +358,10 @@ function renderIGCaptionMorning(story, deps = {}) {
   return normalizeSpacing(lines.join("\n"), "ig");
 }
 
-function buildCaptionFallbackForMorning({ story, dict, sunSign, moonSign, resonance }) {
-  const aKey = normalizeBodyKey(resonance?.a || "");
-  const bKey = normalizeBodyKey(resonance?.b || "");
-  const aName = bodyLabelJa(dict, aKey);
-  const bName = bodyLabelJa(dict, bKey);
-  const info = aspectInfo(dict, resonance?.type || resonance?.aspect, resonance?.aspect_deg);
-  const label = info?.label_ja || "";
-  const deg = Number.isFinite(Number(info?.deg)) ? `${Number(info.deg)}°` : "";
-  const aspectLabel = [label, deg].filter(Boolean).join(" ").trim();
+function buildCaptionFallbackForMorning({ sunSign, moonSign }) {
   const line1 = `${sunSign || "—"}の太陽と、${moonSign || "—"}の月。`;
-  const line2 = "静かな基調が空に残ります。";
-  const line3 = (aName && bName && aspectLabel)
-    ? `${aName}と${bName}の角度が${aspectLabel}として残ります。`
-    : "空の接続は、内側に細い流れを置きます。";
+  const line2 = "天体の配置が重なり、今日の重心が見えています。";
+  const line3 = "空全体は、動きながら輪郭を整える流れです。";
   return [line1, line2, line3].join("\n");
 }
 
@@ -414,7 +438,7 @@ function renderIGCaptionResonance(story, deps = {}) {
   lines.push("【今日の共鳴】");
   resonanceLines.forEach((l) => lines.push(l));
   lines.push("");
-  lines.push(resonanceText || fallback);
+  lines.push(spreadSentenceSpacing(resonanceText || fallback));
   lines.push("");
   tags.forEach((tag) => lines.push(tag));
 
@@ -473,7 +497,7 @@ function renderIGCaptionNight(story, deps = {}) {
   lines.push(header);
   if (moonText) {
     lines.push("");
-    lines.push(moonText);
+    lines.push(spreadSentenceSpacing(moonText));
   }
   lines.push("");
   lines.push("LINEで毎朝星の配置配信中");
@@ -481,21 +505,6 @@ function renderIGCaptionNight(story, deps = {}) {
   tags.forEach((tag) => lines.push(tag));
 
   return normalizeSpacing(lines.join("\n"), "ig");
-}
-
-function splitSentences(text) {
-  const raw = String(text || "").trim();
-  if (!raw) return [];
-  const matches = raw.match(/[^。！？]+[。！？]?/g);
-  if (!matches) return [raw];
-  return matches.map((s) => s.trim()).filter(Boolean);
-}
-
-function takeSentences(text, max = 2) {
-  const sentences = splitSentences(text);
-  if (!sentences.length) return "";
-  const picked = sentences.slice(0, Math.max(1, max)).join("");
-  return picked.trim();
 }
 
 function renderIGCaptionVariant(story, deps = {}) {

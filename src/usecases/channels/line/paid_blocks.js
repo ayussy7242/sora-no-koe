@@ -20,6 +20,7 @@ const {
   toIsoAtJstNoon,
   pickApplyingUpcomingAspects,
 } = require("../../../domain/astro/compute");
+const { createSignHelpers } = require("../../../usecases/story/signs");
 const { refinePeakTime } = require("../../../domain/aspect/proximity");
 const { normalizeAspectKey } = require("../../../domain/canonical");
 const {
@@ -109,7 +110,14 @@ function buildBunpuTop5(story, dict) {
 
   const stats = computeOrbStats(scored.map((row) => Number(row?.item?.orb_deg)));
   const quality = { same: 0, tension: 0, harmony: 0 };
-  const micro = { c30_150: 0, c45_135: 0, c72_144: 0, c40_80_160: 0 };
+  const micro = {
+    c30_150: 0,
+    c45_135: 0,
+    c72_144: 0,
+    c40_80_160: 0,
+    c36_108: 0,
+    other: 0,
+  };
 
   scored.forEach((row) => {
     const degRaw = Number.isFinite(Number(row?.item?.aspect_deg)) ? Math.round(Number(row.item.aspect_deg)) : null;
@@ -120,6 +128,8 @@ function buildBunpuTop5(story, dict) {
     else if (degRaw === 45 || degRaw === 135) micro.c45_135 += 1;
     else if (degRaw === 72 || degRaw === 144) micro.c72_144 += 1;
     else if (degRaw === 40 || degRaw === 80 || degRaw === 160) micro.c40_80_160 += 1;
+    else if (degRaw === 36 || degRaw === 108) micro.c36_108 += 1;
+    else if (degRaw != null) micro.other += 1;
   });
 
   const retroMap = buildRetrogradeMap(
@@ -142,8 +152,27 @@ function buildBunpuTop5(story, dict) {
 function buildHouseBlock(story, dict, asOfISO) {
   const HOUSE_ORB_LIMIT = 2.0;
   const tps = Array.isArray(story?.personal?.touch_points_all) ? story.personal.touch_points_all : [];
+  const natalHouses = story?.personal?.natal_houses || null;
+  const cusps = Array.isArray(natalHouses?.cusps) ? natalHouses.cusps : null;
+  const { signFromLon } = createSignHelpers({
+    SIGNS: dict?.SIGNS_V1 || dict?.SIGNS || {},
+    norm360: (n) => ((Number(n) % 360) + 360) % 360,
+  });
   const houseBuckets = new Map();
-  for (let i = 1; i <= 12; i++) houseBuckets.set(i, { houseNo: i, count: 0, score: 0 });
+  for (let i = 1; i <= 12; i++) {
+    const cuspLon = Array.isArray(cusps) ? Number(cusps[i - 1]) : null;
+    const cuspSign = Number.isFinite(cuspLon)
+      ? signFromLon(cuspLon)
+      : { sign_key: null, sign_ja: null };
+    houseBuckets.set(i, {
+      houseNo: i,
+      count: 0,
+      score: 0,
+      signKey: cuspSign?.sign_key || null,
+      signJa: cuspSign?.sign_ja || null,
+      bodiesMap: new Map(),
+    });
+  }
 
   tps
     .filter((tp) => Number.isFinite(Number(tp?.orb_deg)) && Number(tp.orb_deg) <= HOUSE_ORB_LIMIT)
@@ -156,15 +185,32 @@ function buildHouseBlock(story, dict, asOfISO) {
       );
       if (!Number.isFinite(houseNo) || houseNo < 1 || houseNo > 12) return;
       const bucket = houseBuckets.get(houseNo);
+      const nKey = String(tp?.natal_body_or_point || tp?.natal_body || tp?.a || "").toLowerCase();
+      const nSignKey = String(tp?.natal_sign_key || tp?.natal_sign || "").toLowerCase() || null;
+      const nSignJa = tp?.natal_sign_ja || signJa(dict, nSignKey || "");
       bucket.count += 1;
-      bucket.score += 1;
+      bucket.score += Number(scoreForAspect({ orb: tp?.orb_deg, aKey: nKey, bKey: tp?.transit_body || tp?.b || "" }) || 0);
+      if (nKey && !bucket.bodiesMap.has(nKey)) {
+        bucket.bodiesMap.set(nKey, {
+          key: nKey,
+          signKey: nSignKey,
+          signJa: nSignJa || null,
+        });
+      }
     });
 
   const rows = [];
   for (let h = 1; h <= 12; h++) {
     const bucket = houseBuckets.get(h);
     if (!bucket) continue;
-    rows.push(bucket);
+    rows.push({
+      houseNo: bucket.houseNo,
+      count: bucket.count,
+      score: bucket.score,
+      signKey: bucket.signKey,
+      signJa: bucket.signJa,
+      bodies: Array.from(bucket.bodiesMap.values()),
+    });
   }
 
   rows.sort((a, b) => (b.score - a.score) || (a.houseNo - b.houseNo));

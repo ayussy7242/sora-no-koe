@@ -157,7 +157,7 @@ const PRESETS = {
       outputType: "plain_text",
       allowEmpty: true,
       minChars: 1,
-      maxChars: 180,
+      maxChars: 4000,
       normalizeRules: ["format_x_text"],
       repairRules: ["trim_hashtags"],
       xFormat: { normalizeSpaces: true },

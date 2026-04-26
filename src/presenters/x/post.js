@@ -13,6 +13,7 @@ const { findTransitWindowInRange } = require("../../domain/aspect/proximity");
 const { formatJstYmd, formatJstTimeLabel } = require("../../utils/time");
 const { joinLines } = require("../../utils/text/format");
 const { toHashtag } = require("../../utils/text/hashtag");
+const { buildMorningEventNotice } = require("../shared/text/morning_event_notice");
 const {
   CORE_PLANETS,
   EXTENDED_PLANETS,
@@ -24,7 +25,7 @@ const { pickPrimaryResonanceAspect } = require("../../domain/resonance");
 const { detectMoonEvent } = require("../../usecases/channels/x/ai/moon_event");
 const { buildMonthlyContext } = require("../../usecases/channels/x/ai/monthly");
 const { buildNext30DaysContext } = require("../../usecases/channels/x/ai/next_30_days");
-const { normalizeSpacing } = require("../format/spacing");
+const { normalizeSpacing, spreadSentenceSpacing } = require("../format/spacing");
 
 const SEP = "────────";
 const X_MORNING_FOLLOWUP_LINES = [
@@ -376,17 +377,23 @@ function renderXMorning(story, deps = {}) {
 
 function renderXMorningMain(story, deps = {}) {
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
+  const resolveMorningEventNotice = deps?.buildMorningEventNotice || buildMorningEventNotice;
   const rawAi = String(story?.meta?.x_ai?.morning || "").trim();
   const asOfISO = story?.meta?.as_of || null;
   const dateLocal = story?.meta?.date_local || story?.public?.date_local ||
     (asOfISO ? toDateLocalJST(new Date(asOfISO)) : "");
-  const ai = rawAi ? rewriteXMorningFollowup(formatXAiText(rawAi), dateLocal) : "";
+  const ai = rawAi ? spreadSentenceSpacing(rewriteXMorningFollowup(formatXAiText(rawAi), dateLocal)) : "";
   const dateLabel = formatDateLabel(dateLocal);
   const timeLabel = formatJstTimeLabel(asOfISO);
   const header = `🌌 今日の空｜${[dateLabel, timeLabel].filter(Boolean).join(" ")}`.trim();
+  const morningNoticeLines = resolveMorningEventNotice(story, { dict: deps?.dict || require("../../content/dict") });
 
   const baseLines = [header];
   if (ai) baseLines.push("", ai);
+  if (morningNoticeLines.length) {
+    baseLines.push("");
+    morningNoticeLines.forEach((line) => baseLines.push(line));
+  }
   return normalizeSpacing(joinLines(baseLines, { trim: true, collapseBlank: true }), "x");
 }
 
@@ -401,13 +408,13 @@ function renderXMorningLog(story, deps = {}) {
 
   const tags = "#星の配置 #天体観測";
   const baseLines = ["🌌 星の配置", "", joinLines(logLines), "", tags];
-  return joinLines(baseLines);
+  return normalizeSpacing(joinLines(baseLines), "x");
 }
 
 function renderXNight(story, deps = {}) {
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.night || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const ai = rawAi ? spreadSentenceSpacing(formatXAiText(rawAi)) : "";
   const asOfISO = story?.meta?.as_of || null;
   const dateLocal = story?.meta?.date_local || story?.public?.date_local ||
     (asOfISO ? toDateLocalJST(new Date(asOfISO)) : "");
@@ -417,13 +424,13 @@ function renderXNight(story, deps = {}) {
 
   const lines = [header];
   if (ai) lines.push("", ai);
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 function renderXResonance(story, deps = {}) {
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.resonance || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const ai = rawAi ? spreadSentenceSpacing(formatXAiText(rawAi)) : "";
   const dict = deps?.dict || require("../../content/dict");
   const raw = resolveResonanceRaw(story, dict, { fallback: false });
   if (!raw) return "";
@@ -465,7 +472,7 @@ function renderXResonance(story, deps = {}) {
   ];
   if (infoLine) lines.push("", infoLine);
   if (ai) lines.push("", ai);
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 function resolveMoonEventDisplay(story, dict) {
@@ -482,7 +489,7 @@ function renderXMoonEvent(story, deps = {}) {
   const event = resolveMoonEventDisplay(story, dict);
   if (!event) return "";
   const rawAi = String(story?.meta?.x_ai?.moon_event || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const ai = rawAi ? spreadSentenceSpacing(formatXAiText(rawAi)) : "";
   const phaseName = event.phaseName || (event.kind === "new" ? "新月" : "満月");
   const signJa = event.signJa && event.signJa !== "—" ? event.signJa : "";
   const core = signJa ? `${signJa}${phaseName}` : phaseName;
@@ -492,7 +499,7 @@ function renderXMoonEvent(story, deps = {}) {
   const line2 = dateTextRaw ? `${dateTextRaw} JST` : "";
   const lines = [line1, line2].filter(Boolean);
   if (ai) lines.push("", ai);
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 function renderXMonthly(story, deps = {}) {
@@ -506,7 +513,7 @@ function renderXMonthly(story, deps = {}) {
 
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.monthly || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const ai = rawAi ? spreadSentenceSpacing(formatXAiText(rawAi)) : "";
   const points = Array.isArray(ctx.points) ? ctx.points.slice(0, 3) : [];
   const pointLines = points.map((p) => `・${p}`);
   const newLine = ctx.newEvent?.label ? `新月｜${ctx.newEvent.label} ${ctx.newEvent.dateLabel || ""}`.trim() : "";
@@ -527,7 +534,7 @@ function renderXMonthly(story, deps = {}) {
     "",
     "今月の空を、毎日置いていきます 🌌",
   ];
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 function renderXNext30Days(story, deps = {}) {
@@ -539,7 +546,7 @@ function renderXNext30Days(story, deps = {}) {
 
   const { formatXAiText } = require("../../usecases/channels/x/ai/common");
   const rawAi = String(story?.meta?.x_ai?.next_30_days || "").trim();
-  const ai = rawAi ? formatXAiText(rawAi) : "";
+  const ai = rawAi ? spreadSentenceSpacing(formatXAiText(rawAi)) : "";
   const events = [
     ctx.newEvent?.date instanceof Date ? {
       kind: "新月",
@@ -561,7 +568,7 @@ function renderXNext30Days(story, deps = {}) {
     "",
     ai,
   ];
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 function renderXNext30DaysFlow(story, deps = {}) {
@@ -641,7 +648,7 @@ function renderXNext30DaysFlow(story, deps = {}) {
     eventTagsLine ? "" : null,
     eventTagsLine || null,
   ];
-  return joinLines(lines);
+  return normalizeSpacing(joinLines(lines), "x");
 }
 
 module.exports = {

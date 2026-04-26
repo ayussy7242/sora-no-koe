@@ -291,25 +291,7 @@ async function renderSoraLine(story, deps = {}) {
     return lines;
   })();
 
-  const aspectSummaryLines = (() => {
-    if (!isPaid || !picked.length) return [];
-    const counts = new Map();
-    picked.forEach((item) => {
-      const aspect = formatAspectDisplay({
-        dict,
-        rawType: item?.type || item?.aspT || item?.aspect,
-        aspectDeg: item?.aspect_deg,
-      });
-      const deg = aspect?.deg != null ? Math.round(Number(aspect.deg)) : null;
-      if (deg == null) return;
-      counts.set(deg, (counts.get(deg) || 0) + 1);
-    });
-    if (!counts.size) return [];
-    const parts = Array.from(counts.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([deg, count]) => `${deg}°×${count}`);
-    return [`${SPEC.labels.sora.aspectSummaryPrefix}${parts.join(" / ")}`];
-  })();
+  const aspectSummaryLines = [];
 
   const distLines = formatElementModalityLines(pub.sky_strata || story?.meta?.sky_strata || null);
   const sep = SPEC.separators.section;

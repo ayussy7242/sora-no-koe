@@ -31,8 +31,17 @@ function pickDateLocal({ q, b, fallbackNow = true } = {}) {
   return fallbackNow ? toDateLocalJST() : null;
 }
 
+function normalizeAsOfCandidate(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  // In query strings, "+" in timezone offsets is often decoded as a space.
+  return text.replace(/(\d{2}:\d{2}:\d{2}(?:\.\d+)?) (\d{2}:\d{2})$/, "$1+$2");
+}
+
 function pickAsOfISO({ q, b, dateLocal = null, fallbackFromDateLocal = false } = {}) {
-  const asOfRaw = b?.as_of ?? q?.as_of;
+  const asOfRaw = normalizeAsOfCandidate(
+    b?.as_of ?? q?.as_of ?? b?.asOfISO ?? q?.asOfISO
+  );
   if (isValidISO(asOfRaw)) return String(asOfRaw);
 
   const dtLocalRaw = b?.datetime_local ?? q?.datetime_local;

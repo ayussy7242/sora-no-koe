@@ -17,6 +17,7 @@ const { CORE_PLANETS } = require("../../../domain/astro/constants");
 const { generateIgDailyAiOutputs } = require("../../../usecases/channels/instagram/ai/daily");
 const { buildPublicStorySnapshot } = require("../../../usecases/story/store");
 const { buildObservationMeta } = require("../../../usecases/story/observation_meta");
+const { buildSkyEventMeta } = require("../../../usecases/story/sky_event_meta");
 const { ensureIgOutputs } = require("../../../usecases/story/output_helpers");
 const { claimCronLock, markCronLockSuccess, markCronLockFailed } = require("../../../usecases/cron/lock_utils");
 const {
@@ -386,6 +387,7 @@ async function runIgPost(deps, opts = {}) {
       ? (renderIGCaptionVariant(story, { dict, variant: slotKey }) || renderIGCaption(story, { dict }))
       : renderIGCaption(story, { dict });
     const observationMeta = buildObservationMeta({ story, dict, asOfISO, dateLocal });
+    const skyEventMeta = buildSkyEventMeta({ story, dict, asOfISO });
 
     if (localOnly) {
       const buffers = await renderInstagramCarousel({ ...carousel, backgroundCache });
@@ -406,6 +408,7 @@ async function runIgPost(deps, opts = {}) {
           carousel,
           resonance_debug: resonanceDebug,
           observation_meta: observationMeta,
+          sky_event_meta: skyEventMeta,
         },
         outDir: localOutDir,
         filename: "ig_post.json",
@@ -428,6 +431,7 @@ async function runIgPost(deps, opts = {}) {
         local_json: jsonPath,
         resonance_debug: resonanceDebug,
         observation_meta: observationMeta,
+        sky_event_meta: skyEventMeta,
       };
     }
 
@@ -482,6 +486,7 @@ async function runIgPost(deps, opts = {}) {
         gcs_paths: upload.paths,
         resonance_debug: resonanceDebug,
         observation_meta: observationMeta,
+        sky_event_meta: skyEventMeta,
     };
     }
 

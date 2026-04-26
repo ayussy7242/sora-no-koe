@@ -317,6 +317,7 @@ function createCronRouter(deps = {}) {
         return {
           dateLocal,
           asOfISO,
+          slot: b?.slot ?? q?.slot ?? "",
           dryRun: pickDryRun({ q, b }),
           withCta: pickBoolFlag({ q, b, keys: ["with_cta", "withCta"], defaultValue: true }),
           useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),

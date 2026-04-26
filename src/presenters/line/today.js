@@ -74,15 +74,7 @@ async function renderLine(story, deps = {}) {
 
   if (includeHeader) lines.push("");
 
-  if (isPaid && picked.length) {
-    const stats = computeOrbStats(picked.map((it) => Number(it?.orb_deg)));
-    lines.push(
-      `件数 ${stats.count}`,
-      `平均orb ${stats.avg.toFixed(1)}°｜最小 ${stats.min.toFixed(1)}°｜最大 ${stats.max.toFixed(1)}°`,
-      `orb帯 0–1:${stats.bands["0-1"]} / 1–2:${stats.bands["1-2"]} / 2–3:${stats.bands["2-3"]}`,
-      ""
-    );
-  }
+  if (isPaid && picked.length) lines.push("");
 
   picked.forEach((it, i) => {
     const nKey = normalizeBodyKey(it?.natal_body_or_point || it?.natal_body || it?.a || "");

@@ -11,6 +11,7 @@ const {
 } = require("../shared/utils");
 
 const X_HARD_MAX_CHARS = 180;
+const X_PREMIUM_HARD_MAX_CHARS = 4000;
 
 function resolveXHardMaxChars() {
   const premiumEnabled = String(
@@ -18,7 +19,9 @@ function resolveXHardMaxChars() {
     process.env.X_POST_PREMIUM_ENABLED ??
     ""
   ).trim().toLowerCase();
-  const isPremium = ["1", "true", "yes", "on"].includes(premiumEnabled);
+  const isPremium = premiumEnabled
+    ? ["1", "true", "yes", "on"].includes(premiumEnabled)
+    : true;
 
   const configured = Number(
     process.env.X_HARD_MAX_CHARS ??
@@ -29,7 +32,7 @@ function resolveXHardMaxChars() {
     return configured;
   }
 
-  return isPremium ? 4000 : X_HARD_MAX_CHARS;
+  return isPremium ? X_PREMIUM_HARD_MAX_CHARS : X_HARD_MAX_CHARS;
 }
 
 function pickPreviewMoonEvent({ dict, asOfISO }) {
@@ -55,7 +58,7 @@ function truncateForX(text, maxChars) {
   return { text: trimmed, truncated: true };
 }
 
-function resolveXMaxChars(value, fallback = X_HARD_MAX_CHARS) {
+function resolveXMaxChars(value, fallback = resolveXHardMaxChars()) {
   const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
   return Math.min(resolved, resolveXHardMaxChars());
 }
@@ -129,6 +132,7 @@ function classifyXError(err) {
 
 module.exports = {
   X_HARD_MAX_CHARS,
+  X_PREMIUM_HARD_MAX_CHARS,
   resolveXHardMaxChars,
   nowIso,
   parseJsonSafe,

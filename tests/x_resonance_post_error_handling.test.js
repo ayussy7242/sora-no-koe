@@ -44,3 +44,23 @@ test("resolveXMaxChars allows premium cap override via env", () => {
     else process.env.X_HARD_MAX_CHARS = prevHardMax;
   }
 });
+
+test("resolveXMaxChars defaults to premium-sized cap when premium flag is unset", () => {
+  const prevPremium = process.env.X_PREMIUM_ENABLED;
+  const prevHardMax = process.env.X_HARD_MAX_CHARS;
+
+  delete process.env.X_PREMIUM_ENABLED;
+  delete process.env.X_HARD_MAX_CHARS;
+
+  try {
+    assert.equal(resolveXMaxChars(undefined), 4000);
+    assert.equal(resolveXMaxChars(5000), 4000);
+    assert.equal(resolveXMaxChars(220), 220);
+  } finally {
+    if (prevPremium === undefined) delete process.env.X_PREMIUM_ENABLED;
+    else process.env.X_PREMIUM_ENABLED = prevPremium;
+
+    if (prevHardMax === undefined) delete process.env.X_HARD_MAX_CHARS;
+    else process.env.X_HARD_MAX_CHARS = prevHardMax;
+  }
+});
