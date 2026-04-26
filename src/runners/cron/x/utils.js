@@ -12,6 +12,26 @@ const {
 
 const X_HARD_MAX_CHARS = 180;
 
+function resolveXHardMaxChars() {
+  const premiumEnabled = String(
+    process.env.X_PREMIUM_ENABLED ??
+    process.env.X_POST_PREMIUM_ENABLED ??
+    ""
+  ).trim().toLowerCase();
+  const isPremium = ["1", "true", "yes", "on"].includes(premiumEnabled);
+
+  const configured = Number(
+    process.env.X_HARD_MAX_CHARS ??
+    process.env.X_POST_HARD_MAX_CHARS ??
+    ""
+  );
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  return isPremium ? 4000 : X_HARD_MAX_CHARS;
+}
+
 function pickPreviewMoonEvent({ dict, asOfISO }) {
   const events = buildNextMoonEvents(asOfISO, dict);
   const ordered = orderedMoonEvents(events);
@@ -37,7 +57,7 @@ function truncateForX(text, maxChars) {
 
 function resolveXMaxChars(value, fallback = X_HARD_MAX_CHARS) {
   const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
-  return Math.min(resolved, X_HARD_MAX_CHARS);
+  return Math.min(resolved, resolveXHardMaxChars());
 }
 
 function normalizeXError(err) {
@@ -109,6 +129,7 @@ function classifyXError(err) {
 
 module.exports = {
   X_HARD_MAX_CHARS,
+  resolveXHardMaxChars,
   nowIso,
   parseJsonSafe,
   addDaysToDateLocalJST,
