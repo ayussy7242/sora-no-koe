@@ -13,16 +13,19 @@ const {
 const X_HARD_MAX_CHARS = 180;
 const X_PREMIUM_HARD_MAX_CHARS = 4000;
 
-function resolveXHardMaxChars() {
+function isXPremiumEnabled() {
   const premiumEnabled = String(
     process.env.X_PREMIUM_ENABLED ??
     process.env.X_POST_PREMIUM_ENABLED ??
     ""
   ).trim().toLowerCase();
-  const isPremium = premiumEnabled
+
+  return premiumEnabled
     ? ["1", "true", "yes", "on"].includes(premiumEnabled)
     : true;
+}
 
+function resolveXHardMaxChars() {
   const configured = Number(
     process.env.X_HARD_MAX_CHARS ??
     process.env.X_POST_HARD_MAX_CHARS ??
@@ -32,7 +35,39 @@ function resolveXHardMaxChars() {
     return configured;
   }
 
-  return isPremium ? X_PREMIUM_HARD_MAX_CHARS : X_HARD_MAX_CHARS;
+  return isXPremiumEnabled() ? X_PREMIUM_HARD_MAX_CHARS : X_HARD_MAX_CHARS;
+}
+
+function trimToNaturalBoundary(text, maxChars) {
+  const raw = String(text || "");
+  const limit = Number(maxChars);
+  if (!Number.isFinite(limit) || limit <= 0) return raw;
+
+  const chars = Array.from(raw);
+  if (chars.length <= limit) return raw;
+
+  const sliced = chars.slice(0, Math.max(0, limit)).join("");
+  const exactBoundary = /[\n。．.!！?？]\s*$/u.test(sliced);
+  if (exactBoundary) return sliced.trimEnd();
+
+  const boundaryIndexes = [];
+  for (const pattern of [/\n/g, /[。．.!！?？](?=\s|$)/gu, /\s+/g]) {
+    let match;
+    while ((match = pattern.exec(sliced)) !== null) {
+      boundaryIndexes.push(match.index + match[0].length);
+    }
+  }
+
+  const minAcceptable = Math.max(0, limit - 40);
+  const candidate = boundaryIndexes
+    .filter((idx) => idx >= minAcceptable && idx < sliced.length)
+    .sort((a, b) => b - a)[0];
+
+  if (candidate) {
+    return sliced.slice(0, candidate).trimEnd();
+  }
+
+  return sliced.trimEnd();
 }
 
 function pickPreviewMoonEvent({ dict, asOfISO }) {
@@ -53,14 +88,20 @@ function truncateForX(text, maxChars) {
   if (countChars(withTrimmedTags) <= maxChars) {
     return { text: withTrimmedTags, truncated: withTrimmedTags !== raw };
   }
-  const chars = Array.from(withTrimmedTags);
-  const trimmed = chars.slice(0, Math.max(0, maxChars)).join("");
+  const trimmed = trimToNaturalBoundary(withTrimmedTags, maxChars);
   return { text: trimmed, truncated: true };
 }
 
 function resolveXMaxChars(value, fallback = resolveXHardMaxChars()) {
-  const resolved = Number.isFinite(Number(value)) ? Number(value) : fallback;
-  return Math.min(resolved, resolveXHardMaxChars());
+  const hardMax = resolveXHardMaxChars();
+  if (!Number.isFinite(Number(value))) return hardMax;
+
+  const resolved = Number(value);
+  if (isXPremiumEnabled() && resolved > 0 && resolved <= X_HARD_MAX_CHARS) {
+    return hardMax;
+  }
+
+  return Math.min(resolved, hardMax);
 }
 
 function normalizeXError(err) {
@@ -133,6 +174,7 @@ function classifyXError(err) {
 module.exports = {
   X_HARD_MAX_CHARS,
   X_PREMIUM_HARD_MAX_CHARS,
+  isXPremiumEnabled,
   resolveXHardMaxChars,
   nowIso,
   parseJsonSafe,
