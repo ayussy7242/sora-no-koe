@@ -124,9 +124,13 @@ function daysInMonth(year, month) {
 }
 
 function weekdayIndexJst(dateLocal) {
-  const d = new Date(`${dateLocal}T00:00:00+09:00`);
-  if (Number.isNaN(d.getTime())) return 0;
-  return d.getUTCDay();
+  const parts = String(dateLocal || "").split("-");
+  if (parts.length !== 3) return 0;
+  const year = Number(parts[0]);
+  const monthIndex = Number(parts[1]) - 1;
+  const day = Number(parts[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) return 0;
+  return new Date(year, monthIndex, day).getDay();
 }
 
 function dailyPhaseIcon(dateLocal) {
