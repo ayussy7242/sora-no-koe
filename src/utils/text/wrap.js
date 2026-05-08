@@ -12,6 +12,14 @@ function isProtectedTimeChar(ch) {
   return /[0-9:./年月日時分+\-]/.test(String(ch || ""));
 }
 
+function charWeight(ch) {
+  return /[\u0020-\u007E]/.test(String(ch || "")) ? 0.5 : 1;
+}
+
+function weightedLength(chars = []) {
+  return chars.reduce((sum, ch) => sum + charWeight(ch), 0);
+}
+
 function resolveBreakIndex(chars, maxChars) {
   const limit = Math.min(chars.length, Math.max(1, Number(maxChars) || chars.length));
   if (chars.length <= limit) return chars.length;
@@ -30,6 +38,19 @@ function resolveBreakIndex(chars, maxChars) {
     idx -= 1;
   }
   return Math.max(1, idx);
+}
+
+function resolveWeightedBreakIndex(chars, maxChars) {
+  const safeMax = Math.max(0.5, Number(maxChars) || 0.5);
+  let weight = 0;
+  for (let i = 0; i < chars.length; i += 1) {
+    const next = weight + charWeight(chars[i]);
+    if (next > safeMax) {
+      return Math.max(1, i);
+    }
+    weight = next;
+  }
+  return chars.length;
 }
 
 function wrapByChars(text, maxChars, maxLines = 2) {
@@ -60,34 +81,56 @@ function wrapLines(text, maxCharsOrOpts, maxLinesMaybe) {
   let maxChars = 20;
   let maxLines = 3;
   let preserveNewlines = true;
+  let preserveParagraphsOnly = false;
+  let useHalfWidthWeight = false;
+  let preferNaturalBreaks = true;
 
   if (typeof maxCharsOrOpts === "object" && maxCharsOrOpts !== null) {
     maxChars = Number.isFinite(Number(maxCharsOrOpts.maxChars)) ? Number(maxCharsOrOpts.maxChars) : maxChars;
     maxLines = Number.isFinite(Number(maxCharsOrOpts.maxLines)) ? Number(maxCharsOrOpts.maxLines) : maxLines;
     preserveNewlines = maxCharsOrOpts.preserveNewlines !== false;
+    preserveParagraphsOnly = maxCharsOrOpts.preserveParagraphsOnly === true;
+    useHalfWidthWeight = maxCharsOrOpts.useHalfWidthWeight === true;
+    preferNaturalBreaks = maxCharsOrOpts.preferNaturalBreaks !== false;
   } else {
     maxChars = Number.isFinite(Number(maxCharsOrOpts)) ? Number(maxCharsOrOpts) : maxChars;
     maxLines = Number.isFinite(Number(maxLinesMaybe)) ? Number(maxLinesMaybe) : maxLines;
   }
 
-  const segments = preserveNewlines ? raw.split(/\r?\n/) : [raw];
+  const segments = (() => {
+    if (!preserveNewlines) return [raw];
+    if (!preserveParagraphsOnly) return raw.split(/\r?\n/);
+
+    return raw
+      .split(/\r?\n\s*\r?\n/)
+      .map((segment) => String(segment || "").replace(/\s*\r?\n\s*/g, " ").trim())
+      .filter(Boolean);
+  })();
   const lines = [];
 
   const pushWrapped = (segment) => {
     const trimmed = String(segment || "").trim();
     if (!trimmed) return;
     const chars = Array.from(trimmed);
-    if (chars.length <= maxChars) {
+    if ((useHalfWidthWeight ? weightedLength(chars) : chars.length) <= maxChars) {
       lines.push(trimmed);
       return;
     }
     let remaining = chars.slice();
     while (remaining.length && lines.length < maxLines) {
-      if (remaining.length <= maxChars) {
+      if ((useHalfWidthWeight ? weightedLength(remaining) : remaining.length) <= maxChars) {
         lines.push(remaining.join(""));
         break;
       }
-      const cut = resolveBreakIndex(remaining, maxChars);
+      const cut = (() => {
+        if (useHalfWidthWeight) {
+          const weightedCut = resolveWeightedBreakIndex(remaining, maxChars);
+          if (!preferNaturalBreaks) return weightedCut;
+          return resolveBreakIndex(remaining, weightedCut);
+        }
+        if (!preferNaturalBreaks) return Math.max(1, Math.min(remaining.length, maxChars));
+        return resolveBreakIndex(remaining, maxChars);
+      })();
       lines.push(remaining.slice(0, cut).join("").trimEnd());
       remaining = remaining.slice(cut);
     }

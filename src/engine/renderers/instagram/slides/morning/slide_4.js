@@ -1,15 +1,9 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { CANVAS, TOK, escapeXml, textBlock, baseSvg, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 const { buildGlyphLine } = require("../common/glyph_layout");
-
-function estimateTextWidth(line, size) {
-  const text = String(line || "");
-  if (!text) return size * 2;
-  const len = Array.from(text).length;
-  return Math.max(size * 2, len * size * 0.82);
-}
+const { estimateTextWidth, resolveCarouselTextLines } = require("../common/text_layout");
 
 function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "body" }) {
   const px = Number.isFinite(Number(pad)) ? Number(pad) : 0;
@@ -57,9 +51,36 @@ function getAvoidRegions({
   const subtitleY = titleY + 120;
   const ctaY = subtitleY + 176;
   const linkY = ctaY + 64;
-  const headerLines = wrapLines(header, 12, 2);
-  const ctaLines = wrapLines(cta || "今日の空", 18, 2);
-  const subLines = wrapLines(sub || "星の配置はLINEで配信中\nネイタル一覧も見れます", 18, 2);
+  const headerLines = resolveCarouselTextLines({
+    text: header,
+    size: TOK.cta.headerSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 12,
+    minChars: 6,
+    maxLines: 2,
+    extraSafeWidth: 32,
+  });
+  const ctaLines = resolveCarouselTextLines({
+    text: cta || "今日の空",
+    size: TOK.cta.altCtaSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 18,
+    minChars: 8,
+    maxLines: 2,
+    extraSafeWidth: 40,
+  });
+  const subLines = resolveCarouselTextLines({
+    text: sub || "星の配置はLINEで配信中 ネイタル一覧も見れます",
+    size: TOK.cta.altSubSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 18,
+    minChars: 8,
+    maxLines: 2,
+    extraSafeWidth: 40,
+  });
 
   if (ornament) {
     const ornamentWidth = ornamentGlyphBox * 2 + ornamentLineWidth + ornamentGap * 2;
@@ -268,9 +289,36 @@ function buildSlide5Svg({
   const subtitleY = titleY + 120;
   const ctaY = subtitleY + 176;
   const linkY = ctaY + 64;
-  const headerLines = wrapLines(header, 12, 2);
-  const ctaLines = wrapLines(cta, 18, 2);
-  const subLines = wrapLines(sub, 18, 2);
+  const headerLines = resolveCarouselTextLines({
+    text: header,
+    size: TOK.cta.headerSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 12,
+    minChars: 6,
+    maxLines: 2,
+    extraSafeWidth: 32,
+  });
+  const ctaLines = resolveCarouselTextLines({
+    text: cta,
+    size: TOK.cta.altCtaSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 18,
+    minChars: 8,
+    maxLines: 2,
+    extraSafeWidth: 40,
+  });
+  const subLines = resolveCarouselTextLines({
+    text: sub,
+    size: TOK.cta.altSubSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 18,
+    minChars: 8,
+    maxLines: 2,
+    extraSafeWidth: 40,
+  });
 
   if (ornament) {
     const ornamentBlock = buildOrnamentGlyphLine({

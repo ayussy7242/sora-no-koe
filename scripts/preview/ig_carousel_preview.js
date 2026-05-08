@@ -4,19 +4,19 @@
 const fs = require("fs");
 const path = require("path");
 const dict = require("../../src/content/dict");
-const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic, buildTsukijiThemeLine } = require("../../src/domain/tsukiji_public");
+const { buildTsukijiRowsPublic, buildKinjitsuRowsPublic, buildTsukijiThemeLine } = require("../../src/domain/tsukiji/public");
 const {
   buildMoonStatus,
-  formatMoonEventDisplay,
-} = require("../../src/domain/moon_info");
-const { selectNextMajorPhase } = require("../../src/domain/moon_phase");
+} = require("../../src/domain/moon/summary");
+const { formatMoonEventDisplay } = require("../../src/domain/moon/events");
+const { selectNextMajorPhase } = require("../../src/domain/moon/phase_select");
 const {
   renderInstagramCarousel,
   formatDateLabel,
 } = require("../../src/engine/renderers/instagram/carousel");
 const { computeSpaceTheme } = require("../../src/engine/shared/space_background/theme");
 const { pickObservationLine } = require("../../src/presenters/format/ig_caption");
-const { signIndexFromKey, houseNumberForSignIndex } = require("../../src/domain/astro_compute");
+const { signIndexFromKey, houseNumberForSignIndex } = require("../../src/domain/astro");
 const { signGlyph } = require("../../src/presenters/shared/text/tokens");
 
 function parseArgs(argv) {

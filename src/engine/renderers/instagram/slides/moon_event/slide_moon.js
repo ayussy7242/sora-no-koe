@@ -1,25 +1,13 @@
 "use strict";
 const { buildMoonPhaseGlyph: buildMoonPhaseGlyphShared } = require("../../../../shared/moon_glyph");
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { CANVAS, TOK, escapeXml, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
 const { clamp } = require("../../../../../utils/data/math");
+const { estimateTextWidth, resolveCarouselBodyLines } = require("../common/text_layout");
 
 const MOON_LAYOUT = DEFAULT_MOON_LAYOUT;
-
-function estimateTextWidth(line, size) {
-  const text = String(line || "");
-  if (!text) return size * 2;
-  const len = Array.from(text).length;
-  return Math.max(size * 2, len * size * 0.82);
-}
-
-function resolveBodyMaxChars(size) {
-  const available = CANVAS.width - TOK.marginX * 2;
-  const perChar = size * 0.95;
-  return Math.max(16, Math.floor(available / perChar));
-}
 
 function resolveNextLayout({ nextOffsetY = 0, lineCount = 2 } = {}) {
   const offset = Number(nextOffsetY) || 0;
@@ -118,8 +106,16 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
-  const observationLines = wrapLines(observation, observationMaxChars, 999);
+  const observationLines = resolveCarouselBodyLines({
+    text: observation,
+    size: TOK.moon.observationSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 16,
+    maxLines: 999,
+    extraSafeWidth: 48,
+  });
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
     fields.push(makeField({
@@ -232,8 +228,16 @@ function buildSlideMoonSvg({
   const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
-  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
-  const observationLines = wrapLines(observation, observationMaxChars, 999);
+  const observationLines = resolveCarouselBodyLines({
+    text: observation,
+    size: TOK.moon.observationSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 16,
+    maxLines: 999,
+    extraSafeWidth: 48,
+  });
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
   const nextLines = [nextPhaseLine, nextNameDateLine].filter(Boolean);

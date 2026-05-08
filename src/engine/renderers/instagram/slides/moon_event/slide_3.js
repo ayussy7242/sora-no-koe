@@ -1,7 +1,8 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { CANVAS, TOK, escapeXml, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors, BODY_GLOW_COLORS } = require("../../theme");
+const { estimateTextWidth, resolveCarouselBodyLines } = require("../common/text_layout");
 const {
   PATH_GLYPHS,
   extractGlyph,
@@ -10,17 +11,23 @@ const {
   pickGlyphFontFamily,
 } = require("../common/glyph_layout");
 
-function estimateTextWidth(line, size) {
-  const text = String(line || "");
-  if (!text) return size * 2;
-  const len = Array.from(text).length;
-  return Math.max(size * 2, len * size * 0.82);
-}
-
 function resolveBodyMaxChars(size) {
   const available = CANVAS.width - TOK.marginX * 2;
   const perChar = size * 0.95;
   return Math.max(16, Math.floor(available / perChar));
+}
+
+function resolveStructureLines(structure) {
+  return resolveCarouselBodyLines({
+    text: structure,
+    size: TOK.resonance.bodySize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 16,
+    maxLines: 99,
+    extraSafeWidth: 48,
+  });
 }
 
 function resolvePeakLayout(lineCount = 2) {
@@ -133,8 +140,7 @@ function getAvoidRegions({
       kind: "subtitle",
     }));
   }
-  const bodyMaxChars = resolveBodyMaxChars(TOK.resonance.bodySize);
-  const bodyLines = wrapLines(structure, bodyMaxChars, 99);
+  const bodyLines = resolveStructureLines(structure);
   if (bodyLines.length) {
     const w = Math.max(...bodyLines.map((l) => estimateTextWidth(l, TOK.resonance.bodySize)));
     fields.push(makeField({
@@ -247,8 +253,7 @@ function buildSlide3Svg({
   const headerY = TOK.resonance.headerY;
   const subLabelY = headerY + TOK.subLabel.offsetY;
 
-  const bodyMaxChars = resolveBodyMaxChars(TOK.resonance.bodySize);
-  const structureLines = wrapLines(structure, bodyMaxChars, 99);
+  const structureLines = resolveStructureLines(structure);
   const glyphA = extractGlyph(lineA);
   const glyphB = extractGlyph(lineB);
   const lineAColorResolved = lineAColor || colors.textMain;

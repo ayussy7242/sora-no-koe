@@ -103,11 +103,11 @@ Data fields:
 Text limits:
 - `lineA` / `lineB`: 18 chars (1 line)
 - `aspectLine`: 24 chars (1 line)
-- `structure`: no auto wrap or truncation (manual line breaks only)
+- `structure`: auto-wrap only, no truncation
 
 Wrap rules:
-- `structure` auto-wraps by character count (20 chars/line) without truncation.
-- Manual line breaks (`\n`) are respected and wrapped per line.
+- `structure` auto-wraps by character count (about 25 chars/line) without truncation.
+- Single line breaks inside `structure` are flattened before wrapping; blank lines are preserved as paragraph breaks.
 
 AI integration (optional):
 - If `story.outputs.ig.carousel.slide3_text` (or `story.outputs.ig.resonance_text`) exists, use it as `structure`.

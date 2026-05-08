@@ -1,6 +1,6 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, renderSvgToPng } = require("../common/shared");
+const { CANVAS, TOK, escapeXml, textBlock, baseSvg, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 const {
   measureTextWidth,
@@ -8,6 +8,7 @@ const {
   extractGlyph,
   buildGlyphLine,
 } = require("../common/glyph_layout");
+const { resolveCarouselTextLines } = require("../common/text_layout");
 
 const SIGN_JA_TO_KEY = {
   "牡羊座": "aries",
@@ -345,7 +346,16 @@ function getAvoidRegions({
     }));
   }
 
-  const obsLines = pressureList.length ? [] : wrapLines(observation, 20, 2);
+  const obsLines = pressureList.length ? [] : resolveCarouselTextLines({
+    text: observation,
+    size: obsSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 20,
+    minChars: 10,
+    maxLines: 2,
+    extraSafeWidth: 36,
+  });
   if (obsLines.length) {
     const obsWidth = Math.max(...obsLines.map((l) => estimateTextWidth(l, TOK.cover.observation.size, "body")));
     const obsBlockY = (obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle)
@@ -450,7 +460,16 @@ function buildSlide1Svg({
   };
 
   const pressureList = Array.isArray(pressureLines) ? pressureLines.filter(Boolean) : [];
-  const obsLines = pressureList.length ? [] : wrapLines(observation, 20, 2);
+  const obsLines = pressureList.length ? [] : resolveCarouselTextLines({
+    text: observation,
+    size: obsSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 20,
+    minChars: 10,
+    maxLines: 2,
+    extraSafeWidth: 36,
+  });
   const obsBlockY = (obsLines.length > 1 ? TOK.cover.observation.yMulti : TOK.cover.observation.ySingle)
     + COVER_LAYOUT.shiftY
     + globalOffsetY;

@@ -1,15 +1,9 @@
 "use strict";
 
-const { CANVAS, TOK, escapeXml, wrapLines, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
+const { CANVAS, TOK, escapeXml, textBlock, baseSvg, buildSectionHeader, buildRightFooter, renderSvgToPng } = require("../common/shared");
 const { resolveColors } = require("../../theme");
 const { buildGlyphLine } = require("../common/glyph_layout");
-
-function estimateTextWidth(line, size) {
-  const text = String(line || "");
-  if (!text) return size * 2;
-  const len = Array.from(text).length;
-  return Math.max(size * 2, len * size * 0.82);
-}
+const { estimateTextWidth, resolveCarouselTextLines } = require("../common/text_layout");
 
 function makeField({ x, y, w, h, pad = 12, weight = 1, feather = null, kind = "body" }) {
   const px = Number.isFinite(Number(pad)) ? Number(pad) : 0;
@@ -72,7 +66,16 @@ function getAvoidRegions({
       kind: "heroText",
     }));
   }
-  const structureLines = wrapLines(structureLabel, 22, 2);
+  const structureLines = resolveCarouselTextLines({
+    text: structureLabel,
+    size: TOK.tsukiji.structureSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 12,
+    maxLines: 2,
+    extraSafeWidth: 36,
+  });
   if (structureLines.length) {
     const w = Math.max(...structureLines.map((l) => estimateTextWidth(l, TOK.tsukiji.structureSize)));
     fields.push(makeField({
@@ -147,7 +150,16 @@ function buildSlide4Svg({
   const marginX = TOK.marginX;
   const headerY = TOK.tsukiji.headerY;
 
-  const structureLines = wrapLines(structureLabel, 22, 2);
+  const structureLines = resolveCarouselTextLines({
+    text: structureLabel,
+    size: TOK.tsukiji.structureSize,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 12,
+    maxLines: 2,
+    extraSafeWidth: 36,
+  });
 
   const inner = [
     buildSectionHeader({ label: header, x: marginX, y: headerY, lineWidth: TOK.header.lineWidth, colors }),

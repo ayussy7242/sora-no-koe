@@ -6,21 +6,9 @@ const { measureTextWidth } = require("../common/glyph_layout");
 const { resolveColors } = require("../../theme");
 const { DEFAULT_MOON_LAYOUT } = require("../../../../shared/space_background");
 const { clamp } = require("../../../../../utils/data/math");
+const { estimateTextWidth, resolveCarouselBodyLines } = require("../common/text_layout");
 
 const MOON_LAYOUT = DEFAULT_MOON_LAYOUT;
-
-function estimateTextWidth(line, size) {
-  const text = String(line || "");
-  if (!text) return size * 2;
-  const len = Array.from(text).length;
-  return Math.max(size * 2, len * size * 0.82);
-}
-
-function resolveBodyMaxChars(size) {
-  const available = CANVAS.width - TOK.marginX * 2;
-  const perChar = size * 0.95;
-  return Math.max(16, Math.floor(available / perChar));
-}
 
 function resolveObservationMaxWidth() {
   return CANVAS.width - TOK.marginX * 2;
@@ -98,54 +86,16 @@ function findSafeSplitIndex(token, size, maxWidth) {
 }
 
 function wrapObservationLines(text, size, maxLines = 5) {
-  const chunks = segmentObservationText(text);
-  if (!chunks.length) return [];
-  const maxWidth = resolveObservationMaxWidth();
-  const lines = [];
-  let current = "";
-
-  const pushCurrent = () => {
-    const trimmed = current.trim();
-    if (trimmed) lines.push(trimmed);
-    current = "";
-  };
-
-  for (const chunk of chunks) {
-    const candidate = current ? `${current}${chunk}` : chunk;
-    if (measureBodyTextWidth(candidate, size) <= maxWidth) {
-      current = candidate;
-      continue;
-    }
-
-    const currentWidth = measureBodyTextWidth(current, size);
-    if (current && currentWidth < maxWidth * 0.72) {
-      const splitAt = findSafeSplitIndex(candidate, size, maxWidth);
-      lines.push(Array.from(candidate).slice(0, splitAt).join("").trim());
-      current = Array.from(candidate).slice(splitAt).join("").trimStart();
-      if (lines.length >= maxLines) return lines.slice(0, maxLines);
-      continue;
-    }
-
-    if (current) pushCurrent();
-
-    let rest = chunk;
-    while (rest) {
-      if (measureBodyTextWidth(rest, size) <= maxWidth) {
-        current = rest;
-        rest = "";
-        break;
-      }
-      const splitAt = findSafeSplitIndex(rest, size, maxWidth);
-      lines.push(Array.from(rest).slice(0, splitAt).join("").trim());
-      rest = Array.from(rest).slice(splitAt).join("").trimStart();
-      if (lines.length >= maxLines) return lines.slice(0, maxLines);
-    }
-
-    if (lines.length >= maxLines) return lines.slice(0, maxLines);
-  }
-
-  if (current && lines.length < maxLines) pushCurrent();
-  return lines.slice(0, maxLines);
+  return resolveCarouselBodyLines({
+    text,
+    size,
+    canvasWidth: CANVAS.width,
+    marginX: TOK.marginX,
+    maxChars: 22,
+    minChars: 16,
+    maxLines,
+    extraSafeWidth: 48,
+  });
 }
 
 function resolveNextLayout({ nextOffsetY = 0, lineCount = 2 } = {}) {
@@ -245,7 +195,6 @@ function getAvoidRegions({
       kind: "meta",
     }));
   }
-  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
   const observationLines = wrapObservationLines(observation, TOK.moon.observationSize, 5);
   if (observationLines.length) {
     const w = Math.max(...observationLines.map((l) => estimateTextWidth(l, TOK.moon.observationSize)));
@@ -359,7 +308,6 @@ function buildSlideMoonSvg({
   const moonY = MOON_LAYOUT.y + contentOffsetY + moonSymbolOffsetY;
   const phaseSignLine = [phaseLabel, moonSign].filter(Boolean).join(" ");
   const infoLines = [moonAgeLabel, illuminationLabel].filter(Boolean);
-  const observationMaxChars = resolveBodyMaxChars(TOK.moon.observationSize);
   const observationLines = wrapObservationLines(observation, TOK.moon.observationSize, 5);
   const nextPhaseLine = `${nextSymbol} ${nextPhaseLabel}`.trim();
   const nextNameDateLine = [nextMoonName, nextDate].filter(Boolean).join("　");
