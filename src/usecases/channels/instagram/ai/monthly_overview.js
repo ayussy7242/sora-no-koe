@@ -54,16 +54,203 @@ function formatAspectLine({ item, dict }) {
   return [item.date_local, a, aSign, aspectLabel, deg, b, bSign].filter(Boolean).join(" ");
 }
 
+function phaseEmoji(phaseKey) {
+  const map = {
+    full: "🌕",
+    new: "🌑",
+    first_quarter: "🌓",
+    last_quarter: "🌗",
+  };
+  return map[phaseKey] || "🌙";
+}
+
+function ingressEmoji(planetKey) {
+  const map = {
+    sun: "🌞",
+    moon: "🌙",
+    mercury: "💬",
+    venus: "💞",
+    mars: "🔥",
+    jupiter: "✨",
+    saturn: "🪨",
+    uranus: "🌪️",
+    neptune: "🌊",
+    pluto: "🌀",
+  };
+  return map[planetKey] || "✦";
+}
+
+function aspectEmoji(aspectKey) {
+  const map = {
+    conjunction: "⚡️",
+    sextile: "✨",
+    square: "⚡️",
+    trine: "△",
+    opposition: "☍",
+  };
+  return map[aspectKey] || "✦";
+}
+
+function phaseEventLabel({ item, dict }) {
+  const sign = signJa(dict, item?.sign_key || "");
+  const emoji = phaseEmoji(item?.phase_key);
+  if (item?.phase_key === "full") {
+    return [sign, "満月", emoji].filter(Boolean).join(" ");
+  }
+  if (item?.phase_key === "new") {
+    return [sign, "新月", emoji].filter(Boolean).join(" ");
+  }
+  if (item?.phase_key === "first_quarter") {
+    return [sign, "上弦の月", emoji].filter(Boolean).join(" ");
+  }
+  if (item?.phase_key === "last_quarter") {
+    return [sign, "下弦の月", emoji].filter(Boolean).join(" ");
+  }
+  return [sign, item?.label || item?.phase_key || "", emoji].filter(Boolean).join(" ");
+}
+
+function retroEventLabel({ item, dict }) {
+  const body = bodyLabelJa(dict, normalizeBodyKey(item?.planet_key || "")) || item?.planet_key || "";
+  const emoji = "↺";
+  if (item?.kind === "end") return `${body} 順行戻り ${emoji}`.trim();
+  return `${body} 逆行開始 ${emoji}`.trim();
+}
+
+function ingressEventLabel({ item, dict }) {
+  const body = bodyLabelJa(dict, normalizeBodyKey(item?.planet_key || "")) || item?.planet_key || "";
+  const sign = signJa(dict, item?.sign_key || "");
+  const emoji = ingressEmoji(item?.planet_key);
+  return [body, "→", sign, emoji].filter(Boolean).join(" ");
+}
+
+function aspectEventLabel({ item, dict }) {
+  const a = bodyLabelJa(dict, normalizeBodyKey(item?.a || "")) || item?.a || "";
+  const b = bodyLabelJa(dict, normalizeBodyKey(item?.b || "")) || item?.b || "";
+  const info = aspectInfo(dict, item?.aspect_key || item?.type || "", item?.aspect_deg);
+  const label = info?.label_ja || String(item?.aspect_key || item?.type || "").trim();
+  const emoji = aspectEmoji(item?.aspect_key || item?.type || "");
+  return [a, "×", b, label, emoji].filter(Boolean).join(" ");
+}
+
+function comparePromptAspects(a, b) {
+  const orbA = Number(a?.orb_deg);
+  const orbB = Number(b?.orb_deg);
+  if (Number.isFinite(orbA) && Number.isFinite(orbB) && orbA !== orbB) return orbA - orbB;
+  const degA = Number(a?.aspect_deg);
+  const degB = Number(b?.aspect_deg);
+  if (Number.isFinite(degA) && Number.isFinite(degB) && degA !== degB) return degA - degB;
+  return String(a?.date_local || "").localeCompare(String(b?.date_local || ""));
+}
+
+function buildAspectPeaksForPrompt(aspects = []) {
+  const picked = new Map();
+  aspects.forEach((aspect) => {
+    if (!aspect?.a || !aspect?.b || !aspect?.aspect_key) return;
+    const key = `${aspect.a}|${aspect.b}|${aspect.aspect_key}`;
+    const prev = picked.get(key);
+    if (!prev || comparePromptAspects(aspect, prev) < 0) picked.set(key, aspect);
+  });
+  return Array.from(picked.values());
+}
+
+function compressAspectTimeline(aspects = []) {
+  const byDate = new Map();
+  buildAspectPeaksForPrompt(aspects).forEach((aspect) => {
+    if (!aspect?.date_local) return;
+    const prev = byDate.get(aspect.date_local);
+    if (!prev || comparePromptAspects(aspect, prev) < 0) byDate.set(aspect.date_local, aspect);
+  });
+  return Array.from(byDate.values()).sort((a, b) => String(a?.date_local || "").localeCompare(String(b?.date_local || "")));
+}
+
+function buildMonthlyEventTimeline({ reference, dict }) {
+  const byDate = new Map();
+  const push = (dateLocal, type, item, label) => {
+    if (!dateLocal || !label) return;
+    const row = byDate.get(dateLocal) || [];
+    row.push({ type, label, item });
+    byDate.set(dateLocal, row);
+  };
+
+  const phases = Array.isArray(reference?.moon?.phases) ? reference.moon.phases : [];
+  const phaseByDate = new Map();
+  phases.forEach((item) => {
+    if (item?.date_local) phaseByDate.set(item.date_local, item);
+  });
+
+  const retrogrades = Array.isArray(reference?.retrogrades) ? reference.retrogrades : [];
+  const retroByDate = new Map();
+  retrogrades.forEach((item) => {
+    if (item?.start_local) {
+      const entry = { ...item, kind: "start" };
+      const list = retroByDate.get(item.start_local) || [];
+      list.push(entry);
+      retroByDate.set(item.start_local, list);
+    }
+    if (item?.end_local && String(item.end_local || "").slice(0, 7) === String(reference?.month || "")) {
+      const entry = { ...item, kind: "end" };
+      const list = retroByDate.get(item.end_local) || [];
+      list.push(entry);
+      retroByDate.set(item.end_local, list);
+    }
+  });
+
+  const ingresses = Array.isArray(reference?.sign_ingresses) ? reference.sign_ingresses : [];
+  const ingressByDate = new Map();
+  ingresses.forEach((item) => {
+    const list = ingressByDate.get(item?.date_local) || [];
+    list.push(item);
+    ingressByDate.set(item?.date_local, list);
+  });
+
+  phases.forEach((item) => {
+    push(item?.date_local, "phase", item, phaseEventLabel({ item, dict }));
+  });
+  retroByDate.forEach((items, dateLocal) => {
+    items.forEach((item) => {
+      push(dateLocal, item.kind === "end" ? "retrograde_end" : "retrograde_start", item, retroEventLabel({ item, dict }));
+    });
+  });
+  ingressByDate.forEach((items, dateLocal) => {
+    items.forEach((item) => {
+      push(dateLocal, "sign_ingress", item, ingressEventLabel({ item, dict }));
+    });
+  });
+
+  const aspectRuns = compressAspectTimeline(Array.isArray(reference?.aspects) ? reference.aspects : []);
+  aspectRuns.forEach((item) => {
+      const dateLocal = item?.date_local;
+      if (!dateLocal) return;
+      if (String(item?.aspect_key || item?.type || "") !== "conjunction") return;
+      const hasIngress = (ingressByDate.get(dateLocal) || []).length > 0;
+      const hasRetro = (retroByDate.get(dateLocal) || []).length > 0;
+      const phase = phaseByDate.get(dateLocal);
+      const phaseKey = String(phase?.phase_key || "");
+      const blocksAspect = hasIngress || hasRetro || phaseKey === "full" || phaseKey === "new";
+      if (blocksAspect) return;
+      push(dateLocal, "aspect", item, aspectEventLabel({ item, dict }));
+    });
+
+  return Array.from(byDate.entries())
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    .map(([dateLocal, items]) => ({
+      date_local: dateLocal,
+      items: items.map((row) => row.label).filter(Boolean),
+    }));
+}
+
 function buildCaptionPrompt({ month, reference, dict }) {
   const phases = Array.isArray(reference?.moon?.phases) ? reference.moon.phases : [];
   const retrogrades = Array.isArray(reference?.retrogrades) ? reference.retrogrades : [];
   const ingresses = Array.isArray(reference?.sign_ingresses) ? reference.sign_ingresses : [];
   const aspects = Array.isArray(reference?.aspects) ? reference.aspects : [];
+  const timeline = buildMonthlyEventTimeline({ reference, dict });
 
   const phaseLines = phases.map((p) => formatPhaseLine({ item: p, dict })).filter(Boolean);
   const retroLines = retrogrades.map((r) => formatRetroLine({ item: r, dict })).filter(Boolean);
   const ingressLines = ingresses.map((r) => formatIngressLine({ item: r, dict })).filter(Boolean);
   const aspectLines = aspects.map((a) => formatAspectLine({ item: a, dict })).filter(Boolean);
+  const timelineLines = timeline.map((entry) => `${entry.date_local}: ${entry.items.join(" | ")}`);
 
   return [
     SORA_AI_USER_GUIDE_IG_MONTHLY_CAPTION,
@@ -71,6 +258,7 @@ function buildCaptionPrompt({ month, reference, dict }) {
     "INPUT:",
     `MONTH: ${month}`,
     `TITLE_LINE: ⭐️ ${formatMonthDot(month)} 今月の星カレンダー`,
+    `TIMELINE: ${timelineLines.join(" || ")}`,
     `PHASES: ${phaseLines.join(" | ")}`,
     `RETROGRADES: ${retroLines.join(" | ")}`,
     `SIGN_INGRESSES: ${ingressLines.join(" | ")}`,
@@ -162,12 +350,12 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
   if (forceAi) resolvedMaxRetries = Math.max(resolvedMaxRetries, 4);
 
   const titleLine = `⭐️ ${formatMonthDot(month)} 今月の星カレンダー`;
-  const maxBodyChars = 800;
+  const maxBodyChars = 1000;
 
   const result = await generateWithRetry({
     buildPrompt: () => buildCaptionPrompt({ month, reference, dict }),
     buildRetryNote: () =>
-      "条件外でした。今月の予定が読める形式で、全項目を含め、まとめ行とハッシュタグ行まで書いて再出力してください。",
+      "条件外でした。TIMELINEの全項目を落とさず、各説明は短く、文末は必ず「。」か絵文字で閉じ、まとめは3〜4文で意味と力学が読める明るい締めにして、全体を1000文字以内で再出力してください。",
     validate: ({ raw }) => {
       const verdict = runAiTextPipeline({
         rawText: raw,
@@ -177,7 +365,6 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
       if (!verdict.ok) return { ok: false, reason: verdict.reason || "" };
       const text = String(verdict.text || "");
       if (!text.includes("今月の空模様のまとめ")) return { ok: false, reason: "missing_summary" };
-      if (!text.split("\n").some((line) => line.trim().startsWith("#"))) return { ok: false, reason: "missing_hashtags" };
       const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
       if (lines.some((line) => !hasValidLineEnding(line))) return { ok: false, reason: "invalid_line_ending" };
       return { ok: true, text: verdict.text };
@@ -221,6 +408,8 @@ async function generateIgMonthlyCaptionText({ month, reference, dict, openai, ma
 module.exports = {
   generateIgMonthlyCaptionText,
   formatMonthDot,
+  buildCaptionPrompt,
+  buildMonthlyEventTimeline,
   buildCaptionFallback,
   buildCaptionHashtags,
 };

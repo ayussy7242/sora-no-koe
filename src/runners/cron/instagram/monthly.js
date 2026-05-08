@@ -309,7 +309,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
     const exportPayload = await buildMonthlyExport({ month, dict, templatePath, storyDay: opts.storyDay || 15 });
     const carousel = buildMonthlyCarousel({ payload: exportPayload });
     const useAi = opts.useAi !== false;
-    const forceAi = opts.forceAi === true;
+    const forceAi = useAi ? opts.forceAi !== false : false;
     const aiRes = useAi
       ? await generateIgMonthlyCaptionText({
           month,
@@ -326,6 +326,9 @@ async function runIgMonthlyPost(deps, opts = {}) {
     if (useAi && forceAi && !aiRes.ok) {
       throw new Error(`monthly_caption_ai_failed:${aiRes.reason || aiRes.error || "unknown"}`);
     }
+    const captionSource = aiRes.ok
+      ? (aiRes.fallback ? "fallback" : "ai")
+      : "fallback";
     const captionBody = aiRes.ok
       ? aiRes.text
       : buildCaptionFallback({ month, reference: exportPayload.reference, dict });
@@ -343,6 +346,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
           date_local: dateLocal,
           as_of: asOfISO,
           caption,
+          caption_source: captionSource,
           caption_length: Array.from(String(caption || "")).length,
           ai: aiRes,
           carousel,
@@ -360,6 +364,7 @@ async function runIgMonthlyPost(deps, opts = {}) {
         date_local: dateLocal,
         as_of: asOfISO,
         caption,
+        caption_source: captionSource,
         local_dir: localOutDir,
         local_paths: localPaths,
         local_json: jsonPath,
@@ -462,6 +467,8 @@ async function runIgMonthlyPost(deps, opts = {}) {
       date_local: dateLocal,
       as_of: asOfISO,
       caption,
+      caption_source: captionSource,
+      ai: aiRes,
       image_urls: upload.urls,
       gcs_paths: upload.paths,
       carousel_container_id: creationId,

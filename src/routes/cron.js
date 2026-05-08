@@ -346,7 +346,7 @@ function createCronRouter(deps = {}) {
         asOfISO,
         dryRun: pickDryRun({ q, b }),
         useAi: pickBoolFlag({ q, b, keys: ["ai"], defaultValue: true }),
-        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: false }),
+        forceAi: pickBoolFlag({ q, b, keys: ["force_ai", "forceAi"], defaultValue: true }),
         local: pickBoolFlag({ q, b, keys: ["local", "local_only", "localOnly"], defaultValue: false }),
         localOutDir: getLocalOutDir(q, b),
         force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),

@@ -182,11 +182,14 @@ function buildGrid({ calendar, colors, headerBottomY }) {
       const cellX = gridX + c * cellWidth;
       const cellY = yWeek + r * cellHeight;
 
+      const isInMonth = cell?.in_month !== false;
       const dateX = cellX + GRID.cellPadX;
       const dateY = cellY + GRID.cellPadY + GRID.dateSize;
       parts.push(
-        `<text x="${dateX}" y="${dateY}" fill="${colors.textMain}" font-size="${GRID.dateSize}" font-family="SoraBodyMedium" letter-spacing="0.04em">${escapeXml(String(day))}</text>`
+        `<text x="${dateX}" y="${dateY}" fill="${isInMonth ? colors.textMain : colors.textDim}" fill-opacity="${isInMonth ? 1 : 0.45}" font-size="${GRID.dateSize}" font-family="SoraBodyMedium" letter-spacing="0.04em">${escapeXml(String(day))}</text>`
       );
+
+      if (!isInMonth) continue;
 
       const phaseX = cellX + cellWidth - GRID.cellPadX - GRID.phaseSize;
       const phaseY = cellY + GRID.cellPadY + 2;

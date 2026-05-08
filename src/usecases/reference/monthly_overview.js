@@ -74,6 +74,20 @@ function nextMonthStr(month) {
   return `${ny}-${String(nm).padStart(2, "0")}`;
 }
 
+function prevMonthStr(month) {
+  const [yRaw, mRaw] = String(month).split("-");
+  const y = Number(yRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+  let ny = y;
+  let nm = m - 1;
+  if (nm < 1) {
+    nm = 12;
+    ny -= 1;
+  }
+  return `${ny}-${String(nm).padStart(2, "0")}`;
+}
+
 function formatMonthLabel(month) {
   const [yRaw, mRaw] = String(month).split("-");
   const y = Number(yRaw);
@@ -777,6 +791,9 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
         const rows = Math.max(5, rawRows);
         const cols = 7;
         const gridSize = rows * cols;
+        const prevMonth = prevMonthStr(reference.month);
+        const nextMonth = nextMonthStr(reference.month);
+        const prevMonthTotalDays = prevMonth ? daysInMonth(prevMonth.slice(0, 4), prevMonth.slice(5, 7)) : 0;
         const cells = Array.from({ length: gridSize }, (_, i) => ({
           row: Math.floor(i / cols),
           col: i % cols,
@@ -785,7 +802,23 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
           weekday: i % cols,
           phase_icon: "",
           lines: [],
+          in_month: false,
         }));
+
+        for (let i = 0; i < gridSize; i += 1) {
+          const cell = cells[i];
+          if (i < firstWeekday && prevMonth && prevMonthTotalDays > 0) {
+            const day = prevMonthTotalDays - firstWeekday + i + 1;
+            cell.day = day;
+            cell.date_local = `${prevMonth}-${String(day).padStart(2, "0")}`;
+            continue;
+          }
+          if (i >= firstWeekday + totalDays && nextMonth) {
+            const day = i - (firstWeekday + totalDays) + 1;
+            cell.day = day;
+            cell.date_local = `${nextMonth}-${String(day).padStart(2, "0")}`;
+          }
+        }
 
         const dates = listDateLocalsInRange(startLocal, endLocal);
         const phaseByDate = new Map();
@@ -832,6 +865,7 @@ function buildMonthlyOverviewDeck({ reference, template } = {}) {
           cell.day = day;
           cell.weekday = weekday;
           cell.phase_icon = dailyPhaseIcon(dateLocal);
+          cell.in_month = true;
 
           const items = [];
           let seq = 0;
