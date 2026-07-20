@@ -10,6 +10,7 @@ const {
   isPaidAllowed,
   paidOnlyMessage,
   getPaidStatus,
+  createCheckoutUrlForLine500,
 } = require("./payment");
 const { handleBlueprintLight } = require("./blueprint");
 const {
@@ -36,16 +37,6 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   // 3) intent（唯一の判定）
   const intentKey = intent.intentFromcommand(cmd);
   const relationEnabled = ["1", "true", "yes", "on"].includes(String(env.RELATION_ENABLED || "").toLowerCase());
-  const plusIntents = new Set([
-    intent.INTENT.PLUS_MENU,
-    intent.INTENT.PLUS_JOIN,
-    intent.INTENT.PLUS_CANCEL,
-  ]);
-
-  if (plusIntents.has(intentKey)) {
-    return { text: LINE_COPY.PLUS_PAUSED || "ただいま準備中です。", stage: "plus_paused_forced" };
-  }
-
   if (!relationEnabled) {
     if (relation?.getRelationState && lineUserId) {
       const relState = await relation.getRelationState(lineUserId);
@@ -82,7 +73,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
   }
 
   if (intentKey === intent.INTENT.PLUS_MENU || intentKey === intent.INTENT.PLUS_JOIN) {
-    if (!plusEnabled || intentKey === intent.INTENT.PLUS_MENU) {
+    if (!plusEnabled) {
       return {
         text: LINE_COPY.PLUS_PAUSED || "観測ログ＋は現在準備中です。",
         stage: "plus_menu_paused",
@@ -114,7 +105,7 @@ async function processCommand({ rawText, cmd, appUserId, lineUserId, modules, re
     const inviteText =
       typeof LINE_COPY.PLUS_INVITE === "function"
         ? LINE_COPY.PLUS_INVITE(url)
-        : `観測ログ＋ 入会はこちら👇\n${url}`;
+        : `ソラのこえ＋ 登録はこちら👇\n${url}`;
     return { text: inviteText, stage: "plus_join" };
   }
 

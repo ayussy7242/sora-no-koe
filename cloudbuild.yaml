@@ -1,9 +1,9 @@
 steps:
-  - name: "gcr.io/cloud-builders/docker"
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    entrypoint: "bash"
     args:
-      - "pull"
-      - "asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:latest"
-    ignoreExitStatus: true
+      - "-lc"
+      - "docker pull asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/sora-no-koe/sora-no-koe-v2:latest || true"
 
   - name: "gcr.io/cloud-builders/docker"
     args:

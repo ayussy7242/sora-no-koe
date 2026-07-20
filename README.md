@@ -201,10 +201,24 @@ Cloud Run では **Buildpacks ではなく Dockerfile でビルド**します。
 Swiss Ephemeris（swisseph）のネイティブアドオンが **ビルド環境と実行環境のABI不整合で落ちる**ため、
 同一コンテナ内でビルド・実行する方式に固定しています。
 
+通常の本番デプロイ（source deploy）：
+```bash
+gcloud run deploy sora-no-koe-v2 \
+  --source . \
+  --region asia-northeast1 \
+  --allow-unauthenticated \
+  --timeout 600
+```
+
 Cloud Build で Docker ビルド＋デプロイ：
 ```bash
 gcloud builds submit --config cloudbuild.yaml
 ```
+
+補足:
+- `cloudbuild.yaml` は Docker イメージを Artifact Registry に push してから `sora-no-koe-v2` を更新する
+- `gcloud run deploy --source .` は Cloud Run 側の source deploy を使う
+- 運用上どちらを使ってもよいが、急ぎの反映は `gcloud run deploy --source .` が分かりやすい
 
 ---
 

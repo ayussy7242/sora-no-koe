@@ -73,6 +73,13 @@ async function createCheckoutUrlForLine500({ lineUserId }) {
       plan: "line_500",
       line_user_id: lineUserId || "",
     },
+    subscription_data: {
+      metadata: {
+        product: "line_500",
+        plan: "line_500",
+        line_user_id: lineUserId || "",
+      },
+    },
   });
 
   return { ok: true, url: session.url, mode: "checkout_session" };
