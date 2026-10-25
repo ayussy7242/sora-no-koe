@@ -70,6 +70,22 @@ function createCronRouter(deps = {}) {
 
   const requireCronToken = createCronTokenGuard({ env: env2 });
 
+  function nonLineCronDisabledResult(path) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "NON_LINE_CRON_DISABLED",
+      path: `/cron${path}`,
+    };
+  }
+
+  function withNonLineCronGate(path, run) {
+    return async (args) => {
+      if (!env2.NON_LINE_CRON_ENABLED) return nonLineCronDisabledResult(path);
+      return run(args);
+    };
+  }
+
   function getLocalOutDir(q = {}, b = {}) {
     return b?.local_out_dir ?? q?.local_out_dir ?? b?.localOutDir ?? q?.localOutDir;
   }
@@ -190,7 +206,8 @@ function createCronRouter(deps = {}) {
         force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
       };
     },
-    run: ({ opts }) => runDailyIgStoryDelivery({ env, storyService, storage, dict, db, admin }, opts),
+    run: withNonLineCronGate("/ig/story/daily", ({ opts }) =>
+      runDailyIgStoryDelivery({ env, storyService, storage, dict, db, admin }, opts)),
   });
 
   registerCronRoutes([
@@ -216,7 +233,8 @@ function createCronRouter(deps = {}) {
           localOutDir: getLocalOutDir(q, b),
         };
       },
-      run: ({ opts }) => runXMorningPost({ env, storyService, renderers, dict, db }, opts),
+      run: withNonLineCronGate("/x/morning", ({ opts }) =>
+        runXMorningPost({ env, storyService, renderers, dict, db }, opts)),
     },
     {
       path: "/x/resonance",
@@ -239,7 +257,8 @@ function createCronRouter(deps = {}) {
           localOutDir: getLocalOutDir(q, b),
         };
       },
-      run: ({ opts }) => runXResonancePost({ env, storyService, renderers, dict, db }, opts),
+      run: withNonLineCronGate("/x/resonance", ({ opts }) =>
+        runXResonancePost({ env, storyService, renderers, dict, db }, opts)),
     },
     {
       path: "/x/night",
@@ -261,7 +280,8 @@ function createCronRouter(deps = {}) {
           localOutDir: getLocalOutDir(q, b),
         };
       },
-      run: ({ opts }) => runXNightPost({ env, storyService, renderers, dict, db }, opts),
+      run: withNonLineCronGate("/x/night", ({ opts }) =>
+        runXNightPost({ env, storyService, renderers, dict, db }, opts)),
     },
     {
       path: "/x/moon_event",
@@ -281,7 +301,8 @@ function createCronRouter(deps = {}) {
           localOutDir: getLocalOutDir(q, b),
         };
       },
-      run: ({ opts }) => runXMoonEventPost({ env, storyService, renderers, dict, db }, opts),
+      run: withNonLineCronGate("/x/moon_event", ({ opts }) =>
+        runXMoonEventPost({ env, storyService, renderers, dict, db }, opts)),
     },
     {
       path: "/x/next_30_days",
@@ -300,7 +321,8 @@ function createCronRouter(deps = {}) {
           localOutDir: getLocalOutDir(q, b),
         };
       },
-      run: ({ opts }) => runXNext30DaysPost({ env, storyService, renderers, dict, db }, opts),
+      run: withNonLineCronGate("/x/next_30_days", ({ opts }) =>
+        runXNext30DaysPost({ env, storyService, renderers, dict, db }, opts)),
     },
   ]);
 
@@ -327,7 +349,8 @@ function createCronRouter(deps = {}) {
           force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
         };
       },
-      run: ({ opts }) => runIgPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+      run: withNonLineCronGate("/ig/post", ({ opts }) =>
+        runIgPost({ db, admin, env, storyService, renderers, storage, dict }, opts)),
     },
   ]);
 
@@ -352,7 +375,8 @@ function createCronRouter(deps = {}) {
         force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
       };
     },
-    run: ({ opts }) => runIgMonthlyPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+    run: withNonLineCronGate("/ig/monthly", ({ opts }) =>
+      runIgMonthlyPost({ db, admin, env, storyService, renderers, storage, dict }, opts)),
   });
 
   registerCronPostRoute(router, {
@@ -378,7 +402,8 @@ function createCronRouter(deps = {}) {
         force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
       };
     },
-    run: ({ opts }) => runIgMonthlyOverviewReel({ db, admin, env, storyService, storage, dict }, opts),
+    run: withNonLineCronGate("/ig/monthly_overview_reel", ({ opts }) =>
+      runIgMonthlyOverviewReel({ db, admin, env, storyService, storage, dict }, opts)),
   });
 
   registerCronRoutes([
@@ -403,7 +428,8 @@ function createCronRouter(deps = {}) {
           force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
         };
       },
-      run: ({ opts }) => runIgMorningPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+      run: withNonLineCronGate("/ig/morning", ({ opts }) =>
+        runIgMorningPost({ db, admin, env, storyService, renderers, storage, dict }, opts)),
     },
     {
       path: "/ig/resonance",
@@ -425,7 +451,8 @@ function createCronRouter(deps = {}) {
           force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
         };
       },
-      run: ({ opts }) => runIgResonancePost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+      run: withNonLineCronGate("/ig/resonance", ({ opts }) =>
+        runIgResonancePost({ db, admin, env, storyService, renderers, storage, dict }, opts)),
     },
     {
       path: "/ig/night",
@@ -447,7 +474,8 @@ function createCronRouter(deps = {}) {
           force: pickBoolFlag({ q, b, keys: ["force", "force_lock", "forceLock"], defaultValue: false }),
         };
       },
-      run: ({ opts }) => runIgNightPost({ db, admin, env, storyService, renderers, storage, dict }, opts),
+      run: withNonLineCronGate("/ig/night", ({ opts }) =>
+        runIgNightPost({ db, admin, env, storyService, renderers, storage, dict }, opts)),
     },
 
     {
@@ -478,7 +506,8 @@ function createCronRouter(deps = {}) {
                 : "",
         };
       },
-      run: ({ opts }) => runIgMoonEventPost({ env, storyService, storage, dict, db }, opts),
+      run: withNonLineCronGate("/ig/moon_event", ({ opts }) =>
+        runIgMoonEventPost({ env, storyService, storage, dict, db }, opts)),
     },
   ]);
 
@@ -499,7 +528,8 @@ function createCronRouter(deps = {}) {
         localOutDir: getLocalOutDir(q, b),
       };
     },
-    run: ({ opts }) => runDailyBlog({ env: env2, storyService, db }, opts),
+    run: withNonLineCronGate("/blog/daily", ({ opts }) =>
+      runDailyBlog({ env: env2, storyService, db }, opts)),
   });
 
 

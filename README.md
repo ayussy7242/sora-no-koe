@@ -67,6 +67,10 @@ Outputs:
 - IG / X / Threads / LINE 向け出力
 - Blueprint（PDF）生成とGCS保存
 
+運用フラグ
+- `NON_LINE_CRON_ENABLED=0` で `X / IG / BLOG` の `/cron/*` を一括停止（LINE系 cron は継続）
+- `NON_LINE_HTTP_ENABLED=0` で `/ig/*` HTTP 入口を停止
+
 ---
 
 ## 1. レイヤー役割（責務）
@@ -207,6 +211,7 @@ gcloud run deploy sora-no-koe-v2 \
   --source . \
   --region asia-northeast1 \
   --allow-unauthenticated \
+  --env-vars-file env-vars.yaml \
   --timeout 600
 ```
 

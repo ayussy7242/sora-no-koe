@@ -146,6 +146,8 @@ function createApp(deps = {}) {
         storyService: !!deps.storyService,
         renderers: !!deps.renderers,
         geocoder: !!deps.geocoder,
+        nonLineCronEnabled: env.NON_LINE_CRON_ENABLED !== false,
+        nonLineHttpEnabled: env.NON_LINE_HTTP_ENABLED !== false,
       },
     });
   });

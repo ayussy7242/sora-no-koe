@@ -44,6 +44,16 @@ function createIgRouter(deps = {}) {
   const env = deps.env || {};
   const env2 = resolveEnv(env);
 
+  router.use((req, res, next) => {
+    if (env2.NON_LINE_HTTP_ENABLED) return next();
+    return res.status(503).json({
+      ok: false,
+      error: "non-line http disabled",
+      code: "NON_LINE_HTTP_DISABLED",
+      path: req.path,
+    });
+  });
+
   function parseProxyAllowPrefixes() {
     const raw = String(env2.IG_PROXY_ALLOW_PREFIXES || "ig/carousel/,ig/story/,ig/moon_event/").trim();
     return raw

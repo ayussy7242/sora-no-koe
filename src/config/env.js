@@ -145,6 +145,12 @@ const DEBUG_TOKEN = getEnv("DEBUG_TOKEN", { defaultValue: null });
 const HEALTH_DB_PING = boolEnv("HEALTH_DB_PING", false);
 
 // --------------------
+// channel runtime gates
+// --------------------
+const NON_LINE_CRON_ENABLED = boolEnv("NON_LINE_CRON_ENABLED", true);
+const NON_LINE_HTTP_ENABLED = boolEnv("NON_LINE_HTTP_ENABLED", true);
+
+// --------------------
 // feature flags
 // --------------------
 const FEATURES = {
@@ -305,6 +311,8 @@ module.exports = {
   // debug / ops
   DEBUG_TOKEN,
   HEALTH_DB_PING,
+  NON_LINE_CRON_ENABLED,
+  NON_LINE_HTTP_ENABLED,
 
   // feature flags
   FEATURES,
